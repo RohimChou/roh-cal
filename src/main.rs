@@ -1,4 +1,5 @@
 use color_eyre::Result;
+use jiff::{Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
@@ -9,17 +10,27 @@ fn main() -> Result<()> {
     // 出錯時印出好讀的錯誤訊息與 backtrace
     color_eyre::install()?;
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
-    ratatui::run(|terminal| App::default().run(terminal))
+    ratatui::run(|terminal| App::new().run(terminal))
 }
 
 /// 整個 app 的狀態
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct App {
     /// true 時離開主迴圈
     should_quit: bool,
+    /// 今天的日期（啟動時取一次，用本機時區）
+    today: Date,
 }
 
 impl App {
+    /// 建立 app，記下今天的日期
+    fn new() -> Self {
+        Self {
+            should_quit: false,
+            today: Zoned::now().date(),
+        }
+    }
+
     /// 主迴圈：畫畫面 → 等按鍵 → 更新狀態，直到要離開
     fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
@@ -32,7 +43,9 @@ impl App {
     /// 依目前狀態畫出整個畫面
     fn render(&self, frame: &mut Frame) {
         let block = Block::bordered().title(" roh-cal ");
-        let body = Paragraph::new("Hello, ratatui!  按 q 或 Esc 離開").block(block);
+        // Date 印出來是 2026-10-10 這種格式
+        let text = format!("今天是 {}  按 q 或 Esc 離開", self.today);
+        let body = Paragraph::new(text).block(block);
         frame.render_widget(body, frame.area());
     }
 
