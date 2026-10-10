@@ -2,6 +2,7 @@ mod app;
 mod calendar;
 mod i18n;
 mod theme;
+mod ui;
 
 use app::App;
 use color_eyre::{Result, eyre::bail};
