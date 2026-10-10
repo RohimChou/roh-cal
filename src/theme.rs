@@ -30,7 +30,7 @@ pub struct Theme {
     pub selected: Style,
     /// 選取的那一整行（像 vim 的 cursorline），墊在這行所有日期底下
     pub cursor_line: Style,
-    /// 右邊的月份標記（每個月 1 號那行的「11 月」）
+    /// 右邊的月份標記（每個月 15 號那行的「11 月」）
     pub month_marker: Style,
     /// 左邊欄：選取那行的週數
     pub week_number: Style,

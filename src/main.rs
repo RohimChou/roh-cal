@@ -23,6 +23,8 @@ const WEEKS: i64 = 8;
 const SCROLLOFF: i64 = 1;
 /// 框線和內容之間：左右各空幾格、上下各空幾行
 const PADDING: Padding = Padding::symmetric(2, 1);
+/// 月份標記標在每個月幾號的那一行；15 號一定在一個月的中間幾行
+const MARKER_DAY: i8 = 15;
 /// 右邊月份標記的寬度：「 11 月」= 空白 1 + 月份 2 + 空白 1 + 「月」2（中文字佔 2 格）
 const MONTH_MARKER_WIDTH: u16 = 6;
 /// 月曆框的寬度：左右框線 2 + 左右 padding + 左邊欄 4 + 7 天 × 每格 5 + 月份標記
@@ -224,7 +226,7 @@ fn week_of_year(date: Date) -> i16 {
 /// 組出月曆：星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
 ///
 /// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行。
-/// 每行最右邊：這週有某個月的 1 號，就標出那個月（例：「11 月」）。
+/// 每行最右邊：這週有某個月的 `MARKER_DAY` 號，就標出那個月（例：「11 月」），看起來像標在月份中間。
 /// 顏色都來自 `theme`：週末、其他月份、今天、選取各有自己的樣式（疊的順序見 `Theme`）
 ///
 /// 左邊欄 4 格，每格日期 5 個字元寬、靠右對齊在星期名稱下面，例：選 2026-10-10
@@ -283,12 +285,12 @@ fn calendar_lines(
         }
         week.push_span(" ");
 
-        // 這週如果有某個月的 1 號，記下是幾月，排完 7 天後標在最右邊
-        let mut month_start = None;
+        // 這週如果有某個月的 MARKER_DAY 號，記下是幾月，排完 7 天後標在最右邊
+        let mut marker_month = None;
         // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
         for date in monday.series(1.day()).take(7) {
-            if date.day() == 1 {
-                month_start = Some(date.month());
+            if date.day() == MARKER_DAY {
+                marker_month = Some(date.month());
             }
             // 依序疊上 style（順序見 `Theme` 的說明）
             let mut style = theme.day.patch(weekend_style(date.weekday(), theme));
@@ -306,7 +308,7 @@ fn calendar_lines(
             week.push_span(" ");
             week.push_span(Span::styled(format!(" {:>2} ", date.day()), style));
         }
-        let marker = match month_start {
+        let marker = match marker_month {
             Some(month) => format!(" {}", (texts.month_marker)(month)),
             None => String::new(),
         };
