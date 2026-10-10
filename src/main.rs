@@ -5,9 +5,10 @@ use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
+    layout::Rect,
     style::Style,
     text::{Line, Span},
-    widgets::{Block, Paragraph},
+    widgets::{Block, BorderType, Padding, Paragraph},
 };
 use theme::Theme;
 
@@ -15,6 +16,12 @@ use theme::Theme;
 const WEEKS: i64 = 8;
 /// 選取的那週離上下邊緣至少保留幾週，不夠就捲動（像 vim 的 scrolloff）
 const SCROLLOFF: i64 = 1;
+/// 框線和內容之間：左右各空幾格、上下各空幾行
+const PADDING: Padding = Padding::symmetric(2, 1);
+/// 月曆框的寬度：左右框線 2 + 左右 padding + 左邊欄 4 + 7 天 × 每格 5
+const CALENDAR_WIDTH: u16 = 2 + PADDING.left + PADDING.right + 4 + 7 * 5;
+/// 月曆框的高度：上下框線 2 + 上下 padding + 星期列 1 + WEEKS 週
+const CALENDAR_HEIGHT: u16 = 2 + PADDING.top + PADDING.bottom + 1 + WEEKS as u16;
 
 fn main() -> Result<()> {
     // 出錯時印出好讀的錯誤訊息與 backtrace
@@ -66,13 +73,26 @@ impl App {
 
     /// 依目前狀態畫出整個畫面
     fn render(&self, frame: &mut Frame) {
-        let block = Block::bordered().title(" roh-cal ");
-        // 月曆下面空一行，再放操作說明
-        let mut lines = calendar_lines(self.top, self.selected, self.today, &self.theme);
-        lines.push(Line::default());
-        lines.push(Line::from("h / j / k / l 移動  t 今天  q 或 Esc 離開"));
-        let body = Paragraph::new(lines).block(block);
-        frame.render_widget(body, frame.area());
+        let month = self.selected.first_of_month();
+        let title = format!(" {} 年 {} 月 ", month.year(), month.month());
+        let block = Block::bordered()
+            // 圓角框線 ╭─╮
+            .border_type(BorderType::Rounded)
+            .padding(PADDING)
+            // 上邊線中間：選取日期的年月
+            .title_top(Line::styled(title, self.theme.title).centered())
+            // 下邊線中間：操作說明
+            .title_bottom(Line::from(" h/j/k/l 移動 · t 今天 · q 離開 ").centered());
+
+        // 框只畫到剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
+        let area = frame.area();
+        let area = Rect {
+            width: area.width.min(CALENDAR_WIDTH),
+            height: area.height.min(CALENDAR_HEIGHT),
+            ..area
+        };
+        let lines = calendar_lines(self.top, self.selected, self.today, &self.theme);
+        frame.render_widget(Paragraph::new(lines).block(block), area);
     }
 
     /// 處理一個輸入事件；event::read() 會 block 到有輸入為止
@@ -156,11 +176,10 @@ fn week_of_year(date: Date) -> i16 {
     (date.day_of_year() - 1 + i16::from(offset)) / 7 + 1
 }
 
-/// 組出月曆：標題、星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
+/// 組出月曆：星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
 ///
 /// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行。
-/// 標題是選取日期的年月，不是那個月的日期用灰色；
-/// 選取的日期反白、今天的日期加底線，兩個是同一天就兩種都套
+/// 不是選取日期那個月的日期用灰色；選取的日期反白、今天的日期加底線，兩個是同一天就兩種都套
 ///
 /// 左邊欄 4 格，每格日期 5 個字元寬、靠右對齊在星期名稱下面，例：選 2026-10-10
 /// ```text
@@ -181,10 +200,7 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
         .position(|&monday| monday == monday_of(selected))
         .unwrap_or(0);
 
-    let mut lines = vec![
-        Line::from(format!("    {} 年 {} 月", month.year(), month.month())),
-        Line::from("     MON  TUE  WED  THU  FRI  SAT  SUN"),
-    ];
+    let mut lines = vec![Line::from("     MON  TUE  WED  THU  FRI  SAT  SUN")];
     for (row, monday) in mondays.into_iter().enumerate() {
         let mut week = Line::default();
         // 左邊欄：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）

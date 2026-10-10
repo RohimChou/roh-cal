@@ -8,6 +8,8 @@ use ratatui::style::{Color, Modifier, Style};
 /// 其他月份 → 今天 → 選取，後面的會蓋掉前面設過的顏色
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
+    /// 上邊線的年月標題
+    pub title: Style,
     /// 不是選取日期那個月的日期
     pub other_month: Style,
     /// 今天
@@ -24,6 +26,7 @@ impl Default for Theme {
     /// 預設 theme：terminal 的 16 色
     fn default() -> Self {
         Self {
+            title: Style::new().add_modifier(Modifier::BOLD),
             other_month: Style::new().fg(Color::DarkGray),
             today: Style::new().add_modifier(Modifier::UNDERLINED),
             // 反白：前景色和背景色對調
