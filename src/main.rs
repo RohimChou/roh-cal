@@ -84,9 +84,13 @@ struct App {
 }
 
 impl App {
-    /// 建立 app，記下今天的日期；一開始選取今天
+    /// 建立 app，今天用系統時間（本機時區）
     fn new(texts: Texts) -> Self {
-        let today = Zoned::now().date();
+        Self::on_date(Zoned::now().date(), texts)
+    }
+
+    /// 建立 app，指定「今天」是哪天；一開始選取今天（test 用這個指定日期）
+    fn on_date(today: Date, texts: Texts) -> Self {
         let mut app = Self {
             should_quit: false,
             today,
@@ -334,4 +338,142 @@ fn weekend_style(weekday: Weekday, theme: &Theme) -> Style {
 /// 文字在 terminal 上佔幾格：英文字母 1 格、中文字 2 格，例：「11 月」佔 5 格
 fn display_width(text: &str) -> usize {
     Span::raw(text).width()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jiff::civil::{Weekday, date};
+
+    /// 選取的那週在畫面第幾行（0 = 最上面）；不在畫面上回傳 `None`
+    fn selected_row(app: &App) -> Option<i64> {
+        let week = monday_of(app.selected);
+        (0..WEEKS).find(|&row| app.top.saturating_add(row.weeks()) == week)
+    }
+
+    #[test]
+    fn week_of_year_cross_year_follows_selected_date() {
+        // 跨年那週：看選取的日期落在哪一年
+        assert_eq!(week_of_year(date(2025, 12, 30)), 53);
+        assert_eq!(week_of_year(date(2026, 1, 1)), 1);
+        assert_eq!(week_of_year(date(2026, 1, 2)), 1);
+        assert_eq!(week_of_year(date(2026, 12, 31)), 53);
+        assert_eq!(week_of_year(date(2027, 1, 1)), 1);
+        // 一般日期
+        assert_eq!(week_of_year(date(2026, 10, 10)), 41);
+        // 閏年又 1/1 是星期日，12/31 是第 54 週
+        assert_eq!(week_of_year(date(2012, 12, 31)), 54);
+    }
+
+    #[test]
+    fn week_of_year_matches_counting_mondays() {
+        // 用另一種算法核對：週數 = 1 + 1/1 之後到這天為止出現過幾個星期一
+        let mut day = date(2000, 1, 1);
+        while day < date(2040, 1, 1) {
+            let mondays = day
+                .first_of_year()
+                .series(1.day())
+                .skip(1)
+                .take_while(|&d| d <= day)
+                .filter(|d| d.weekday() == Weekday::Monday)
+                .count();
+            assert_eq!(
+                usize::try_from(week_of_year(day)).ok(),
+                Some(mondays + 1),
+                "{day}"
+            );
+            day = day.saturating_add(1.day());
+        }
+    }
+
+    #[test]
+    fn opening_screen_shows_week_before_the_1st_on_top() {
+        let app = App::on_date(date(2026, 10, 10), Texts::en());
+        // 10/1 是星期四 → 那週的星期一是 9/28 → 前一週是 9/21
+        assert_eq!(app.top, date(2026, 9, 21));
+        assert_eq!(selected_row(&app), Some(2));
+    }
+
+    #[test]
+    fn scrolling_keeps_selected_row_inside_scrolloff() {
+        let min_row = SCROLLOFF;
+        let max_row = WEEKS - 1 - SCROLLOFF;
+        let starts = [
+            date(2026, 10, 10),
+            date(2026, 3, 1),
+            date(2027, 2, 1),
+            date(2028, 2, 29),
+            date(2026, 12, 31),
+        ];
+        // h / l / k / j 各按 400 次（約 1 年 / 8 年）
+        for start in starts {
+            for days in [-1, 1, -7, 7] {
+                let mut app = App::on_date(start, Texts::en());
+                let mut previous = selected_row(&app).expect("selected on screen");
+                for _ in 0..400 {
+                    app.move_selected(days);
+                    let row = selected_row(&app).expect("selected on screen");
+                    assert!(
+                        (min_row..=max_row).contains(&row),
+                        "{start} {days}: row {row}"
+                    );
+                    // 每按一次最多移 1 行，畫面不會跳
+                    assert!((row - previous).abs() <= 1, "{start} {days}: jumped");
+                    assert_eq!(app.top.weekday(), Weekday::Monday);
+                    previous = row;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn calendar_always_has_weekday_header_plus_fixed_weeks() {
+        let app = App::on_date(date(2027, 2, 1), Texts::en());
+        let lines = calendar_lines(app.top, app.selected, app.today, &app.theme, &app.texts);
+        assert_eq!(lines.len(), 1 + usize::try_from(WEEKS).unwrap_or(0));
+        // 每一行一樣寬：左邊欄 4 + 7 天 × 5 + 月份標記
+        let width = 4 + 7 * 5 + usize::from(MONTH_MARKER_WIDTH);
+        assert!(lines[1..].iter().all(|line| line.width() == width));
+    }
+
+    #[test]
+    fn jump_to_today_keeps_screen_when_today_is_visible() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        app.move_selected(7);
+        let top = app.top;
+        app.jump_to_today();
+        assert_eq!(app.selected, date(2026, 10, 10));
+        assert_eq!(app.top, top);
+    }
+
+    #[test]
+    fn jump_to_today_resets_screen_when_far_away() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        for _ in 0..52 {
+            app.move_selected(7);
+        }
+        app.jump_to_today();
+        assert_eq!(app.selected, date(2026, 10, 10));
+        assert_eq!(app.top, month_top(date(2026, 10, 10)));
+    }
+
+    #[test]
+    fn moving_past_the_last_date_stays_put() {
+        let mut app = App::on_date(Date::MAX, Texts::en());
+        app.move_selected(1);
+        assert_eq!(app.selected, Date::MAX);
+    }
+
+    #[test]
+    fn month_markers_fit_their_column() {
+        for texts in [Texts::en(), Texts::zh_tw()] {
+            for month in 1..=12 {
+                let marker = format!(" {}", (texts.month_marker)(month));
+                assert!(
+                    display_width(&marker) <= usize::from(MONTH_MARKER_WIDTH),
+                    "{marker}"
+                );
+            }
+        }
+    }
 }

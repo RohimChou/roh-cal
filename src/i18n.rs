@@ -102,3 +102,33 @@ fn month_name(month: i8) -> &'static str {
     // jiff 的月份一定是 1～12，所以 month - 1 一定在 0～11
     MONTH_NAMES[usize::try_from(month - 1).unwrap_or(0)]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_code_accepts_common_spellings() {
+        for code in ["en", "en-US", "EN_gb"] {
+            assert_eq!(Lang::from_code(code), Some(Lang::En), "{code}");
+        }
+        for code in ["zh-TW", "zh_TW", "zh-Hant", "zh-Hant-TW", "zh-HK"] {
+            assert_eq!(Lang::from_code(code), Some(Lang::ZhTw), "{code}");
+        }
+    }
+
+    #[test]
+    fn from_code_rejects_unsupported() {
+        // 簡體中文、日文、空字串、像 en 但不是 en 的
+        for code in ["zh-CN", "zh-Hans", "ja-JP", "", "eng"] {
+            assert_eq!(Lang::from_code(code), None, "{code}");
+        }
+    }
+
+    #[test]
+    fn english_month_names() {
+        assert_eq!((Texts::en().title)(2026, 10), "October 2026");
+        assert_eq!((Texts::en().month_marker)(11), "Nov");
+        assert_eq!((Texts::zh_tw().title)(2026, 10), "2026 年 10 月");
+    }
+}
