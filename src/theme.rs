@@ -30,6 +30,8 @@ pub struct Theme {
     pub selected: Style,
     /// 選取的那一整行（像 vim 的 cursorline），墊在這行所有日期底下
     pub cursor_line: Style,
+    /// 右邊的月份標記（每個月 1 號那行的「11 月」）
+    pub month_marker: Style,
     /// 左邊欄：選取那行的週數
     pub week_number: Style,
     /// 左邊欄：其他行跟選取那行差幾行
@@ -73,6 +75,7 @@ impl Theme {
             today: Style::new().fg(green).add_modifier(bold),
             selected: Style::new().fg(base).bg(mauve).add_modifier(bold),
             cursor_line: Style::new().bg(surface0),
+            month_marker: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
         }
