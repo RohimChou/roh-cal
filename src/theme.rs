@@ -6,6 +6,7 @@ use ratatui::style::{Color, Modifier, Style};
 ///
 /// 同一格符合好幾種情況時，依序疊上去（`Style::patch`）：
 /// 一般日期 → 星期六 / 星期日 → 其他月份 → 今天 → 選取，後面的會蓋掉前面設過的顏色
+/// 點點也一樣：`dots_open` / `dots_quiet` → 其他月份 → 今天 → 選取（點點才會跟著數字變暗、變色）
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
     /// 框線
@@ -30,6 +31,10 @@ pub struct Theme {
     pub selected: Style,
     /// 選取的那一整行（像 vim 的 cursorline），墊在這行所有日期底下
     pub cursor_line: Style,
+    /// 數字旁邊的點點（1～4 個）：那天還有沒完成的任務
+    pub dots_open: Style,
+    /// 數字旁邊的點點：那天只有事件、或任務都完成了（比較安靜）
+    pub dots_quiet: Style,
     /// 右邊的月份標記（每個月 15 號那行的「11 月」）
     pub month_marker: Style,
     /// 左邊欄：選取那行的週數
@@ -61,6 +66,7 @@ impl Theme {
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
         let mauve = Color::Rgb(203, 166, 247);
+        let peach = Color::Rgb(250, 179, 135);
 
         let bold = Modifier::BOLD;
         Self {
@@ -75,6 +81,8 @@ impl Theme {
             today: Style::new().fg(green).add_modifier(bold),
             selected: Style::new().fg(base).bg(mauve).add_modifier(bold),
             cursor_line: Style::new().bg(surface0),
+            dots_open: Style::new().fg(peach),
+            dots_quiet: Style::new().fg(subtext0),
             month_marker: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),

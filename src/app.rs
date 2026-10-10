@@ -2,6 +2,7 @@
 
 use crate::calendar::{monday_of, month_top};
 use crate::i18n::Texts;
+use crate::tasks::Item;
 use crate::theme::Theme;
 use crate::ui::compact;
 use color_eyre::Result;
@@ -31,16 +32,18 @@ pub struct App {
     pub theme: Theme,
     /// 畫面上的字（語言）
     pub texts: Texts,
+    /// 任務檔裡的項目（任務、事件）
+    pub items: Vec<Item>,
 }
 
 impl App {
     /// 建立 app，今天用系統時間（本機時區）
-    pub fn new(texts: Texts) -> Self {
-        Self::on_date(Zoned::now().date(), texts)
+    pub fn new(texts: Texts, items: Vec<Item>) -> Self {
+        Self::on_date(Zoned::now().date(), texts, items)
     }
 
     /// 建立 app，指定「今天」是哪天；一開始選取今天（test 用這個指定日期）
-    pub fn on_date(today: Date, texts: Texts) -> Self {
+    pub fn on_date(today: Date, texts: Texts, items: Vec<Item>) -> Self {
         let mut app = Self {
             should_quit: false,
             today,
@@ -48,6 +51,7 @@ impl App {
             top: month_top(today),
             theme: Theme::default(),
             texts,
+            items,
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -166,7 +170,7 @@ mod tests {
 
     #[test]
     fn opening_screen_shows_week_before_the_1st_on_top() {
-        let app = App::on_date(date(2026, 10, 10), Texts::en());
+        let app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         // 10/1 是星期四 → 那週的星期一是 9/28 → 前一週是 9/21
         assert_eq!(app.top, date(2026, 9, 21));
         assert_eq!(selected_row(&app), Some(2));
@@ -186,7 +190,7 @@ mod tests {
         // h / l / k / j 各按 400 次（約 1 年 / 8 年）
         for start in starts {
             for days in [-1, 1, -7, 7] {
-                let mut app = App::on_date(start, Texts::en());
+                let mut app = App::on_date(start, Texts::en(), Vec::new());
                 let mut previous = selected_row(&app).expect("selected on screen");
                 for _ in 0..400 {
                     app.move_selected(days);
@@ -206,7 +210,7 @@ mod tests {
 
     #[test]
     fn jump_to_today_keeps_screen_when_today_is_visible() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.move_selected(7);
         let top = app.top;
         app.jump_to_today();
@@ -216,7 +220,7 @@ mod tests {
 
     #[test]
     fn jump_to_today_resets_screen_when_far_away() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         for _ in 0..52 {
             app.move_selected(7);
         }
@@ -227,7 +231,7 @@ mod tests {
 
     #[test]
     fn mouse_wheel_moves_selected_by_one_week() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         let wheel = |kind| MouseEvent {
             kind,
             column: 0,
@@ -243,7 +247,7 @@ mod tests {
 
     #[test]
     fn left_click_selects_the_clicked_date() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         let click = |column, row| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,
@@ -264,7 +268,7 @@ mod tests {
 
     #[test]
     fn moving_past_the_last_date_stays_put() {
-        let mut app = App::on_date(Date::MAX, Texts::en());
+        let mut app = App::on_date(Date::MAX, Texts::en(), Vec::new());
         app.move_selected(1);
         assert_eq!(app.selected, Date::MAX);
     }

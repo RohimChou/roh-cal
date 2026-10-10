@@ -3,6 +3,7 @@
 use crate::app::{App, WEEKS};
 use crate::calendar::{monday_of, week_of_year};
 use crate::i18n::Texts;
+use crate::tasks::{Item, Kind};
 use crate::theme::Theme;
 use jiff::{
     ToSpan,
@@ -15,6 +16,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Padding, Paragraph},
 };
+use std::collections::HashMap;
 
 /// 框線和內容之間：左右各空幾格、上下各空幾行
 const PADDING: Padding = Padding::symmetric(2, 1);
@@ -49,7 +51,15 @@ pub fn render(frame: &mut Frame, app: &App) {
         height: area.height.min(CALENDAR_HEIGHT),
         ..area
     };
-    let lines = calendar_lines(app.top, app.selected, app.today, &app.theme, &app.texts);
+    let days = summarize_days(&app.items);
+    let lines = calendar_lines(
+        app.top,
+        app.selected,
+        app.today,
+        &days,
+        &app.theme,
+        &app.texts,
+    );
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
@@ -90,6 +100,7 @@ fn calendar_lines(
     top: Date,
     selected: Date,
     today: Date,
+    days: &HashMap<Date, DaySummary>,
     theme: &Theme,
     texts: &Texts,
 ) -> Vec<Line<'static>> {
@@ -140,21 +151,32 @@ fn calendar_lines(
             if date.day() == MARKER_DAY {
                 marker_month = Some(date.month());
             }
-            // 依序疊上 style（順序見 `Theme` 的說明）
-            let mut style = theme.day.patch(weekend_style(date.weekday(), theme));
-            if date.first_of_month() != month {
-                style = style.patch(theme.other_month);
+            // 依序疊上 style（順序見 `Theme` 的說明）；數字和點點都疊同樣的「其他月份 → 今天 → 選取」，
+            // 點點才會跟著數字變暗 / 變綠 / 在選取的藥丸裡變深色
+            let mut number_style = theme.day.patch(weekend_style(date.weekday(), theme));
+            let day = days.get(&date).copied().unwrap_or_default();
+            // 還有沒完成的任務 → 醒目的點；只有事件或都完成了 → 安靜的點
+            let mut dots_style = if day.has_open_task {
+                theme.dots_open
+            } else {
+                theme.dots_quiet
+            };
+            let layers = [
+                (date.first_of_month() != month, theme.other_month),
+                (date == today, theme.today),
+                (date == selected, theme.selected),
+            ];
+            for (applies, layer) in layers {
+                if applies {
+                    number_style = number_style.patch(layer);
+                    dots_style = dots_style.patch(layer);
+                }
             }
-            if date == today {
-                style = style.patch(theme.today);
-            }
-            if date == selected {
-                style = style.patch(theme.selected);
-            }
-            // 一格 5 字元 = 1 個空白 + 「空白 + 2 位數日期 + 空白」
-            // 後面那段套 style，選取的背景色才不會只蓋住數字
+            // 一格 5 字元 = 1 個空白 + 「空白 + 2 位數日期」+ 有幾個項目的點點（沒有就是空白）
+            // 後面兩段都套 style，選取的背景色才不會只蓋住數字
             week.push_span(" ");
-            week.push_span(Span::styled(format!(" {:>2} ", date.day()), style));
+            week.push_span(Span::styled(format!(" {:>2}", date.day()), number_style));
+            week.push_span(Span::styled(item_dots(day.count), dots_style));
         }
         let marker = match marker_month {
             Some(month) => format!(" {}", (texts.month_marker)(month)),
@@ -168,6 +190,46 @@ fn calendar_lines(
         lines.push(week);
     }
     lines
+}
+
+/// 某一天的項目摘要，決定點點畫幾個、用什麼顏色
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct DaySummary {
+    /// 任務 + 事件一共幾個
+    count: usize,
+    /// 有沒有還沒完成的任務
+    has_open_task: bool,
+}
+
+/// 把項目依日期整理成每天的摘要；沒有日期的項目不算
+/// （每次畫面重畫時算一次；項目很少，很快）
+fn summarize_days(items: &[Item]) -> HashMap<Date, DaySummary> {
+    let mut days: HashMap<Date, DaySummary> = HashMap::new();
+    for item in items {
+        let Some(date) = item.date else {
+            continue;
+        };
+        let day = days.entry(date).or_default();
+        day.count += 1;
+        if item.kind == (Kind::Task { done: false }) {
+            day.has_open_task = true;
+        }
+    }
+    days
+}
+
+/// 那天有幾個項目，就畫幾個點（最多 4 個，4 個以上都畫 4 個）
+///
+/// 用點字（Braille）字元：一個字元就能放好幾個點，而且一定佔 1 格寬
+/// （`•` 這類字在開了 CJK 寬字元的 terminal 會變 2 格，月曆會歪）
+fn item_dots(count: usize) -> &'static str {
+    match count {
+        0 => " ",
+        1 => "⠂",
+        2 => "⠒",
+        3 => "⠖",
+        _ => "⠶",
+    }
 }
 
 /// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）
@@ -191,8 +253,15 @@ mod tests {
 
     #[test]
     fn calendar_always_has_weekday_header_plus_fixed_weeks() {
-        let app = App::on_date(date(2027, 2, 1), Texts::en());
-        let lines = calendar_lines(app.top, app.selected, app.today, &app.theme, &app.texts);
+        let app = App::on_date(date(2027, 2, 1), Texts::en(), Vec::new());
+        let lines = calendar_lines(
+            app.top,
+            app.selected,
+            app.today,
+            &HashMap::new(),
+            &app.theme,
+            &app.texts,
+        );
         assert_eq!(lines.len(), 1 + usize::try_from(WEEKS).unwrap_or(0));
         // 每一行一樣寬：左邊欄 4 + 7 天 × 5 + 月份標記
         let width = 4 + 7 * 5 + usize::from(MONTH_MARKER_WIDTH);
@@ -200,9 +269,64 @@ mod tests {
     }
 
     #[test]
+    fn summarize_days_counts_items_and_open_tasks() {
+        let text = "- [ ] a @2026-10-12\n- 週會 @2026-10-12\n- 國慶日 @2026-10-10\n\
+                    - [x] 完成了 @2026-10-05\n- [ ] 沒日期";
+        let days = summarize_days(&crate::tasks::parse(text).items);
+        let summary = |count, has_open_task| DaySummary {
+            count,
+            has_open_task,
+        };
+        // 有沒完成的任務 → 醒目；只有事件、只有完成的任務 → 安靜；沒日期的不算
+        assert_eq!(days[&date(2026, 10, 12)], summary(2, true));
+        assert_eq!(days[&date(2026, 10, 10)], summary(1, false));
+        assert_eq!(days[&date(2026, 10, 5)], summary(1, false));
+        assert_eq!(days.len(), 3);
+    }
+
+    #[test]
+    fn dates_show_one_to_four_dots_by_item_count() {
+        let app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        // 10/12 有 1 個、10/13 有 2 個、10/14 有 3 個、10/15 有 4 個、10/16 有 9 個
+        let day = |count| DaySummary {
+            count,
+            has_open_task: false,
+        };
+        let days = HashMap::from([
+            (date(2026, 10, 12), day(1)),
+            (date(2026, 10, 13), day(2)),
+            (date(2026, 10, 14), day(3)),
+            (date(2026, 10, 15), day(4)),
+            (date(2026, 10, 16), day(9)),
+        ]);
+        let lines = calendar_lines(
+            app.top,
+            app.selected,
+            app.today,
+            &days,
+            &app.theme,
+            &app.texts,
+        );
+        // 10/12 那週在第 4 行（9/21、9/28、10/5、10/12）
+        let row: String = lines[4]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        for expected in [" 12⠂", " 13⠒", " 14⠖", " 15⠶", " 16⠶", " 17 "] {
+            assert!(row.contains(expected), "{expected} in {row}");
+        }
+        // 點點一定佔 1 格，每行一樣寬
+        assert_eq!(
+            display_width(&row),
+            4 + 7 * 5 + usize::from(MONTH_MARKER_WIDTH)
+        );
+    }
+
+    #[test]
     fn date_at_maps_screen_position_to_date() {
         // 一打開：最上面那週從 9/21（星期一）開始
-        let app = App::on_date(date(2026, 10, 10), Texts::en());
+        let app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         // 第 1 週星期一那格的頭、尾
         assert_eq!(date_at(app.top, 7, 3), Some(date(2026, 9, 21)));
         assert_eq!(date_at(app.top, 11, 3), Some(date(2026, 9, 21)));

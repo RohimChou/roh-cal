@@ -400,10 +400,10 @@ mod tests {
     fn sample_file_parses_like_a_real_one() {
         let parsed = parse(include_str!("../testdata/tasks.md"));
         let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
-        assert_eq!(parsed.items.len(), 43);
-        assert_eq!(count(|item| item.kind == Kind::Task { done: true }), 5);
-        assert_eq!(count(|item| item.kind == Kind::Task { done: false }), 25);
-        assert_eq!(count(|item| item.kind == Kind::Event), 13);
+        assert_eq!(parsed.items.len(), 56);
+        assert_eq!(count(|item| item.kind == Kind::Task { done: true }), 7);
+        assert_eq!(count(|item| item.kind == Kind::Task { done: false }), 31);
+        assert_eq!(count(|item| item.kind == Kind::Event), 18);
         assert_eq!(count(|item| item.date.is_none()), 12);
         // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
         // 唯一一個寫錯的日期
