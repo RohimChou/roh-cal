@@ -41,8 +41,7 @@ impl App {
             should_quit: false,
             today,
             selected: today,
-            // 一開始：這個月 1 號那週的前一週放在最上面
-            top: monday_of(today.first_of_month()).saturating_sub(1.week()),
+            top: month_top(today),
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -65,7 +64,7 @@ impl App {
         // 月曆下面空一行，再放操作說明
         let mut lines = calendar_lines(self.top, self.selected, self.today);
         lines.push(Line::default());
-        lines.push(Line::from("h / j / k / l 移動  q 或 Esc 離開"));
+        lines.push(Line::from("h / j / k / l 移動  t 今天  q 或 Esc 離開"));
         let body = Paragraph::new(lines).block(block);
         frame.render_widget(body, frame.area());
     }
@@ -84,6 +83,8 @@ impl App {
             // k / j：上一週 / 下一週（同一欄往上 / 往下）
             KeyCode::Char('k') => self.move_selected(-7),
             KeyCode::Char('j') => self.move_selected(7),
+            // t：跳回今天
+            KeyCode::Char('t') => self.jump_to_today(),
             // 其他按鍵不理
             _ => {}
         }
@@ -97,6 +98,18 @@ impl App {
             return;
         };
         self.selected = date;
+        self.scroll_to_selected();
+    }
+
+    /// 跳回今天：今天還在畫面上就只移動選取（畫面不動），不在畫面上就回到剛打開 app 的畫面
+    fn jump_to_today(&mut self) {
+        self.selected = self.today;
+        let week = monday_of(self.today);
+        let last_week = self.top.saturating_add((WEEKS - 1).weeks());
+        if week < self.top || week > last_week {
+            self.top = month_top(self.today);
+        }
+        // 今天在畫面最上 / 最下那行時，照 SCROLLOFF 再捲一行
         self.scroll_to_selected();
     }
 
@@ -116,6 +129,11 @@ impl App {
             self.top = week.saturating_sub((WEEKS - 1 - SCROLLOFF).weeks());
         }
     }
+}
+
+/// 顯示 `date` 那個月時，畫面最上面那週的星期一：1 號那週的前一週
+fn month_top(date: Date) -> Date {
+    monday_of(date.first_of_month()).saturating_sub(1.week())
 }
 
 /// `date` 那一週的星期一
