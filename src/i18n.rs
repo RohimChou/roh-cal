@@ -16,6 +16,49 @@ const MONTH_NAMES: [&str; 12] = [
     "December",
 ];
 
+/// 支援的語言
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lang {
+    /// 英文
+    En,
+    /// 繁體中文（台灣）
+    ZhTw,
+}
+
+impl Lang {
+    /// 從語言代碼判斷語言，不分大小寫，`_` 和 `-` 都可以；不支援的回傳 `None`
+    ///
+    /// 例：`en`、`en-US` → 英文；`zh-TW`、`zh_TW`、`zh-Hant`、`zh-Hant-TW`、`zh-HK` → 繁體中文
+    pub fn from_code(code: &str) -> Option<Self> {
+        let code = code.to_lowercase().replace('_', "-");
+        if code == "en" || code.starts_with("en-") {
+            Some(Self::En)
+        } else if ["zh-tw", "zh-hant", "zh-hk", "zh-mo"]
+            .iter()
+            .any(|prefix| code.starts_with(prefix))
+        {
+            Some(Self::ZhTw)
+        } else {
+            None
+        }
+    }
+
+    /// 系統的語言；讀不到或不支援就用英文
+    pub fn from_system() -> Self {
+        sys_locale::get_locale()
+            .and_then(|code| Self::from_code(&code))
+            .unwrap_or(Self::En)
+    }
+
+    /// 這個語言要用的那組字
+    pub fn texts(self) -> Texts {
+        match self {
+            Self::En => Texts::en(),
+            Self::ZhTw => Texts::zh_tw(),
+        }
+    }
+}
+
 /// 畫面上要翻譯的字
 ///
 /// 每種語言一個 function（`en()`、`zh_tw()`）；沒翻譯的欄位寫 `..Self::en()`，就會用英文

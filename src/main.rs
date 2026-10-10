@@ -1,8 +1,8 @@
 mod i18n;
 mod theme;
 
-use color_eyre::Result;
-use i18n::Texts;
+use color_eyre::{Result, eyre::bail};
+use i18n::{Lang, Texts};
 use jiff::{
     ToSpan, Zoned,
     civil::{Date, Weekday},
@@ -33,8 +33,35 @@ const CALENDAR_HEIGHT: u16 = 2 + PADDING.top + PADDING.bottom + 1 + WEEKS as u16
 fn main() -> Result<()> {
     // 出錯時印出好讀的錯誤訊息與 backtrace
     color_eyre::install()?;
+    // 語言：--lang 參數 → 系統語言 → 英文
+    let lang = match lang_arg()? {
+        Some(lang) => lang,
+        None => Lang::from_system(),
+    };
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
-    ratatui::run(|terminal| App::new().run(terminal))
+    ratatui::run(|terminal| App::new(lang.texts()).run(terminal))
+}
+
+/// 讀命令列參數 `--lang <語言>`；沒給就回傳 `None`，例：`roh-cal --lang en`
+///
+/// 在進入 TUI 之前讀，參數錯了才能正常印出錯誤訊息
+fn lang_arg() -> Result<Option<Lang>> {
+    // 第 0 個是程式自己的路徑，跳過
+    let mut args = std::env::args().skip(1);
+    let mut lang = None;
+    while let Some(arg) = args.next() {
+        if arg != "--lang" {
+            bail!("unknown argument: {arg} (usage: roh-cal [--lang en|zh-TW])");
+        }
+        let Some(code) = args.next() else {
+            bail!("--lang needs a value, e.g. --lang en");
+        };
+        let Some(parsed) = Lang::from_code(&code) else {
+            bail!("unsupported language: {code} (supported: en, zh-TW)");
+        };
+        lang = Some(parsed);
+    }
+    Ok(lang)
 }
 
 /// 整個 app 的狀態
@@ -56,7 +83,7 @@ struct App {
 
 impl App {
     /// 建立 app，記下今天的日期；一開始選取今天
-    fn new() -> Self {
+    fn new(texts: Texts) -> Self {
         let today = Zoned::now().date();
         let mut app = Self {
             should_quit: false,
@@ -64,7 +91,7 @@ impl App {
             selected: today,
             top: month_top(today),
             theme: Theme::default(),
-            texts: Texts::zh_tw(),
+            texts,
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
