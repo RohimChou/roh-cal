@@ -24,7 +24,7 @@ pub struct App {
     should_quit: bool,
     /// 今天的日期（啟動時取一次，用本機時區）
     pub today: Date,
-    /// 目前選取的日期，用 h / j / k / l 移動
+    /// 目前選取的日期，用 h / j / k / l 或方向鍵移動
     pub selected: Date,
     /// 月曆最上面那一週的星期一；選取的日期太靠近上下邊緣時才會跟著捲動
     pub top: Date,
@@ -84,12 +84,12 @@ impl App {
     fn handle_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            // h / l：前一天 / 後一天
-            KeyCode::Char('h') => self.move_selected(-1),
-            KeyCode::Char('l') => self.move_selected(1),
-            // k / j：上一週 / 下一週（同一欄往上 / 往下）
-            KeyCode::Char('k') => self.move_selected(-7),
-            KeyCode::Char('j') => self.move_selected(7),
+            // h / l（或 ← / →）：前一天 / 後一天
+            KeyCode::Char('h') | KeyCode::Left => self.move_selected(-1),
+            KeyCode::Char('l') | KeyCode::Right => self.move_selected(1),
+            // k / j（或 ↑ / ↓）：上一週 / 下一週（同一欄往上 / 往下）
+            KeyCode::Char('k') | KeyCode::Up => self.move_selected(-7),
+            KeyCode::Char('j') | KeyCode::Down => self.move_selected(7),
             // t：跳回今天
             KeyCode::Char('t') => self.jump_to_today(),
             // 其他按鍵不理
@@ -227,6 +227,32 @@ mod tests {
         app.jump_to_today();
         assert_eq!(app.selected, date(2026, 10, 10));
         assert_eq!(app.top, month_top(date(2026, 10, 10)));
+    }
+
+    #[test]
+    fn arrow_keys_move_like_hjkl() {
+        // 同一個方向，按字母鍵跟按方向鍵要走到同一天
+        let pairs = [
+            (KeyCode::Char('h'), KeyCode::Left),
+            (KeyCode::Char('l'), KeyCode::Right),
+            (KeyCode::Char('k'), KeyCode::Up),
+            (KeyCode::Char('j'), KeyCode::Down),
+        ];
+        for (letter, arrow) in pairs {
+            let mut by_letter = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            let mut by_arrow = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            by_letter.handle_key(letter);
+            by_arrow.handle_key(arrow);
+            assert_ne!(
+                by_arrow.selected,
+                date(2026, 10, 10),
+                "{arrow:?} did nothing"
+            );
+            assert_eq!(
+                by_arrow.selected, by_letter.selected,
+                "{arrow:?} != {letter:?}"
+            );
+        }
     }
 
     #[test]
