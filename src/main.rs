@@ -1,12 +1,15 @@
+mod theme;
+
 use color_eyre::Result;
 use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
-    style::{Color, Modifier, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Paragraph},
 };
+use theme::Theme;
 
 /// 月曆固定顯示幾週（一個月最多佔 6 週，再加前後各 1 週）
 const WEEKS: i64 = 8;
@@ -31,6 +34,8 @@ struct App {
     selected: Date,
     /// 月曆最上面那一週的星期一；選取的日期太靠近上下邊緣時才會跟著捲動
     top: Date,
+    /// 畫面的顏色與樣式
+    theme: Theme,
 }
 
 impl App {
@@ -42,6 +47,7 @@ impl App {
             today,
             selected: today,
             top: month_top(today),
+            theme: Theme::default(),
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -62,7 +68,7 @@ impl App {
     fn render(&self, frame: &mut Frame) {
         let block = Block::bordered().title(" roh-cal ");
         // 月曆下面空一行，再放操作說明
-        let mut lines = calendar_lines(self.top, self.selected, self.today);
+        let mut lines = calendar_lines(self.top, self.selected, self.today, &self.theme);
         lines.push(Line::default());
         lines.push(Line::from("h / j / k / l 移動  t 今天  q 或 Esc 離開"));
         let body = Paragraph::new(lines).block(block);
@@ -165,7 +171,7 @@ fn week_of_year(date: Date) -> i16 {
 ///   1   12   13   14   15   16   17   18
 ///  ...
 /// ```
-fn calendar_lines(top: Date, selected: Date, today: Date) -> Vec<Line<'static>> {
+fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<Line<'static>> {
     let month = selected.first_of_month();
     // 畫面上每一行的星期一
     let mondays: Vec<Date> = top.series(1.week()).take(WEEKS as usize).collect();
@@ -181,34 +187,29 @@ fn calendar_lines(top: Date, selected: Date, today: Date) -> Vec<Line<'static>> 
     ];
     for (row, monday) in mondays.into_iter().enumerate() {
         let mut week = Line::default();
-        // 左邊欄：選取那行顯示選取日期的週數（靠左、黃色粗體），其他行顯示差幾行（靠右、灰色）
+        // 左邊欄：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）
         if row == selected_row {
-            let style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
-            week.push_span(Span::styled(
-                format!("{:<3}", week_of_year(selected)),
-                style,
-            ));
+            let week_number = format!("{:<3}", week_of_year(selected));
+            week.push_span(Span::styled(week_number, theme.week_number));
         } else {
             let distance = row.abs_diff(selected_row);
-            week.push_span(Span::styled(format!("{distance:>3}"), Color::DarkGray));
+            week.push_span(Span::styled(format!("{distance:>3}"), theme.row_distance));
         }
         week.push_span(" ");
 
         // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
         for date in monday.series(1.day()).take(7) {
             // 一格 = 2 個空白 + 2 位數日期 + 1 個空白；只有日期數字套 style
+            // 依序疊上 style（順序見 `Theme` 的說明）
             let mut style = Style::new();
-            // 不是選取日期的那個月：灰色
             if date.first_of_month() != month {
-                style = style.fg(Color::DarkGray);
+                style = style.patch(theme.other_month);
             }
-            // 今天：加底線
             if date == today {
-                style = style.add_modifier(Modifier::UNDERLINED);
+                style = style.patch(theme.today);
             }
-            // 選取：反白（前景色和背景色對調）
             if date == selected {
-                style = style.add_modifier(Modifier::REVERSED);
+                style = style.patch(theme.selected);
             }
             week.push_span("  ");
             week.push_span(Span::styled(format!("{:>2}", date.day()), style));
