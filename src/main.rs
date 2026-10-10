@@ -225,6 +225,8 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
         let mut week = Line::default();
         // 左邊欄：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）
         if row == selected_row {
+            // 選取那行整行墊底色；每個日期自己的顏色會疊在上面
+            week.style = theme.cursor_line;
             let week_number = format!("{:<3}", week_of_year(selected));
             week.push_span(Span::styled(week_number, theme.week_number));
         } else {

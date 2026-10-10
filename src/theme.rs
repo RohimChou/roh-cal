@@ -28,6 +28,8 @@ pub struct Theme {
     pub today: Style,
     /// 選取的日期
     pub selected: Style,
+    /// 選取的那一整行（像 vim 的 cursorline），墊在這行所有日期底下
+    pub cursor_line: Style,
     /// 左邊欄：選取那行的週數
     pub week_number: Style,
     /// 左邊欄：其他行跟選取那行差幾行
@@ -49,6 +51,7 @@ impl Theme {
         let subtext0 = Color::Rgb(166, 173, 200);
         let overlay0 = Color::Rgb(108, 112, 134);
         let surface2 = Color::Rgb(88, 91, 112);
+        let surface0 = Color::Rgb(49, 50, 68);
         let base = Color::Rgb(30, 30, 46);
         let lavender = Color::Rgb(180, 190, 254);
         let blue = Color::Rgb(137, 180, 250);
@@ -69,6 +72,7 @@ impl Theme {
             other_month: Style::new().fg(overlay0),
             today: Style::new().fg(green).add_modifier(bold),
             selected: Style::new().fg(base).bg(mauve).add_modifier(bold),
+            cursor_line: Style::new().bg(surface0),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
         }
