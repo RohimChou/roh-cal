@@ -9,12 +9,18 @@ use jiff::{
 };
 use ratatui::{
     DefaultTerminal, Frame,
-    crossterm::event::{self, KeyCode},
+    crossterm::{
+        event::{
+            self, DisableMouseCapture, EnableMouseCapture, KeyCode, MouseEvent, MouseEventKind,
+        },
+        execute,
+    },
     layout::Rect,
     style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Padding, Paragraph},
 };
+use std::io::stdout;
 use theme::Theme;
 
 /// 月曆固定顯示幾週（一個月最多佔 6 週，再加前後各 1 週）
@@ -41,7 +47,32 @@ fn main() -> Result<()> {
         None => Lang::from_system(),
     };
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
-    ratatui::run(|terminal| App::new(lang.texts()).run(terminal))
+    ratatui::run(|terminal| {
+        // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
+        let _mouse = MouseCapture::enable()?;
+        App::new(lang.texts()).run(terminal)
+    })
+}
+
+/// 開著滑鼠事件的期間；drop 時自動關掉（正常結束、出錯、panic 都一樣）
+///
+/// `ratatui::run` 只會還原 raw mode 和 alternate screen，滑鼠要自己關，
+/// 不然離開後 terminal 還會一直收到滑鼠的控制碼
+struct MouseCapture;
+
+impl MouseCapture {
+    /// 開啟滑鼠事件（滾輪、點擊）
+    fn enable() -> Result<Self> {
+        execute!(stdout(), EnableMouseCapture)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for MouseCapture {
+    fn drop(&mut self) {
+        // drop 不能回傳錯誤；關不掉也沒辦法再做什麼，所以忽略
+        let _ = execute!(stdout(), DisableMouseCapture);
+    }
 }
 
 /// 讀命令列參數 `--lang <語言>`；沒給就回傳 `None`，例：`roh-cal --lang en`
@@ -146,13 +177,21 @@ impl App {
         frame.render_widget(Paragraph::new(lines).block(block), area);
     }
 
-    /// 處理一個輸入事件；event::read() 會 block 到有輸入為止
+    /// 處理一個輸入事件（鍵盤或滑鼠）；event::read() 會 block 到有輸入為止
     fn handle_events(&mut self) -> Result<()> {
-        // 只理會「按下」，忽略放開 / 長按重複
-        let Some(key) = event::read()?.as_key_press_event() else {
-            return Ok(());
-        };
-        match key.code {
+        let event = event::read()?;
+        // 鍵盤只理會「按下」，忽略放開 / 長按重複
+        if let Some(key) = event.as_key_press_event() {
+            self.handle_key(key.code);
+        } else if let Some(mouse) = event.as_mouse_event() {
+            self.handle_mouse(mouse);
+        }
+        Ok(())
+    }
+
+    /// 處理一個按鍵
+    fn handle_key(&mut self, code: KeyCode) {
+        match code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             // h / l：前一天 / 後一天
             KeyCode::Char('h') => self.move_selected(-1),
@@ -165,7 +204,18 @@ impl App {
             // 其他按鍵不理
             _ => {}
         }
-        Ok(())
+    }
+
+    /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            // 往下滾（看後面的日期）：下一週
+            MouseEventKind::ScrollDown => self.move_selected(7),
+            // 往上滾：上一週
+            MouseEventKind::ScrollUp => self.move_selected(-7),
+            // 點擊、移動等之後再處理
+            _ => {}
+        }
     }
 
     /// 選取的日期移動 `days` 天（負數 = 往前），需要時捲動月曆
@@ -344,6 +394,7 @@ fn display_width(text: &str) -> usize {
 mod tests {
     use super::*;
     use jiff::civil::{Weekday, date};
+    use ratatui::crossterm::event::KeyModifiers;
 
     /// 選取的那週在畫面第幾行（0 = 最上面）；不在畫面上回傳 `None`
     fn selected_row(app: &App) -> Option<i64> {
@@ -455,6 +506,22 @@ mod tests {
         app.jump_to_today();
         assert_eq!(app.selected, date(2026, 10, 10));
         assert_eq!(app.top, month_top(date(2026, 10, 10)));
+    }
+
+    #[test]
+    fn mouse_wheel_moves_selected_by_one_week() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let wheel = |kind| MouseEvent {
+            kind,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        app.handle_mouse(wheel(MouseEventKind::ScrollDown));
+        assert_eq!(app.selected, date(2026, 10, 17));
+        app.handle_mouse(wheel(MouseEventKind::ScrollUp));
+        app.handle_mouse(wheel(MouseEventKind::ScrollUp));
+        assert_eq!(app.selected, date(2026, 10, 3));
     }
 
     #[test]
