@@ -1,6 +1,8 @@
+mod i18n;
 mod theme;
 
 use color_eyre::Result;
+use i18n::Texts;
 use jiff::{
     ToSpan, Zoned,
     civil::{Date, Weekday},
@@ -48,6 +50,8 @@ struct App {
     top: Date,
     /// 畫面的顏色與樣式
     theme: Theme,
+    /// 畫面上的字（語言）
+    texts: Texts,
 }
 
 impl App {
@@ -60,6 +64,7 @@ impl App {
             selected: today,
             top: month_top(today),
             theme: Theme::default(),
+            texts: Texts::zh_tw(),
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -79,7 +84,8 @@ impl App {
     /// 依目前狀態畫出整個畫面
     fn render(&self, frame: &mut Frame) {
         let month = self.selected.first_of_month();
-        let title = format!(" {} 年 {} 月 ", month.year(), month.month());
+        let title = format!(" {} ", (self.texts.title)(month.year(), month.month()));
+        let hint = format!(" {} ", self.texts.hint);
         let block = Block::bordered()
             // 圓角框線 ╭─╮
             .border_type(BorderType::Rounded)
@@ -88,9 +94,7 @@ impl App {
             // 上邊線中間：選取日期的年月
             .title_top(Line::styled(title, self.theme.title).centered())
             // 下邊線中間：操作說明
-            .title_bottom(
-                Line::styled(" h/j/k/l 移動 · t 今天 · q 離開 ", self.theme.hint).centered(),
-            );
+            .title_bottom(Line::styled(hint, self.theme.hint).centered());
 
         // 框只畫到剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
         let area = frame.area();
@@ -99,7 +103,13 @@ impl App {
             height: area.height.min(CALENDAR_HEIGHT),
             ..area
         };
-        let lines = calendar_lines(self.top, self.selected, self.today, &self.theme);
+        let lines = calendar_lines(
+            self.top,
+            self.selected,
+            self.today,
+            &self.theme,
+            &self.texts,
+        );
         frame.render_widget(Paragraph::new(lines).block(block), area);
     }
 
@@ -199,7 +209,13 @@ fn week_of_year(date: Date) -> i16 {
 ///   1   12   13   14   15   16   17   18
 ///  ...
 /// ```
-fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<Line<'static>> {
+fn calendar_lines(
+    top: Date,
+    selected: Date,
+    today: Date,
+    theme: &Theme,
+    texts: &Texts,
+) -> Vec<Line<'static>> {
     let month = selected.first_of_month();
     // 畫面上每一行的星期一
     let mondays: Vec<Date> = top.series(1.week()).take(WEEKS as usize).collect();
@@ -209,19 +225,21 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
         .position(|&monday| monday == monday_of(selected))
         .unwrap_or(0);
 
-    // 星期列：前面空出左邊欄的 4 格，每個星期名稱佔 5 格
+    // 星期列：前面空出左邊欄的 4 格，每個星期名稱佔 5 格（靠右對齊 4 格 + 1 個空白）
     let mut header = Line::from("    ");
-    for (name, weekday) in [
-        ("MON", Weekday::Monday),
-        ("TUE", Weekday::Tuesday),
-        ("WED", Weekday::Wednesday),
-        ("THU", Weekday::Thursday),
-        ("FRI", Weekday::Friday),
-        ("SAT", Weekday::Saturday),
-        ("SUN", Weekday::Sunday),
-    ] {
+    let weekdays = [
+        Weekday::Monday,
+        Weekday::Tuesday,
+        Weekday::Wednesday,
+        Weekday::Thursday,
+        Weekday::Friday,
+        Weekday::Saturday,
+        Weekday::Sunday,
+    ];
+    for (name, weekday) in texts.weekdays.into_iter().zip(weekdays) {
         let style = theme.weekday_header.patch(weekend_style(weekday, theme));
-        header.push_span(Span::styled(format!(" {name} "), style));
+        let padding = " ".repeat(4_usize.saturating_sub(display_width(name)));
+        header.push_span(Span::styled(format!("{padding}{name} "), style));
     }
     let mut lines = vec![header];
     for (row, monday) in mondays.into_iter().enumerate() {
@@ -261,14 +279,15 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
             week.push_span(" ");
             week.push_span(Span::styled(format!(" {:>2} ", date.day()), style));
         }
-        match month_start {
-            Some(month) => {
-                let marker = format!(" {month:>2} 月");
-                week.push_span(Span::styled(marker, theme.month_marker));
-            }
-            // 沒有 1 號的週補一樣寬的空白，每行才一樣寬（cursorline 的底色才會一樣長）
-            None => week.push_span(" ".repeat(usize::from(MONTH_MARKER_WIDTH))),
-        }
+        let marker = match month_start {
+            Some(month) => format!(" {}", (texts.month_marker)(month)),
+            None => String::new(),
+        };
+        // 補空白到同樣寬度，每行才一樣寬（cursorline 的底色才會一樣長）
+        let width = usize::from(MONTH_MARKER_WIDTH);
+        let padding = " ".repeat(width.saturating_sub(display_width(&marker)));
+        week.push_span(Span::styled(marker, theme.month_marker));
+        week.push_span(padding);
         lines.push(week);
     }
     lines
@@ -281,4 +300,9 @@ fn weekend_style(weekday: Weekday, theme: &Theme) -> Style {
         Weekday::Sunday => theme.sunday,
         _ => Style::new(),
     }
+}
+
+/// 文字在 terminal 上佔幾格：英文字母 1 格、中文字 2 格，例：「11 月」佔 5 格
+fn display_width(text: &str) -> usize {
+    Span::raw(text).width()
 }
