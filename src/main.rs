@@ -1,7 +1,10 @@
 mod theme;
 
 use color_eyre::Result;
-use jiff::{ToSpan, Zoned, civil::Date};
+use jiff::{
+    ToSpan, Zoned,
+    civil::{Date, Weekday},
+};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
@@ -78,11 +81,14 @@ impl App {
         let block = Block::bordered()
             // 圓角框線 ╭─╮
             .border_type(BorderType::Rounded)
+            .border_style(self.theme.border)
             .padding(PADDING)
             // 上邊線中間：選取日期的年月
             .title_top(Line::styled(title, self.theme.title).centered())
             // 下邊線中間：操作說明
-            .title_bottom(Line::from(" h/j/k/l 移動 · t 今天 · q 離開 ").centered());
+            .title_bottom(
+                Line::styled(" h/j/k/l 移動 · t 今天 · q 離開 ", self.theme.hint).centered(),
+            );
 
         // 框只畫到剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
         let area = frame.area();
@@ -179,7 +185,7 @@ fn week_of_year(date: Date) -> i16 {
 /// 組出月曆：星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
 ///
 /// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行。
-/// 不是選取日期那個月的日期用灰色；選取的日期反白、今天的日期加底線，兩個是同一天就兩種都套
+/// 顏色都來自 `theme`：週末、其他月份、今天、選取各有自己的樣式（疊的順序見 `Theme`）
 ///
 /// 左邊欄 4 格，每格日期 5 個字元寬、靠右對齊在星期名稱下面，例：選 2026-10-10
 /// ```text
@@ -200,7 +206,21 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
         .position(|&monday| monday == monday_of(selected))
         .unwrap_or(0);
 
-    let mut lines = vec![Line::from("     MON  TUE  WED  THU  FRI  SAT  SUN")];
+    // 星期列：前面空出左邊欄的 4 格，每個星期名稱佔 5 格
+    let mut header = Line::from("    ");
+    for (name, weekday) in [
+        ("MON", Weekday::Monday),
+        ("TUE", Weekday::Tuesday),
+        ("WED", Weekday::Wednesday),
+        ("THU", Weekday::Thursday),
+        ("FRI", Weekday::Friday),
+        ("SAT", Weekday::Saturday),
+        ("SUN", Weekday::Sunday),
+    ] {
+        let style = theme.weekday_header.patch(weekend_style(weekday, theme));
+        header.push_span(Span::styled(format!(" {name} "), style));
+    }
+    let mut lines = vec![header];
     for (row, monday) in mondays.into_iter().enumerate() {
         let mut week = Line::default();
         // 左邊欄：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）
@@ -215,9 +235,8 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
 
         // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
         for date in monday.series(1.day()).take(7) {
-            // 一格 = 2 個空白 + 2 位數日期 + 1 個空白；只有日期數字套 style
             // 依序疊上 style（順序見 `Theme` 的說明）
-            let mut style = Style::new();
+            let mut style = theme.day.patch(weekend_style(date.weekday(), theme));
             if date.first_of_month() != month {
                 style = style.patch(theme.other_month);
             }
@@ -227,11 +246,21 @@ fn calendar_lines(top: Date, selected: Date, today: Date, theme: &Theme) -> Vec<
             if date == selected {
                 style = style.patch(theme.selected);
             }
-            week.push_span("  ");
-            week.push_span(Span::styled(format!("{:>2}", date.day()), style));
+            // 一格 5 字元 = 1 個空白 + 「空白 + 2 位數日期 + 空白」
+            // 後面那段套 style，選取的背景色才不會只蓋住數字
             week.push_span(" ");
+            week.push_span(Span::styled(format!(" {:>2} ", date.day()), style));
         }
         lines.push(week);
     }
     lines
+}
+
+/// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）
+fn weekend_style(weekday: Weekday, theme: &Theme) -> Style {
+    match weekday {
+        Weekday::Saturday => theme.saturday,
+        Weekday::Sunday => theme.sunday,
+        _ => Style::new(),
+    }
 }

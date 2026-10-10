@@ -5,11 +5,23 @@ use ratatui::style::{Color, Modifier, Style};
 /// 月曆各部分的樣式
 ///
 /// 同一格符合好幾種情況時，依序疊上去（`Style::patch`）：
-/// 其他月份 → 今天 → 選取，後面的會蓋掉前面設過的顏色
+/// 一般日期 → 星期六 / 星期日 → 其他月份 → 今天 → 選取，後面的會蓋掉前面設過的顏色
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
+    /// 框線
+    pub border: Style,
     /// 上邊線的年月標題
     pub title: Style,
+    /// 下邊線的操作說明
+    pub hint: Style,
+    /// 星期列（MON、TUE…）
+    pub weekday_header: Style,
+    /// 一般日期
+    pub day: Style,
+    /// 星期六（星期列和日期都用）
+    pub saturday: Style,
+    /// 星期日（星期列和日期都用）
+    pub sunday: Style,
     /// 不是選取日期那個月的日期
     pub other_month: Style,
     /// 今天
@@ -23,16 +35,42 @@ pub struct Theme {
 }
 
 impl Default for Theme {
-    /// 預設 theme：terminal 的 16 色
+    /// 預設 theme：Catppuccin Mocha
     fn default() -> Self {
+        Self::catppuccin_mocha()
+    }
+}
+
+impl Theme {
+    /// [Catppuccin Mocha](https://catppuccin.com/palette)：暗色背景用的柔和配色
+    pub fn catppuccin_mocha() -> Self {
+        // 色票：https://github.com/catppuccin/palette 的 mocha
+        let text = Color::Rgb(205, 214, 244);
+        let subtext0 = Color::Rgb(166, 173, 200);
+        let overlay0 = Color::Rgb(108, 112, 134);
+        let surface2 = Color::Rgb(88, 91, 112);
+        let base = Color::Rgb(30, 30, 46);
+        let lavender = Color::Rgb(180, 190, 254);
+        let blue = Color::Rgb(137, 180, 250);
+        let red = Color::Rgb(243, 139, 168);
+        let green = Color::Rgb(166, 227, 161);
+        let yellow = Color::Rgb(249, 226, 175);
+        let mauve = Color::Rgb(203, 166, 247);
+
+        let bold = Modifier::BOLD;
         Self {
-            title: Style::new().add_modifier(Modifier::BOLD),
-            other_month: Style::new().fg(Color::DarkGray),
-            today: Style::new().add_modifier(Modifier::UNDERLINED),
-            // 反白：前景色和背景色對調
-            selected: Style::new().add_modifier(Modifier::REVERSED),
-            week_number: Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-            row_distance: Style::new().fg(Color::DarkGray),
+            border: Style::new().fg(surface2),
+            title: Style::new().fg(lavender).add_modifier(bold),
+            hint: Style::new().fg(subtext0),
+            weekday_header: Style::new().fg(subtext0),
+            day: Style::new().fg(text),
+            saturday: Style::new().fg(blue),
+            sunday: Style::new().fg(red),
+            other_month: Style::new().fg(overlay0),
+            today: Style::new().fg(green).add_modifier(bold),
+            selected: Style::new().fg(base).bg(mauve).add_modifier(bold),
+            week_number: Style::new().fg(yellow).add_modifier(bold),
+            row_distance: Style::new().fg(overlay0),
         }
     }
 }
