@@ -41,6 +41,10 @@ pub struct Theme {
     pub week_number: Style,
     /// 左邊欄：其他行跟選取那行差幾行
     pub row_distance: Style,
+    /// 大月曆：選取那一格的整格底色（比 terminal 底色亮一點點；其他格子不塗底）
+    pub cell_selected: Style,
+    /// 大月曆：選取那一格的日期數字（格子已有底色，數字只換顏色，不用藥丸）
+    pub cell_selected_day: Style,
 }
 
 impl Default for Theme {
@@ -60,6 +64,8 @@ impl Theme {
         let surface2 = Color::Rgb(88, 91, 112);
         let surface0 = Color::Rgb(49, 50, 68);
         let base = Color::Rgb(30, 30, 46);
+        // 不在 Catppuccin 色票上：base 往亮調一點點，選取的格子才不會像一塊色板
+        let base_lighter = Color::Rgb(40, 40, 58);
         let lavender = Color::Rgb(180, 190, 254);
         let blue = Color::Rgb(137, 180, 250);
         let red = Color::Rgb(243, 139, 168);
@@ -86,6 +92,8 @@ impl Theme {
             month_marker: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
+            cell_selected: Style::new().bg(base_lighter),
+            cell_selected_day: Style::new().fg(mauve).add_modifier(bold),
         }
     }
 }

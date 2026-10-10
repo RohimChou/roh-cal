@@ -82,7 +82,7 @@ impl Texts {
             // 月份縮寫：取全名前 3 個字母，例：November → Nov
             month_marker: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
-            hint: "h/j/k/l move · t today · q quit",
+            hint: "h/j/k/l move · t today · v view · q quit",
         }
     }
 
@@ -91,7 +91,7 @@ impl Texts {
         Self {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_marker: |month| format!("{month:>2} 月"),
-            hint: "h/j/k/l 移動 · t 今天 · q 離開",
+            hint: "h/j/k/l 移動 · t 今天 · v 切換 · q 離開",
             ..Self::en()
         }
     }

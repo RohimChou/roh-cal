@@ -4,7 +4,7 @@ use crate::calendar::{monday_of, month_top};
 use crate::i18n::Texts;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::compact;
+use crate::ui::{self, compact};
 use color_eyre::Result;
 use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
@@ -12,10 +12,40 @@ use ratatui::{
     crossterm::event::{self, KeyCode, MouseButton, MouseEvent, MouseEventKind},
 };
 
-/// 月曆固定顯示幾週（一個月最多佔 6 週，再加前後各 1 週）；捲動規則和畫面都用
-pub const WEEKS: i64 = 8;
 /// 選取的那週離上下邊緣至少保留幾週，不夠就捲動（像 vim 的 scrolloff）
 pub const SCROLLOFF: i64 = 1;
+
+/// 現在顯示哪一種畫面；按 `v` 切換
+///
+/// 兩種畫面共用同一份選取 / 捲動狀態（`selected`、`top`），只是顯示的週數不同；
+/// 切換時選取的日期不變，畫面只在選取的那週會掉出比較小的畫面時才捲動
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    /// 固定大小的小月曆（`ui::compact`）
+    Compact,
+    /// 填滿 terminal 的大月曆（`ui::month`）
+    Month,
+}
+
+impl View {
+    /// 這種畫面固定顯示幾週；捲動規則和畫面都用（`const fn`：畫面的常數也能拿它算）
+    pub const fn weeks(self) -> i64 {
+        match self {
+            // 一個月最多佔 6 週，再加前後各 1 週當 context（一行很便宜）
+            Self::Compact => 8,
+            // 格子裡要放任務，每週會佔好幾行：只畫 6 週，每格才高一點
+            Self::Month => 6,
+        }
+    }
+
+    /// 另一種畫面
+    fn toggled(self) -> Self {
+        match self {
+            Self::Compact => Self::Month,
+            Self::Month => Self::Compact,
+        }
+    }
+}
 
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
 #[derive(Debug)]
@@ -34,6 +64,8 @@ pub struct App {
     pub texts: Texts,
     /// 任務檔裡的項目（任務、事件）
     pub items: Vec<Item>,
+    /// 現在顯示哪一種畫面
+    pub view: View,
 }
 
 impl App {
@@ -52,9 +84,10 @@ impl App {
             theme: Theme::default(),
             texts,
             items,
+            view: View::Compact,
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
-        // （WEEKS = 8、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
+        // （compact 8 週、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
         app.scroll_to_selected();
         app
     }
@@ -62,7 +95,7 @@ impl App {
     /// 主迴圈：畫畫面 → 等按鍵 → 更新狀態，直到要離開
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
-            terminal.draw(|frame| compact::render(frame, &self))?;
+            terminal.draw(|frame| ui::render(frame, &self))?;
             self.handle_events()?;
         }
         Ok(())
@@ -92,6 +125,11 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.move_selected(7),
             // t：跳回今天
             KeyCode::Char('t') => self.jump_to_today(),
+            // v：小月曆 ↔ 大月曆；週數變少時選取的那週可能掉出畫面，所以要重新對齊
+            KeyCode::Char('v') => {
+                self.view = self.view.toggled();
+                self.scroll_to_selected();
+            }
             // 其他按鍵不理
             _ => {}
         }
@@ -105,8 +143,11 @@ impl App {
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
             // 左鍵按下：點在日期上才選取；點到最上 / 最下那行時照 SCROLLOFF 捲一行
+            // （`date_at` 只認得 compact view 的排版，大月曆的格子大小會變，點擊之後再做）
             MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(date) = compact::date_at(self.top, mouse.column, mouse.row) {
+                if self.view == View::Compact
+                    && let Some(date) = compact::date_at(self.top, mouse.column, mouse.row)
+                {
                     self.selected = date;
                     self.scroll_to_selected();
                 }
@@ -130,7 +171,7 @@ impl App {
     fn jump_to_today(&mut self) {
         self.selected = self.today;
         let week = monday_of(self.today);
-        let last_week = self.top.saturating_add((WEEKS - 1).weeks());
+        let last_week = self.top.saturating_add((self.view.weeks() - 1).weeks());
         if week < self.top || week > last_week {
             self.top = month_top(self.today);
         }
@@ -138,20 +179,21 @@ impl App {
         self.scroll_to_selected();
     }
 
-    /// 捲動月曆，讓選取的那週離上下邊緣至少 `SCROLLOFF` 週
+    /// 捲動月曆，讓選取的那週離上下邊緣至少 `SCROLLOFF` 週（畫面有幾週看現在的 view）
     ///
-    /// 例：`WEEKS = 8`、`SCROLLOFF = 1` → 選取的那週只能在第 2～7 行（共 8 行）
+    /// 例：compact 8 週、`SCROLLOFF = 1` → 選取的那週只能在第 2～7 行（共 8 行）
     fn scroll_to_selected(&mut self) {
         let week = monday_of(self.selected);
         // 選取的那週最上面 / 最下面可以在哪一行，換算成那行的星期一
+        let last_row = self.view.weeks() - 1 - SCROLLOFF;
         let min_week = self.top.saturating_add(SCROLLOFF.weeks());
-        let max_week = self.top.saturating_add((WEEKS - 1 - SCROLLOFF).weeks());
+        let max_week = self.top.saturating_add(last_row.weeks());
         if week < min_week {
             // 太靠上：往上捲，讓選取的那週剛好在第 SCROLLOFF + 1 行
             self.top = week.saturating_sub(SCROLLOFF.weeks());
         } else if week > max_week {
             // 太靠下：往下捲，讓選取的那週剛好在倒數第 SCROLLOFF + 1 行
-            self.top = week.saturating_sub((WEEKS - 1 - SCROLLOFF).weeks());
+            self.top = week.saturating_sub(last_row.weeks());
         }
     }
 }
@@ -165,7 +207,7 @@ mod tests {
     /// 選取的那週在畫面第幾行（0 = 最上面）；不在畫面上回傳 `None`
     fn selected_row(app: &App) -> Option<i64> {
         let week = monday_of(app.selected);
-        (0..WEEKS).find(|&row| app.top.saturating_add(row.weeks()) == week)
+        (0..app.view.weeks()).find(|&row| app.top.saturating_add(row.weeks()) == week)
     }
 
     #[test]
@@ -178,8 +220,6 @@ mod tests {
 
     #[test]
     fn scrolling_keeps_selected_row_inside_scrolloff() {
-        let min_row = SCROLLOFF;
-        let max_row = WEEKS - 1 - SCROLLOFF;
         let starts = [
             date(2026, 10, 10),
             date(2026, 3, 1),
@@ -187,22 +227,31 @@ mod tests {
             date(2028, 2, 29),
             date(2026, 12, 31),
         ];
-        // h / l / k / j 各按 400 次（約 1 年 / 8 年）
-        for start in starts {
-            for days in [-1, 1, -7, 7] {
-                let mut app = App::on_date(start, Texts::en(), Vec::new());
-                let mut previous = selected_row(&app).expect("selected on screen");
-                for _ in 0..400 {
-                    app.move_selected(days);
-                    let row = selected_row(&app).expect("selected on screen");
-                    assert!(
-                        (min_row..=max_row).contains(&row),
-                        "{start} {days}: row {row}"
-                    );
-                    // 每按一次最多移 1 行，畫面不會跳
-                    assert!((row - previous).abs() <= 1, "{start} {days}: jumped");
-                    assert_eq!(app.top.weekday(), Weekday::Monday);
-                    previous = row;
+        // 兩種畫面（8 週、6 週）都要守規則；h / l / k / j 各按 400 次（約 1 年 / 8 年）
+        for view in [View::Compact, View::Month] {
+            let min_row = SCROLLOFF;
+            let max_row = view.weeks() - 1 - SCROLLOFF;
+            for start in starts {
+                for days in [-1, 1, -7, 7] {
+                    let mut app = App::on_date(start, Texts::en(), Vec::new());
+                    app.view = view;
+                    app.scroll_to_selected();
+                    let mut previous = selected_row(&app).expect("selected on screen");
+                    for _ in 0..400 {
+                        app.move_selected(days);
+                        let row = selected_row(&app).expect("selected on screen");
+                        assert!(
+                            (min_row..=max_row).contains(&row),
+                            "{view:?} {start} {days}: row {row}"
+                        );
+                        // 每按一次最多移 1 行，畫面不會跳
+                        assert!(
+                            (row - previous).abs() <= 1,
+                            "{view:?} {start} {days}: jumped"
+                        );
+                        assert_eq!(app.top.weekday(), Weekday::Monday);
+                        previous = row;
+                    }
                 }
             }
         }
@@ -253,6 +302,36 @@ mod tests {
                 "{arrow:?} != {letter:?}"
             );
         }
+    }
+
+    #[test]
+    fn v_toggles_the_view_and_keeps_the_selection() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.move_selected(7);
+        assert_eq!(app.view, View::Compact);
+        app.handle_key(KeyCode::Char('v'));
+        assert_eq!(app.view, View::Month);
+        // 選取在第 4 行，6 週的畫面也放得下：選取和捲動位置都不動
+        assert_eq!(app.selected, date(2026, 10, 17));
+        assert_eq!(app.top, date(2026, 9, 21));
+        app.handle_key(KeyCode::Char('v'));
+        assert_eq!(app.view, View::Compact);
+    }
+
+    #[test]
+    fn v_scrolls_when_the_selected_week_would_fall_off_the_smaller_view() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        // compact：往下 4 週到 11/7，選取在第 7 行（8 週的最後一行再往上 SCROLLOFF）
+        for _ in 0..4 {
+            app.move_selected(7);
+        }
+        assert_eq!(app.selected, date(2026, 11, 7));
+        assert_eq!(selected_row(&app), Some(6));
+        // 切到 6 週的大月曆：第 7 行不存在，往下捲到選取在第 5 行（倒數第 2 行）
+        app.handle_key(KeyCode::Char('v'));
+        assert_eq!(app.selected, date(2026, 11, 7));
+        assert_eq!(selected_row(&app), Some(4));
+        assert_eq!(app.top, date(2026, 10, 5));
     }
 
     #[test]

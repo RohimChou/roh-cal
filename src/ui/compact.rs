@@ -1,23 +1,22 @@
 //! compact view：固定大小的小月曆（8 週），畫在 terminal 左上角
 
-use crate::app::{App, WEEKS};
+use crate::app::{App, View};
 use crate::calendar::{monday_of, week_of_year};
 use crate::i18n::Texts;
 use crate::tasks::{Item, Kind};
 use crate::theme::Theme;
-use jiff::{
-    ToSpan,
-    civil::{Date, Weekday},
-};
+use crate::ui::{WEEKDAYS, weekend_style};
+use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Padding, Paragraph},
 };
 use std::collections::HashMap;
 
+/// compact view 固定顯示幾週
+const WEEKS: i64 = View::Compact.weeks();
 /// 框線和內容之間：左右各空幾格、上下各空幾行
 const PADDING: Padding = Padding::symmetric(2, 1);
 /// 月份標記標在每個月幾號的那一行；15 號一定在一個月的中間幾行
@@ -115,16 +114,7 @@ fn calendar_lines(
 
     // 星期列：前面空出左邊欄的 4 格，每個星期名稱佔 5 格（靠右對齊 4 格 + 1 個空白）
     let mut header = Line::from("    ");
-    let weekdays = [
-        Weekday::Monday,
-        Weekday::Tuesday,
-        Weekday::Wednesday,
-        Weekday::Thursday,
-        Weekday::Friday,
-        Weekday::Saturday,
-        Weekday::Sunday,
-    ];
-    for (name, weekday) in texts.weekdays.into_iter().zip(weekdays) {
+    for (name, weekday) in texts.weekdays.into_iter().zip(WEEKDAYS) {
         let style = theme.weekday_header.patch(weekend_style(weekday, theme));
         let padding = " ".repeat(4_usize.saturating_sub(display_width(name)));
         header.push_span(Span::styled(format!("{padding}{name} "), style));
@@ -229,15 +219,6 @@ fn item_dots(count: usize) -> &'static str {
         2 => "⠒",
         3 => "⠖",
         _ => "⠶",
-    }
-}
-
-/// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）
-fn weekend_style(weekday: Weekday, theme: &Theme) -> Style {
-    match weekday {
-        Weekday::Saturday => theme.saturday,
-        Weekday::Sunday => theme.sunday,
-        _ => Style::new(),
     }
 }
 
