@@ -11,7 +11,8 @@ use ratatui::{
     DefaultTerminal, Frame,
     crossterm::{
         event::{
-            self, DisableMouseCapture, EnableMouseCapture, KeyCode, MouseEvent, MouseEventKind,
+            self, DisableMouseCapture, EnableMouseCapture, KeyCode, MouseButton, MouseEvent,
+            MouseEventKind,
         },
         execute,
     },
@@ -206,16 +207,41 @@ impl App {
         }
     }
 
-    /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k
+    /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點日期 = 選取那天
     fn handle_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // 往下滾（看後面的日期）：下一週
             MouseEventKind::ScrollDown => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
-            // 點擊、移動等之後再處理
+            // 左鍵按下：點在日期上才選取；點到最上 / 最下那行時照 SCROLLOFF 捲一行
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(date) = self.date_at(mouse.column, mouse.row) {
+                    self.selected = date;
+                    self.scroll_to_selected();
+                }
+            }
+            // 其他（右鍵、拖曳、移動）不理
             _ => {}
         }
+    }
+
+    /// 滑鼠點在 terminal 的 (`column`, `row`) 時，點到哪一天；沒點在日期格子上回傳 `None`
+    ///
+    /// 月曆框固定畫在 terminal 左上角（見 `render`），例：預設排版時
+    /// `x` 7～11 是星期一、12～16 是星期二…；`y` 3 是第 1 週、4 是第 2 週…
+    fn date_at(&self, column: u16, row: u16) -> Option<Date> {
+        // 第 1 週那行的 y：框線 1 + 上 padding + 星期列 1
+        let first_row = 1 + PADDING.top + 1;
+        // 星期一那格的 x：框線 1 + 左 padding + 左邊欄 4
+        let first_column = 1 + PADDING.left + 4;
+        // 比第一格還上面 / 左邊：checked_sub 得到 None，`?` 直接回傳 None
+        let week = i64::from(row.checked_sub(first_row)?);
+        let weekday = i64::from(column.checked_sub(first_column)? / 5);
+        if week >= WEEKS || weekday >= 7 {
+            return None;
+        }
+        self.top.checked_add((week * 7 + weekday).days()).ok()
     }
 
     /// 選取的日期移動 `days` 天（負數 = 往前），需要時捲動月曆
@@ -522,6 +548,44 @@ mod tests {
         app.handle_mouse(wheel(MouseEventKind::ScrollUp));
         app.handle_mouse(wheel(MouseEventKind::ScrollUp));
         assert_eq!(app.selected, date(2026, 10, 3));
+    }
+
+    #[test]
+    fn date_at_maps_screen_position_to_date() {
+        // 一打開：最上面那週從 9/21（星期一）開始
+        let app = App::on_date(date(2026, 10, 10), Texts::en());
+        // 第 1 週星期一那格的頭、尾
+        assert_eq!(app.date_at(7, 3), Some(date(2026, 9, 21)));
+        assert_eq!(app.date_at(11, 3), Some(date(2026, 9, 21)));
+        // 第 3 週星期六（x = 7 + 5 × 5）
+        assert_eq!(app.date_at(32, 5), Some(date(2026, 10, 10)));
+        // 最後一週星期日那格的尾
+        assert_eq!(app.date_at(41, 10), Some(date(2026, 11, 15)));
+        // 不是日期格子：框線、左邊欄、星期列、月份標記、最後一週下面
+        for (column, row) in [(0, 0), (4, 5), (10, 2), (42, 5), (10, 11)] {
+            assert_eq!(app.date_at(column, row), None, "({column}, {row})");
+        }
+    }
+
+    #[test]
+    fn left_click_selects_the_clicked_date() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en());
+        let click = |column, row| MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        };
+        // 第 4 週星期二 = 10/13
+        app.handle_mouse(click(12, 6));
+        assert_eq!(app.selected, date(2026, 10, 13));
+        // 點在左邊欄：不動
+        app.handle_mouse(click(4, 6));
+        assert_eq!(app.selected, date(2026, 10, 13));
+        // 點最上面那行（9/22）：選取後照 scrolloff 往上捲一行，選取變成在第 2 行
+        app.handle_mouse(click(12, 3));
+        assert_eq!(app.selected, date(2026, 9, 22));
+        assert_eq!(selected_row(&app), Some(SCROLLOFF));
     }
 
     #[test]
