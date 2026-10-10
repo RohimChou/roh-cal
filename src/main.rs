@@ -43,9 +43,11 @@ impl App {
     /// 依目前狀態畫出整個畫面
     fn render(&self, frame: &mut Frame) {
         let block = Block::bordered().title(" roh-cal ");
-        // Date 印出來是 2026-10-10 這種格式
-        let text = format!("今天是 {}  按 q 或 Esc 離開", self.today);
-        let body = Paragraph::new(text).block(block);
+        // 月曆下面空一行，再放操作說明
+        let mut lines = month_lines(self.today);
+        lines.push(String::new());
+        lines.push("按 q 或 Esc 離開".to_string());
+        let body = Paragraph::new(lines.join("\n")).block(block);
         frame.render_widget(body, frame.area());
     }
 
@@ -59,4 +61,37 @@ impl App {
         }
         Ok(())
     }
+}
+
+/// 組出 `today` 所在月份的月曆文字：標題、星期列，接著一週一行
+///
+/// 每格 5 個字元寬，日期靠右對齊在星期名稱下面，例：2026 年 10 月（1 號是星期四）
+/// ```text
+///  MON  TUE  WED  THU  FRI  SAT  SUN
+///                   1    2    3    4
+///    5    6    7    8    9   10   11
+/// ```
+fn month_lines(today: Date) -> Vec<String> {
+    let first = today.first_of_month();
+    // 1 號前面要空幾格（星期一 = 0 … 星期日 = 6）
+    let offset = first.weekday().to_monday_zero_offset();
+
+    let mut lines = vec![
+        format!("{} 年 {} 月", today.year(), today.month()),
+        " MON  TUE  WED  THU  FRI  SAT  SUN".to_string(),
+    ];
+    let mut week = "     ".repeat(offset as usize);
+    for day in 1..=first.days_in_month() {
+        week.push_str(&format!("{day:>4} "));
+        // 排到星期日就換下一行
+        if (offset + day) % 7 == 0 {
+            lines.push(week);
+            week = String::new();
+        }
+    }
+    // 最後一週沒排滿 7 天，也要放進去
+    if !week.is_empty() {
+        lines.push(week);
+    }
+    lines
 }
