@@ -1,8 +1,5 @@
 use color_eyre::Result;
-use jiff::{
-    ToSpan, Zoned,
-    civil::{Date, Weekday},
-};
+use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
@@ -126,62 +123,79 @@ fn monday_of(date: Date) -> Date {
     date.saturating_sub(date.weekday().to_monday_zero_offset().days())
 }
 
-/// 最上面那週是 `top` 時，畫面上最後一天（最下面那週的星期日）
-fn last_visible(top: Date) -> Date {
-    top.saturating_add((WEEKS * 7 - 1).days())
+/// `date` 是它那一年的第幾週：1/1 所在的那週是第 1 週（每週從星期一開始）
+///
+/// 跨年那週看 `date` 落在哪一年，例：2025-12-30 是 2025 年第 53 週、2026-01-02 是 2026 年第 1 週
+fn week_of_year(date: Date) -> i16 {
+    // 1/1 那週裡，1/1 前面還有幾天（例：1/1 是星期四 → 前面有 3 天）
+    let offset = date.first_of_year().weekday().to_monday_zero_offset();
+    (date.day_of_year() - 1 + i16::from(offset)) / 7 + 1
 }
 
 /// 組出月曆：標題、星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
 ///
+/// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行。
 /// 標題是選取日期的年月，不是那個月的日期用灰色；
 /// 選取的日期反白、今天的日期加底線，兩個是同一天就兩種都套
 ///
-/// 每格 5 個字元寬，日期靠右對齊在星期名稱下面，例：選 2026-10-10
+/// 左邊欄 4 格，每格日期 5 個字元寬、靠右對齊在星期名稱下面，例：選 2026-10-10
 /// ```text
-///  MON  TUE  WED  THU  FRI  SAT  SUN
-///   21   22   23   24   25   26   27    ← 9 月，灰色
-///   28   29   30    1    2    3    4    ← 28–30 灰色
-///    5    6    7    8    9   10   11
+///      MON  TUE  WED  THU  FRI  SAT  SUN
+///   2   21   22   23   24   25   26   27    ← 9 月，灰色
+///   1   28   29   30    1    2    3    4    ← 28–30 灰色
+/// 41     5    6    7    8    9   10   11    ← 選取的那週：第 41 週
+///   1   12   13   14   15   16   17   18
 ///  ...
-///   26   27   28   29   30   31    1    ← 1 灰色
-///    2    3    4    5    6    7    8    ← 11 月，灰色
 /// ```
 fn calendar_lines(top: Date, selected: Date, today: Date) -> Vec<Line<'static>> {
     let month = selected.first_of_month();
-    let last = last_visible(top);
+    // 畫面上每一行的星期一
+    let mondays: Vec<Date> = top.series(1.week()).take(WEEKS as usize).collect();
+    // 選取的那週在第幾行（0 = 最上面）；選取一定在畫面上，找不到只是保險
+    let selected_row = mondays
+        .iter()
+        .position(|&monday| monday == monday_of(selected))
+        .unwrap_or(0);
 
     let mut lines = vec![
-        Line::from(format!("{} 年 {} 月", month.year(), month.month())),
-        Line::from(" MON  TUE  WED  THU  FRI  SAT  SUN"),
+        Line::from(format!("    {} 年 {} 月", month.year(), month.month())),
+        Line::from("     MON  TUE  WED  THU  FRI  SAT  SUN"),
     ];
-    let mut week = Line::default();
-    // 從 top 開始一天一天往後，到畫面最後一天為止
-    for date in top.series(1.day()).take_while(|&date| date <= last) {
-        // 一格 = 2 個空白 + 2 位數日期 + 1 個空白；只有日期數字套 style
-        let mut style = Style::new();
-        // 不是選取日期的那個月：灰色
-        if date.first_of_month() != month {
-            style = style.fg(Color::DarkGray);
+    for (row, monday) in mondays.into_iter().enumerate() {
+        let mut week = Line::default();
+        // 左邊欄：選取那行顯示選取日期的週數（靠左、黃色粗體），其他行顯示差幾行（靠右、灰色）
+        if row == selected_row {
+            let style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+            week.push_span(Span::styled(
+                format!("{:<3}", week_of_year(selected)),
+                style,
+            ));
+        } else {
+            let distance = row.abs_diff(selected_row);
+            week.push_span(Span::styled(format!("{distance:>3}"), Color::DarkGray));
         }
-        // 今天：加底線
-        if date == today {
-            style = style.add_modifier(Modifier::UNDERLINED);
-        }
-        // 選取：反白（前景色和背景色對調）
-        if date == selected {
-            style = style.add_modifier(Modifier::REVERSED);
-        }
-        week.push_span("  ");
-        week.push_span(Span::styled(format!("{:>2}", date.day()), style));
         week.push_span(" ");
-        // 排到星期日就換下一行
-        if date.weekday() == Weekday::Sunday {
-            lines.push(week);
-            week = Line::default();
+
+        // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
+        for date in monday.series(1.day()).take(7) {
+            // 一格 = 2 個空白 + 2 位數日期 + 1 個空白；只有日期數字套 style
+            let mut style = Style::new();
+            // 不是選取日期的那個月：灰色
+            if date.first_of_month() != month {
+                style = style.fg(Color::DarkGray);
+            }
+            // 今天：加底線
+            if date == today {
+                style = style.add_modifier(Modifier::UNDERLINED);
+            }
+            // 選取：反白（前景色和背景色對調）
+            if date == selected {
+                style = style.add_modifier(Modifier::REVERSED);
+            }
+            week.push_span("  ");
+            week.push_span(Span::styled(format!("{:>2}", date.day()), style));
+            week.push_span(" ");
         }
-    }
-    // 最後一週沒排滿 7 天（只有 9999-12-31 這種日期上限才會發生），也要放進去
-    if !week.spans.is_empty() {
         lines.push(week);
     }
     lines
