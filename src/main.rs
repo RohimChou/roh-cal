@@ -3,6 +3,8 @@ use jiff::{Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, KeyCode},
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Paragraph},
 };
 
@@ -45,9 +47,9 @@ impl App {
         let block = Block::bordered().title(" roh-cal ");
         // 月曆下面空一行，再放操作說明
         let mut lines = month_lines(self.today);
-        lines.push(String::new());
-        lines.push("按 q 或 Esc 離開".to_string());
-        let body = Paragraph::new(lines.join("\n")).block(block);
+        lines.push(Line::default());
+        lines.push(Line::from("按 q 或 Esc 離開"));
+        let body = Paragraph::new(lines).block(block);
         frame.render_widget(body, frame.area());
     }
 
@@ -63,7 +65,7 @@ impl App {
     }
 }
 
-/// 組出 `today` 所在月份的月曆文字：標題、星期列，接著一週一行
+/// 組出 `today` 所在月份的月曆：標題、星期列，接著一週一行；今天的日期反白
 ///
 /// 每格 5 個字元寬，日期靠右對齊在星期名稱下面，例：2026 年 10 月（1 號是星期四）
 /// ```text
@@ -71,26 +73,36 @@ impl App {
 ///                   1    2    3    4
 ///    5    6    7    8    9   10   11
 /// ```
-fn month_lines(today: Date) -> Vec<String> {
+fn month_lines(today: Date) -> Vec<Line<'static>> {
     let first = today.first_of_month();
     // 1 號前面要空幾格（星期一 = 0 … 星期日 = 6）
     let offset = first.weekday().to_monday_zero_offset();
+    // 反白：前景色和背景色對調
+    let today_style = Style::new().add_modifier(Modifier::REVERSED);
 
     let mut lines = vec![
-        format!("{} 年 {} 月", today.year(), today.month()),
-        " MON  TUE  WED  THU  FRI  SAT  SUN".to_string(),
+        Line::from(format!("{} 年 {} 月", today.year(), today.month())),
+        Line::from(" MON  TUE  WED  THU  FRI  SAT  SUN"),
     ];
-    let mut week = "     ".repeat(offset as usize);
+    let mut week = Line::from("     ".repeat(offset as usize));
     for day in 1..=first.days_in_month() {
-        week.push_str(&format!("{day:>4} "));
+        // 一格 = 2 個空白 + 2 位數日期 + 1 個空白；只有日期數字套 style
+        let style = if day == today.day() {
+            today_style
+        } else {
+            Style::new()
+        };
+        week.push_span("  ");
+        week.push_span(Span::styled(format!("{day:>2}"), style));
+        week.push_span(" ");
         // 排到星期日就換下一行
         if (offset + day) % 7 == 0 {
             lines.push(week);
-            week = String::new();
+            week = Line::default();
         }
     }
     // 最後一週沒排滿 7 天，也要放進去
-    if !week.is_empty() {
+    if !week.spans.is_empty() {
         lines.push(week);
     }
     lines
