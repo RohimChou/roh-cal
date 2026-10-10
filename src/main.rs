@@ -1,6 +1,8 @@
 mod app;
 mod calendar;
 mod i18n;
+#[expect(dead_code, reason = "接到畫面之前，parser 只有 test 在用")]
+mod tasks;
 mod theme;
 mod ui;
 
