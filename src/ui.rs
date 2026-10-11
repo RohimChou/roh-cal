@@ -52,9 +52,11 @@ pub fn render(frame: &mut Frame, app: &App) {
             help::render(frame, app);
         }
         Some(Overlay::Form(ref form)) => {
-            // 清單照畫，表單疊在上面（跟清單一樣置中在月曆框上）
+            // 從清單打開的：清單照畫，表單疊在上面；從月曆打開的：直接疊在月曆上（都置中在月曆框上）
             let calendar = calendar_area(frame.area(), app);
-            day_list::render(frame, form.back, app, calendar);
+            if let Some(list) = form.back {
+                day_list::render(frame, list, app, calendar);
+            }
             form::render(frame, form, app, calendar);
         }
         None => {}

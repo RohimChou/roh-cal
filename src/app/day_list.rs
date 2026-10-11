@@ -58,7 +58,7 @@ impl App {
                 }
                 // a：新增表單，存好 / 取消之後回到清單
                 KeyCode::Char('a') => {
-                    self.overlay = Some(Overlay::Form(Form::open(list)));
+                    self.overlay = Some(Overlay::Form(Form::open(list.date, Some(list))));
                     return;
                 }
                 // d：先問一次（顯示會刪掉幾筆），按 y 才刪

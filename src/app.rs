@@ -266,7 +266,7 @@ impl App {
         }
     }
 
-    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、復原、說明、離開
+    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、新增、復原、說明、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -281,6 +281,10 @@ impl App {
             // Enter / o：打開選取那天的清單
             KeyCode::Enter | KeyCode::Char('o') => {
                 self.overlay = Some(Overlay::DayList(DayList::open(self.selected)));
+            }
+            // a：新增表單，日期是選取的那天；存好 / 取消之後回到月曆
+            KeyCode::Char('a') => {
+                self.overlay = Some(Overlay::Form(Form::open(self.selected, None)));
             }
             // u：復原 roh-cal 最後一次寫檔
             KeyCode::Char('u') => self.notice = Some(self.undo()),

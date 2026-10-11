@@ -1,4 +1,4 @@
-//! 新增表單：清單裡按 `a` 打開，疊在月曆框的正中間（跟當天清單一樣），兩欄：標題、日期；游標在日期欄時下面出現小月曆
+//! 新增表單：月曆或當天清單按 `a` 打開，疊在月曆框的正中間（跟當天清單一樣），兩欄：標題、日期；游標在日期欄時下面出現小月曆
 
 use crate::app::{App, Form, FormField, FormProblem};
 use crate::calendar::monday_of;
@@ -176,11 +176,11 @@ mod tests {
             date: Input::new(picked.to_string()),
             picked,
             focus,
-            back: DayList {
+            back: Some(DayList {
                 date: date(2026, 10, 12),
                 selected: 0,
                 confirm_delete: None,
-            },
+            }),
             problem,
         }));
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
@@ -301,5 +301,37 @@ mod tests {
         // 上一週、下一週：10/19～25、11/2～8
         assert_eq!(position_of(&rows, " 19  20  21  22  23  24  25").1, y - 1);
         assert_eq!(position_of(&rows, "  2   3   4   5   6   7   8").1, y + 1);
+    }
+
+    #[test]
+    fn opened_from_the_calendar_the_form_has_no_day_list_under_it() {
+        // 10/12 有 5 個項目：清單比表單高，從清單打開時清單的標題（日期 + 星期）露在表單上面
+        let text: String = (1..=5)
+            .map(|n| format!("- 項目{n} @2026-10-12\n"))
+            .collect();
+        let list = DayList {
+            date: OCT_12,
+            selected: 0,
+            confirm_delete: None,
+        };
+        for (back, list_shown) in [(Some(list), true), (None, false)] {
+            let items = crate::tasks::parse(&text).items;
+            let mut app = App::on_date(OCT_12, Texts::en(), items);
+            app.overlay = Some(Overlay::Form(Form {
+                title: Input::default(),
+                date: Input::new(OCT_12.to_string()),
+                picked: OCT_12,
+                focus: FormField::Title,
+                back,
+                problem: None,
+            }));
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, &app))
+                .unwrap();
+            let text = rows(terminal.backend().buffer()).join("\n");
+            assert!(text.contains(" new item "), "{back:?}");
+            assert_eq!(text.contains("2026-10-12 Mon"), list_shown, "{back:?}");
+        }
     }
 }

@@ -1,4 +1,4 @@
-//! 新增表單：標題、日期兩欄，和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
+//! 新增表單（月曆或當天清單按 `a`）：標題、日期兩欄，和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
 
 use super::{App, DayList, Overlay};
 use crate::ui;
@@ -11,25 +11,25 @@ use tui_input::{Input, InputRequest, backend::crossterm::to_input_request};
 pub struct Form {
     /// 標題欄
     pub title: Input,
-    /// 日期欄（`2026-10-12`），一開始是清單那一天
+    /// 日期欄（`2026-10-12`），一開始是打開表單的那一天
     pub date: Input,
     /// 小月曆選到的日期：日期欄最後一次是完整日期時的那天（打到一半時不變），`h/j/k/l` 從這天開始換
     pub picked: Date,
     /// 游標在哪一欄
     pub focus: FormField,
-    /// 存好 / 取消之後回到這個清單；新項目放在這個清單選到的項目同一組
-    pub back: DayList,
+    /// 從哪裡打開的：當天清單（存好 / 取消之後回到清單，新項目放在清單選到的項目同一組），`None` = 月曆
+    pub back: Option<DayList>,
     /// 按 Enter 時沒通過的檢查（顯示在下框線），下一個按鍵就消失
     pub problem: Option<FormProblem>,
 }
 
 impl Form {
-    /// 從清單打開：標題空的、日期是清單那一天，游標在標題
-    pub(super) fn open(back: DayList) -> Self {
+    /// 打開表單：標題空的、日期是 `date`，游標在標題；`back` = 從哪個清單打開的（`None` = 月曆）
+    pub(super) fn open(date: Date, back: Option<DayList>) -> Self {
         Self {
             title: Input::default(),
-            date: Input::new(back.date.to_string()),
-            picked: back.date,
+            date: Input::new(date.to_string()),
+            picked: date,
             focus: FormField::Title,
             back,
             problem: None,
@@ -89,7 +89,7 @@ pub enum FormProblem {
 }
 
 impl App {
-    /// 表單開著時的按鍵：打字打進游標那一欄；`Tab` / `Shift+Tab` 換欄、`Enter` 存、`Esc` 取消（都回到清單）；
+    /// 表單開著時的按鍵：打字打進游標那一欄；`Tab` / `Shift+Tab` 換欄、`Enter` 存、`Esc` 取消（都回到打開表單的地方）；
     /// 游標在日期欄時 `h/j/k/l`（或方向鍵）換日期
     pub(super) fn handle_form_key(&mut self, key: KeyEvent) {
         // 表單裡有字串，不能複製：先拿出來改，最後再放回去
@@ -99,13 +99,20 @@ impl App {
         form.problem = None;
         match key.code {
             KeyCode::Esc => {
-                self.overlay = Some(Overlay::DayList(form.back));
+                self.overlay = form.back.map(Overlay::DayList);
                 return;
             }
             KeyCode::Tab | KeyCode::BackTab => form.focus = form.focus.other(),
             KeyCode::Enter => {
                 if let Some(list) = self.save_form(&mut form) {
-                    self.overlay = Some(Overlay::DayList(list));
+                    if form.back.is_some() {
+                        // 從清單打開的：回到新項目那天的清單，選到新項目
+                        self.overlay = Some(Overlay::DayList(list));
+                    } else {
+                        // 從月曆打開的：回到月曆，選取移到新項目那天（看得到新的點點）
+                        self.selected = list.date;
+                        self.scroll_to_selected();
+                    }
                     return;
                 }
             }
@@ -144,7 +151,7 @@ impl App {
         self.overlay = Some(Overlay::Form(form));
     }
 
-    /// 表單按 Enter：檢查標題、日期，寫進任務檔。存好了回傳要回去的清單（新項目那天，選到新項目）；
+    /// 表單按 Enter：檢查標題、日期，寫進任務檔。存好了回傳新項目那天的清單（選到新項目）；
     /// 沒存成回傳 `None`，原因放在 `form.problem`（欄位寫錯）或 `self.notice`（檔案的問題），表單留著讓使用者改
     fn save_form(&mut self, form: &mut Form) -> Option<DayList> {
         let title = form.title.value().trim().to_string();
@@ -156,9 +163,11 @@ impl App {
             form.problem = Some(FormProblem::BadDate);
             return None;
         };
-        // 新項目放在清單選到的那個項目同一組
-        let near = ui::items_on(&self.items, form.back.date)
-            .get(form.back.selected)
+        // 新項目放在清單選到的那個項目同一組；從月曆打開的，跟打開那天的清單再按 a 一樣（選第一個）。
+        // 表單開著時月曆不會動，所以 `self.selected` 還是打開表單的那天
+        let list = form.back.unwrap_or_else(|| DayList::open(self.selected));
+        let near = ui::items_on(&self.items, list.date)
+            .get(list.selected)
             .copied()
             .cloned();
         let line = match self.add_item(title, date, near.as_ref()) {
@@ -343,5 +352,45 @@ mod tests {
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(form(&app).date.value(), "2026-10-26");
         assert_eq!(form(&app).picked, date(2026, 10, 26));
+    }
+
+    #[test]
+    fn a_on_the_calendar_adds_to_the_selected_day_and_goes_back_to_the_calendar() {
+        let text = "# 工作\n- [ ] 早上 @2026-10-10 09:00\n# 個人\n- [ ] 散步 @2026-10-11\n";
+        let (mut app, path) = app_with_task_file("add-calendar", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // 先關掉清單，回到月曆（選取在 10/10）；a：表單直接打開，日期是 10/10
+        app.handle_key(key(KeyCode::Char('q')));
+        app.handle_key(key(KeyCode::Char('a')));
+        assert_eq!(form(&app).back, None);
+        assert_eq!(form(&app).date.value(), "2026-10-10");
+        // 存好：放在那天第一個項目（早上）那一組，回到月曆
+        type_text(&mut app, "估價");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(
+            read(),
+            "# 工作\n- [ ] 早上 @2026-10-10 09:00\n- [ ] 估價 @2026-10-10\n# 個人\n- [ ] 散步 @2026-10-11\n"
+        );
+        assert_eq!(app.overlay, None);
+        // 10/11 按 a，日期換成下一週（10/18）：放在散步那一組，月曆的選取跳到 10/18
+        app.handle_key(key(KeyCode::Char('l')));
+        app.handle_key(key(KeyCode::Char('a')));
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        type_text(&mut app, "跑步");
+        app.handle_key(key(KeyCode::Enter));
+        assert!(read().ends_with("- [ ] 散步 @2026-10-11\n- [ ] 跑步 @2026-10-18\n"));
+        assert_eq!(app.overlay, None);
+        assert_eq!(app.selected, date(2026, 10, 18));
+        // Esc：什麼都不存，回到月曆，選取不動
+        let before = read();
+        app.handle_key(key(KeyCode::Char('a')));
+        type_text(&mut app, "x");
+        app.handle_key(key(KeyCode::Esc));
+        assert_eq!(app.overlay, None);
+        assert_eq!(read(), before);
+        assert_eq!(app.selected, date(2026, 10, 18));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }
