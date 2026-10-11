@@ -106,6 +106,16 @@ pub enum FormProblem {
     BadDate,
 }
 
+impl FormProblem {
+    /// 這個問題出在哪一欄（按 Enter 沒存成時，游標跳過去）
+    fn field(self) -> FormField {
+        match self {
+            Self::EmptyTitle | Self::DateInTitle => FormField::Title,
+            Self::BadDate => FormField::Date,
+        }
+    }
+}
+
 impl App {
     /// 表單開著時的按鍵：打字打進游標那一欄；`Tab` / `Shift+Tab` 換欄、`Enter` 存、`Esc` 取消（都回到打開表單的地方）；
     /// 游標在日期欄時 `h/j/k/l`（或方向鍵）換日期
@@ -132,6 +142,10 @@ impl App {
                         self.scroll_to_selected();
                     }
                     return;
+                }
+                // 欄位沒通過檢查：游標跳到有錯的那一欄
+                if let Some(problem) = form.problem {
+                    form.focus = problem.field();
                 }
                 // 編輯時檔案在別處改過（已重新載入）：這個表單對不上了，回到清單，要改再打開一次
                 if form.editing.is_some()
@@ -292,11 +306,11 @@ mod tests {
         app.handle_key(key(KeyCode::Backspace));
         type_text(&mut app, "15");
         assert_eq!(form(&app).date.value(), "2026-10-15");
-        // 標題是空的：不存，表單留著、下框線說原因
+        // 標題是空的：不存，表單留著、下框線說原因，游標自己跳回標題
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(form(&app).problem, Some(FormProblem::EmptyTitle));
-        // Shift+Tab 回標題，打字之後原因就消失；Enter 存到 15 號，回到 15 號的清單
-        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(form(&app).focus, FormField::Title);
+        // 直接打字，原因就消失；Enter 存到 15 號，回到 15 號的清單
         type_text(&mut app, "繳卡費");
         assert_eq!(form(&app).problem, None);
         app.handle_key(key(KeyCode::Enter));
@@ -557,5 +571,32 @@ mod tests {
         assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
         assert_eq!(app.items[0].title, "早上九點");
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn a_problem_moves_the_cursor_to_that_field() {
+        let mut app = app_with_two_items();
+        for code in [KeyCode::Enter, KeyCode::Char('a'), KeyCode::Tab] {
+            app.handle_key(key(code));
+        }
+        // 游標在日期、標題是空的 → 跳到標題
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(form(&app).problem, Some(FormProblem::EmptyTitle));
+        assert_eq!(form(&app).focus, FormField::Title);
+        // 標題打好、日期刪掉一個字（2026-10-1），游標在標題 → 跳到日期（小月曆也跟著出現）
+        type_text(&mut app, "x");
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Backspace));
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(form(&app).problem, Some(FormProblem::BadDate));
+        assert_eq!(form(&app).focus, FormField::Date);
+        // 游標在日期、標題裡有 @日期 → 跳到標題（標題的問題先檢查）
+        app.handle_key(key(KeyCode::Tab));
+        type_text(&mut app, " @2026-10-20");
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(form(&app).problem, Some(FormProblem::DateInTitle));
+        assert_eq!(form(&app).focus, FormField::Title);
     }
 }

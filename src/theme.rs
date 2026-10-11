@@ -89,6 +89,8 @@ pub struct Theme {
     pub help_section: Style,
     /// 說明頁的按鍵那欄，例：`Enter / o`
     pub help_key: Style,
+    /// 出錯的提示：表單沒通過的檢查（例：標題是空的），要一眼看得到
+    pub error: Style,
 }
 
 impl Default for Theme {
@@ -116,6 +118,7 @@ impl Theme {
         let yellow = Color::Rgb(249, 226, 175);
         let mauve = Color::Rgb(203, 166, 247);
         let peach = Color::Rgb(250, 179, 135);
+        let red = Color::Rgb(243, 139, 168);
 
         let bold = Modifier::BOLD;
         Self {
@@ -145,6 +148,7 @@ impl Theme {
             grid_lines: Style::new().fg(surface0),
             help_section: Style::new().fg(blue).add_modifier(bold),
             help_key: Style::new().fg(peach).add_modifier(bold),
+            error: Style::new().fg(red).add_modifier(bold),
         }
     }
 

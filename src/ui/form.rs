@@ -40,7 +40,7 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
         Some(FormProblem::BadDate) => Some(app.texts.form_bad_date),
         None => None,
     }
-    .map(|problem| Line::styled(format!(" {problem} "), theme.title))
+    .map(|problem| Line::styled(format!(" {problem} "), theme.error))
     .or_else(|| notice_line(app))
     .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.form_hint), theme.hint));
     let heading = if form.editing.is_some() {
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn problems_take_the_place_of_the_hint() {
-        let (rows, _) = draw(
+        let (rows, terminal) = draw(
             Texts::en(),
             "",
             OCT_12,
@@ -240,6 +240,11 @@ mod tests {
         let text = rows.join("\n");
         assert!(text.contains("the title is empty"));
         assert!(!text.contains("Tab next"));
+        // 用出錯的顏色（醒目的紅），不是標題的顏色
+        let (x, y) = position_of(&rows, "the title is empty");
+        let cell = &terminal.backend().buffer()[(x, y)];
+        assert_eq!(cell.fg, Theme::default().error.fg.unwrap());
+        assert_ne!(cell.fg, Theme::default().title.fg.unwrap());
         let (rows, _) = draw(
             Texts::zh_tw(),
             "x",
