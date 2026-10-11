@@ -5,9 +5,10 @@
 //! 格子大小不是固定的：每次畫面重畫都從 terminal 現在的大小算（terminal 拉大 / 縮小，格子跟著變）
 
 use crate::app::{App, View};
+use crate::calendar::monday_of;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{WEEKDAYS, item_dots, items_by_day, weekend_style};
+use crate::ui::{WEEKDAYS, item_dots, items_by_day, week_number_span, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -21,6 +22,8 @@ use ratatui::{
 
 /// month view 固定顯示幾週
 const WEEKS: i64 = View::Month.weeks();
+/// 左邊欄（週數 / 相對週數）的寬度：空白 1 + 數字 3 + 空白 1（數字才不會貼著格線）
+const SIDEBAR_WIDTH: u16 = 5;
 
 /// 畫出 month view：圓角框填滿 terminal，裡面是星期列 + `WEEKS` 週，每週 7 個等寬等高的格子
 pub fn render(frame: &mut Frame, app: &App) {
@@ -37,7 +40,8 @@ pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let (header, weeks) = grid(inner, app.settings.month.grid_lines);
+    let week_numbers = app.settings.calendar.week_numbers;
+    let (header, weeks) = grid(inner, app.settings.month.grid_lines, week_numbers);
     if app.settings.month.grid_lines {
         render_grid_lines(frame.buffer_mut(), inner, &header, &weeks, &app.theme);
     }
@@ -53,10 +57,28 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // 日期格子：從 `top` 那週開始，一週一行；項目先依日期分好組，每格直接拿
     let by_day = items_by_day(&app.items);
+    // 選取的那週在第幾行（左邊欄的相對週數從這裡算）；選取一定在畫面上，找不到只是保險
+    let selected_row = app
+        .top
+        .series(1.week())
+        .take(WEEKS as usize)
+        .position(|monday| monday == monday_of(app.selected))
+        .unwrap_or(0);
     for (row, cells) in weeks.into_iter().enumerate() {
         let Ok(monday) = app.top.checked_add((row as i64).weeks()) else {
             break;
         };
+        // 左邊欄：跟日期同一行（每週的第一行），選取那週是週數、其他週是差幾週（跟小月曆一樣）
+        if week_numbers {
+            let area = Rect {
+                x: inner.x,
+                width: SIDEBAR_WIDTH,
+                height: 1,
+                ..cells[0]
+            };
+            let number = week_number_span(row, selected_row, app.selected, &app.theme);
+            frame.render_widget(Paragraph::new(Line::from(vec![" ".into(), number])), area);
+        }
         // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
         let dates: Vec<Date> = monday.series(1.day()).take(7).collect();
         let lines: Vec<Vec<Line>> = dates
@@ -118,7 +140,11 @@ fn render_week(
 pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
     // 外框各佔 1 格；`Block::inner` 跟 render 用同一套算法
     let inner = Block::bordered().inner(app.screen);
-    let (_, weeks) = grid(inner, app.settings.month.grid_lines);
+    let (_, weeks) = grid(
+        inner,
+        app.settings.month.grid_lines,
+        app.settings.calendar.week_numbers,
+    );
     let position = Position::new(column, row);
     for (week, cells) in weeks.iter().enumerate() {
         for (weekday, cell) in cells.iter().enumerate() {
@@ -134,12 +160,13 @@ pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
 }
 
 /// 把框裡面切成格子：最上面 1 行是星期列，下面 `WEEKS` 週**每週一樣高**；每一行再平分成 7 欄。
-/// `lines` = true 時，星期列和第 1 週之間、週與週之間各留 1 行畫格線，欄與欄之間留 1 格
+/// `lines` = true 時，星期列和第 1 週之間、週與週之間各留 1 行畫格線，欄與欄之間留 1 格。
+/// `sidebar` = true 時，最左邊先留 `SIDEBAR_WIDTH` 格給左邊欄（週數），跟星期一之間也留格線的位置
 ///
 /// 每週的高度 = (框裡面的高度 − 星期列 1 − 格線) ÷ 週數，取整數；除不盡的零頭留在最底下當空白，
 /// 不用 `Fill` 平分（`Fill` 會讓有些週多 1 行，看起來高低不齊）。
 /// 回傳（星期列的 7 格, 每週的 7 格），都是**不含格線**的內容區。terminal 太小時格子可能是 0 高 / 0 寬，畫不出東西但不會壞
-fn grid(inner: Rect, lines: bool) -> ([Rect; 7], Vec<[Rect; 7]>) {
+fn grid(inner: Rect, lines: bool, sidebar: bool) -> ([Rect; 7], Vec<[Rect; 7]>) {
     let weeks = WEEKS as usize;
     // 格線佔的格數：開 1、關 0
     let gap = u16::from(lines);
@@ -154,8 +181,14 @@ fn grid(inner: Rect, lines: bool) -> ([Rect; 7], Vec<[Rect; 7]>) {
     }
     constraints.push(Constraint::Fill(1));
     let rows = Layout::vertical(constraints).split(inner);
-    // 橫的切：7 欄平分（寬度差 1 格看不出來），欄之間各留 `gap` 格給格線
+    // 橫的切：左邊欄（有開的話）、7 欄平分（寬度差 1 格看不出來），欄之間各留 `gap` 格給格線
     let mut columns_constraints = Vec::new();
+    if sidebar {
+        columns_constraints.push(Constraint::Length(SIDEBAR_WIDTH));
+        columns_constraints.push(Constraint::Length(gap));
+    }
+    // 切出來的前幾段是左邊欄和它旁邊的格線，跳過
+    let skip = if sidebar { 2 } else { 0 };
     for column in 0..7 {
         columns_constraints.push(Constraint::Fill(1));
         if column < 6 {
@@ -164,8 +197,8 @@ fn grid(inner: Rect, lines: bool) -> ([Rect; 7], Vec<[Rect; 7]>) {
     }
     let columns = |row: Rect| {
         let parts = Layout::horizontal(columns_constraints.clone()).split(row);
-        // 偶數位置是欄、奇數位置是格線
-        std::array::from_fn(|column| parts[column * 2])
+        // 跳過左邊欄之後，偶數位置是欄、奇數位置是格線
+        std::array::from_fn(|column| parts[skip + column * 2])
     };
     let header = columns(rows[0]);
     // rows[0] 星期列、rows[1] 格線、之後每 2 個一週
@@ -192,7 +225,11 @@ fn render_grid_lines(
         }
     };
     // 直線的 x：每一欄的右邊那 1 格（最後一欄右邊是外框，不畫）
-    let vertical_xs: Vec<u16> = header[..6].iter().map(|cell| cell.right()).collect();
+    let mut vertical_xs: Vec<u16> = header[..6].iter().map(|cell| cell.right()).collect();
+    // 星期一沒有貼著左邊 → 左邊有左邊欄，它跟星期一之間也畫一條
+    if header[0].x > inner.x {
+        vertical_xs.insert(0, header[0].x - 1);
+    }
     // 橫線的 y：星期列下面那行，和前 5 週各自下面那行
     let mut horizontal_ys = vec![header[0].bottom()];
     horizontal_ys.extend(
@@ -367,7 +404,7 @@ mod tests {
     fn grid_has_one_header_row_and_equal_cells() {
         // 70 寬 × 25 高：星期列 1 + 格線 6 = 7 行，剩下 18 行平分 6 週 = 每週 3 行；
         // 70 寬扣 6 條直線 = 64，平分 7 欄 = 9 或 10 格
-        let (header, weeks) = grid(Rect::new(1, 1, 70, 25), true);
+        let (header, weeks) = grid(Rect::new(1, 1, 70, 25), true, false);
         assert_eq!(weeks.len(), 6);
         assert!(header.iter().all(|cell| cell.height == 1));
         let widths: Vec<u16> = header.iter().map(|cell| cell.width).collect();
@@ -388,7 +425,7 @@ mod tests {
     #[test]
     fn grid_without_lines_uses_every_row_and_column() {
         // 格線關掉：70 × 25 → (25 − 1) ÷ 6 = 每週 4 行；70 平分 7 欄，欄之間沒有縫
-        let (header, weeks) = grid(Rect::new(1, 1, 70, 25), false);
+        let (header, weeks) = grid(Rect::new(1, 1, 70, 25), false, false);
         assert_eq!(header.iter().map(|cell| cell.width).sum::<u16>(), 70);
         assert!(weeks.iter().all(|cells| cells[0].height == 4));
         assert_eq!(weeks[0][0], Rect::new(1, 2, 10, 4));
@@ -399,7 +436,7 @@ mod tests {
     #[test]
     fn leftover_rows_stay_blank_at_the_bottom() {
         // 27 高：(27 − 7) ÷ 6 = 3 餘 2 → 每週還是 3 行，最後 2 行空著（不會有某週變 4 行）
-        let (_, weeks) = grid(Rect::new(1, 1, 70, 27), true);
+        let (_, weeks) = grid(Rect::new(1, 1, 70, 27), true, false);
         assert!(weeks.iter().all(|cells| cells[0].height == 3));
         assert_eq!(weeks[5][0].bottom(), 1 + 1 + 1 + 6 * 3 + 5);
     }
@@ -516,10 +553,12 @@ mod tests {
             crate::tasks::parse(text).items,
         );
         app.settings.month.item_icons = false;
+        // 下面的格子寬度是沒有左邊欄（週數）的排版
+        app.settings.calendar.week_numbers = false;
         app.view = View::Month;
         // 80 × 24：每格 2 行（日期 + 1 行）
         let buffer = draw(&app, 24);
-        let (_, weeks) = grid(Rect::new(1, 1, 78, 22), true);
+        let (_, weeks) = grid(Rect::new(1, 1, 78, 22), true, false);
         // 10/12 是第 4 週星期一、10/13 星期二；項目在格子的第 2 行
         let monday = weeks[3][0];
         let tuesday = weeks[3][1];
@@ -546,10 +585,12 @@ mod tests {
             crate::tasks::parse(text).items,
         );
         app.settings.month.item_icons = false;
+        // 下面的格子寬度是沒有左邊欄（週數）的排版
+        app.settings.calendar.week_numbers = false;
         app.view = View::Month;
         // 80 × 30：每格 3 行（日期 + 2 行），兩個項目都列得出來
         let buffer = draw(&app, 30);
-        let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true);
+        let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true, false);
         let monday = weeks[3][0];
         let wednesday = weeks[3][2];
         // 兩格 + 中間格線 = 10 + 1 + 11 = 22 格寬：空白 1 + 10 個中文字 20 = 21，第 11 個字放不下
@@ -595,12 +636,14 @@ mod tests {
             crate::tasks::parse(&std::fs::read_to_string("testdata/tasks.md").unwrap()).items;
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), items);
         app.settings.month.item_icons = false;
+        // 下面的格子寬度是沒有左邊欄（週數）的排版
+        app.settings.calendar.week_numbers = false;
         app.view = View::Month;
         // 80 × 30：框內 28 行 − 星期列 1 − 格線 6 = 21 ÷ 6 = 每格 3 行（日期 + 2 行）
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
         terminal.draw(|frame| render(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
-        let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true);
+        let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true, false);
         let line_at = |cell: Rect, row: u16| -> String {
             (cell.x..cell.right())
                 .map(|x| buffer[(x, cell.y + row)].symbol())
@@ -628,7 +671,7 @@ mod tests {
         terminal.draw(|frame| render(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
         // 格子的位置跟 render 一樣算：框線各佔 1
-        let (header, weeks) = grid(Rect::new(1, 1, 78, 22), true);
+        let (header, weeks) = grid(Rect::new(1, 1, 78, 22), true, true);
         let text_at = |cell: Rect, width: u16| -> String {
             (cell.x..cell.x + width)
                 .map(|x| buffer[(x, cell.y)].symbol())
@@ -675,5 +718,56 @@ mod tests {
         // 其他格子沒有底色：10/5（本月）、9/21（其他月份）
         assert_eq!(buffer[(weeks[2][0].x, weeks[2][0].y)].bg, Color::Reset);
         assert_eq!(buffer[(weeks[0][0].x, weeks[0][0].y)].bg, Color::Reset);
+    }
+
+    #[test]
+    fn sidebar_shows_the_week_number_and_relative_weeks() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.view = View::Month;
+        app.screen = Rect::new(0, 0, 80, 30);
+        let buffer = draw(&app, 30);
+        let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true, true);
+        // 每週第一行的 x = 1～5 是左邊欄：10/10 在第 3 週（9/21、9/28、10/5…），是 2026 年第 41 週
+        let sidebar: Vec<String> = weeks
+            .iter()
+            .map(|cells| (1..6).map(|x| buffer[(x, cells[0].y)].symbol()).collect())
+            .collect();
+        assert_eq!(
+            sidebar,
+            ["   2 ", "   1 ", " 41  ", "   1 ", "   2 ", "   3 "]
+        );
+        // 選取那週醒目（week_number：黃色粗體），其他週淡（row_distance）
+        let selected = &buffer[(2, weeks[2][0].y)];
+        assert_eq!(selected.fg, app.theme.week_number.fg.unwrap());
+        assert!(selected.modifier.contains(ratatui::style::Modifier::BOLD));
+        assert_eq!(
+            buffer[(4, weeks[0][0].y)].fg,
+            app.theme.row_distance.fg.unwrap()
+        );
+        // 左邊欄和星期一之間有格線，星期一從 x = 7 開始
+        assert_eq!(buffer[(6, weeks[0][0].y)].symbol(), "│");
+        assert_eq!(weeks[0][0].x, 7);
+        // 滑鼠：點左邊欄不選日期；點星期一那格選得到
+        assert_eq!(date_at(&app, 2, weeks[0][0].y), None);
+        assert_eq!(date_at(&app, 7, weeks[0][0].y), Some(date(2026, 9, 21)));
+    }
+
+    #[test]
+    fn week_numbers_off_gives_the_space_back_to_the_days() {
+        let (_, with) = grid(Rect::new(1, 1, 78, 28), true, true);
+        let (_, without) = grid(Rect::new(1, 1, 78, 28), true, false);
+        assert_eq!(without[0][0].x, 1);
+        // 7 欄加起來多了左邊欄 + 它旁邊那條格線的寬度
+        let total = |cells: &[Rect; 7]| cells.iter().map(|cell| cell.width).sum::<u16>();
+        assert_eq!(total(&without[0]) - total(&with[0]), SIDEBAR_WIDTH + 1);
+        // 畫出來也沒有左邊欄：每週第一行從日期開始
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.view = View::Month;
+        app.settings.calendar.week_numbers = false;
+        let buffer = draw(&app, 30);
+        let first: String = (1..4)
+            .map(|x| buffer[(x, without[0][0].y)].symbol())
+            .collect();
+        assert_eq!(first, " 21");
     }
 }

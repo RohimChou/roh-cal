@@ -648,6 +648,8 @@ mod tests {
     fn left_click_selects_a_cell_in_the_month_view() {
         let mut app = month_view_without_centering(date(2026, 10, 10));
         app.screen = Rect::new(0, 0, 80, 24);
+        // 下面的座標是沒有左邊欄（週數）的排版；有左邊欄的另外測
+        app.settings.calendar.week_numbers = false;
         let click = |column, row| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,
