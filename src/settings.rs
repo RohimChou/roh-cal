@@ -1,6 +1,7 @@
 //! 執行時可以改的設定（開關、顏色）和設定頁（Option+q）的狀態
 //!
-//! 設定頁是一張清單：`j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
+//! 設定頁是一張清單，跟設定檔一樣分成 `[month]`、`[colors]` 兩段、名字一模一樣：
+//! `j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
 //! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。
 //! 開關啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）；顏色在 `Theme`，還沒進設定檔
 
@@ -76,13 +77,21 @@ pub const ROWS: [Row; 16] = [
 ];
 
 impl Row {
-    /// 顯示在左邊的名字
+    /// 顯示在左邊的名字 = 設定檔裡的名字（開關的名字 = `MonthSettings` 的欄位名，有 test 釘住）
     pub fn label(self) -> &'static str {
         match self {
-            Self::GridLines => "grid lines",
-            Self::ItemIcons => "item icons",
-            Self::CenterCursor => "center cursor",
+            Self::GridLines => "grid_lines",
+            Self::ItemIcons => "item_icons",
+            Self::CenterCursor => "center_cursor",
             Self::Color(field) => field.name(),
+        }
+    }
+
+    /// 這一列在設定檔的哪個表（`[month]`、`[colors]`）；設定頁也照這個分段
+    pub fn section(self) -> &'static str {
+        match self {
+            Self::GridLines | Self::ItemIcons | Self::CenterCursor => "month",
+            Self::Color(_) => "colors",
         }
     }
 
@@ -198,6 +207,28 @@ mod tests {
     }
 
     #[test]
+    fn each_toggle_row_is_named_after_its_config_key() {
+        // 存成設定檔的樣子（`[month]` 底下一個開關一行），跟預設比
+        let default_file = toml::Table::try_from(Settings::default()).expect("serialize");
+        let value = |file: &toml::Table, row: Row| {
+            file.get(row.section())
+                .and_then(|table| table.get(row.label()))
+                .and_then(toml::Value::as_bool)
+        };
+        for row in ROWS {
+            if let Row::Color(_) = row {
+                continue;
+            }
+            let mut settings = Settings::default();
+            row.adjust(1, &mut settings, &mut Theme::default());
+            // 切換這一列之後，設定檔裡「[section] 底下名字 = label」的那個值就是變了的那個
+            let file = toml::Table::try_from(settings).expect("serialize");
+            assert!(value(&file, row).is_some(), "{row:?}: 設定檔裡沒有這個名字");
+            assert_ne!(value(&file, row), value(&default_file, row), "{row:?}");
+        }
+    }
+
+    #[test]
     fn each_color_field_changes_the_theme_field_with_its_name() {
         // 一個特別的顏色，預設 theme 裡沒有
         let marker = Color::Rgb(1, 2, 3);
@@ -230,7 +261,7 @@ mod tests {
         Row::GridLines.adjust(1, &mut settings, &mut theme);
         Row::Color(ColorField::Item).adjust(1, &mut settings, &mut theme);
         Row::Color(ColorField::ItemDone).adjust(1, &mut settings, &mut theme);
-        // 只還原 item：item_done 和 grid lines 保持改過的值
+        // 只還原 item：item_done 和 grid_lines 保持改過的值
         Row::Color(ColorField::Item).reset(&mut settings, &mut theme);
         assert_eq!(theme.item, Theme::default().item);
         assert_ne!(theme.item_done, Theme::default().item_done);

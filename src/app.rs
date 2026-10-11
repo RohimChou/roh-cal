@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn option_q_opens_the_settings_panel_and_hjkl_edits_it() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // Option+q（送成 œ）打開；第一列是 grid lines
+        // Option+q（送成 œ）打開；第一列是 grid_lines
         app.handle_key(key(KeyCode::Char('œ')));
         assert_eq!(app.panel, Some(Panel { selected: 0 }));
         // l：切換開關；h：再切回來
@@ -458,7 +458,7 @@ mod tests {
         assert!(!app.settings.month.grid_lines);
         app.handle_key(key(KeyCode::Char('h')));
         assert!(app.settings.month.grid_lines);
-        // j 三次：跳過 item icons、center cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
+        // j 三次：跳過 item_icons、center_cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
         for _ in 0..3 {
             app.handle_key(key(KeyCode::Char('j')));
         }
@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
-        // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 grid lines 不受影響）
+        // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 grid_lines 不受影響）
         for _ in 0..3 {
             app.handle_key(key(KeyCode::Char('k')));
         }
