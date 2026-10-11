@@ -392,9 +392,10 @@ mod tests {
         assert!(!app.settings.grid_lines);
         app.handle_key(key(KeyCode::Char('h')));
         assert!(app.settings.grid_lines);
-        // j：下一列（item）；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
+        // j 兩次：跳過 item icons 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
         app.handle_key(key(KeyCode::Char('j')));
-        assert_eq!(app.panel, Some(Panel { selected: 1 }));
+        app.handle_key(key(KeyCode::Char('j')));
+        assert_eq!(app.panel, Some(Panel { selected: 2 }));
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期

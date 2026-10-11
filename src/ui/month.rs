@@ -320,7 +320,7 @@ fn cell_lines(
     };
     let mut lines = vec![first];
     for item in &items[..shown] {
-        lines.push(item_line(item, dim, theme));
+        lines.push(item_line(item, dim, app));
     }
     if shown < items.len() {
         let more = format!(" +{}", items.len() - shown);
@@ -329,8 +329,12 @@ fn cell_lines(
     lines
 }
 
-/// 一個項目一行：`14:00 標題`；不加任何符號（格子的寬度很寶貴），完成的用顏色分：灰 + 劃線。時間跟標題同色
-fn item_line(item: &Item, dim: Style, theme: &Theme) -> Line<'static> {
+/// 每個項目前面的點（`item_icons` 開著時）；`∙` U+2219 在 CJK terminal 一定只佔 1 格，`•` `·` 不行（會變 2 格）
+const ITEM_ICON: &str = "∙ ";
+
+/// 一個項目一行：`∙ 14:00 標題`（點可以在設定頁關掉）；完成的用顏色分：灰 + 劃線。點、時間、標題同色
+fn item_line(item: &Item, dim: Style, app: &App) -> Line<'static> {
+    let theme = &app.theme;
     let style = if item.done {
         theme.item_done
     } else {
@@ -338,6 +342,9 @@ fn item_line(item: &Item, dim: Style, theme: &Theme) -> Line<'static> {
     }
     .patch(dim);
     let mut text = String::from(" ");
+    if app.settings.item_icons {
+        text.push_str(ITEM_ICON);
+    }
     if let Some(time) = item.time {
         text.push_str(&format!("{:02}:{:02} ", time.hour(), time.minute()));
     }
@@ -415,7 +422,8 @@ mod tests {
 
     #[test]
     fn cell_lists_items_or_shows_how_many_are_hidden() {
-        let app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
+        app.settings.item_icons = false;
         let by_day = items_by_day(&app.items);
         let items = &by_day[&date(2026, 10, 12)];
         let lines = |rows| cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, rows, &app);
@@ -451,7 +459,8 @@ mod tests {
 
     #[test]
     fn item_colors_follow_done_and_other_month() {
-        let app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
+        app.settings.item_icons = false;
         let by_day = items_by_day(&app.items);
         let items = &by_day[&date(2026, 10, 12)];
         // 本月：完成的灰 + 劃線、其他一般色（沒 checkbox 的也是）；整行（含時間）一個 span 同色
@@ -507,6 +516,7 @@ mod tests {
             Texts::en(),
             crate::tasks::parse(text).items,
         );
+        app.settings.item_icons = false;
         app.view = View::Month;
         // 80 × 24：每格 2 行（日期 + 1 行）
         let buffer = draw(&app, 24);
@@ -536,6 +546,7 @@ mod tests {
             Texts::en(),
             crate::tasks::parse(text).items,
         );
+        app.settings.item_icons = false;
         app.view = View::Month;
         // 80 × 30：每格 3 行（日期 + 2 行），兩個項目都列得出來
         let buffer = draw(&app, 30);
@@ -562,12 +573,29 @@ mod tests {
     }
 
     #[test]
+    fn item_icons_add_a_dot_before_each_item_and_can_be_turned_off() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
+        let by_day = items_by_day(&app.items);
+        let items = &by_day[&date(2026, 10, 12)];
+        let lines = cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, 5, &app);
+        assert_eq!(text(&lines[1]), " ∙ 09:00 早上");
+        assert_eq!(text(&lines[3]), " ∙ 沒時間 A");
+        // `+N` 那行不加點
+        let short = cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, 4, &app);
+        assert_eq!(text(&short[3]), " +2");
+        app.settings.item_icons = false;
+        let lines = cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, 5, &app);
+        assert_eq!(text(&lines[1]), " 09:00 早上");
+    }
+
+    #[test]
     fn sample_file_fills_cells_in_time_order_with_overflow_count() {
         // 預期值用另一支 Python 腳本數 testdata/tasks.md 得到：
         // 10/12 有 2 個（10:00 週會、14:00 Code review）；10/16 有 5 個（17:30 交週報、18:30 團隊聚餐、3 個沒時間的）
         let items =
             crate::tasks::parse(&std::fs::read_to_string("testdata/tasks.md").unwrap()).items;
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), items);
+        app.settings.item_icons = false;
         app.view = View::Month;
         // 80 × 30：框內 28 行 − 星期列 1 − 格線 6 = 21 ÷ 6 = 每格 3 行（日期 + 2 行）
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();

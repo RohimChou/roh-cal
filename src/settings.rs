@@ -11,11 +11,16 @@ use ratatui::style::Color;
 pub struct Settings {
     /// 大月曆的格子之間畫不畫淡淡的格線（關掉可以多 1 行 1 格放內容）
     pub grid_lines: bool,
+    /// 大月曆的每個項目前面要不要加一個點（`∙ 14:00 標題`）；之後想擴成假日 🌴、使用者自訂 emoji
+    pub item_icons: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { grid_lines: true }
+        Self {
+            grid_lines: true,
+            item_icons: true,
+        }
     }
 }
 
@@ -24,13 +29,16 @@ impl Default for Settings {
 pub enum Row {
     /// `Settings::grid_lines`
     GridLines,
+    /// `Settings::item_icons`
+    ItemIcons,
     /// `Theme` 的某個欄位（名字照欄位名），`h` / `l` 在 Catppuccin 色票裡換色
     Color(&'static str),
 }
 
 /// 設定頁的列，照顯示順序：開關在上面，顏色在下面
-pub const ROWS: [Row; 13] = [
+pub const ROWS: [Row; 14] = [
     Row::GridLines,
+    Row::ItemIcons,
     Row::Color("item"),
     Row::Color("item_done"),
     Row::Color("item_more"),
@@ -50,6 +58,7 @@ impl Row {
     pub fn label(self) -> &'static str {
         match self {
             Self::GridLines => "grid lines",
+            Self::ItemIcons => "item icons",
             Self::Color(name) => name,
         }
     }
@@ -58,6 +67,7 @@ impl Row {
     pub fn value(self, settings: &Settings, theme: &Theme) -> (String, Option<Color>) {
         match self {
             Self::GridLines => (on_off(settings.grid_lines).to_string(), None),
+            Self::ItemIcons => (on_off(settings.item_icons).to_string(), None),
             Self::Color(name) => {
                 let current = current_color(name, theme);
                 let label = PALETTE
@@ -73,6 +83,7 @@ impl Row {
     pub fn adjust(self, step: isize, settings: &mut Settings, theme: &mut Theme) {
         match self {
             Self::GridLines => settings.grid_lines = !settings.grid_lines,
+            Self::ItemIcons => settings.item_icons = !settings.item_icons,
             Self::Color(name) => {
                 let current = current_color(name, theme);
                 let index = PALETTE

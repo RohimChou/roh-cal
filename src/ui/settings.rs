@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn panel_scrolls_so_the_selected_row_stays_visible() {
-        // 12 行高：框線 2 + 提示 1 → 只放得下 9 列；選最後一列（第 13 列）時前面的捲掉
+        // 12 行高：框線 2 + 提示 1 → 只放得下 9 列；選最後一列（第 14 列）時前面的捲掉
         let screen = draw(ROWS.len() - 1, 12);
         let text = screen.join("\n");
         assert!(!text.contains("grid lines"));
