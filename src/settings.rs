@@ -129,7 +129,7 @@ impl Row {
         }
     }
 
-    /// 這一列在設定檔的哪個表（`[month]`、`[colors]`）；設定頁也照這個分段
+    /// 這一列在設定檔的哪個表（`[calendar]`、`[month]`、`[colors]`）；設定頁也照這個分段
     pub fn section(self) -> &'static str {
         match self {
             Self::WeekNumbers => "calendar",

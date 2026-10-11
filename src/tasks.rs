@@ -1,4 +1,4 @@
-//! 任務檔的 parser：純文字進去、項目出來（格式見 `TUI Calendar.md` 的「Task file format」）
+//! 任務檔的 parser：純文字進去、項目出來（格式見 `docs/task-file-format.md`）
 //!
 //! 只讀不寫；每個項目都記下行號，之後寫回檔案時才知道要改哪一行
 
