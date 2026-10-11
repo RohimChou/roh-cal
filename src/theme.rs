@@ -110,6 +110,7 @@ impl Theme {
     pub fn catppuccin_mocha() -> Self {
         // 色票：https://github.com/catppuccin/palette 的 mocha
         let text = Color::Rgb(205, 214, 244);
+        let subtext1 = Color::Rgb(186, 194, 222);
         let subtext0 = Color::Rgb(166, 173, 200);
         let overlay0 = Color::Rgb(108, 112, 134);
         let surface2 = Color::Rgb(88, 91, 112);
@@ -145,7 +146,7 @@ impl Theme {
             row_distance: Style::new().fg(overlay0),
             cell_selected: Style::new().bg(base_lighter),
             cell_selected_day: Style::new().fg(mauve).add_modifier(bold),
-            item: Style::new().fg(text),
+            item: Style::new().fg(subtext1),
             item_done: Style::new()
                 .fg(surface2)
                 .add_modifier(Modifier::CROSSED_OUT),

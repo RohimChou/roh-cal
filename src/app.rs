@@ -381,15 +381,15 @@ mod tests {
     #[test]
     fn option_q_opens_the_color_picker_and_j_changes_the_color() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // Option+q（送成 œ）打開；第一個欄位是 item，顏色對到它現在的值 text
+        // Option+q（送成 œ）打開；第一個欄位是 item，顏色對到它現在的值 subtext1
         app.handle_key(key(KeyCode::Char('œ')));
         let picker = app.picker.expect("picker open");
         assert_eq!(picker.field_name(), "item");
-        assert_eq!(picker.color().0, "text");
-        // j：下一個顏色（subtext1）馬上套到 theme.item
+        assert_eq!(picker.color().0, "subtext1");
+        // j：下一個顏色（subtext0）馬上套到 theme.item
         app.handle_key(key(KeyCode::Char('j')));
         let picker = app.picker.expect("still open");
-        assert_eq!(picker.color().0, "subtext1");
+        assert_eq!(picker.color().0, "subtext0");
         assert_eq!(app.theme.item.fg, Some(picker.color().1));
         // 開著的時候 j 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
