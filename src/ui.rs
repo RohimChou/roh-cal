@@ -5,12 +5,17 @@ pub mod day_list;
 pub mod month;
 pub mod settings;
 
-use crate::app::{App, Overlay, View};
+use crate::app::{App, Notice, Overlay, View};
 use crate::calendar::week_of_year;
 use crate::tasks::Item;
 use crate::theme::Theme;
 use jiff::civil::{Date, Weekday};
-use ratatui::{Frame, layout::Rect, style::Style, text::Span};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::Style,
+    text::{Line, Span},
+};
 use std::collections::HashMap;
 
 /// 一週的 7 天，照畫面上由左到右的順序（星期一開始）
@@ -46,6 +51,15 @@ fn calendar_area(screen: Rect, app: &App) -> Rect {
         View::Compact => compact::area(screen, app),
         View::Month => screen,
     }
+}
+
+/// 下框線暫時換成的提示（醒目的顏色）；沒有提示回傳 `None`，下框線照常顯示操作說明
+fn notice_line(app: &App) -> Option<Line<'static>> {
+    let text = match app.notice? {
+        Notice::Reloaded => app.texts.file_reloaded.to_string(),
+        Notice::Failed(kind) => (app.texts.file_failed)(kind),
+    };
+    Some(Line::styled(format!(" {text} "), app.theme.title))
 }
 
 /// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）

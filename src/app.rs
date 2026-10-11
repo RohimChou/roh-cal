@@ -67,11 +67,9 @@ pub struct DayList {
     pub date: Date,
     /// 選到的項目：`ui::items_on(items, date)` 的 index
     pub selected: usize,
-    /// 下框線暫時換成的提示（例：檔案在別處改過）；下一個按鍵就消失
-    pub notice: Option<Notice>,
 }
 
-/// 當天清單打勾沒寫成功時的提示
+/// 下框線暫時換成的提示（寫檔沒成功時）；下一個按鍵就消失
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Notice {
     /// 那一行在別處被改過（例：剛在 Obsidian 改了）：沒寫，已重新載入
@@ -83,11 +81,7 @@ pub enum Notice {
 impl DayList {
     /// 打開某一天的清單，選第一個項目
     fn open(date: Date) -> Self {
-        Self {
-            date,
-            selected: 0,
-            notice: None,
-        }
+        Self { date, selected: 0 }
     }
 
     /// 往下（`step` = +1）/ 往上（−1）選一個，頭尾相接；`count` = 那天有幾個項目，0 個就不動
@@ -127,6 +121,8 @@ pub struct App {
     config_path: Option<PathBuf>,
     /// 現在開著的跳窗；`None` = 沒有跳窗，按鍵給月曆
     pub overlay: Option<Overlay>,
+    /// 下框線暫時換成的提示（例：檔案在別處改過）；下一個按鍵就消失
+    pub notice: Option<Notice>,
     /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
     pub screen: Rect,
 }
@@ -167,6 +163,7 @@ impl App {
             saved_settings: Settings::default(),
             config_path: None,
             overlay: None,
+            notice: None,
             screen: Rect::default(),
         };
         // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
@@ -214,6 +211,8 @@ impl App {
 
     /// 處理一個按鍵：有跳窗就給跳窗，沒有就給月曆
     fn handle_key(&mut self, key: KeyEvent) {
+        // 上一次的提示：按任何鍵就消失
+        self.notice = None;
         // Option+q：設定頁開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
         // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
         let option_q = key.code == KeyCode::Char('œ')
@@ -272,8 +271,6 @@ impl App {
 
     /// 當天清單開著時的按鍵：j / k 選項目、Space / x 打勾、q / Esc 關閉，月曆不動
     fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
-        // 上一次的提示：按任何鍵就消失
-        list.notice = None;
         let count = ui::items_on(&self.items, list.date).len();
         match key.code {
             // q / Esc：關閉清單（q 在這裡不是離開 app）
@@ -284,7 +281,7 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
             KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
             // Space / x：打勾 / 取消，寫回任務檔
-            KeyCode::Char(' ') | KeyCode::Char('x') => list.notice = self.toggle_selected(list),
+            KeyCode::Char(' ') | KeyCode::Char('x') => self.notice = self.toggle_selected(list),
             _ => {}
         }
         // 重新載入後項目可能變少：選的不能超過最後一個
@@ -837,8 +834,7 @@ mod tests {
                     app.overlay,
                     Some(Overlay::DayList(DayList {
                         date: date(2026, 10, 10),
-                        selected: 0,
-                        notice: None
+                        selected: 0
                     }))
                 );
                 // 清單開著時 q 只關清單，不離開 app
@@ -891,8 +887,7 @@ mod tests {
             app.overlay,
             Some(Overlay::DayList(DayList {
                 date: date(2026, 10, 11),
-                selected: 0,
-                notice: None
+                selected: 0
             }))
         );
     }
@@ -910,14 +905,6 @@ mod tests {
         (app, path)
     }
 
-    /// 清單現在的提示（test 用）
-    fn notice(app: &App) -> Option<Notice> {
-        match app.overlay {
-            Some(Overlay::DayList(list)) => list.notice,
-            _ => None,
-        }
-    }
-
     #[test]
     fn space_or_x_checks_the_selected_item_off_in_the_file() {
         let text = "# 例行\n- [ ] 早上 @2026-10-10 09:00\n- 下午 @2026-10-10 14:00\n";
@@ -932,7 +919,7 @@ mod tests {
         );
         // 畫面用的項目也跟著更新；清單還開著、還選著同一個、沒有提示
         assert!(app.items[1].done);
-        assert_eq!(notice(&app), None);
+        assert_eq!(app.notice, None);
         // x 也可以：再按一次就取消
         app.handle_key(key(KeyCode::Char('x')));
         assert_eq!(
@@ -953,9 +940,9 @@ mod tests {
         // 檔案不動、重新載入（現在有兩個項目）、提示出現；下一個按鍵提示就消失
         assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
         assert_eq!(app.items.len(), 2);
-        assert_eq!(notice(&app), Some(Notice::Reloaded));
+        assert_eq!(app.notice, Some(Notice::Reloaded));
         app.handle_key(key(KeyCode::Char('j')));
-        assert_eq!(notice(&app), None);
+        assert_eq!(app.notice, None);
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 
@@ -965,7 +952,7 @@ mod tests {
         std::fs::remove_file(&path).expect("remove");
         app.handle_key(key(KeyCode::Char(' ')));
         assert_eq!(
-            notice(&app),
+            app.notice,
             Some(Notice::Failed(std::io::ErrorKind::NotFound))
         );
         // 沒有偷偷建一個新檔案
@@ -979,6 +966,6 @@ mod tests {
         app.handle_key(key(KeyCode::Enter));
         app.handle_key(key(KeyCode::Char(' ')));
         assert!(!app.items[0].done);
-        assert_eq!(notice(&app), None);
+        assert_eq!(app.notice, None);
     }
 }

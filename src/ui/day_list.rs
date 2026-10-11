@@ -1,8 +1,8 @@
 //! 當天清單：月曆上按 `Enter` / `o` 打開，疊在月曆框的正中間，列出那天的項目
 
-use crate::app::{App, DayList, Notice};
+use crate::app::{App, DayList};
 use crate::tasks::Item;
-use crate::ui::items_on;
+use crate::ui::{items_on, notice_line};
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -28,16 +28,9 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
-    // 下框線：平常是操作說明；打勾沒寫成時換成提示（醒目的顏色），下一個按鍵就恢復
-    let bottom = match list.notice {
-        None => Line::styled(format!(" {} ", app.texts.day_hint), theme.hint),
-        Some(Notice::Reloaded) => {
-            Line::styled(format!(" {} ", app.texts.day_reloaded), theme.title)
-        }
-        Some(Notice::Failed(kind)) => {
-            Line::styled(format!(" {} ", (app.texts.day_failed)(kind)), theme.title)
-        }
-    };
+    // 下框線：平常是操作說明；打勾沒寫成時換成提示，下一個按鍵就恢復
+    let bottom = notice_line(app)
+        .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.day_hint), theme.hint));
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(theme.border)
@@ -83,7 +76,7 @@ fn item_line(item: &Item, app: &App) -> Line<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::Overlay;
+    use crate::app::{Notice, Overlay};
     use crate::i18n::Texts;
     use crate::tasks::parse;
     use jiff::civil::date;
@@ -113,8 +106,8 @@ mod tests {
         app.overlay = Some(Overlay::DayList(DayList {
             date: date(2026, 10, day),
             selected,
-            notice,
         }));
+        app.notice = notice;
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))
