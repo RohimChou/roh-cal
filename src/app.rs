@@ -145,7 +145,8 @@ impl App {
         // 設定頁開著：按鍵都給它（j / k 選列、h / l 改值），月曆不動
         if let Some(mut panel) = self.panel {
             match key.code {
-                KeyCode::Esc => self.panel = None,
+                // q / Esc：關閉設定頁（q 在這裡不是離開 app）
+                KeyCode::Char('q') | KeyCode::Esc => self.panel = None,
                 KeyCode::Char('j') | KeyCode::Down => {
                     panel.select(1);
                     self.panel = Some(panel);
@@ -414,7 +415,14 @@ mod tests {
         app.handle_key(key(KeyCode::Char('r')));
         assert_eq!(app.theme.item, Theme::default().item);
         assert!(!app.settings.grid_lines);
-        // q + ALT 也能關；關了之後 q 才是離開
+        // q / Esc / q + ALT 都能關；關了之後 q 才是離開
+        app.handle_key(key(KeyCode::Char('q')));
+        assert_eq!(app.panel, None);
+        assert!(!app.should_quit);
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Esc));
+        assert_eq!(app.panel, None);
+        app.handle_key(key(KeyCode::Char('œ')));
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
         assert_eq!(app.panel, None);
         assert!(!app.should_quit);

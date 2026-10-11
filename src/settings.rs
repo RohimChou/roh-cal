@@ -1,7 +1,7 @@
 //! 執行時可以改的設定（開關、顏色）和設定頁（Option+q）的狀態
 //!
 //! 設定頁是一張清單：`j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
-//! 畫面馬上跟著變；`r` 把那一列還原成預設。之後要存設定檔，存的就是 `Settings`（顏色在 `Theme`）
+//! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。之後要存設定檔，存的就是 `Settings`（顏色在 `Theme`）
 
 use crate::theme::{PALETTE, Theme};
 use ratatui::style::Color;

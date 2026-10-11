@@ -62,7 +62,7 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(theme.border)
-        .title_top(Line::styled(" settings (Option+q / Esc) ", theme.title));
+        .title_top(Line::styled(" settings (q / Esc) ", theme.title));
     // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
     frame.render_widget(Clear, overlay);
     frame.render_widget(Paragraph::new(lines).block(block), overlay);
@@ -99,7 +99,7 @@ mod tests {
     fn panel_lists_every_row_when_the_screen_is_tall_enough() {
         let screen = draw(0, 30);
         let text = screen.join("\n");
-        assert!(text.contains("settings (Option+q / Esc)"));
+        assert!(text.contains("settings (q / Esc)"));
         assert!(text.contains("grid lines        on"));
         assert!(text.contains("item              ██ subtext1"));
         assert!(text.contains("sunday            ██ blue"));
