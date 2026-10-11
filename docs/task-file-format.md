@@ -46,13 +46,13 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 Default `~/.local/share/roh-cal/tasks.md` (XDG data dir; `$XDG_DATA_HOME` respected). Point roh-cal at your own file — e.g. inside a notes vault or a git repo — with `--tasks <path>`.
 
 ## Writing
-roh-cal writes the file when you check an item off; adding and editing items are planned. Every write follows these rules:
+roh-cal writes the file when you check an item off or delete one; adding and editing items are planned. Every write follows these rules:
 
 | Topic | Rule |
 | :- | :- |
-| What it writes | Toggle `[ ]` ↔ `[x]` (a plain `- text` becomes `- [x] text`). Planned: set / change / remove the `@date`; add a new item (under a group heading, or at the end) |
+| What it writes | Toggle `[ ]` ↔ `[x]` (a plain `- text` becomes `- [x] text`). Delete an item together with the lines indented deeper below it (subtasks, notes, blank lines between them; not the blank lines after them). Planned: set / change / remove the `@date`; add a new item (under a group heading, or at the end) |
 | Identity | No IDs. roh-cal remembers each item's line number and original text; before writing it re-reads the file, and if that line changed it reloads instead of overwriting |
-| Only that line | Only the changed line is rewritten; every other byte stays the same |
+| Only those lines | Only the changed line (or the deleted block) is touched; every other byte stays the same |
 | Safe write | Write to a temp file in the same folder, then rename, so a crash never leaves a half-written file |
 | Undo | roh-cal keeps the whole file from before each of its writes (the last 50). `u` puts it back only if the file is still exactly what roh-cal wrote; otherwise it reloads and forgets that history |
 

@@ -92,6 +92,8 @@ pub struct Texts {
     pub undone: fn(title: &str) -> String,
     /// 提示：沒有可以 undo 的
     pub nothing_to_undo: &'static str,
+    /// 當天清單按了 `d`，問要不要刪；`subtasks` = 會一起刪掉的子任務數，例：`delete with 2 subtasks? y = yes, other = no`
+    pub delete_confirm: fn(subtasks: usize) -> String,
 }
 
 impl Texts {
@@ -105,11 +107,16 @@ impl Texts {
             hint: "hjkl move · o open · t today · v view · q quit",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
-            day_hint: "j/k select · Space check · u undo · q close",
+            day_hint: "Space check · d delete · u undo · q close",
             file_reloaded: "file changed elsewhere, reloaded",
             file_failed: |kind| format!("can't save the task file: {kind}"),
             undone: |title| format!("undone: {title}"),
             nothing_to_undo: "nothing to undo",
+            delete_confirm: |subtasks| match subtasks {
+                0 => "delete? y = yes, other = no".to_string(),
+                1 => "delete with 1 subtask? y = yes, other = no".to_string(),
+                n => format!("delete with {n} subtasks? y = yes, other = no"),
+            },
         }
     }
 
@@ -121,11 +128,15 @@ impl Texts {
             hint: "hjkl 移動 · o 開啟 · t 今天 · v 切換 · q 離開",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
-            day_hint: "j/k 選擇 · Space 打勾 · u 復原 · q 關閉",
+            day_hint: "Space 打勾 · d 刪除 · u 復原 · q 關閉",
             file_reloaded: "檔案在別處改過，已重新載入",
             file_failed: |kind| format!("任務檔存不了：{kind}"),
             undone: |title| format!("已復原：{title}"),
             nothing_to_undo: "沒有可以復原的",
+            delete_confirm: |subtasks| match subtasks {
+                0 => "刪除？y = 是，其他鍵 = 否".to_string(),
+                n => format!("刪除（含 {n} 個子任務）？y = 是，其他鍵 = 否"),
+            },
             ..Self::en()
         }
     }
@@ -198,5 +209,17 @@ mod tests {
     fn undone_names_the_item() {
         assert_eq!((Texts::en().undone)("週會"), "undone: 週會");
         assert_eq!((Texts::zh_tw().undone)("週會"), "已復原：週會");
+    }
+
+    #[test]
+    fn delete_confirm_counts_the_subtasks() {
+        let en = Texts::en().delete_confirm;
+        assert_eq!(en(0), "delete? y = yes, other = no");
+        assert_eq!(en(1), "delete with 1 subtask? y = yes, other = no");
+        assert_eq!(en(3), "delete with 3 subtasks? y = yes, other = no");
+        assert_eq!(
+            (Texts::zh_tw().delete_confirm)(2),
+            "刪除（含 2 個子任務）？y = 是，其他鍵 = 否"
+        );
     }
 }

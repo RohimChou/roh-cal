@@ -28,9 +28,16 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
-    // 下框線：平常是操作說明；打勾沒寫成時換成提示，下一個按鍵就恢復
-    let bottom = notice_line(app)
-        .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.day_hint), theme.hint));
+    // 下框線：按了 d 就問要不要刪；有提示就顯示提示（下一個按鍵就恢復）；平常是操作說明
+    let bottom = match list.confirm_delete {
+        Some(count) => {
+            // count 含它自己，問的時候講「連同幾個子任務」
+            let question = (app.texts.delete_confirm)(count.saturating_sub(1));
+            Line::styled(format!(" {question} "), theme.title)
+        }
+        None => notice_line(app)
+            .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.day_hint), theme.hint)),
+    };
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(theme.border)
@@ -106,6 +113,7 @@ mod tests {
         app.overlay = Some(Overlay::DayList(DayList {
             date: date(2026, 10, day),
             selected,
+            confirm_delete: None,
         }));
         app.notice = notice;
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -144,7 +152,7 @@ mod tests {
         let rows = rows(&buffer);
         let text = rows.join("\n");
         assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("j/k select · Space check · u undo · q close"));
+        assert!(text.contains("Space check · d delete · u undo · q close"));
         // 有時間的照時間排、沒時間的在後面；沒 checkbox 的也顯示 [ ]；別天的不列
         let early = row_of(&rows, "[x] 09:00 早上的會");
         let late = row_of(&rows, "[ ] 14:00 下午的會");
@@ -180,7 +188,7 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("2026-10-14（三）"));
         assert!(text.contains("這天沒有項目"));
-        assert!(text.contains("j/k 選擇 · Space 打勾 · u 復原 · q 關閉"));
+        assert!(text.contains("Space 打勾 · d 刪除 · u 復原 · q 關閉"));
     }
 
     #[test]
@@ -198,7 +206,7 @@ mod tests {
         let (buffer, _) = draw_with_notice(Texts::en(), 12, 0, Some(Notice::Reloaded), 80, 24);
         let text = rows(&buffer).join("\n");
         assert!(text.contains("file changed elsewhere, reloaded"));
-        assert!(!text.contains("j/k select"));
+        assert!(!text.contains("Space check"));
         // 清單開著時提示只在清單上，月曆的下框線照常是操作說明
         assert!(text.contains("hjkl move"));
         let denied = Some(Notice::Failed(std::io::ErrorKind::PermissionDenied));
@@ -218,5 +226,28 @@ mod tests {
         let text = rows(terminal.backend().buffer()).join("\n");
         assert!(text.contains("已復原：早上的會"));
         assert!(!text.contains("hjkl 移動"));
+    }
+
+    #[test]
+    fn delete_question_fits_on_the_compact_list() {
+        // 小月曆（80 × 24 的 terminal）裡的清單：整句問題都看得到，操作說明不見
+        for (texts, question) in [
+            (Texts::en(), "delete with 2 subtasks? y = yes, other = no"),
+            (Texts::zh_tw(), "刪除（含 2 個子任務）？y = 是，其他鍵 = 否"),
+        ] {
+            let mut app = App::on_date(date(2026, 10, 10), texts, parse(TASKS).items);
+            app.overlay = Some(Overlay::DayList(DayList {
+                date: date(2026, 10, 12),
+                selected: 0,
+                confirm_delete: Some(3),
+            }));
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, &app))
+                .unwrap();
+            let text = rows(terminal.backend().buffer()).join("\n");
+            assert!(text.contains(question), "{question}");
+            assert!(!text.contains("d delete") && !text.contains("d 刪除"));
+        }
     }
 }

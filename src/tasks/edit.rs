@@ -1,9 +1,9 @@
 //! 改任務檔的純 function：給檔案現在的內容，回傳改好的新內容（寫檔由呼叫的人用 `files::write_atomically`）
 //!
-//! 只改那一行，其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
+//! 只動要改的那幾行，其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
 //! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
 
-use super::{Item, checkbox};
+use super::{Item, checkbox, indent_width, parse};
 
 /// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
 #[derive(Debug, PartialEq, Eq)]
@@ -14,6 +14,38 @@ pub struct Changed;
 /// `text` = 任務檔現在的內容、`item` = 之前讀到的那個項目，回傳打勾後的整個檔案
 pub fn toggle(text: &str, item: &Item) -> Result<String, Changed> {
     replace_line(text, item, &toggled(&item.line_text))
+}
+
+/// 刪掉項目，連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算）；
+/// 回傳刪掉之後的整個檔案，和刪掉幾個項目（含它自己）
+///
+/// 例：刪 `- 東京 5 天` → 底下的 `  - [ ] 訂機票`、`    - [ ] 比價` 一起刪，共 3 個。
+/// 最後面的空行不算進去（那是跟下一個項目之間的空行）
+pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let start = item.line.checked_sub(1).ok_or(Changed)?;
+    if lines.get(start) != Some(&item.line_text.as_str()) {
+        return Err(Changed);
+    }
+    // 往下找：空行先跳過；遇到縮排沒有比它深的那行就停；`end` = 最後一行有內容的下一行
+    let indent = indent_width(&item.line_text);
+    let mut end = start + 1;
+    for (index, line) in lines.iter().enumerate().skip(start + 1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if indent_width(line) <= indent {
+            break;
+        }
+        end = index + 1;
+    }
+    // 刪掉的那幾行裡有幾個項目（用 parser 數，跟畫面認的一樣）
+    let count = parse(&segments[start..end].concat()).items.len();
+    let mut result = segments[..start].concat();
+    result.push_str(&segments[end..].concat());
+    Ok((result, count))
 }
 
 /// 一行打勾 / 取消，縮排和後面的文字一字不動（`line` 是 parser 認過的項目那一行）
@@ -163,6 +195,78 @@ mod tests {
                 .filter(|(old, new)| old != new);
             assert_eq!(changed.count(), 1, "line {}", item.line);
             assert_eq!(new_text.lines().count(), text.lines().count());
+        }
+    }
+
+    /// 刪掉第 `line` 行的項目（test 用）
+    fn delete_line(text: &str, line: usize) -> Result<(String, usize), Changed> {
+        let items = parse(text).items;
+        let item = items.iter().find(|item| item.line == line).expect("item");
+        delete(text, item)
+    }
+
+    #[test]
+    fn delete_takes_subtasks_and_notes_along() {
+        let text = "# 旅行\n- 東京 5 天 @2026-11-01\n  - [ ] 訂機票\n    - [ ] 比價\n  備註：記得帶護照\n\n  - [ ] 訂飯店\n\n- [ ] 換日幣\n";
+        // 刪「東京 5 天」：底下縮排比較深的（子任務、備註、中間的空行）都一起刪，最後面的空行留著
+        assert_eq!(
+            delete_line(text, 2),
+            Ok(("# 旅行\n\n- [ ] 換日幣\n".to_string(), 4))
+        );
+        // 刪子任務「訂機票」：只帶走它底下的「比價」
+        assert_eq!(
+            delete_line(text, 3),
+            Ok((
+                "# 旅行\n- 東京 5 天 @2026-11-01\n  備註：記得帶護照\n\n  - [ ] 訂飯店\n\n- [ ] 換日幣\n"
+                    .to_string(),
+                2
+            ))
+        );
+        // 沒有子任務：只刪那一行
+        assert_eq!(
+            delete_line(text, 9),
+            Ok((
+                "# 旅行\n- 東京 5 天 @2026-11-01\n  - [ ] 訂機票\n    - [ ] 比價\n  備註：記得帶護照\n\n  - [ ] 訂飯店\n\n"
+                    .to_string(),
+                1
+            ))
+        );
+    }
+
+    #[test]
+    fn delete_keeps_line_endings() {
+        // \r\n 照留；刪最後一行（沒有換行）時，前一行的換行留著
+        let text = "- [ ] a\r\n  - [ ] a1\r\n- [ ] b";
+        assert_eq!(delete_line(text, 1), Ok(("- [ ] b".to_string(), 2)));
+        assert_eq!(
+            delete_line(text, 3),
+            Ok(("- [ ] a\r\n  - [ ] a1\r\n".to_string(), 1))
+        );
+    }
+
+    #[test]
+    fn delete_refuses_when_the_line_changed() {
+        let item = parse("- [ ] 週會\n- [ ] 交週報\n").items[1].clone();
+        assert_eq!(
+            delete("- [ ] 週會\n- [ ] 交週報（改）\n", &item),
+            Err(Changed)
+        );
+        assert_eq!(delete("- [ ] 週會\n", &item), Err(Changed));
+    }
+
+    #[test]
+    fn delete_every_item_of_the_sample_file() {
+        let text = include_str!("../../testdata/tasks.md");
+        let items = parse(text).items;
+        for (index, item) in items.iter().enumerate() {
+            let (new_text, count) = delete(text, item).expect("file not changed");
+            // 刪掉的 = 它自己 + parser 認的所有後代（後面緊接著、層級比它深的項目）
+            let descendants = items[index + 1..]
+                .iter()
+                .take_while(|other| other.depth > item.depth)
+                .count();
+            assert_eq!(count, 1 + descendants, "line {}", item.line);
+            assert_eq!(parse(&new_text).items.len(), items.len() - count);
         }
     }
 }

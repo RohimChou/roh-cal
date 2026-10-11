@@ -70,6 +70,8 @@ pub struct DayList {
     pub date: Date,
     /// 選到的項目：`ui::items_on(items, date)` 的 index
     pub selected: usize,
+    /// 按了 `d`，正在等確認：會刪掉幾筆（含子任務）；下一個鍵是 `y` 才刪，其他鍵都是取消
+    pub confirm_delete: Option<usize>,
 }
 
 /// 下框線暫時換成的提示（寫檔、undo 的結果）；下一個按鍵就消失
@@ -96,7 +98,11 @@ struct UndoStep {
 impl DayList {
     /// 打開某一天的清單，選第一個項目
     fn open(date: Date) -> Self {
-        Self { date, selected: 0 }
+        Self {
+            date,
+            selected: 0,
+            confirm_delete: None,
+        }
     }
 
     /// 往下（`step` = +1）/ 往上（−1）選一個，頭尾相接；`count` = 那天有幾個項目，0 個就不動
@@ -287,22 +293,36 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
-    /// 當天清單開著時的按鍵：j / k 選項目、Space / x 打勾、u 復原、q / Esc 關閉，月曆不動
+    /// 當天清單開著時的按鍵：j / k 選項目、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
     fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
-        let count = ui::items_on(&self.items, list.date).len();
-        match key.code {
-            // q / Esc：關閉清單（q 在這裡不是離開 app）
-            KeyCode::Char('q') | KeyCode::Esc => {
-                self.overlay = None;
-                return;
+        if let Some(count) = list.confirm_delete.take() {
+            // 正在問「刪除嗎？」：只有 y 會刪，其他鍵都只是取消（按錯不會有事）
+            if key.code == KeyCode::Char('y') {
+                self.notice = self.delete_selected(list, count);
             }
-            KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
-            KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
-            // Space / x：打勾 / 取消，寫回任務檔
-            KeyCode::Char(' ') | KeyCode::Char('x') => self.notice = self.toggle_selected(list),
-            // u：復原 roh-cal 最後一次寫檔
-            KeyCode::Char('u') => self.notice = Some(self.undo()),
-            _ => {}
+        } else {
+            let count = ui::items_on(&self.items, list.date).len();
+            match key.code {
+                // q / Esc：關閉清單（q 在這裡不是離開 app）
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    self.overlay = None;
+                    return;
+                }
+                KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
+                KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
+                // Space / x：打勾 / 取消，寫回任務檔
+                KeyCode::Char(' ') | KeyCode::Char('x') => {
+                    self.notice = self.toggle_selected(list);
+                }
+                // d：先問一次（顯示會刪掉幾筆），按 y 才刪
+                KeyCode::Char('d') => match self.ask_delete(list) {
+                    Ok(count) => list.confirm_delete = count,
+                    Err(notice) => self.notice = Some(notice),
+                },
+                // u：復原 roh-cal 最後一次寫檔
+                KeyCode::Char('u') => self.notice = Some(self.undo()),
+                _ => {}
+            }
         }
         // 重新載入後項目可能變少：選的不能超過最後一個
         let count = ui::items_on(&self.items, list.date).len();
@@ -310,23 +330,64 @@ impl App {
         self.overlay = Some(Overlay::DayList(list));
     }
 
-    /// 當天清單選到的項目打勾 / 取消，寫回任務檔；寫成功回傳 `None`，沒寫成回傳要顯示的提示
-    ///
-    /// 寫之前先重讀檔案：那一行在別處被改過（`Changed`）就不寫，改成重新載入。
-    /// 沒有任務檔（test）或那天沒有項目就什麼都不做
-    fn toggle_selected(&mut self, list: DayList) -> Option<Notice> {
-        let path = self.tasks_path.clone()?;
-        let item = ui::items_on(&self.items, list.date)
+    /// 清單選到的項目、任務檔的位置和檔案現在的內容（寫之前一定先重讀）。
+    /// 沒有任務檔（test）或那天沒有項目是 `Ok(None)`；讀不到檔案是 `Err(提示)`
+    fn selected_and_file(&self, list: DayList) -> Result<Option<(Item, PathBuf, String)>, Notice> {
+        let Some(path) = self.tasks_path.clone() else {
+            return Ok(None);
+        };
+        let Some(item) = ui::items_on(&self.items, list.date)
             .get(list.selected)
             .copied()
-            .cloned()?;
-        let text = match std::fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(error) => return Some(Notice::Failed(error.kind())),
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Ok(Some((item, path, text))),
+            Err(error) => Err(Notice::Failed(error.kind())),
+        }
+    }
+
+    /// 當天清單選到的項目打勾 / 取消，寫回任務檔；寫成功（或沒事可做）回傳 `None`，沒寫成回傳要顯示的提示
+    ///
+    /// 那一行在別處被改過（`Changed`）就不寫，改成重新載入
+    fn toggle_selected(&mut self, list: DayList) -> Option<Notice> {
+        let (item, path, text) = match self.selected_and_file(list) {
+            Ok(found) => found?,
+            Err(notice) => return Some(notice),
         };
         match edit::toggle(&text, &item) {
             Ok(new_text) => self.write_tasks(&path, text, new_text, item.title),
             Err(edit::Changed) => Some(self.reload(&text)),
+        }
+    }
+
+    /// `d`：先算一次刪掉選到的項目會刪掉幾筆（含子任務），回傳要問的筆數（沒事可做是 `None`）；
+    /// 算不出來（檔案在別處改過、讀不到）回傳提示
+    fn ask_delete(&mut self, list: DayList) -> Result<Option<usize>, Notice> {
+        let Some((item, _, text)) = self.selected_and_file(list)? else {
+            return Ok(None);
+        };
+        match edit::delete(&text, &item) {
+            Ok((_, count)) => Ok(Some(count)),
+            Err(edit::Changed) => Err(self.reload(&text)),
+        }
+    }
+
+    /// `y`：刪掉選到的項目（連子任務），寫回任務檔；回傳值跟 `toggle_selected` 一樣
+    ///
+    /// `count` = 剛剛問使用者的筆數；現在算出來不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
+    fn delete_selected(&mut self, list: DayList, count: usize) -> Option<Notice> {
+        let (item, path, text) = match self.selected_and_file(list) {
+            Ok(found) => found?,
+            Err(notice) => return Some(notice),
+        };
+        match edit::delete(&text, &item) {
+            Ok((new_text, deleted)) if deleted == count => {
+                self.write_tasks(&path, text, new_text, item.title)
+            }
+            _ => Some(self.reload(&text)),
         }
     }
 
@@ -908,7 +969,8 @@ mod tests {
                     app.overlay,
                     Some(Overlay::DayList(DayList {
                         date: date(2026, 10, 10),
-                        selected: 0
+                        selected: 0,
+                        confirm_delete: None
                     }))
                 );
                 // 清單開著時 q 只關清單，不離開 app
@@ -961,7 +1023,8 @@ mod tests {
             app.overlay,
             Some(Overlay::DayList(DayList {
                 date: date(2026, 10, 11),
-                selected: 0
+                selected: 0,
+                confirm_delete: None
             }))
         );
     }
@@ -1127,6 +1190,69 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [x] 早上 @2026-10-10 09:00\n"
         );
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    /// 10/10 早上有一個子任務（沒日期，不在清單上）、下午沒有（刪除的 test 用）
+    const WITH_SUBTASK: &str =
+        "- [ ] 早上 @2026-10-10 09:00\n  - [ ] 準備 slides\n- [ ] 下午 @2026-10-10 14:00\n";
+
+    /// 清單正在問的刪除筆數（test 用）
+    fn confirm_delete(app: &App) -> Option<usize> {
+        match app.overlay {
+            Some(Overlay::DayList(list)) => list.confirm_delete,
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {
+        let (mut app, path) = app_with_task_file("delete", WITH_SUBTASK);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // d：先問，檔案還沒動；早上 + 子任務 = 2 筆
+        app.handle_key(key(KeyCode::Char('d')));
+        assert_eq!(confirm_delete(&app), Some(2));
+        assert_eq!(read(), WITH_SUBTASK);
+        // y：刪掉早上和它的子任務，只剩下午
+        app.handle_key(key(KeyCode::Char('y')));
+        assert_eq!(read(), "- [ ] 下午 @2026-10-10 14:00\n");
+        assert_eq!(app.items.len(), 1);
+        assert_eq!(confirm_delete(&app), None);
+        // u：整段救回來
+        app.handle_key(key(KeyCode::Char('u')));
+        assert_eq!(read(), WITH_SUBTASK);
+        assert_eq!(app.notice, Some(Notice::Undone("早上".into())));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn any_key_other_than_y_cancels_the_delete() {
+        let (mut app, path) = app_with_task_file("delete-cancel", WITH_SUBTASK);
+        for other in [KeyCode::Char('j'), KeyCode::Char('n'), KeyCode::Esc] {
+            app.handle_key(key(KeyCode::Char('d')));
+            // 取消用的那個鍵只拿來取消：清單還開著、選的還是第一個
+            app.handle_key(key(other));
+            assert_eq!(confirm_delete(&app), None, "{other:?}");
+            assert!(matches!(
+                app.overlay,
+                Some(Overlay::DayList(DayList { selected: 0, .. }))
+            ));
+        }
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn y_does_not_delete_when_the_subtasks_changed_meanwhile() {
+        let (mut app, path) = app_with_task_file("delete-changed", WITH_SUBTASK);
+        app.handle_key(key(KeyCode::Char('d')));
+        assert_eq!(confirm_delete(&app), Some(2));
+        // 問的時候是 2 筆；按 y 之前，在別處多加了一個子任務 → 會刪 3 筆，跟問的不一樣
+        let edited = "- [ ] 早上 @2026-10-10 09:00\n  - [ ] 準備 slides\n  - [ ] 印講義\n- [ ] 下午 @2026-10-10 14:00\n";
+        std::fs::write(&path, edited).expect("edit");
+        app.handle_key(key(KeyCode::Char('y')));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+        assert_eq!(app.notice, Some(Notice::Reloaded));
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }

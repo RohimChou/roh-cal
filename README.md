@@ -34,6 +34,7 @@ In the day list:
 | :- | :- |
 | `j` / `k` | Pick an item |
 | `Space` / `x` | Check off / uncheck, saved to the task file right away |
+| `d` | Delete the item and its subtasks (asks first: `y` = yes, any other key = no) |
 | `u` | Undo |
 | `q` / `Esc` | Close |
 
@@ -84,4 +85,4 @@ A Markdown file, one item per line. It reads well in any editor, Obsidian or Git
 - `# Heading` starts a group; deeper indentation = a subtask
 - Everything else is left alone
 
-Checking an item off rewrites only that line. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Adding and editing are next.
+Checking an item off rewrites only that line; deleting one removes it together with the lines indented below it. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Adding and editing are next.
