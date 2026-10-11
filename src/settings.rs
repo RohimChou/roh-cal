@@ -185,10 +185,10 @@ mod tests {
         // 往前兩格：subtext1 → text（頭尾相接在第一個色 rosewater 之前才會發生）
         row.adjust(-2, &mut settings, &mut theme);
         assert_eq!(row.value(&settings, &theme).0, "text");
-        // 底色欄位改的是 bg，不是 fg：surface0（第 22 個）往後一格是 base
+        // 底色欄位改的是 bg，不是 fg：surface1（第 21 個）往後一格是 surface0
         let cell = Row::Color("cell_selected");
         cell.adjust(1, &mut settings, &mut theme);
-        assert_eq!(theme.cell_selected.bg, Some(PALETTE[23].1));
+        assert_eq!(theme.cell_selected.bg, Some(PALETTE[22].1));
         assert_eq!(theme.cell_selected.fg, None);
     }
 

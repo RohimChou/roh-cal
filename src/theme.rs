@@ -101,6 +101,7 @@ impl Theme {
         let subtext0 = Color::Rgb(166, 173, 200);
         let overlay0 = Color::Rgb(108, 112, 134);
         let surface2 = Color::Rgb(88, 91, 112);
+        let surface1 = Color::Rgb(69, 71, 90);
         let surface0 = Color::Rgb(49, 50, 68);
         let base = Color::Rgb(30, 30, 46);
         let lavender = Color::Rgb(180, 190, 254);
@@ -128,11 +129,11 @@ impl Theme {
             month_marker: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
-            cell_selected: Style::new().bg(surface0),
+            cell_selected: Style::new().bg(surface1),
             cell_day: Style::new().add_modifier(bold),
             item: Style::new().fg(subtext1),
             item_done: Style::new()
-                .fg(surface2)
+                .fg(overlay0)
                 .add_modifier(Modifier::CROSSED_OUT),
             item_more: Style::new().fg(subtext0),
             grid: Style::new().fg(surface0),
