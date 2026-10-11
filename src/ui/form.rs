@@ -317,8 +317,9 @@ mod tests {
     }
 
     #[test]
-    fn opened_from_the_calendar_the_form_has_no_day_list_under_it() {
-        // 10/12 有 5 個項目：清單比表單高，從清單打開時清單的標題（日期 + 星期）露在表單上面
+    fn the_form_never_has_the_day_list_under_it() {
+        // 10/12 有 5 個項目：清單比表單高，畫在底下的話清單的標題（日期 + 星期）會露在表單上面；
+        // 從清單、從月曆打開都不畫
         let text: String = (1..=5)
             .map(|n| format!("- 項目{n} @2026-10-12\n"))
             .collect();
@@ -327,7 +328,7 @@ mod tests {
             selected: 0,
             confirm_delete: None,
         };
-        for (back, list_shown) in [(Some(list), true), (None, false)] {
+        for back in [Some(list), None] {
             let items = crate::tasks::parse(&text).items;
             let mut app = App::on_date(OCT_12, Texts::en(), items);
             app.overlay = Some(Overlay::Form(Box::new(Form {
@@ -345,7 +346,7 @@ mod tests {
                 .unwrap();
             let text = rows(terminal.backend().buffer()).join("\n");
             assert!(text.contains(" new item "), "{back:?}");
-            assert_eq!(text.contains("2026-10-12 Mon"), list_shown, "{back:?}");
+            assert!(!text.contains("2026-10-12 Mon"), "{back:?}");
         }
     }
 
