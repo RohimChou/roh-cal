@@ -13,6 +13,9 @@ pub struct Settings {
     pub grid_lines: bool,
     /// 大月曆的每個項目前面要不要加一個點（`∙ 14:00 標題`）；之後想擴成假日 🌴、使用者自訂 emoji
     pub item_icons: bool,
+    /// 大月曆移動時選取的那週固定在畫面正中間（像 vim 的 `scrolloff=999`）；關掉就自由移動，掉出畫面才捲。
+    /// 小月曆不受影響（上下固定保留 1 週）
+    pub center_cursor: bool,
 }
 
 impl Default for Settings {
@@ -20,6 +23,7 @@ impl Default for Settings {
         Self {
             grid_lines: true,
             item_icons: true,
+            center_cursor: true,
         }
     }
 }
@@ -31,14 +35,17 @@ pub enum Row {
     GridLines,
     /// `Settings::item_icons`
     ItemIcons,
+    /// `Settings::center_cursor`
+    CenterCursor,
     /// `Theme` 的某個欄位（名字照欄位名），`h` / `l` 在 Catppuccin 色票裡換色
     Color(&'static str),
 }
 
 /// 設定頁的列，照顯示順序：開關在上面，顏色在下面
-pub const ROWS: [Row; 15] = [
+pub const ROWS: [Row; 16] = [
     Row::GridLines,
     Row::ItemIcons,
+    Row::CenterCursor,
     Row::Color("item"),
     Row::Color("item_done"),
     Row::Color("item_more"),
@@ -60,6 +67,7 @@ impl Row {
         match self {
             Self::GridLines => "grid lines",
             Self::ItemIcons => "item icons",
+            Self::CenterCursor => "center cursor",
             Self::Color(name) => name,
         }
     }
@@ -69,6 +77,7 @@ impl Row {
         match self {
             Self::GridLines => (on_off(settings.grid_lines).to_string(), None),
             Self::ItemIcons => (on_off(settings.item_icons).to_string(), None),
+            Self::CenterCursor => (on_off(settings.center_cursor).to_string(), None),
             Self::Color(name) => {
                 let current = current_color(name, theme);
                 let label = PALETTE
@@ -85,6 +94,7 @@ impl Row {
         match self {
             Self::GridLines => settings.grid_lines = !settings.grid_lines,
             Self::ItemIcons => settings.item_icons = !settings.item_icons,
+            Self::CenterCursor => settings.center_cursor = !settings.center_cursor,
             Self::Color(name) => {
                 let current = current_color(name, theme);
                 let index = PALETTE
@@ -109,6 +119,7 @@ impl Row {
         match self {
             Self::GridLines => settings.grid_lines = defaults.grid_lines,
             Self::ItemIcons => settings.item_icons = defaults.item_icons,
+            Self::CenterCursor => settings.center_cursor = defaults.center_cursor,
             Self::Color(name) => *theme.field_mut(name) = *default_theme.field_mut(name),
         }
     }

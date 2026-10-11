@@ -1,6 +1,6 @@
 //! App 的狀態、按鍵 / 滑鼠處理、捲動規則（畫面在 `ui`）
 
-use crate::calendar::{monday_of, month_top};
+use crate::calendar::{Scroll, monday_of, month_top, scrolled_top};
 use crate::i18n::Texts;
 use crate::settings::{Panel, Settings};
 use crate::tasks::Item;
@@ -15,9 +15,6 @@ use ratatui::{
     },
     layout::Rect,
 };
-
-/// 選取的那週離上下邊緣至少保留幾週，不夠就捲動（像 vim 的 scrolloff）
-pub const SCROLLOFF: i64 = 1;
 
 /// 現在顯示哪一種畫面；按 `v` 切換
 ///
@@ -99,8 +96,7 @@ impl App {
             panel: None,
             screen: Rect::default(),
         };
-        // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
-        // （compact 8 週、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
+        // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
         app.scroll_to_selected();
         app
     }
@@ -196,7 +192,7 @@ impl App {
             MouseEventKind::ScrollDown => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
-            // 左鍵按下：點在日期格子上才選取；點到最上 / 最下那行時照 SCROLLOFF 捲一行
+            // 左鍵按下：點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
             // （設定頁開著時不理，免得點到設定頁底下的格子）
             MouseEventKind::Down(MouseButton::Left) if self.panel.is_none() => {
                 let date = match self.view {
@@ -223,30 +219,28 @@ impl App {
         self.scroll_to_selected();
     }
 
-    /// 跳回今天，畫面也回到剛打開 app 的位置（本月的前一週在最上面），小 / 大月曆都一樣
+    /// 跳回今天，畫面也回到剛打開 app 的位置（本月的前一週在最上面；大月曆置中時今天那週在正中間）
     fn jump_to_today(&mut self) {
         self.selected = self.today;
         self.top = month_top(self.today);
-        // 今天在畫面最上 / 最下那行時，照 SCROLLOFF 再捲一行
         self.scroll_to_selected();
     }
 
-    /// 捲動月曆，讓選取的那週離上下邊緣至少 `SCROLLOFF` 週（畫面有幾週看現在的 view）
-    ///
-    /// 例：compact 8 週、`SCROLLOFF = 1` → 選取的那週只能在第 2～7 行（共 8 行）
+    /// 現在的捲動規則（規則本身在 `calendar::scrolled_top`）：
+    /// - 小月曆：上下各保留 1 週
+    /// - 大月曆：`center_cursor` 開著（預設）選取的那週固定在正中間；關著就自由移動，掉出畫面才捲
+    fn scroll_mode(&self) -> Scroll {
+        match self.view {
+            View::Compact => Scroll::Scrolloff(1),
+            View::Month if self.settings.center_cursor => Scroll::Center,
+            View::Month => Scroll::Scrolloff(0),
+        }
+    }
+
+    /// 捲動月曆，讓選取的那週照 `scroll_mode` 的規則出現在畫面上
     fn scroll_to_selected(&mut self) {
         let week = monday_of(self.selected);
-        // 選取的那週最上面 / 最下面可以在哪一行，換算成那行的星期一
-        let last_row = self.view.weeks() - 1 - SCROLLOFF;
-        let min_week = self.top.saturating_add(SCROLLOFF.weeks());
-        let max_week = self.top.saturating_add(last_row.weeks());
-        if week < min_week {
-            // 太靠上：往上捲，讓選取的那週剛好在第 SCROLLOFF + 1 行
-            self.top = week.saturating_sub(SCROLLOFF.weeks());
-        } else if week > max_week {
-            // 太靠下：往下捲，讓選取的那週剛好在倒數第 SCROLLOFF + 1 行
-            self.top = week.saturating_sub(last_row.weeks());
-        }
+        self.top = scrolled_top(self.top, week, self.view.weeks(), self.scroll_mode());
     }
 }
 
@@ -266,6 +260,15 @@ mod tests {
         (0..app.view.weeks()).find(|&row| app.top.saturating_add(row.weeks()) == week)
     }
 
+    /// 大月曆、置中關掉的 app（test 用；最上面那週跟小月曆一樣是 9/21）
+    fn month_view_without_centering(today: Date) -> App {
+        let mut app = App::on_date(today, Texts::en(), Vec::new());
+        app.view = View::Month;
+        app.settings.center_cursor = false;
+        app.scroll_to_selected();
+        app
+    }
+
     #[test]
     fn opening_screen_shows_week_before_the_1st_on_top() {
         let app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
@@ -275,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn scrolling_keeps_selected_row_inside_scrolloff() {
+    fn scrolling_keeps_selected_on_screen_in_both_modes() {
         let starts = [
             date(2026, 10, 10),
             date(2026, 3, 1),
@@ -283,28 +286,40 @@ mod tests {
             date(2028, 2, 29),
             date(2026, 12, 31),
         ];
-        // 兩種畫面（8 週、6 週）都要守規則；h / l / k / j 各按 400 次（約 1 年 / 8 年）
-        for view in [View::Compact, View::Month] {
-            let min_row = SCROLLOFF;
-            let max_row = view.weeks() - 1 - SCROLLOFF;
+        // 小月曆（上下保留 1 週）、大月曆置中、大月曆自由；h / l / k / j 各按 400 次（約 1 年 / 8 年）
+        let modes = [
+            (View::Compact, true),
+            (View::Month, true),
+            (View::Month, false),
+        ];
+        for (view, center) in modes {
             for start in starts {
                 for days in [-1, 1, -7, 7] {
                     let mut app = App::on_date(start, Texts::en(), Vec::new());
                     app.view = view;
+                    app.settings.center_cursor = center;
                     app.scroll_to_selected();
                     let mut previous = selected_row(&app).expect("selected on screen");
                     for _ in 0..400 {
                         app.move_selected(days);
                         let row = selected_row(&app).expect("selected on screen");
-                        assert!(
-                            (min_row..=max_row).contains(&row),
-                            "{view:?} {start} {days}: row {row}"
-                        );
-                        // 每按一次最多移 1 行，畫面不會跳
-                        assert!(
-                            (row - previous).abs() <= 1,
-                            "{view:?} {start} {days}: jumped"
-                        );
+                        match app.scroll_mode() {
+                            // 置中：永遠在中間那行
+                            Scroll::Center => {
+                                assert_eq!(row, (view.weeks() - 1) / 2, "{view:?} {start} {days}");
+                            }
+                            // 保留邊界：在允許的行裡，而且每按一次最多移 1 行，畫面不會跳
+                            Scroll::Scrolloff(margin) => {
+                                assert!(
+                                    (margin..=view.weeks() - 1 - margin).contains(&row),
+                                    "{view:?} {start} {days}: row {row}"
+                                );
+                                assert!(
+                                    (row - previous).abs() <= 1,
+                                    "{view:?} {start} {days}: jumped"
+                                );
+                            }
+                        }
                         assert_eq!(app.top.weekday(), Weekday::Monday);
                         previous = row;
                     }
@@ -315,17 +330,28 @@ mod tests {
 
     #[test]
     fn jump_to_today_restores_the_opening_screen_in_both_views() {
-        for view in [View::Compact, View::Month] {
+        // 三種模式都回到 9/21 在最上面（大月曆置中：10/5 那週在 6 行的第 3 行，剛好也是 9/21）
+        let cases = [
+            (View::Compact, true, date(2026, 9, 21)),
+            (View::Month, true, date(2026, 9, 21)),
+            (View::Month, false, date(2026, 9, 21)),
+        ];
+        for (view, center, top) in cases {
             let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
             app.view = view;
+            app.settings.center_cursor = center;
             // 捲了幾週（今天還在畫面上）和捲到一年後，按 t 都回到剛打開的畫面
             for weeks in [3, 52] {
                 for _ in 0..weeks {
                     app.move_selected(7);
                 }
                 app.jump_to_today();
-                assert_eq!(app.selected, date(2026, 10, 10), "{view:?} {weeks}");
-                assert_eq!(app.top, date(2026, 9, 21), "{view:?} {weeks}");
+                assert_eq!(
+                    app.selected,
+                    date(2026, 10, 10),
+                    "{view:?} {center} {weeks}"
+                );
+                assert_eq!(app.top, top, "{view:?} {center} {weeks}");
             }
         }
     }
@@ -363,27 +389,31 @@ mod tests {
         assert_eq!(app.view, View::Compact);
         app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Month);
-        // 選取在第 4 行，6 週的畫面也放得下：選取和捲動位置都不動
+        // 選取不動，大月曆置中：10/12 那週在 6 行的第 3 行 → 最上面 9/28
         assert_eq!(app.selected, date(2026, 10, 17));
-        assert_eq!(app.top, date(2026, 9, 21));
+        assert_eq!(app.top, date(2026, 9, 28));
+        // 切回小月曆：10/12 那週在第 3 行，沒碰到邊界，畫面不動
         app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Compact);
+        assert_eq!(app.top, date(2026, 9, 28));
     }
 
     #[test]
-    fn v_scrolls_when_the_selected_week_would_fall_off_the_smaller_view() {
+    fn v_scrolls_only_when_the_selected_week_would_fall_off_without_centering() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // compact：往下 4 週到 11/7，選取在第 7 行（8 週的最後一行再往上 SCROLLOFF）
+        app.settings.center_cursor = false;
+        // compact：往下 4 週到 11/7，選取在第 7 行（上下各留 1 週的最後一行）
         for _ in 0..4 {
             app.move_selected(7);
         }
         assert_eq!(app.selected, date(2026, 11, 7));
         assert_eq!(selected_row(&app), Some(6));
-        // 切到 6 週的大月曆：第 7 行不存在，往下捲到選取在第 5 行（倒數第 2 行）
+        assert_eq!(app.top, date(2026, 9, 21));
+        // 切到 6 週的大月曆（不置中）：第 7 行不存在，往下捲到選取在最後一行
         app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.selected, date(2026, 11, 7));
-        assert_eq!(selected_row(&app), Some(4));
-        assert_eq!(app.top, date(2026, 10, 5));
+        assert_eq!(selected_row(&app), Some(5));
+        assert_eq!(app.top, date(2026, 9, 28));
     }
 
     #[test]
@@ -397,21 +427,24 @@ mod tests {
         assert!(!app.settings.grid_lines);
         app.handle_key(key(KeyCode::Char('h')));
         assert!(app.settings.grid_lines);
-        // j 兩次：跳過 item icons 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
-        app.handle_key(key(KeyCode::Char('j')));
-        app.handle_key(key(KeyCode::Char('j')));
-        assert_eq!(app.panel, Some(Panel { selected: 2 }));
+        // j 三次：跳過 item icons、center cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
+        for _ in 0..3 {
+            app.handle_key(key(KeyCode::Char('j')));
+        }
+        assert_eq!(app.panel, Some(Panel { selected: 3 }));
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
         // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 grid lines 不受影響）
-        app.handle_key(key(KeyCode::Char('k')));
-        app.handle_key(key(KeyCode::Char('k')));
+        for _ in 0..3 {
+            app.handle_key(key(KeyCode::Char('k')));
+        }
         app.handle_key(key(KeyCode::Char('l')));
         assert!(!app.settings.grid_lines);
-        app.handle_key(key(KeyCode::Char('j')));
-        app.handle_key(key(KeyCode::Char('j')));
+        for _ in 0..3 {
+            app.handle_key(key(KeyCode::Char('j')));
+        }
         app.handle_key(key(KeyCode::Char('r')));
         assert_eq!(app.theme.item, Theme::default().item);
         assert!(!app.settings.grid_lines);
@@ -462,13 +495,12 @@ mod tests {
         // 點最上面那行（9/22）：選取後照 scrolloff 往上捲一行，選取變成在第 2 行
         app.handle_mouse(click(12, 3));
         assert_eq!(app.selected, date(2026, 9, 22));
-        assert_eq!(selected_row(&app), Some(SCROLLOFF));
+        assert_eq!(selected_row(&app), Some(1));
     }
 
     #[test]
     fn left_click_selects_a_cell_in_the_month_view() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.view = View::Month;
+        let mut app = month_view_without_centering(date(2026, 10, 10));
         app.screen = Rect::new(0, 0, 80, 24);
         let click = |column, row| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
@@ -485,14 +517,20 @@ mod tests {
         assert_eq!(app.selected, date(2026, 10, 1));
         app.handle_mouse(click(36, 5));
         assert_eq!(app.selected, date(2026, 10, 1));
-        // 點最上面那週（9/21 那列）：選取後照 scrolloff 往上捲一行
+        // 點最上面那週（9/21 那列）：不置中就留在最上面那行，畫面不捲
         app.handle_mouse(click(2, 3));
         assert_eq!(app.selected, date(2026, 9, 21));
-        assert_eq!(selected_row(&app), Some(SCROLLOFF));
-        // 設定頁開著：點擊不理
+        assert_eq!(selected_row(&app), Some(0));
+        // 置中開著：點第 2 週星期四（10/1）之後，那一格移到中間那行（第 3 行）
+        app.settings.center_cursor = true;
+        app.handle_mouse(click(36, 7));
+        assert_eq!(app.selected, date(2026, 10, 1));
+        assert_eq!(selected_row(&app), Some(2));
+        assert_eq!(app.top, date(2026, 9, 14));
+        // 設定頁開著：點擊不理（點的位置現在是 9/24，選取不會變）
         app.panel = Some(Panel::default());
         app.handle_mouse(click(36, 7));
-        assert_eq!(app.selected, date(2026, 9, 21));
+        assert_eq!(app.selected, date(2026, 10, 1));
     }
 
     #[test]
