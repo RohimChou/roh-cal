@@ -118,6 +118,16 @@ pub struct Texts {
     pub delete_confirm: fn(subtasks: usize) -> String,
     /// 說明頁（`?`）
     pub help: Help,
+    /// 新增表單的標題（上框線）
+    pub form_title: &'static str,
+    /// 新增表單的欄位名：標題、日期
+    pub form_labels: [&'static str; 2],
+    /// 新增表單最下面的操作說明
+    pub form_hint: &'static str,
+    /// 新增表單：標題是空的
+    pub form_empty_title: &'static str,
+    /// 新增表單：日期寫錯
+    pub form_bad_date: &'static str,
 }
 
 impl Texts {
@@ -131,7 +141,7 @@ impl Texts {
             hint: "hjkl move · o open · v view · ? help · q quit",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
-            day_hint: "Space check · d delete · ? help · q close",
+            day_hint: "a add · Space check · d delete · ? help",
             file_reloaded: "file changed elsewhere, reloaded",
             file_failed: |kind| format!("can't save the task file: {kind}"),
             undone: |title| format!("undone: {title}"),
@@ -157,12 +167,18 @@ impl Texts {
                 right: &[HelpSection {
                     title: "EDITING",
                     keys: &[
+                        ("a", "add an item"),
                         ("Space / x", "check off / uncheck"),
                         ("d", "delete (with subtasks)"),
                         ("u", "undo"),
                     ],
                 }],
             },
+            form_title: "new item",
+            form_labels: ["title", "date"],
+            form_hint: "Tab next · Enter save · Esc cancel",
+            form_empty_title: "the title is empty",
+            form_bad_date: "date should look like 2026-10-12",
         }
     }
 
@@ -174,7 +190,7 @@ impl Texts {
             hint: "hjkl 移動 · o 開啟 · v 切換 · ? 說明 · q 離開",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
-            day_hint: "Space 打勾 · d 刪除 · ? 說明 · q 關閉",
+            day_hint: "a 新增 · Space 打勾 · d 刪除 · ? 說明",
             file_reloaded: "檔案在別處改過，已重新載入",
             file_failed: |kind| format!("任務檔存不了：{kind}"),
             undone: |title| format!("已復原：{title}"),
@@ -199,12 +215,18 @@ impl Texts {
                 right: &[HelpSection {
                     title: "編輯",
                     keys: &[
+                        ("a", "新增項目"),
                         ("Space / x", "打勾 / 取消"),
                         ("d", "刪除（連子任務）"),
                         ("u", "復原"),
                     ],
                 }],
             },
+            form_title: "新增項目",
+            form_labels: ["標題", "日期"],
+            form_hint: "Tab 換欄 · Enter 存 · Esc 取消",
+            form_empty_title: "標題是空的",
+            form_bad_date: "日期要像 2026-10-12",
             ..Self::en()
         }
     }

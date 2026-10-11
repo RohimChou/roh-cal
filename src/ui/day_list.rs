@@ -136,7 +136,7 @@ mod tests {
         let rows = rows(&buffer);
         let text = rows.join("\n");
         assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("Space check · d delete · ? help · q close"));
+        assert!(text.contains("a add · Space check · d delete · ? help"));
         // 有時間的照時間排、沒時間的在後面；沒 checkbox 的也顯示 [ ]；別天的不列
         let early = row_of(&rows, "[x] 09:00 早上的會");
         let late = row_of(&rows, "[ ] 14:00 下午的會");
@@ -172,7 +172,7 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("2026-10-14（三）"));
         assert!(text.contains("這天沒有項目"));
-        assert!(text.contains("Space 打勾 · d 刪除 · ? 說明 · q 關閉"));
+        assert!(text.contains("a 新增 · Space 打勾 · d 刪除 · ? 說明"));
     }
 
     #[test]

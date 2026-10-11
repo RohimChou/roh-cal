@@ -34,11 +34,22 @@ In the day list:
 | Key | Action |
 | :- | :- |
 | `j` / `k` | Pick an item |
+| `a` | Add an item (opens a form) |
 | `Space` / `x` | Check off / uncheck, saved to the task file right away |
 | `d` | Delete the item and its subtasks (asks first: `y` = yes, any other key = no) |
 | `u` | Undo |
 | `?` | Help |
 | `q` / `Esc` | Close |
+
+In the add form:
+
+| Key | Action |
+| :- | :- |
+| `Tab` / `Shift+Tab` | Next / previous field (title, date) |
+| `Enter` | Save, back to the day list with the new item selected |
+| `Esc` | Cancel |
+
+The date field takes digits and `-` only, e.g. `2026-10-12`.
 
 In the settings panel:
 
@@ -87,4 +98,4 @@ A Markdown file, one item per line. It reads well in any editor, Obsidian or Git
 - `# Heading` starts a group; deeper indentation = a subtask
 - Everything else is left alone
 
-Checking an item off rewrites only that line; deleting one removes it together with the lines indented below it. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Adding and editing are next.
+Checking an item off rewrites only that line; deleting one removes it together with the lines indented below it; adding one writes `- [ ] title @date` after the last item of the selected item's group (or at the end of the file). If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Editing is next.

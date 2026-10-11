@@ -2,6 +2,7 @@
 
 pub mod compact;
 pub mod day_list;
+pub mod form;
 pub mod help;
 pub mod month;
 pub mod settings;
@@ -30,7 +31,7 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單在月曆正中間、說明頁在畫面正中間）
+/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單和表單在月曆正中間、說明頁在畫面正中間）
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
@@ -49,6 +50,12 @@ pub fn render(frame: &mut Frame, app: &App) {
                 day_list::render(frame, list, app, calendar);
             }
             help::render(frame, app);
+        }
+        Some(Overlay::Form(ref form)) => {
+            // 清單照畫，表單疊在上面（跟清單一樣置中在月曆框上）
+            let calendar = calendar_area(frame.area(), app);
+            day_list::render(frame, form.back, app, calendar);
+            form::render(frame, form, app, calendar);
         }
         None => {}
     }

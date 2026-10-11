@@ -39,13 +39,6 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
 ///
 /// 放在 `near`（清單上選到的項目）那一組（同一個標題底下）的最後一個項目和它的子任務下面；
 /// `near` 是 `None`（那天還沒有項目）就加在檔案最後面。換行照檔案原本用的（`\n` 或 `\r\n`）
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "test 已經在用；畫面要等下一個 commit 的新增表單才會用到"
-    )
-)]
 pub fn add(
     text: &str,
     title: &str,
