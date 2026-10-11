@@ -3,21 +3,43 @@
 //! 設定頁是一張清單，跟設定檔一樣分成 `[month]`、`[colors]` 兩段、名字一模一樣：
 //! `j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
 //! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。
-//! 開關啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）；顏色在 `Theme`，還沒進設定檔
+//! 開關和改過的顏色啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）。
+//! 畫面用的 `Theme` 一律從 `Settings` 算：預設 theme + `Settings.colors`（`Theme::with_colors`），兩邊不會不一致
 
-use crate::theme::{ColorField, PALETTE, Theme};
+use crate::theme::{ColorField, HexColor, PALETTE, Theme};
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-/// 執行時可以改的開關；結構跟設定檔一樣，依畫面分組：`month` = 設定檔的 `[month]`
+/// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`month` = `[month]`、`colors` = `[colors]`
 ///
 /// 設定檔裡的名字就是欄位名（例：`[month]` 底下寫 `grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用 `Default` 的值；
-/// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+/// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML。
+/// 有 `BTreeMap`（會配置記憶體），所以不是 `Copy`，要複製一份得明確寫 `.clone()`
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     /// `[month]`：大月曆的開關
     pub month: MonthSettings,
+    /// `[colors]`：改過的顏色（例：`sunday = "#f38ba8"`）；沒寫的用預設 theme 的。
+    /// 只記跟預設不一樣的，之後換預設 theme，沒改過的顏色會跟著新的走
+    pub colors: BTreeMap<ColorField, HexColor>,
+}
+
+impl Settings {
+    /// 改一個顏色：跟預設 theme 一樣就從 `colors` 拿掉（設定檔只記改過的）；
+    /// 只有 RGB 顏色存得進設定檔，其他的也當作沒改
+    pub fn set_color(&mut self, field: ColorField, color: Color) {
+        let is_default = field.color(&Theme::default()) == Some(color);
+        match HexColor::from_color(color) {
+            Some(hex) if !is_default => {
+                self.colors.insert(field, hex);
+            }
+            _ => {
+                self.colors.remove(&field);
+            }
+        }
+    }
 }
 
 /// 大月曆的開關（設定檔的 `[month]`）；預設值在 `Default`
@@ -103,10 +125,13 @@ impl Row {
             Self::CenterCursor => (on_off(settings.month.center_cursor).to_string(), None),
             Self::Color(field) => {
                 let current = field.color(theme);
+                // 色票裡有就顯示色票名；沒有（例：設定檔手寫的色碼）就顯示色碼
                 let label = PALETTE
                     .iter()
                     .find(|&&(_, color)| Some(color) == current)
-                    .map_or("custom".to_string(), |&(name, _)| name.to_string());
+                    .map(|&(name, _)| name.to_string())
+                    .or_else(|| current.and_then(HexColor::from_color).map(String::from))
+                    .unwrap_or_else(|| "custom".to_string());
                 (label, current)
             }
         }
@@ -124,7 +149,9 @@ impl Row {
                     .iter()
                     .position(|&(_, color)| Some(color) == current)
                     .unwrap_or(0);
-                field.set_color(theme, PALETTE[wrap(index, step, PALETTE.len())].1);
+                settings.set_color(field, PALETTE[wrap(index, step, PALETTE.len())].1);
+                // 畫面用的 theme 一律從 settings 重算
+                *theme = Theme::with_colors(&settings.colors);
             }
         }
     }
@@ -136,7 +163,10 @@ impl Row {
             Self::GridLines => settings.month.grid_lines = defaults.month.grid_lines,
             Self::ItemIcons => settings.month.item_icons = defaults.month.item_icons,
             Self::CenterCursor => settings.month.center_cursor = defaults.month.center_cursor,
-            Self::Color(field) => field.reset(theme),
+            Self::Color(field) => {
+                settings.colors.remove(&field);
+                *theme = Theme::with_colors(&settings.colors);
+            }
         }
     }
 }
@@ -226,6 +256,38 @@ mod tests {
             assert!(value(&file, row).is_some(), "{row:?}: 設定檔裡沒有這個名字");
             assert_ne!(value(&file, row), value(&default_file, row), "{row:?}");
         }
+    }
+
+    #[test]
+    fn each_color_field_uses_its_name_in_the_config_file() {
+        for row in ROWS {
+            let Row::Color(field) = row else { continue };
+            // serde 轉出來的名字（設定檔 [colors] 的 key）= 設定頁顯示的名字
+            let config_name = toml::Value::try_from(field).expect("serialize");
+            assert_eq!(config_name.as_str(), Some(field.name()), "{field:?}");
+        }
+    }
+
+    #[test]
+    fn color_rows_write_settings_and_only_remember_changed_colors() {
+        let mut settings = Settings::default();
+        let mut theme = Theme::default();
+        let row = Row::Color(ColorField::Item);
+        // 往後一格：subtext1 → subtext0，記進 settings.colors，theme 跟著變
+        row.adjust(1, &mut settings, &mut theme);
+        assert_eq!(
+            settings.colors.get(&ColorField::Item),
+            HexColor::from_color(PALETTE[16].1).as_ref()
+        );
+        assert_eq!(theme, Theme::with_colors(&settings.colors));
+        // 再往前一格回到預設的 subtext1 → 從 settings.colors 拿掉（設定檔只記改過的）
+        row.adjust(-1, &mut settings, &mut theme);
+        assert!(settings.colors.is_empty());
+        // r：改過的拿掉，theme 回到預設
+        row.adjust(1, &mut settings, &mut theme);
+        row.reset(&mut settings, &mut theme);
+        assert!(settings.colors.is_empty());
+        assert_eq!(theme.item, Theme::default().item);
     }
 
     #[test]

@@ -1,6 +1,8 @@
 //! 畫面用到的所有顏色與樣式；換 theme = 換一個 `Theme`
 
 use ratatui::style::{Color, Modifier, Style};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Catppuccin Mocha 全部 26 色（名字, 顏色），設定頁換色用；順序照官方色票
 pub const PALETTE: [(&str, Color); 26] = [
@@ -37,7 +39,7 @@ pub const PALETTE: [(&str, Color); 26] = [
 /// 同一格符合好幾種情況時，依序疊上去（`Style::patch`）：
 /// 一般日期 → 星期六 / 星期日 → 其他月份 → 今天 → 選取，後面的會蓋掉前面設過的顏色
 /// 點點也一樣：`dots_open` / `dots_quiet` → 其他月份 → 今天 → 選取（點點才會跟著數字變暗、變色）
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
     /// 框線
     pub border: Style,
@@ -139,13 +141,25 @@ impl Theme {
             grid_lines: Style::new().fg(surface0),
         }
     }
+
+    /// 預設 theme，再換上設定檔 `[colors]` 裡改過的顏色（例：`sunday = "#f38ba8"`）
+    pub fn with_colors(colors: &BTreeMap<ColorField, HexColor>) -> Self {
+        let mut theme = Self::default();
+        for (&field, &color) in colors {
+            field.set_color(&mut theme, color.into());
+        }
+        theme
+    }
 }
 
 /// `Theme` 裡可以換色的欄位（設定頁一個欄位一列，順序見 `settings::ROWS`）
 ///
 /// 每個欄位的名字、對到 `Theme` 哪個欄位、調底色還是文字色，都只寫在這裡；
-/// 新增一個欄位時，`match` 少寫一個 compiler 就會報錯
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 新增一個欄位時，`match` 少寫一個 compiler 就會報錯。
+/// 設定檔 `[colors]` 的名字由 serde 從 variant 名轉成 snake_case（`MoreItems` → `more_items`），跟 `name()` 一樣（有 test 釘住）；
+/// `Ord`：當 map 的 key 時照宣告的順序排
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ColorField {
     Item,
     ItemDone,
@@ -198,11 +212,6 @@ impl ColorField {
         };
     }
 
-    /// 整個樣式（顏色、粗體…）還原成預設 theme 裡的
-    pub fn reset(self, theme: &mut Theme) {
-        *self.style_mut(theme) = self.style(&Theme::default());
-    }
-
     /// 調的是底色（整格塗色的那種）還是文字色
     fn uses_bg(self) -> bool {
         self == Self::SelectedBg
@@ -232,5 +241,82 @@ impl ColorField {
             Self::Saturday => &mut theme.saturday,
             Self::Sunday => &mut theme.sunday,
         }
+    }
+}
+
+/// 設定檔裡的顏色：`"#rrggbb"`（例：`"#f38ba8"`），跟 theme 無關，換哪個 theme 都看得懂
+///
+/// `try_from` / `into`：serde 讀寫時先轉成字串，再用下面的 `TryFrom` / `From` 跟 `HexColor` 互轉；
+/// 格式不對（`"blue"`、`"#12345"`）讀檔時就是錯誤
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct HexColor(pub u8, pub u8, pub u8);
+
+impl HexColor {
+    /// RGB 顏色才換得成色碼；terminal 的 16 色（`Color::Blue` 這種）沒有固定的色碼，回傳 `None`
+    pub fn from_color(color: Color) -> Option<Self> {
+        match color {
+            Color::Rgb(red, green, blue) => Some(Self(red, green, blue)),
+            _ => None,
+        }
+    }
+}
+
+impl TryFrom<String> for HexColor {
+    type Error = String;
+
+    /// `"#f38ba8"` → `HexColor(243, 139, 168)`；大小寫都可以
+    fn try_from(text: String) -> Result<Self, String> {
+        let digits = text
+            .strip_prefix('#')
+            .filter(|digits| digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit()))
+            .ok_or_else(|| format!("invalid color \"{text}\": expected \"#rrggbb\""))?;
+        // 上面確認過是 6 個 16 進位數字，這裡一定換得成功
+        let byte = |start: usize| u8::from_str_radix(&digits[start..start + 2], 16).unwrap_or(0);
+        Ok(Self(byte(0), byte(2), byte(4)))
+    }
+}
+
+impl From<HexColor> for String {
+    /// `HexColor(243, 139, 168)` → `"#f38ba8"`（小寫）
+    fn from(color: HexColor) -> Self {
+        format!("#{:02x}{:02x}{:02x}", color.0, color.1, color.2)
+    }
+}
+
+impl From<HexColor> for Color {
+    fn from(color: HexColor) -> Self {
+        Color::Rgb(color.0, color.1, color.2)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_color_reads_and_writes_rrggbb() {
+        // f3 = 243、8b = 139、a8 = 168（Catppuccin 的 red）
+        let red = HexColor::try_from("#f38ba8".to_string()).expect("valid");
+        assert_eq!(red, HexColor(243, 139, 168));
+        assert_eq!(HexColor::try_from("#F38BA8".to_string()), Ok(red));
+        assert_eq!(String::from(red), "#f38ba8");
+        assert_eq!(Color::from(red), Color::Rgb(243, 139, 168));
+        for text in ["blue", "f38ba8", "#f38ba", "#f38ba8a", "#gggggg", ""] {
+            assert!(HexColor::try_from(text.to_string()).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn with_colors_changes_only_the_listed_fields() {
+        let colors = BTreeMap::from([(ColorField::Sunday, HexColor(1, 2, 3))]);
+        let theme = Theme::with_colors(&colors);
+        assert_eq!(theme.sunday.fg, Some(Color::Rgb(1, 2, 3)));
+        // 沒列到的跟預設一樣（星期六預設也是 blue，不跟著星期日變）
+        assert_eq!(theme.saturday, Theme::default().saturday);
+        assert_eq!(
+            Theme::with_colors(&BTreeMap::new()).item,
+            Theme::default().item
+        );
     }
 }

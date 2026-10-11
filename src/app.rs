@@ -91,8 +91,9 @@ impl App {
     ) -> Self {
         let mut app = Self::on_date(Zoned::now().date(), texts, items);
         // 一開始是小月曆，捲動規則不看開關，所以換掉開關不用重新捲
+        app.theme = Theme::with_colors(&settings.colors);
+        app.saved_settings = settings.clone();
         app.settings = settings;
-        app.saved_settings = settings;
         app.config_path = config_path;
         app
     }
@@ -138,9 +139,9 @@ impl App {
             return Ok(());
         }
         if let Some(path) = &self.config_path {
-            config::save(path, self.settings)?;
+            config::save(path, &self.settings)?;
         }
-        self.saved_settings = self.settings;
+        self.saved_settings = self.settings.clone();
         Ok(())
     }
 
@@ -490,6 +491,31 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
         assert_eq!(app.panel, None);
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn colors_from_the_config_file_are_on_screen_and_reset_removes_them() {
+        let dir = config::test_dir("app-colors");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[colors]\nsunday = \"#f38ba8\"\n").expect("write");
+        let settings = config::load(&path).expect("load");
+        let mut app = App::new(Texts::en(), Vec::new(), settings, Some(path.clone()));
+        // 一打開，星期日就是設定檔裡的紅色
+        assert_eq!(
+            app.theme.sunday.fg,
+            Some(ratatui::style::Color::Rgb(243, 139, 168))
+        );
+        // 設定頁：k 從第一列往上繞到最後一列（sunday），r 還原，關掉 → 存
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char('k')));
+        app.handle_key(key(KeyCode::Char('r')));
+        app.handle_key(key(KeyCode::Char('q')));
+        app.save_settings().expect("save");
+        assert_eq!(app.theme.sunday, Theme::default().sunday);
+        // 顏色都回到預設 → 整個 [colors] 拿掉
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]

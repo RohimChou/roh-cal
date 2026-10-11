@@ -9,3 +9,8 @@ grid_lines = false
 item_icons = false
 # 移動時選取的那週固定在畫面正中間（預設 true）
 center_cursor = false
+
+# 改過的顏色（"#rrggbb"）；沒寫的用預設 theme
+[colors]
+# 星期日改成紅色（Catppuccin red）
+sunday = "#f38ba8"

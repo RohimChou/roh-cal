@@ -1,6 +1,6 @@
-//! 設定檔 `config.toml`：啟動時讀進來，設定頁關掉時把改過的開關存回去
+//! 設定檔 `config.toml`：啟動時讀進來，設定頁關掉時把改過的開關和顏色存回去
 //!
-//! 位置見 `paths::config_file`。結構和名字跟 `Settings` 一樣（`[month]` 底下放大月曆的開關），
+//! 位置見 `paths::config_file`。結構和名字跟 `Settings` 一樣（`[month]` 大月曆的開關、`[colors]` 改過的顏色），
 //! 只寫想改的就好，沒寫的用預設值；
 //! 範例見 `testdata/config.toml`。存檔只改有變的那幾行，其他行和註解一字不動（手寫的設定檔不會被蓋掉）
 
@@ -16,8 +16,8 @@ pub fn load(path: &Path) -> Result<Settings> {
     parse(&text).wrap_err_with(|| format!("invalid config file: {}", path.display()))
 }
 
-/// 把開關存回設定檔：跟檔案不一樣的值才改，沒有要改的就不寫；資料夾不存在會自動建立
-pub fn save(path: &Path, settings: Settings) -> Result<()> {
+/// 把設定存回設定檔：跟檔案不一樣的值才改，沒有要改的就不寫；資料夾不存在會自動建立
+pub fn save(path: &Path, settings: &Settings) -> Result<()> {
     let text = read(path)?;
     let new_text = updated(&text, settings)
         .wrap_err_with(|| format!("invalid config file: {}", path.display()))?;
@@ -46,19 +46,20 @@ fn parse(text: &str) -> Result<Settings> {
     Ok(toml::from_str(text)?)
 }
 
-/// 設定檔的新內容：值跟 `text` 現在不一樣的開關改掉，沒有那一行就加在同一個表（例：`[month]`）的後面
-/// （檔案結尾的註解還是留在最後面）；其他行、註解、空白一字不動
-fn updated(text: &str, settings: Settings) -> Result<String> {
+/// 設定檔的新內容：值跟 `text` 現在不一樣的改掉，沒有那一行就加在同一個表（例：`[month]`）的後面
+/// （檔案結尾的註解還是留在最後面）；還原成預設的顏色整行拿掉；其他行、註解、空白一字不動
+fn updated(text: &str, settings: &Settings) -> Result<String> {
     // 保留格式的 TOML（toml_edit）：改一個值，其他內容原封不動
     let mut doc: DocumentMut = text.parse()?;
     // 檔案現在的值（沒寫的 = 預設值）和要存的值都轉成 TOML，一個名字一個名字比
     let current = toml_edit::ser::to_document(&parse(text)?)?;
-    let wanted = toml_edit::ser::to_document(&settings)?;
+    let wanted = toml_edit::ser::to_document(settings)?;
     merge(doc.as_table_mut(), current.as_table(), wanted.as_table());
     Ok(doc.to_string())
 }
 
-/// 把 `wanted` 裡跟 `current`（檔案現在的值）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做
+/// 把 `wanted` 裡跟 `current`（檔案現在的值）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做；
+/// `current` 有、`wanted` 沒有的（例：還原成預設的顏色）從 `doc` 拿掉
 ///
 /// `dyn TableLike`：`[month]` 這種表和 `{ a = 1 }` 這種寫在一行的表都可以傳進來
 fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLike) {
@@ -79,6 +80,10 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
             ) {
                 merge(doc_table, current_table, wanted_table);
             }
+            // 整個表都沒東西了（例：顏色全部還原成預設）→ 連 `[colors]` 這行也拿掉
+            if wanted_table.is_empty() {
+                doc.remove(key);
+            }
             continue;
         }
         match (
@@ -96,6 +101,15 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
                 doc.insert(key, item.clone());
             }
         }
+    }
+    // 檔案有、要存的沒有（例：`r` 還原成預設的顏色）→ 整行拿掉（那行上面的註解也一起）
+    let stale: Vec<String> = current
+        .iter()
+        .map(|(key, _)| key.to_string())
+        .filter(|key| wanted.get(key).is_none())
+        .collect();
+    for key in stale {
+        doc.remove(&key);
     }
 }
 
@@ -127,6 +141,8 @@ pub fn test_dir(name: &str) -> std::path::PathBuf {
 mod tests {
     use super::*;
     use crate::settings::MonthSettings;
+    use crate::theme::{ColorField, HexColor};
+    use std::collections::BTreeMap;
 
     /// 預設值只改 `[month]` 的一部分（test 用），例：`with_month(|month| month.grid_lines = false)`
     fn with_month(change: impl FnOnce(&mut MonthSettings)) -> Settings {
@@ -176,6 +192,8 @@ mod tests {
                     item_icons: false,
                     center_cursor: false,
                 },
+                // f3 8b a8 = 243 139 168
+                colors: BTreeMap::from([(ColorField::Sunday, HexColor(243, 139, 168))]),
             }
         );
         // 檔案不存在 → 預設值
@@ -193,7 +211,7 @@ mod tests {
         // item_icons 改成 false（沒有那一行：加在 [month] 的最後）；center_cursor 沒變（不動）
         let settings = with_month(|month| month.item_icons = false);
         assert_eq!(
-            updated(text, settings).expect("valid file"),
+            updated(text, &settings).expect("valid file"),
             "# 我的設定\n\n[month]\n# 格線\ngrid_lines = true   # 太花了\ncenter_cursor = true\nitem_icons = false\n"
         );
     }
@@ -202,7 +220,7 @@ mod tests {
     fn updated_creates_the_month_table_when_the_file_has_none() {
         let settings = with_month(|month| month.grid_lines = false);
         assert_eq!(
-            updated("", settings).expect("empty file"),
+            updated("", &settings).expect("empty file"),
             "[month]\ngrid_lines = false\n"
         );
     }
@@ -213,8 +231,62 @@ mod tests {
         let text = "[month]\ngrid_lines = true\n# item_icons = true\n";
         let settings = with_month(|month| month.center_cursor = false);
         assert_eq!(
-            updated(text, settings).expect("valid file"),
+            updated(text, &settings).expect("valid file"),
             "[month]\ngrid_lines = true\ncenter_cursor = false\n# item_icons = true\n"
+        );
+    }
+
+    #[test]
+    fn colors_are_read_from_the_colors_table() {
+        let settings =
+            parse("[colors]\nsunday = \"#F38BA8\"\nmore_items = \"#010203\"").expect("valid");
+        assert_eq!(
+            settings.colors,
+            BTreeMap::from([
+                (ColorField::MoreItems, HexColor(1, 2, 3)),
+                (ColorField::Sunday, HexColor(243, 139, 168)),
+            ])
+        );
+        for text in [
+            // 名字打錯
+            "[colors]\nsundy = \"#f38ba8\"",
+            // 不是色碼
+            "[colors]\nsunday = \"blue\"",
+            "[colors]\nsunday = \"#f38ba\"",
+            "[colors]\nsunday = 3",
+        ] {
+            assert!(parse(text).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn updated_writes_changed_colors_and_removes_the_reset_ones() {
+        let text = "[month]\ngrid_lines = false\n\n[colors]\n# 太淡了\nmore_items = \"#010203\"\nsunday = \"#f38ba8\"   # 紅\n";
+        // 讀進來 → more_items 還原成預設（拿掉）、新增 item、sunday 不變
+        let mut settings = parse(text).expect("valid");
+        settings.colors.remove(&ColorField::MoreItems);
+        settings
+            .colors
+            .insert(ColorField::Item, HexColor(255, 255, 255));
+        assert_eq!(
+            updated(text, &settings).expect("valid"),
+            "[month]\ngrid_lines = false\n\n[colors]\nsunday = \"#f38ba8\"   # 紅\nitem = \"#ffffff\"\n"
+        );
+    }
+
+    #[test]
+    fn updated_removes_the_colors_table_when_every_color_is_default() {
+        let text = "[month]\ngrid_lines = false\n\n[colors]\nsunday = \"#f38ba8\"\n";
+        let mut settings = parse(text).expect("valid");
+        settings.colors.clear();
+        assert_eq!(
+            updated(text, &settings).expect("valid"),
+            "[month]\ngrid_lines = false\n"
+        );
+        // 檔案沒有 [colors]、顏色都是預設 → 不會多出空的 [colors]
+        assert_eq!(
+            updated("[month]\n", &Settings::default()).expect("valid"),
+            "[month]\n"
         );
     }
 
@@ -222,9 +294,9 @@ mod tests {
     fn updated_leaves_the_text_alone_when_nothing_changed() {
         // 檔案裡寫的跟預設一樣的值也不會被拿掉
         let text = "# 註解\n[month]\ngrid_lines = true\n";
-        assert_eq!(updated(text, Settings::default()).expect("valid"), text);
+        assert_eq!(updated(text, &Settings::default()).expect("valid"), text);
         // 空檔案 + 全部預設 → 還是空的（不會把預設值都寫進去，也不會多出空的 [month]）
-        assert_eq!(updated("", Settings::default()).expect("empty"), "");
+        assert_eq!(updated("", &Settings::default()).expect("empty"), "");
     }
 
     #[test]
@@ -232,10 +304,10 @@ mod tests {
         let dir = test_dir("save");
         let path = dir.join("roh-cal").join("config.toml");
         // 檔案不存在、開關都是預設：沒有要改的 → 什麼都不寫，連資料夾都不建
-        save(&path, Settings::default()).expect("nothing to save");
+        save(&path, &Settings::default()).expect("nothing to save");
         assert!(!dir.exists());
         let settings = with_month(|month| month.center_cursor = false);
-        save(&path, settings).expect("save");
+        save(&path, &settings).expect("save");
         assert_eq!(load(&path).expect("load"), settings);
         // 只寫有變的那一個；暫存檔沒有留下來
         assert_eq!(
@@ -253,7 +325,7 @@ mod tests {
         let path = dir.join("config.toml");
         std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
         // 名字打錯的檔案：不存，原本的內容留著讓使用者自己修
-        assert!(save(&path, Settings::default()).is_err());
+        assert!(save(&path, &Settings::default()).is_err());
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "[month]\ngrid_line = false\n"
@@ -270,7 +342,7 @@ mod tests {
         let link = dir.join("config.toml");
         std::fs::write(&real, "[month]\ngrid_lines = true\n").expect("write");
         std::os::unix::fs::symlink(&real, &link).expect("symlink");
-        save(&link, with_month(|month| month.grid_lines = false)).expect("save");
+        save(&link, &with_month(|month| month.grid_lines = false)).expect("save");
         // symlink 還是 symlink，內容寫進真正的檔案
         let file_type = std::fs::symlink_metadata(&link).expect("meta").file_type();
         assert!(file_type.is_symlink());
