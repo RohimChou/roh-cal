@@ -73,7 +73,7 @@ pub struct Theme {
     pub row_distance: Style,
     /// 大月曆：選取那一格的整格底色（其他格子不塗底，日期數字也不換色）
     pub cell_selected: Style,
-    /// 大月曆：日期數字額外疊的樣式（粗體；格子大，數字要跳出來）
+    /// 大月曆：本月日期數字額外疊的樣式（粗體；格子大，數字要跳出來。其他月份不疊）
     pub cell_day: Style,
     /// 大月曆格子裡的項目：還沒完成的（`14:00 標題`，不加符號）
     pub item: Style,

@@ -252,7 +252,7 @@ fn render_grid_lines(
     }
 }
 
-/// 一格裡的每一行：第一行日期（每個月 1 號後面標月份，例：` 1 Oct`），接著當天的項目
+/// 一格裡的每一行：第一行日期（每個月 1 號後面標月份，例：`1 Oct`），接著當天的項目
 ///
 /// 空間規則（`rows` = 格子有幾行）：
 /// - 項目放得下就全列；放不下就少列一個，最後一行改成 `+N`（N = 沒列出來的數量）
@@ -277,10 +277,13 @@ fn cell_lines(
         Style::new()
     };
 
-    // 第一行：數字依序疊上 style：一般 → 大月曆的粗體 → 週末 → 其他月份 → 今天（順序見 `Theme`）；選取只靠整格底色
-    let mut number_style = theme
-        .day
-        .patch(theme.cell_day)
+    // 第一行：數字依序疊上 style：一般 → 本月的粗體 → 週末 → 其他月份 → 今天（順序見 `Theme`）；選取只靠整格底色
+    let mut number_style = theme.day;
+    if !other_month {
+        // 其他月份的數字不加粗，才不會比本月的還搶眼
+        number_style = number_style.patch(theme.cell_day);
+    }
+    number_style = number_style
         .patch(weekend_style(date.weekday(), theme))
         .patch(dim);
     let mut dots_style = if items.iter().any(|item| !item.done) {
@@ -293,7 +296,8 @@ fn cell_lines(
         number_style = number_style.patch(theme.today);
         dots_style = dots_style.patch(theme.today);
     }
-    let mut first = Line::from(Span::styled(format!(" {:>2}", date.day()), number_style));
+    // 數字靠左（`5` 不補成 ` 5`），格子大，左上角對齊比較好看
+    let mut first = Line::from(Span::styled(format!(" {}", date.day()), number_style));
     let rows = usize::from(rows);
     if rows <= 1 {
         // 只有 1 行（視窗很矮）：項目列不下，用點點表示有幾個
@@ -636,19 +640,20 @@ mod tests {
         for (row, cells) in weeks.iter().enumerate() {
             for (column, &cell) in cells.iter().enumerate() {
                 let expected = date(2026, 9, 21) + ((row * 7 + column) as i32).days();
-                assert_eq!(text_at(cell, 3), format!(" {:>2}", expected.day()));
+                // 數字靠左：` 5 ` / ` 12`
+                assert_eq!(text_at(cell, 3), format!(" {:<2}", expected.day()));
             }
         }
-        assert_eq!(text_at(weeks[1][3], 7), "  1 Oct");
+        assert_eq!(text_at(weeks[1][3], 6), " 1 Oct");
         // 11/1 在其他月份：月份標記跟數字一樣變淡
         let nov = weeks[5][6];
-        assert_eq!(text_at(nov, 7), "  1 Nov");
+        assert_eq!(text_at(nov, 6), " 1 Nov");
         assert_eq!(
-            buffer[(nov.x + 4, nov.y)].fg,
+            buffer[(nov.x + 3, nov.y)].fg,
             app.theme.other_month.fg.unwrap()
         );
         assert_eq!(
-            buffer[(weeks[1][3].x + 4, weeks[1][3].y)].fg,
+            buffer[(weeks[1][3].x + 3, weeks[1][3].y)].fg,
             app.theme.month_marker.fg.unwrap()
         );
         // 選取的 10/10（第 3 週星期六）整格都是 `cell_selected` 的底色：左上角到右下角
@@ -659,6 +664,14 @@ mod tests {
             buffer[(cell.right() - 1, cell.bottom() - 1)].bg,
             selected_bg
         );
+        // 本月的數字粗體、其他月份的不粗
+        let bold = |cell: Rect| {
+            buffer[(cell.x + 1, cell.y)]
+                .modifier
+                .contains(Modifier::BOLD)
+        };
+        assert!(bold(weeks[2][0]));
+        assert!(!bold(weeks[0][0]));
         // 其他格子沒有底色：10/5（本月）、9/21（其他月份）
         assert_eq!(buffer[(weeks[2][0].x, weeks[2][0].y)].bg, Color::Reset);
         assert_eq!(buffer[(weeks[0][0].x, weeks[0][0].y)].bg, Color::Reset);
