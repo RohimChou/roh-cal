@@ -1,7 +1,11 @@
-//! App 的狀態、按鍵 / 滑鼠處理、捲動規則（畫面在 `ui`、寫任務檔在 `write`）
+//! App 的狀態、按鍵 / 滑鼠處理、捲動規則；當天清單在 `day_list`、表單在 `form`、寫任務檔在 `write`（畫面在 `ui`）
 
+mod day_list;
+mod form;
 mod write;
 
+pub use day_list::DayList;
+pub use form::{Form, FormField, FormProblem};
 pub use write::Notice;
 
 use crate::calendar::{Scroll, monday_of, month_top, scrolled_top};
@@ -16,12 +20,11 @@ use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{
-        self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
     layout::Rect,
 };
 use std::path::PathBuf;
-use tui_input::{Input, InputRequest, backend::crossterm::to_input_request};
 use write::UndoStep;
 
 /// 現在顯示哪一種畫面；按 `v` 切換
@@ -69,103 +72,6 @@ pub enum Overlay {
     Help { back: Option<DayList> },
     /// 新增表單（清單裡按 `a`）
     Form(Form),
-}
-
-/// 新增表單：標題、日期兩欄
-#[derive(Debug, Clone)]
-pub struct Form {
-    /// 標題欄
-    pub title: Input,
-    /// 日期欄（`2026-10-12`），一開始是清單那一天
-    pub date: Input,
-    /// 游標在哪一欄
-    pub focus: FormField,
-    /// 存好 / 取消之後回到這個清單；新項目放在這個清單選到的項目同一組
-    pub back: DayList,
-    /// 按 Enter 時沒通過的檢查（顯示在下框線），下一個按鍵就消失
-    pub problem: Option<FormProblem>,
-}
-
-impl Form {
-    /// 從清單打開：標題空的、日期是清單那一天，游標在標題
-    fn open(back: DayList) -> Self {
-        Self {
-            title: Input::default(),
-            date: Input::new(back.date.to_string()),
-            focus: FormField::Title,
-            back,
-            problem: None,
-        }
-    }
-}
-
-// tui-input 的 `Input` 沒有實作 `PartialEq`，自己比：字和游標位置一樣就算一樣（test 比對 `overlay` 用）
-impl PartialEq for Form {
-    fn eq(&self, other: &Self) -> bool {
-        let same = |a: &Input, b: &Input| a.value() == b.value() && a.cursor() == b.cursor();
-        same(&self.title, &other.title)
-            && same(&self.date, &other.date)
-            && self.focus == other.focus
-            && self.back == other.back
-            && self.problem == other.problem
-    }
-}
-
-impl Eq for Form {}
-
-/// 表單的欄位
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FormField {
-    Title,
-    Date,
-}
-
-impl FormField {
-    /// `Tab` / `Shift+Tab` 換到的另一欄（只有兩欄，往前往後都一樣）
-    fn other(self) -> Self {
-        match self {
-            Self::Title => Self::Date,
-            Self::Date => Self::Title,
-        }
-    }
-}
-
-/// 表單按 Enter 時沒通過的檢查
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FormProblem {
-    /// 標題是空的
-    EmptyTitle,
-    /// 日期不是 `2026-10-12` 這種寫法，或不存在（例：`2026-13-01`）
-    BadDate,
-}
-
-/// 當天清單：哪一天、選到第幾個項目
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DayList {
-    /// 清單是哪一天的（打開時選取的那天）
-    pub date: Date,
-    /// 選到的項目：`ui::items_on(items, date)` 的 index
-    pub selected: usize,
-    /// 按了 `d`，正在等確認：會刪掉幾筆（含子任務）；下一個鍵是 `y` 才刪，其他鍵都是取消
-    pub confirm_delete: Option<usize>,
-}
-
-impl DayList {
-    /// 打開某一天的清單，選第一個項目
-    fn open(date: Date) -> Self {
-        Self {
-            date,
-            selected: 0,
-            confirm_delete: None,
-        }
-    }
-
-    /// 往下（`step` = +1）/ 往上（−1）選一個，頭尾相接；`count` = 那天有幾個項目，0 個就不動
-    fn select(&mut self, step: isize, count: usize) {
-        if let Some(index) = (self.selected as isize + step).checked_rem_euclid(count as isize) {
-            self.selected = index as usize;
-        }
-    }
 }
 
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
@@ -348,125 +254,6 @@ impl App {
         }
         // panel 是複製一份出來改的（`Copy`），改完放回去
         self.overlay = Some(Overlay::Settings(panel));
-    }
-
-    /// 當天清單開著時的按鍵：j / k 選項目、a 新增、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
-    fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
-        if let Some(count) = list.confirm_delete.take() {
-            // 正在問「刪除嗎？」：只有 y 會刪，其他鍵都只是取消（按錯不會有事）
-            if key.code == KeyCode::Char('y') {
-                self.notice = self.delete_selected(list, count);
-            }
-        } else {
-            let count = ui::items_on(&self.items, list.date).len();
-            match key.code {
-                // q / Esc：關閉清單（q 在這裡不是離開 app）
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    self.overlay = None;
-                    return;
-                }
-                KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
-                KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
-                // Space / x：打勾 / 取消，寫回任務檔
-                KeyCode::Char(' ') | KeyCode::Char('x') => {
-                    self.notice = self.toggle_selected(list);
-                }
-                // a：新增表單，存好 / 取消之後回到清單
-                KeyCode::Char('a') => {
-                    self.overlay = Some(Overlay::Form(Form::open(list)));
-                    return;
-                }
-                // d：先問一次（顯示會刪掉幾筆），按 y 才刪
-                KeyCode::Char('d') => match self.ask_delete(list) {
-                    Ok(count) => list.confirm_delete = count,
-                    Err(notice) => self.notice = Some(notice),
-                },
-                // u：復原 roh-cal 最後一次寫檔
-                KeyCode::Char('u') => self.notice = Some(self.undo()),
-                // ?：說明頁，關掉之後回到這個清單
-                KeyCode::Char('?') => {
-                    self.overlay = Some(Overlay::Help { back: Some(list) });
-                    return;
-                }
-                _ => {}
-            }
-        }
-        // 重新載入後項目可能變少：選的不能超過最後一個
-        let count = ui::items_on(&self.items, list.date).len();
-        list.selected = list.selected.min(count.saturating_sub(1));
-        self.overlay = Some(Overlay::DayList(list));
-    }
-
-    /// 表單開著時的按鍵：打字打進游標那一欄；`Tab` / `Shift+Tab` 換欄、`Enter` 存、`Esc` 取消（都回到清單）
-    fn handle_form_key(&mut self, key: KeyEvent) {
-        // 表單裡有字串，不能複製：先拿出來改，最後再放回去
-        let Some(Overlay::Form(mut form)) = self.overlay.take() else {
-            return;
-        };
-        form.problem = None;
-        match key.code {
-            KeyCode::Esc => {
-                self.overlay = Some(Overlay::DayList(form.back));
-                return;
-            }
-            KeyCode::Tab | KeyCode::BackTab => form.focus = form.focus.other(),
-            KeyCode::Enter => {
-                if let Some(list) = self.save_form(&mut form) {
-                    self.overlay = Some(Overlay::DayList(list));
-                    return;
-                }
-            }
-            // 其他鍵交給 tui-input（打字、Backspace、←/→、Ctrl+U…）；日期欄只收數字和 `-`
-            _ => {
-                let request = to_input_request(&Event::Key(key));
-                let input = match form.focus {
-                    FormField::Title => &mut form.title,
-                    FormField::Date => &mut form.date,
-                };
-                let typed_letter = matches!(request, Some(InputRequest::InsertChar(c)) if !(c.is_ascii_digit() || c == '-'));
-                if let Some(request) = request
-                    && !(form.focus == FormField::Date && typed_letter)
-                {
-                    input.handle(request);
-                }
-            }
-        }
-        self.overlay = Some(Overlay::Form(form));
-    }
-
-    /// 表單按 Enter：檢查標題、日期，寫進任務檔。存好了回傳要回去的清單（新項目那天，選到新項目）；
-    /// 沒存成回傳 `None`，原因放在 `form.problem`（欄位寫錯）或 `self.notice`（檔案的問題），表單留著讓使用者改
-    fn save_form(&mut self, form: &mut Form) -> Option<DayList> {
-        let title = form.title.value().trim().to_string();
-        if title.is_empty() {
-            form.problem = Some(FormProblem::EmptyTitle);
-            return None;
-        }
-        let Ok(date) = form.date.value().parse::<Date>() else {
-            form.problem = Some(FormProblem::BadDate);
-            return None;
-        };
-        // 新項目放在清單選到的那個項目同一組
-        let near = ui::items_on(&self.items, form.back.date)
-            .get(form.back.selected)
-            .copied()
-            .cloned();
-        let line = match self.add_item(title, date, near.as_ref()) {
-            Ok(line) => line?,
-            Err(notice) => {
-                self.notice = Some(notice);
-                return None;
-            }
-        };
-        let selected = ui::items_on(&self.items, date)
-            .iter()
-            .position(|item| item.line == line)
-            .unwrap_or(0);
-        Some(DayList {
-            date,
-            selected,
-            confirm_delete: None,
-        })
     }
 
     /// 說明頁開著時的按鍵：`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
@@ -992,76 +779,6 @@ mod tests {
         )
     }
 
-    #[test]
-    fn enter_or_o_opens_the_day_list_and_q_or_esc_closes_it() {
-        let mut app = app_with_two_items();
-        for open in [KeyCode::Enter, KeyCode::Char('o')] {
-            for close in [KeyCode::Char('q'), KeyCode::Esc] {
-                app.handle_key(key(open));
-                assert_eq!(
-                    app.overlay,
-                    Some(Overlay::DayList(DayList {
-                        date: date(2026, 10, 10),
-                        selected: 0,
-                        confirm_delete: None
-                    }))
-                );
-                // 清單開著時 q 只關清單，不離開 app
-                app.handle_key(key(close));
-                assert_eq!(app.overlay, None);
-                assert!(!app.should_quit);
-            }
-        }
-    }
-
-    #[test]
-    fn day_list_j_k_wrap_around_and_the_calendar_stays_put() {
-        let mut app = app_with_two_items();
-        app.handle_key(key(KeyCode::Enter));
-        let selected = |app: &App| match app.overlay {
-            Some(Overlay::DayList(list)) => Some(list.selected),
-            _ => None,
-        };
-        app.handle_key(key(KeyCode::Char('j')));
-        assert_eq!(selected(&app), Some(1));
-        // 兩個項目：再往下回到第一個，往上又到最後一個
-        app.handle_key(key(KeyCode::Down));
-        assert_eq!(selected(&app), Some(0));
-        app.handle_key(key(KeyCode::Char('k')));
-        assert_eq!(selected(&app), Some(1));
-        // 月曆的鍵、Option+q、滑鼠都不理：日期、畫面、跳窗都不變
-        for code in ['h', 'l', 't', 'v', 'œ'].map(KeyCode::Char) {
-            app.handle_key(key(code));
-        }
-        app.handle_mouse(MouseEvent {
-            kind: MouseEventKind::ScrollDown,
-            column: 0,
-            row: 0,
-            modifiers: KeyModifiers::NONE,
-        });
-        assert_eq!(app.selected, date(2026, 10, 10));
-        assert_eq!(app.view, View::Compact);
-        assert_eq!(selected(&app), Some(1));
-    }
-
-    #[test]
-    fn day_list_of_an_empty_day_ignores_j_k() {
-        let mut app = app_with_two_items();
-        app.handle_key(key(KeyCode::Char('l')));
-        app.handle_key(key(KeyCode::Char('o')));
-        // 10/11 沒有項目：j / k 不會出錯，選的還是 0
-        app.handle_key(key(KeyCode::Char('j')));
-        app.handle_key(key(KeyCode::Char('k')));
-        assert_eq!(
-            app.overlay,
-            Some(Overlay::DayList(DayList {
-                date: date(2026, 10, 11),
-                selected: 0,
-                confirm_delete: None
-            }))
-        );
-    }
-
     /// 寫一個暫存的任務檔、讀進 app，打開 10/10 的清單（打勾的 test 用）
     pub(super) fn app_with_task_file(name: &str, text: &str) -> (App, PathBuf) {
         let dir = files::test_dir(name);
@@ -1110,105 +827,5 @@ mod tests {
             app.overlay,
             Some(Overlay::DayList(DayList { selected: 1, .. }))
         ));
-    }
-
-    /// 一個一個字打進去（test 用）
-    fn type_text(app: &mut App, text: &str) {
-        for c in text.chars() {
-            app.handle_key(key(KeyCode::Char(c)));
-        }
-    }
-
-    /// 表單現在的狀態（test 用）
-    fn form(app: &App) -> &Form {
-        match &app.overlay {
-            Some(Overlay::Form(form)) => form,
-            other => panic!("not a form: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn a_opens_the_form_and_enter_adds_the_item() {
-        let text = "- [ ] 早上 @2026-10-10 09:00\n- [ ] 下午 @2026-10-10 14:00\n";
-        let (mut app, path) = app_with_task_file("add", text);
-        let read = || std::fs::read_to_string(&path).expect("read");
-        // a：表單打開，標題空的、日期是清單那天、游標在標題
-        app.handle_key(key(KeyCode::Char('a')));
-        assert_eq!(form(&app).title.value(), "");
-        assert_eq!(form(&app).date.value(), "2026-10-10");
-        assert_eq!(form(&app).focus, FormField::Title);
-        // 打字（q、d 這些在表單裡就是字，不是指令）→ Enter：寫進檔案，回到清單、選到新項目（沒時間的排最後）
-        type_text(&mut app, "估 q d");
-        app.handle_key(key(KeyCode::Enter));
-        assert_eq!(read(), format!("{text}- [ ] 估 q d @2026-10-10\n"));
-        assert_eq!(
-            app.overlay,
-            Some(Overlay::DayList(DayList {
-                date: date(2026, 10, 10),
-                selected: 2,
-                confirm_delete: None
-            }))
-        );
-        // u：拿掉
-        app.handle_key(key(KeyCode::Char('u')));
-        assert_eq!(read(), text);
-        assert_eq!(app.notice, Some(Notice::Undone("估 q d".into())));
-        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
-    }
-
-    #[test]
-    fn tab_switches_fields_and_the_date_field_takes_only_digits() {
-        let (mut app, path) = app_with_task_file("add-date", "");
-        app.handle_key(key(KeyCode::Char('a')));
-        // Tab 到日期欄：字母不收；刪掉兩個字改成 15 號
-        app.handle_key(key(KeyCode::Tab));
-        assert_eq!(form(&app).focus, FormField::Date);
-        type_text(&mut app, "xq");
-        app.handle_key(key(KeyCode::Backspace));
-        app.handle_key(key(KeyCode::Backspace));
-        type_text(&mut app, "15");
-        assert_eq!(form(&app).date.value(), "2026-10-15");
-        // 標題是空的：不存，表單留著、下框線說原因
-        app.handle_key(key(KeyCode::Enter));
-        assert_eq!(form(&app).problem, Some(FormProblem::EmptyTitle));
-        // Shift+Tab 回標題，打字之後原因就消失；Enter 存到 15 號，回到 15 號的清單
-        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
-        type_text(&mut app, "繳卡費");
-        assert_eq!(form(&app).problem, None);
-        app.handle_key(key(KeyCode::Enter));
-        assert_eq!(
-            std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 繳卡費 @2026-10-15\n"
-        );
-        assert!(matches!(
-            app.overlay,
-            Some(Overlay::DayList(DayList { date: day, selected: 0, .. })) if day == date(2026, 10, 15)
-        ));
-        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
-    }
-
-    #[test]
-    fn bad_date_keeps_the_form_and_esc_cancels() {
-        let (mut app, path) = app_with_task_file("add-cancel", "");
-        app.handle_key(key(KeyCode::Char('a')));
-        type_text(&mut app, "x");
-        // 日期改成 2026-10-1（不完整）→ 不存
-        app.handle_key(key(KeyCode::Tab));
-        app.handle_key(key(KeyCode::Backspace));
-        app.handle_key(key(KeyCode::Enter));
-        assert_eq!(form(&app).problem, Some(FormProblem::BadDate));
-        // Option+q、滑鼠都不理；Esc：什麼都不存，回到原本的清單
-        app.handle_key(key(KeyCode::Char('œ')));
-        app.handle_mouse(MouseEvent {
-            kind: MouseEventKind::ScrollDown,
-            column: 0,
-            row: 0,
-            modifiers: KeyModifiers::NONE,
-        });
-        assert!(matches!(app.overlay, Some(Overlay::Form(_))));
-        app.handle_key(key(KeyCode::Esc));
-        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
-        assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
-        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }
