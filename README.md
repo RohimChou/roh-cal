@@ -32,6 +32,7 @@ In the day list:
 | Key | Action |
 | :- | :- |
 | `j` / `k` | Pick an item |
+| `Space` / `x` | Check off / uncheck, saved to the task file right away |
 | `q` / `Esc` | Close |
 
 In the settings panel:
@@ -81,4 +82,4 @@ A Markdown file, one item per line. It reads well in any editor, Obsidian or Git
 - `# Heading` starts a group; deeper indentation = a subtask
 - Everything else is left alone
 
-roh-cal only reads the file for now; checking off, adding and editing are next.
+Checking an item off rewrites only that line. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. Adding and editing are next.

@@ -2,9 +2,10 @@
 
 use crate::calendar::{Scroll, monday_of, month_top, scrolled_top};
 use crate::config;
+use crate::files;
 use crate::i18n::Texts;
 use crate::settings::{Panel, Settings};
-use crate::tasks::Item;
+use crate::tasks::{self, Item, edit};
 use crate::theme::Theme;
 use crate::ui::{self, compact, month};
 use color_eyre::Result;
@@ -66,12 +67,27 @@ pub struct DayList {
     pub date: Date,
     /// 選到的項目：`ui::items_on(items, date)` 的 index
     pub selected: usize,
+    /// 下框線暫時換成的提示（例：檔案在別處改過）；下一個按鍵就消失
+    pub notice: Option<Notice>,
+}
+
+/// 當天清單打勾沒寫成功時的提示
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Notice {
+    /// 那一行在別處被改過（例：剛在 Obsidian 改了）：沒寫，已重新載入
+    Reloaded,
+    /// 讀 / 寫任務檔失敗（例：沒有權限、檔案被刪了）：沒寫
+    Failed(std::io::ErrorKind),
 }
 
 impl DayList {
     /// 打開某一天的清單，選第一個項目
     fn open(date: Date) -> Self {
-        Self { date, selected: 0 }
+        Self {
+            date,
+            selected: 0,
+            notice: None,
+        }
     }
 
     /// 往下（`step` = +1）/ 往上（−1）選一個，頭尾相接；`count` = 那天有幾個項目，0 個就不動
@@ -99,6 +115,8 @@ pub struct App {
     pub texts: Texts,
     /// 任務檔裡的項目
     pub items: Vec<Item>,
+    /// 任務檔的位置（打勾時寫回去）；`None` = 不寫檔（test 用 `on_date` 建的 app 都是 `None`）
+    tasks_path: Option<PathBuf>,
     /// 現在顯示哪一種畫面
     pub view: View,
     /// 執行時可以改的設定（格線開關…）
@@ -114,14 +132,17 @@ pub struct App {
 }
 
 impl App {
-    /// 建立 app，今天用系統時間（本機時區），開關用設定檔讀到的；設定頁改過的開關存回 `config_path`
+    /// 建立 app，今天用系統時間（本機時區），開關用設定檔讀到的；
+    /// 打勾寫回 `tasks_path`，設定頁改過的開關存回 `config_path`
     pub fn new(
         texts: Texts,
         items: Vec<Item>,
+        tasks_path: Option<PathBuf>,
         settings: Settings,
         config_path: Option<PathBuf>,
     ) -> Self {
         let mut app = Self::on_date(Zoned::now().date(), texts, items);
+        app.tasks_path = tasks_path;
         // 一開始是小月曆，捲動規則不看開關，所以換掉開關不用重新捲
         app.theme = Theme::with_colors(&settings.colors);
         app.saved_settings = settings.clone();
@@ -140,6 +161,7 @@ impl App {
             theme: Theme::default(),
             texts,
             items,
+            tasks_path: None,
             view: View::Compact,
             settings: Settings::default(),
             saved_settings: Settings::default(),
@@ -248,8 +270,10 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
-    /// 當天清單開著時的按鍵：j / k 選項目、q / Esc 關閉，月曆不動
+    /// 當天清單開著時的按鍵：j / k 選項目、Space / x 打勾、q / Esc 關閉，月曆不動
     fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
+        // 上一次的提示：按任何鍵就消失
+        list.notice = None;
         let count = ui::items_on(&self.items, list.date).len();
         match key.code {
             // q / Esc：關閉清單（q 在這裡不是離開 app）
@@ -259,9 +283,43 @@ impl App {
             }
             KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
             KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
+            // Space / x：打勾 / 取消，寫回任務檔
+            KeyCode::Char(' ') | KeyCode::Char('x') => list.notice = self.toggle_selected(list),
             _ => {}
         }
+        // 重新載入後項目可能變少：選的不能超過最後一個
+        let count = ui::items_on(&self.items, list.date).len();
+        list.selected = list.selected.min(count.saturating_sub(1));
         self.overlay = Some(Overlay::DayList(list));
+    }
+
+    /// 當天清單選到的項目打勾 / 取消，寫回任務檔；寫成功回傳 `None`，沒寫成回傳要顯示的提示
+    ///
+    /// 寫之前先重讀檔案：那一行在別處被改過（`Changed`）就不寫，改成重新載入。
+    /// 沒有任務檔（test）或那天沒有項目就什麼都不做
+    fn toggle_selected(&mut self, list: DayList) -> Option<Notice> {
+        let path = self.tasks_path.clone()?;
+        let item = ui::items_on(&self.items, list.date)
+            .get(list.selected)
+            .copied()
+            .cloned()?;
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => return Some(Notice::Failed(error.kind())),
+        };
+        match edit::toggle(&text, &item) {
+            Ok(new_text) => {
+                if let Err(error) = files::write_atomically(&path, &new_text) {
+                    return Some(Notice::Failed(error.kind()));
+                }
+                self.items = tasks::parse(&new_text).items;
+                None
+            }
+            Err(edit::Changed) => {
+                self.items = tasks::parse(&text).items;
+                Some(Notice::Reloaded)
+            }
+        }
     }
 
     /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、離開
@@ -356,7 +414,6 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::files;
     use jiff::civil::{Weekday, date};
 
     /// 設定頁開著就回傳它的狀態，沒開是 `None`（test 用）
@@ -586,7 +643,7 @@ mod tests {
         let path = dir.join("config.toml");
         std::fs::write(&path, "[colors]\nsunday = \"#f38ba8\"\n").expect("write");
         let settings = config::load(&path).expect("load");
-        let mut app = App::new(Texts::en(), Vec::new(), settings, Some(path.clone()));
+        let mut app = App::new(Texts::en(), Vec::new(), None, settings, Some(path.clone()));
         // 一打開，星期日就是設定檔裡的紅色
         assert_eq!(
             app.theme.sunday.fg,
@@ -612,7 +669,7 @@ mod tests {
         let text = "[month]\n# 我的開關\ngrid_lines = true\n\n[colors]\nsunday = \"#f38ba8\"\n";
         std::fs::write(&path, text).expect("write");
         let settings = config::load(&path).expect("load");
-        let mut app = App::new(Texts::en(), Vec::new(), settings, Some(path.clone()));
+        let mut app = App::new(Texts::en(), Vec::new(), None, settings, Some(path.clone()));
         app.handle_key(key(KeyCode::Char('œ')));
         // R：先問，還沒還原
         app.handle_key(key(KeyCode::Char('R')));
@@ -780,7 +837,8 @@ mod tests {
                     app.overlay,
                     Some(Overlay::DayList(DayList {
                         date: date(2026, 10, 10),
-                        selected: 0
+                        selected: 0,
+                        notice: None
                     }))
                 );
                 // 清單開著時 q 只關清單，不離開 app
@@ -833,8 +891,94 @@ mod tests {
             app.overlay,
             Some(Overlay::DayList(DayList {
                 date: date(2026, 10, 11),
-                selected: 0
+                selected: 0,
+                notice: None
             }))
         );
+    }
+
+    /// 寫一個暫存的任務檔、讀進 app，打開 10/10 的清單（打勾的 test 用）
+    fn app_with_task_file(name: &str, text: &str) -> (App, PathBuf) {
+        let dir = files::test_dir(name);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("tasks.md");
+        std::fs::write(&path, text).expect("write");
+        let items = crate::tasks::parse(text).items;
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), items);
+        app.tasks_path = Some(path.clone());
+        app.handle_key(key(KeyCode::Enter));
+        (app, path)
+    }
+
+    /// 清單現在的提示（test 用）
+    fn notice(app: &App) -> Option<Notice> {
+        match app.overlay {
+            Some(Overlay::DayList(list)) => list.notice,
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn space_or_x_checks_the_selected_item_off_in_the_file() {
+        let text = "# 例行\n- [ ] 早上 @2026-10-10 09:00\n- 下午 @2026-10-10 14:00\n";
+        let (mut app, path) = app_with_task_file("toggle", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // 選第二個（下午，沒寫 checkbox）按 Space：補上打勾的 checkbox，只改那一行
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char(' ')));
+        assert_eq!(
+            read(),
+            "# 例行\n- [ ] 早上 @2026-10-10 09:00\n- [x] 下午 @2026-10-10 14:00\n"
+        );
+        // 畫面用的項目也跟著更新；清單還開著、還選著同一個、沒有提示
+        assert!(app.items[1].done);
+        assert_eq!(notice(&app), None);
+        // x 也可以：再按一次就取消
+        app.handle_key(key(KeyCode::Char('x')));
+        assert_eq!(
+            read(),
+            "# 例行\n- [ ] 早上 @2026-10-10 09:00\n- [ ] 下午 @2026-10-10 14:00\n"
+        );
+        assert!(!app.items[1].done);
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn toggle_reloads_instead_of_writing_when_the_file_changed_elsewhere() {
+        let (mut app, path) = app_with_task_file("changed", "- [ ] 早上 @2026-10-10 09:00\n");
+        // 在別處（例：Obsidian）上面多加了一行
+        let edited = "- [ ] 新的 @2026-10-10 08:00\n- [ ] 早上 @2026-10-10 09:00\n";
+        std::fs::write(&path, edited).expect("edit");
+        app.handle_key(key(KeyCode::Char(' ')));
+        // 檔案不動、重新載入（現在有兩個項目）、提示出現；下一個按鍵提示就消失
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+        assert_eq!(app.items.len(), 2);
+        assert_eq!(notice(&app), Some(Notice::Reloaded));
+        app.handle_key(key(KeyCode::Char('j')));
+        assert_eq!(notice(&app), None);
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn toggle_says_why_when_the_file_is_gone() {
+        let (mut app, path) = app_with_task_file("gone", "- [ ] 早上 @2026-10-10 09:00\n");
+        std::fs::remove_file(&path).expect("remove");
+        app.handle_key(key(KeyCode::Char(' ')));
+        assert_eq!(
+            notice(&app),
+            Some(Notice::Failed(std::io::ErrorKind::NotFound))
+        );
+        // 沒有偷偷建一個新檔案
+        assert!(!path.exists());
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn toggle_without_a_task_file_does_nothing() {
+        let mut app = app_with_two_items();
+        app.handle_key(key(KeyCode::Enter));
+        app.handle_key(key(KeyCode::Char(' ')));
+        assert!(!app.items[0].done);
+        assert_eq!(notice(&app), None);
     }
 }

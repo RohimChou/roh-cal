@@ -1,11 +1,10 @@
 //! 檔案的共用工具：安全寫檔（設定檔、任務檔都用）、test 用的暫存資料夾
 
-use color_eyre::Result;
 use std::path::Path;
 
 /// 安全地寫檔：先寫到旁邊的暫存檔（例：`config.toml.tmp`），再 rename 蓋過去。
 /// rename 是一次完成的，寫到一半當掉也不會留下寫壞的檔案；資料夾不存在會自動建立
-pub fn write_atomically(path: &Path, text: &str) -> Result<()> {
+pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     // 檔案是 symlink（例：dotfiles 統一管理）就寫到它指向的真正檔案，symlink 才不會被換成一般檔案
     let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     if let Some(dir) = path.parent() {

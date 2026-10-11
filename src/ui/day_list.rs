@@ -1,6 +1,6 @@
 //! 當天清單：月曆上按 `Enter` / `o` 打開，疊在月曆框的正中間，列出那天的項目
 
-use crate::app::{App, DayList};
+use crate::app::{App, DayList, Notice};
 use crate::tasks::Item;
 use crate::ui::items_on;
 use ratatui::{
@@ -16,7 +16,8 @@ const MAX_WIDTH: u16 = 60;
 /// 框線和內容之間上下左右各空 1 格（選到那行的底色條也跟框線隔開）
 const PADDING: Padding = Padding::uniform(1);
 
-/// 畫當天清單：一個項目一行，選到的那行整行塗底色；日期在上框線、操作說明在下框線。
+/// 畫當天清單：一個項目一行，選到的那行整行塗底色；日期在上框線、操作說明在下框線
+/// （打勾沒寫成時，下框線暫時換成提示）。
 /// `calendar` = 月曆框的位置（小月曆在左上角、大月曆是整個 terminal），清單疊在它的正中間
 pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let theme = &app.theme;
@@ -27,13 +28,22 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
-    let hint = format!(" {} ", app.texts.day_hint);
+    // 下框線：平常是操作說明；打勾沒寫成時換成提示（醒目的顏色），下一個按鍵就恢復
+    let bottom = match list.notice {
+        None => Line::styled(format!(" {} ", app.texts.day_hint), theme.hint),
+        Some(Notice::Reloaded) => {
+            Line::styled(format!(" {} ", app.texts.day_reloaded), theme.title)
+        }
+        Some(Notice::Failed(kind)) => {
+            Line::styled(format!(" {} ", (app.texts.day_failed)(kind)), theme.title)
+        }
+    };
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(theme.border)
         .padding(PADDING)
         .title_top(Line::styled(title, theme.title))
-        .title_bottom(Line::styled(hint, theme.hint));
+        .title_bottom(bottom);
     // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
     frame.render_widget(Clear, area);
     if items.is_empty() {
@@ -87,10 +97,23 @@ mod tests {
 
     /// 打開 `day` 那天的清單、選第 `selected` 個，畫在 `width` × `height` 的畫面上
     fn draw(texts: Texts, day: i8, selected: usize, width: u16, height: u16) -> (Buffer, App) {
+        draw_with_notice(texts, day, selected, None, width, height)
+    }
+
+    /// 同 `draw`，下框線帶著提示 `notice`
+    fn draw_with_notice(
+        texts: Texts,
+        day: i8,
+        selected: usize,
+        notice: Option<Notice>,
+        width: u16,
+        height: u16,
+    ) -> (Buffer, App) {
         let mut app = App::on_date(date(2026, 10, 10), texts, parse(TASKS).items);
         app.overlay = Some(Overlay::DayList(DayList {
             date: date(2026, 10, day),
             selected,
+            notice,
         }));
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
@@ -128,7 +151,7 @@ mod tests {
         let rows = rows(&buffer);
         let text = rows.join("\n");
         assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("j/k select · q/Esc close"));
+        assert!(text.contains("j/k select · Space/x check · q/Esc close"));
         // 有時間的照時間排、沒時間的在後面；沒 checkbox 的也顯示 [ ]；別天的不列
         let early = row_of(&rows, "[x] 09:00 早上的會");
         let late = row_of(&rows, "[ ] 14:00 下午的會");
@@ -164,7 +187,7 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("2026-10-14（三）"));
         assert!(text.contains("這天沒有項目"));
-        assert!(text.contains("j/k 選擇 · q/Esc 關閉"));
+        assert!(text.contains("j/k 選擇 · Space/x 打勾 · q/Esc 關閉"));
     }
 
     #[test]
@@ -175,5 +198,17 @@ mod tests {
         assert!(text.contains("沒時間的事"));
         assert!(text.contains("下午的會"));
         assert!(!text.contains("早上的會"));
+    }
+
+    #[test]
+    fn notice_takes_the_place_of_the_hint() {
+        let (buffer, _) = draw_with_notice(Texts::en(), 12, 0, Some(Notice::Reloaded), 80, 24);
+        let text = rows(&buffer).join("\n");
+        assert!(text.contains("file changed elsewhere, reloaded"));
+        assert!(!text.contains("j/k select"));
+        let denied = Some(Notice::Failed(std::io::ErrorKind::PermissionDenied));
+        let (buffer, _) = draw_with_notice(Texts::zh_tw(), 12, 0, denied, 80, 24);
+        let text = rows(&buffer).join("\n");
+        assert!(text.contains("任務檔存不了：permission denied"));
     }
 }

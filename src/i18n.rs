@@ -1,6 +1,7 @@
 //! 畫面上所有的字；換語言 = 換一組 `Texts`
 
 use jiff::civil::Date;
+use std::io::ErrorKind;
 
 /// 英文月份全名，`[0]` 是一月
 const MONTH_NAMES: [&str; 12] = [
@@ -83,6 +84,10 @@ pub struct Texts {
     pub day_empty: &'static str,
     /// 當天清單最下面的操作說明
     pub day_hint: &'static str,
+    /// 當天清單：打勾時發現那一行在別處被改過，沒寫、已重新載入（顯示在操作說明的位置）
+    pub day_reloaded: &'static str,
+    /// 當天清單：讀 / 寫任務檔失敗，例：`can't save the task file: permission denied`
+    pub day_failed: fn(kind: ErrorKind) -> String,
 }
 
 impl Texts {
@@ -96,7 +101,9 @@ impl Texts {
             hint: "hjkl move · o open · t today · v view · q quit",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
-            day_hint: "j/k select · q/Esc close",
+            day_hint: "j/k select · Space/x check · q/Esc close",
+            day_reloaded: "file changed elsewhere, reloaded",
+            day_failed: |kind| format!("can't save the task file: {kind}"),
         }
     }
 
@@ -108,7 +115,9 @@ impl Texts {
             hint: "hjkl 移動 · o 開啟 · t 今天 · v 切換 · q 離開",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
-            day_hint: "j/k 選擇 · q/Esc 關閉",
+            day_hint: "j/k 選擇 · Space/x 打勾 · q/Esc 關閉",
+            day_reloaded: "檔案在別處改過，已重新載入",
+            day_failed: |kind| format!("任務檔存不了：{kind}"),
             ..Self::en()
         }
     }
@@ -162,5 +171,18 @@ mod tests {
         assert_eq!((Texts::en().day_title)(monday), "2026-10-12 Mon");
         assert_eq!((Texts::zh_tw().day_title)(monday), "2026-10-12（一）");
         assert_eq!((Texts::zh_tw().day_title)(sunday), "2026-10-18（日）");
+    }
+
+    #[test]
+    fn day_failed_says_why() {
+        let denied = ErrorKind::PermissionDenied;
+        assert_eq!(
+            (Texts::en().day_failed)(denied),
+            "can't save the task file: permission denied"
+        );
+        assert_eq!(
+            (Texts::zh_tw().day_failed)(denied),
+            "任務檔存不了：permission denied"
+        );
     }
 }

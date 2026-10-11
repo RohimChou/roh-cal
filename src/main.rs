@@ -5,10 +5,6 @@ mod files;
 mod i18n;
 mod paths;
 mod settings;
-#[expect(
-    dead_code,
-    reason = "畫面目前只用到日期，其他欄位（分組、行號…）之後的任務欄、寫入才會用"
-)]
 mod tasks;
 mod theme;
 mod ui;
@@ -25,7 +21,7 @@ use ratatui::crossterm::{
 };
 use settings::Settings;
 use std::io::{ErrorKind, stdout};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tasks::Item;
 
 fn main() -> Result<()> {
@@ -41,12 +37,20 @@ fn main() -> Result<()> {
         Some(path) => config::load(path)?,
         None => Settings::default(),
     };
-    let items = load_items(args.tasks)?;
+    // 任務檔：有給 --tasks 就一定要讀得到；用預設位置時，檔案不存在就當作沒有任務
+    let (tasks_path, required) = match args.tasks {
+        Some(path) => (Some(path), true),
+        None => (paths::tasks_file(), false),
+    };
+    let items = match &tasks_path {
+        Some(path) => load_items(path, required)?,
+        None => Vec::new(),
+    };
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
     ratatui::run(|terminal| {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
-        App::new(lang.texts(), items, settings, config_path).run(terminal)
+        App::new(lang.texts(), items, tasks_path, settings, config_path).run(terminal)
     })
 }
 
@@ -105,16 +109,9 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Args> {
     Ok(parsed)
 }
 
-/// 讀任務檔：有給 `--tasks` 就一定要讀得到；用預設位置時，檔案不存在就當作沒有任務
-fn load_items(tasks: Option<PathBuf>) -> Result<Vec<Item>> {
-    let (path, required) = match tasks {
-        Some(path) => (path, true),
-        None => match paths::tasks_file() {
-            Some(path) => (path, false),
-            None => return Ok(Vec::new()),
-        },
-    };
-    match std::fs::read_to_string(&path) {
+/// 讀任務檔；`required` = 使用者自己指定的檔案（`--tasks`），不存在要報錯；預設位置的檔案不存在就當作沒有任務
+fn load_items(path: &Path, required: bool) -> Result<Vec<Item>> {
+    match std::fs::read_to_string(path) {
         Ok(text) => Ok(tasks::parse(&text).items),
         Err(error) if !required && error.kind() == ErrorKind::NotFound => Ok(Vec::new()),
         Err(error) => {
@@ -150,9 +147,12 @@ mod tests {
     #[test]
     fn missing_task_file_is_an_error_only_when_asked_for() {
         // 自己用 --tasks 指定的檔案不存在 → 錯誤
-        assert!(load_items(Some(PathBuf::from("testdata/no-such-file.md"))).is_err());
+        let missing = Path::new("testdata/no-such-file.md");
+        assert!(load_items(missing, true).is_err());
+        // 預設位置的檔案不存在 → 沒有任務
+        assert!(load_items(missing, false).expect("no tasks").is_empty());
         // 範例檔讀得到
-        let items = load_items(Some(PathBuf::from("testdata/tasks.md"))).expect("sample file");
+        let items = load_items(Path::new("testdata/tasks.md"), true).expect("sample file");
         assert_eq!(items.len(), 56);
     }
 }
