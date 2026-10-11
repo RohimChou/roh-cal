@@ -45,6 +45,12 @@ pub struct Theme {
     pub cell_selected: Style,
     /// 大月曆：選取那一格的日期數字（格子已有底色，數字只換顏色，不用藥丸）
     pub cell_selected_day: Style,
+    /// 大月曆格子裡的項目：還沒完成的（`14:00 標題`，不加符號）
+    pub item: Style,
+    /// 大月曆格子裡的項目：完成的（整行變灰 + 劃線；不支援劃線的 terminal 只看到變灰）
+    pub item_done: Style,
+    /// 大月曆格子放不下時最後一行的 `+N`（項目的時間跟著項目自己的顏色，不用這個）
+    pub item_more: Style,
 }
 
 impl Default for Theme {
@@ -94,6 +100,11 @@ impl Theme {
             row_distance: Style::new().fg(overlay0),
             cell_selected: Style::new().bg(base_lighter),
             cell_selected_day: Style::new().fg(mauve).add_modifier(bold),
+            item: Style::new().fg(text),
+            item_done: Style::new()
+                .fg(surface2)
+                .add_modifier(Modifier::CROSSED_OUT),
+            item_more: Style::new().fg(subtext0),
         }
     }
 }

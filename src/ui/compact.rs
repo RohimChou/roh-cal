@@ -5,7 +5,7 @@ use crate::calendar::{monday_of, week_of_year};
 use crate::i18n::Texts;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{WEEKDAYS, weekend_style};
+use crate::ui::{WEEKDAYS, item_dots, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -206,20 +206,6 @@ fn summarize_days(items: &[Item]) -> HashMap<Date, DaySummary> {
         }
     }
     days
-}
-
-/// 那天有幾個項目，就畫幾個點（最多 4 個，4 個以上都畫 4 個）
-///
-/// 用點字（Braille）字元：一個字元就能放好幾個點，而且一定佔 1 格寬
-/// （`•` 這類字在開了 CJK 寬字元的 terminal 會變 2 格，月曆會歪）
-fn item_dots(count: usize) -> &'static str {
-    match count {
-        0 => " ",
-        1 => "⠂",
-        2 => "⠒",
-        3 => "⠖",
-        _ => "⠶",
-    }
 }
 
 /// 文字在 terminal 上佔幾格：英文字母 1 格、中文字 2 格，例：「11 月」佔 5 格
