@@ -46,10 +46,11 @@ In the add form:
 | Key | Action |
 | :- | :- |
 | `Tab` / `Shift+Tab` | Next / previous field (title, date) |
+| `h` `j` `k` `l` / arrows (date field) | Previous day / next week / previous week / next day |
 | `Enter` | Save, back to the day list with the new item selected |
 | `Esc` | Cancel |
 
-The date field takes digits and `-` only, e.g. `2026-10-12`.
+The date field shows a small calendar and takes digits and `-` only, e.g. `2026-10-12`.
 
 In the settings panel:
 

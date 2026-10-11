@@ -124,6 +124,8 @@ pub struct Texts {
     pub form_labels: [&'static str; 2],
     /// 新增表單最下面的操作說明
     pub form_hint: &'static str,
+    /// 新增表單：游標在日期欄時，日期右邊的操作說明
+    pub form_date_hint: &'static str,
     /// 新增表單：標題是空的
     pub form_empty_title: &'static str,
     /// 新增表單：日期寫錯
@@ -177,6 +179,7 @@ impl Texts {
             form_title: "new item",
             form_labels: ["title", "date"],
             form_hint: "Tab next · Enter save · Esc cancel",
+            form_date_hint: "hjkl change date",
             form_empty_title: "the title is empty",
             form_bad_date: "date should look like 2026-10-12",
         }
@@ -225,6 +228,7 @@ impl Texts {
             form_title: "新增項目",
             form_labels: ["標題", "日期"],
             form_hint: "Tab 換欄 · Enter 存 · Esc 取消",
+            form_date_hint: "hjkl 換日期",
             form_empty_title: "標題是空的",
             form_bad_date: "日期要像 2026-10-12",
             ..Self::en()
