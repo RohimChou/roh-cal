@@ -4,6 +4,7 @@
 //! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
 
 use super::{Item, checkbox, indent_width, parse};
+use jiff::civil::Date;
 
 /// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
 #[derive(Debug, PartialEq, Eq)]
@@ -25,14 +26,78 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     let lines: Vec<&str> = text.lines().collect();
     // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
-    let start = item.line.checked_sub(1).ok_or(Changed)?;
-    if lines.get(start) != Some(&item.line_text.as_str()) {
-        return Err(Changed);
+    let start = find_line(&lines, item)?;
+    let end = block_end(&lines, start);
+    // 刪掉的那幾行裡有幾個項目（用 parser 數，跟畫面認的一樣）
+    let count = parse(&segments[start..end].concat()).items.len();
+    let mut result = segments[..start].concat();
+    result.push_str(&segments[end..].concat());
+    Ok((result, count))
+}
+
+/// 新增一個項目 `- [ ] 標題 @日期`；回傳新的檔案內容，和新項目在第幾行（從 1 開始）
+///
+/// 放在 `near`（清單上選到的項目）那一組（同一個標題底下）的最後一個項目和它的子任務下面；
+/// `near` 是 `None`（那天還沒有項目）就加在檔案最後面。換行照檔案原本用的（`\n` 或 `\r\n`）
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "test 已經在用；畫面要等下一個 commit 的新增表單才會用到"
+    )
+)]
+pub fn add(
+    text: &str,
+    title: &str,
+    date: Date,
+    near: Option<&Item>,
+) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    // 新的一行插在第幾段前面
+    let at = match near {
+        Some(item) => {
+            find_line(&lines, item)?;
+            // 同一組的最後一個項目（檔案現在的內容重新 parse，跟畫面認的一樣）
+            let items = parse(text).items;
+            let last = items
+                .iter()
+                .skip_while(|other| other.line != item.line)
+                .take_while(|other| other.group == item.group)
+                .last()
+                .ok_or(Changed)?;
+            block_end(&lines, last.line - 1)
+        }
+        None => segments.len(),
+    };
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut result = segments[..at].concat();
+    // 前一行是檔案最後一行、沒有換行：先補一個
+    if !result.is_empty() && !result.ends_with('\n') {
+        result.push_str(newline);
     }
-    // 往下找：空行先跳過；遇到縮排沒有比它深的那行就停；`end` = 最後一行有內容的下一行
-    let indent = indent_width(&item.line_text);
+    result.push_str(&format!("- [ ] {} @{date}{newline}", title.trim()));
+    result.push_str(&segments[at..].concat());
+    Ok((result, at + 1))
+}
+
+/// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
+fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
+    let index = item.line.checked_sub(1).ok_or(Changed)?;
+    if lines.get(index) == Some(&item.line_text.as_str()) {
+        Ok(index)
+    } else {
+        Err(Changed)
+    }
+}
+
+/// 第 `start` 行（從 0 開始）連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算）結束在哪：
+/// 回傳最後一行有內容的下一行。最後面的空行不算（那是跟下一個項目之間的空行）
+fn block_end(lines: &[&str], start: usize) -> usize {
+    let indent = indent_width(lines[start]);
     let mut end = start + 1;
     for (index, line) in lines.iter().enumerate().skip(start + 1) {
+        // 空行先跳過；遇到縮排沒有比它深的那行就停
         if line.trim().is_empty() {
             continue;
         }
@@ -41,11 +106,7 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
         }
         end = index + 1;
     }
-    // 刪掉的那幾行裡有幾個項目（用 parser 數，跟畫面認的一樣）
-    let count = parse(&segments[start..end].concat()).items.len();
-    let mut result = segments[..start].concat();
-    result.push_str(&segments[end..].concat());
-    Ok((result, count))
+    end
 }
 
 /// 一行打勾 / 取消，縮排和後面的文字一字不動（`line` 是 parser 認過的項目那一行）
@@ -267,6 +328,85 @@ mod tests {
                 .count();
             assert_eq!(count, 1 + descendants, "line {}", item.line);
             assert_eq!(parse(&new_text).items.len(), items.len() - count);
+        }
+    }
+
+    /// 第 `line` 行的項目旁邊新增（`line` 是 0 就是那天沒有項目，加在最後面；test 用）
+    fn add_near(text: &str, line: usize, title: &str) -> Result<(String, usize), Changed> {
+        let items = parse(text).items;
+        let near = items.iter().find(|item| item.line == line);
+        add(text, title, jiff::civil::date(2026, 10, 12), near)
+    }
+
+    #[test]
+    fn add_goes_after_the_last_item_of_the_same_group() {
+        let text = "# 工作\n- [ ] 週會 @2026-10-12\n- [ ] 寫 test @2026-10-13\n  - [ ] 單元測試\n\n# 個人\n- [ ] 看牙醫 @2026-10-14\n";
+        // 選到「週會」：加在「工作」這組最後一個項目（寫 test）和它的子任務下面，空行和下一組都不動
+        assert_eq!(
+            add_near(text, 2, "估人天"),
+            Ok((
+                "# 工作\n- [ ] 週會 @2026-10-12\n- [ ] 寫 test @2026-10-13\n  - [ ] 單元測試\n- [ ] 估人天 @2026-10-12\n\n# 個人\n- [ ] 看牙醫 @2026-10-14\n"
+                    .to_string(),
+                5
+            ))
+        );
+        // 選到「看牙醫」（最後一組）：加在檔案最後面；標題前後的空白拿掉
+        assert_eq!(
+            add_near(text, 7, "  繳卡費 "),
+            Ok((format!("{text}- [ ] 繳卡費 @2026-10-12\n"), 8))
+        );
+    }
+
+    #[test]
+    fn add_without_a_neighbour_goes_to_the_end() {
+        // 那天沒有項目：加在最後面；最後一行沒換行就先補；空檔案也可以；\r\n 的檔案用 \r\n
+        assert_eq!(
+            add_near("- [ ] a\n", 0, "新的"),
+            Ok(("- [ ] a\n- [ ] 新的 @2026-10-12\n".to_string(), 2))
+        );
+        assert_eq!(
+            add_near("- [ ] a", 0, "新的"),
+            Ok(("- [ ] a\n- [ ] 新的 @2026-10-12\n".to_string(), 2))
+        );
+        assert_eq!(
+            add_near("", 0, "新的"),
+            Ok(("- [ ] 新的 @2026-10-12\n".to_string(), 1))
+        );
+        assert_eq!(
+            add_near("- [ ] a\r\n", 0, "新的"),
+            Ok(("- [ ] a\r\n- [ ] 新的 @2026-10-12\r\n".to_string(), 2))
+        );
+    }
+
+    #[test]
+    fn add_refuses_when_the_neighbour_changed() {
+        let item = parse("- [ ] 週會\n- [ ] 交週報\n").items[1].clone();
+        let date = jiff::civil::date(2026, 10, 12);
+        assert_eq!(
+            add("- [ ] 週會\n- [ ] 交週報（改）\n", "x", date, Some(&item)),
+            Err(Changed)
+        );
+    }
+
+    #[test]
+    fn add_near_every_item_of_the_sample_file() {
+        let text = include_str!("../../testdata/tasks.md");
+        let items = parse(text).items;
+        for item in &items {
+            let (new_text, line) = add_near(text, item.line, "新的").expect("file not changed");
+            let new_items = parse(&new_text).items;
+            // 多一個項目，就在回傳的那一行、跟選到的項目同一組、日期和標題對
+            assert_eq!(new_items.len(), items.len() + 1);
+            let added = new_items
+                .iter()
+                .find(|other| other.line == line)
+                .expect("added");
+            assert_eq!(added.group, item.group, "line {}", item.line);
+            assert_eq!(
+                (added.title.as_str(), added.date),
+                ("新的", Some(jiff::civil::date(2026, 10, 12)))
+            );
+            assert_eq!(added.depth, 0, "line {}", item.line);
         }
     }
 }
