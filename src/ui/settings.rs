@@ -14,6 +14,8 @@ use ratatui::{
 const WIDTH: u16 = 40;
 /// 左邊名字那欄的寬度
 const LABEL_WIDTH: usize = 18;
+/// 最下面操作提示的行數
+const HINT_LINES: u16 = 2;
 
 /// 畫設定頁：照設定檔分段（`[month]`、`[colors]`），一列一個設定，選到的那列整行底色；
 /// 放不下時只顯示一段，選到的列一定在框內
@@ -21,8 +23,8 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
     let theme = &app.theme;
     let area = frame.area();
     let lines = row_lines(panel, app);
-    // 高度：框線 2 + 段落名和列 + 最下面 1 行操作提示；視窗不夠高就縮
-    let wanted = 2 + lines.len() as u16 + 1;
+    // 高度：框線 2 + 段落名和列 + 最下面 2 行操作提示；視窗不夠高就縮
+    let wanted = 2 + lines.len() as u16 + HINT_LINES;
     let height = wanted.min(area.height);
     let width = WIDTH.min(area.width);
     let overlay = Rect {
@@ -32,7 +34,7 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
         height,
     };
     // 框內放得下幾行（扣掉框線和提示）
-    let visible = usize::from(height.saturating_sub(3)).max(1);
+    let visible = usize::from(height.saturating_sub(2 + HINT_LINES)).max(1);
     // 捲動：選到的列（算進段落名之後是第幾行）超出下面就往下捲
     let selected_line = lines
         .iter()
@@ -46,10 +48,17 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
         .take(visible)
         .map(|(_, line)| line)
         .collect();
-    lines.push(Line::styled(
-        " j/k select · h/l change · r reset",
-        theme.hint,
-    ));
+    // 最下面 2 行：平常是操作說明；按了 R 就換成確認的問題（醒目的顏色）
+    if panel.confirm_reset_all {
+        lines.push(Line::styled(" reset everything to defaults?", theme.title));
+        lines.push(Line::styled(" y = yes · any other key = no", theme.title));
+    } else {
+        lines.push(Line::styled(
+            " j/k select · h/l change · r reset",
+            theme.hint,
+        ));
+        lines.push(Line::styled(" R reset all", theme.hint));
+    }
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -99,7 +108,10 @@ mod tests {
     /// 畫出設定頁，回傳每一行的文字（去掉尾端空白）
     fn draw(selected: usize, height: u16) -> Vec<String> {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.panel = Some(Panel { selected });
+        app.panel = Some(Panel {
+            selected,
+            ..Panel::default()
+        });
         let mut terminal = Terminal::new(TestBackend::new(80, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))
@@ -128,11 +140,12 @@ mod tests {
         assert!(text.contains("item              ██ subtext1"));
         assert!(text.contains("sunday            ██ blue"));
         assert!(text.contains("j/k select · h/l change · r reset"));
+        assert!(text.contains("R reset all"));
     }
 
     #[test]
     fn panel_scrolls_so_the_selected_row_stays_visible() {
-        // 12 行高：框線 2 + 提示 1 → 只放得下 9 行（段落名也算一行）；選最後一列（sunday）時前面的捲掉
+        // 12 行高：框線 2 + 提示 2 → 只放得下 8 行（段落名也算一行）；選最後一列（sunday）時前面的捲掉
         let screen = draw(ROWS.len() - 1, 12);
         let text = screen.join("\n");
         assert!(!text.contains("[month]"));
@@ -142,5 +155,27 @@ mod tests {
         let text = draw(0, 12).join("\n");
         assert!(text.contains("[month]"));
         assert!(text.contains("grid_lines"));
+    }
+
+    #[test]
+    fn reset_all_asks_for_confirmation_at_the_bottom() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.panel = Some(Panel {
+            confirm_reset_all: true,
+            ..Panel::default()
+        });
+        let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let text: String = (0..30)
+            .flat_map(|y| (0..80).map(move |x| (x, y)))
+            .map(|(x, y)| buffer[(x, y)].symbol().to_string())
+            .collect();
+        // 操作說明換成確認的問題
+        assert!(text.contains("reset everything to defaults?"));
+        assert!(text.contains("y = yes · any other key = no"));
+        assert!(!text.contains("R reset all"));
     }
 }

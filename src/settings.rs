@@ -2,7 +2,7 @@
 //!
 //! 設定頁是一張清單，跟設定檔一樣分成 `[month]`、`[colors]` 兩段、名字一模一樣：
 //! `j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
-//! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。
+//! 畫面馬上跟著變；`r` 把那一列還原成預設；`R`（Shift+r）全部還原，要再按 `y` 確認；`q` / `Esc` 關閉。
 //! 開關和改過的顏色啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）。
 //! 畫面用的 `Theme` 一律從 `Settings` 算：預設 theme + `Settings.colors`（`Theme::with_colors`），兩邊不會不一致
 
@@ -181,11 +181,13 @@ fn wrap(index: usize, step: isize, len: usize) -> usize {
     (index as isize + step).rem_euclid(len as isize) as usize
 }
 
-/// 設定頁開著時的狀態：現在選到第幾列
+/// 設定頁開著時的狀態：現在選到第幾列、是不是正在問「全部還原嗎？」
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Panel {
     /// `ROWS` 的 index
     pub selected: usize,
+    /// 按了 `R`，正在等確認：下一個鍵是 `y` 才全部還原，其他鍵都是取消
+    pub confirm_reset_all: bool,
 }
 
 impl Panel {

@@ -172,6 +172,16 @@ impl App {
         }
         // 設定頁開著：按鍵都給它（j / k 選列、h / l 改值），月曆不動
         if let Some(mut panel) = self.panel {
+            // 正在問「全部還原嗎？」：只有 y 會還原，其他鍵都只是取消（按錯不會有事）
+            if panel.confirm_reset_all {
+                if key.code == KeyCode::Char('y') {
+                    self.settings = Settings::default();
+                    self.theme = Theme::with_colors(&self.settings.colors);
+                }
+                panel.confirm_reset_all = false;
+                self.panel = Some(panel);
+                return;
+            }
             match key.code {
                 // q / Esc：關閉設定頁（q 在這裡不是離開 app）
                 KeyCode::Char('q') | KeyCode::Esc => self.panel = None,
@@ -192,6 +202,11 @@ impl App {
                 // r：這一列還原成預設
                 KeyCode::Char('r') => {
                     panel.row().reset(&mut self.settings, &mut self.theme);
+                }
+                // R（Shift+r）：全部還原成預設，先問一次
+                KeyCode::Char('R') => {
+                    panel.confirm_reset_all = true;
+                    self.panel = Some(panel);
                 }
                 _ => {}
             }
@@ -453,7 +468,7 @@ mod tests {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         // Option+q（送成 œ）打開；第一列是 grid_lines
         app.handle_key(key(KeyCode::Char('œ')));
-        assert_eq!(app.panel, Some(Panel { selected: 0 }));
+        assert_eq!(app.panel, Some(Panel::default()));
         // l：切換開關；h：再切回來
         app.handle_key(key(KeyCode::Char('l')));
         assert!(!app.settings.month.grid_lines);
@@ -463,7 +478,7 @@ mod tests {
         for _ in 0..3 {
             app.handle_key(key(KeyCode::Char('j')));
         }
-        assert_eq!(app.panel, Some(Panel { selected: 3 }));
+        assert_eq!(app.panel.map(|panel| panel.selected), Some(3));
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
@@ -516,6 +531,55 @@ mod tests {
         // 顏色都回到預設 → 整個 [colors] 拿掉
         assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
         std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
+    #[test]
+    fn shift_r_resets_everything_after_y_and_saves_the_defaults() {
+        let dir = config::test_dir("app-reset-all");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("config.toml");
+        let text = "[month]\n# 我的開關\ngrid_lines = false\n\n[colors]\nsunday = \"#f38ba8\"\n";
+        std::fs::write(&path, text).expect("write");
+        let settings = config::load(&path).expect("load");
+        let mut app = App::new(Texts::en(), Vec::new(), settings, Some(path.clone()));
+        app.handle_key(key(KeyCode::Char('œ')));
+        // R：先問，還沒還原
+        app.handle_key(key(KeyCode::Char('R')));
+        assert!(app.panel.is_some_and(|panel| panel.confirm_reset_all));
+        assert!(!app.settings.month.grid_lines);
+        // y：全部回到預設，畫面的顏色也是
+        app.handle_key(key(KeyCode::Char('y')));
+        assert_eq!(app.settings, Settings::default());
+        assert_eq!(app.theme, Theme::default());
+        assert!(app.panel.is_some_and(|panel| !panel.confirm_reset_all));
+        // 關掉設定頁 → 存：開關寫回預設值（註解留著），[colors] 整段拿掉
+        app.handle_key(key(KeyCode::Char('q')));
+        app.save_settings().expect("save");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "[month]\n# 我的開關\ngrid_lines = true\n"
+        );
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
+    #[test]
+    fn shift_r_is_cancelled_by_any_other_key() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char('l')));
+        assert!(!app.settings.month.grid_lines);
+        for other in [
+            KeyCode::Char('n'),
+            KeyCode::Esc,
+            KeyCode::Char('j'),
+            KeyCode::Char('l'),
+        ] {
+            app.handle_key(key(KeyCode::Char('R')));
+            // 其他鍵只會取消：不還原、不關設定頁、不移動、不改值
+            app.handle_key(key(other));
+            assert_eq!(app.panel, Some(Panel::default()), "{other:?}");
+            assert!(!app.settings.month.grid_lines, "{other:?}");
+        }
     }
 
     #[test]
