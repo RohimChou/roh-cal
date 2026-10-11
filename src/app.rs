@@ -263,7 +263,7 @@ impl App {
     fn scroll_mode(&self) -> Scroll {
         match self.view {
             View::Compact => Scroll::Scrolloff(1),
-            View::Month if self.settings.center_cursor => Scroll::Center,
+            View::Month if self.settings.month.center_cursor => Scroll::Center,
             View::Month => Scroll::Scrolloff(0),
         }
     }
@@ -295,7 +295,7 @@ mod tests {
     fn month_view_without_centering(today: Date) -> App {
         let mut app = App::on_date(today, Texts::en(), Vec::new());
         app.view = View::Month;
-        app.settings.center_cursor = false;
+        app.settings.month.center_cursor = false;
         app.scroll_to_selected();
         app
     }
@@ -328,7 +328,7 @@ mod tests {
                 for days in [-1, 1, -7, 7] {
                     let mut app = App::on_date(start, Texts::en(), Vec::new());
                     app.view = view;
-                    app.settings.center_cursor = center;
+                    app.settings.month.center_cursor = center;
                     app.scroll_to_selected();
                     let mut previous = selected_row(&app).expect("selected on screen");
                     for _ in 0..400 {
@@ -370,7 +370,7 @@ mod tests {
         for (view, center, top) in cases {
             let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
             app.view = view;
-            app.settings.center_cursor = center;
+            app.settings.month.center_cursor = center;
             // 捲了幾週（今天還在畫面上）和捲到一年後，按 t 都回到剛打開的畫面
             for weeks in [3, 52] {
                 for _ in 0..weeks {
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn v_scrolls_only_when_the_selected_week_would_fall_off_without_centering() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.settings.center_cursor = false;
+        app.settings.month.center_cursor = false;
         // compact：往下 4 週到 11/7，選取在第 7 行（上下各留 1 週的最後一行）
         for _ in 0..4 {
             app.move_selected(7);
@@ -455,9 +455,9 @@ mod tests {
         assert_eq!(app.panel, Some(Panel { selected: 0 }));
         // l：切換開關；h：再切回來
         app.handle_key(key(KeyCode::Char('l')));
-        assert!(!app.settings.grid_lines);
+        assert!(!app.settings.month.grid_lines);
         app.handle_key(key(KeyCode::Char('h')));
-        assert!(app.settings.grid_lines);
+        assert!(app.settings.month.grid_lines);
         // j 三次：跳過 item icons、center cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
         for _ in 0..3 {
             app.handle_key(key(KeyCode::Char('j')));
@@ -472,13 +472,13 @@ mod tests {
             app.handle_key(key(KeyCode::Char('k')));
         }
         app.handle_key(key(KeyCode::Char('l')));
-        assert!(!app.settings.grid_lines);
+        assert!(!app.settings.month.grid_lines);
         for _ in 0..3 {
             app.handle_key(key(KeyCode::Char('j')));
         }
         app.handle_key(key(KeyCode::Char('r')));
         assert_eq!(app.theme.item, Theme::default().item);
-        assert!(!app.settings.grid_lines);
+        assert!(!app.settings.month.grid_lines);
         // q / Esc / q + ALT 都能關；關了之後 q 才是離開
         app.handle_key(key(KeyCode::Char('q')));
         assert_eq!(app.panel, None);
@@ -507,7 +507,7 @@ mod tests {
         app.handle_key(key(KeyCode::Char('q')));
         app.save_settings().expect("save");
         assert_eq!(config::load(&path).expect("load"), app.settings);
-        assert!(!config::load(&path).expect("load").grid_lines);
+        assert!(!config::load(&path).expect("load").month.grid_lines);
         // 打開又關掉、沒改東西 → 不寫（刪掉檔案來確認沒有被重新建立）
         std::fs::remove_file(&path).expect("remove");
         app.handle_key(key(KeyCode::Char('œ')));
@@ -578,7 +578,7 @@ mod tests {
         assert_eq!(app.selected, date(2026, 9, 21));
         assert_eq!(selected_row(&app), Some(0));
         // 置中開著：點第 2 週星期四（10/1）之後，那一格移到中間那行（第 3 行）
-        app.settings.center_cursor = true;
+        app.settings.month.center_cursor = true;
         app.handle_mouse(click(36, 7));
         assert_eq!(app.selected, date(2026, 10, 1));
         assert_eq!(selected_row(&app), Some(2));

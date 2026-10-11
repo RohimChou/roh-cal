@@ -8,23 +8,31 @@ use crate::theme::{ColorField, PALETTE, Theme};
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
-/// 執行時可以改的開關；預設值在 `Default`
+/// 執行時可以改的開關；結構跟設定檔一樣，依畫面分組：`month` = 設定檔的 `[month]`
 ///
-/// 設定檔裡的名字就是欄位名（例：`grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用 `Default` 的值；
+/// 設定檔裡的名字就是欄位名（例：`[month]` 底下寫 `grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用 `Default` 的值；
 /// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
-    /// 大月曆的格子之間畫不畫淡淡的格線（關掉可以多 1 行 1 格放內容）
+    /// `[month]`：大月曆的開關
+    pub month: MonthSettings,
+}
+
+/// 大月曆的開關（設定檔的 `[month]`）；預設值在 `Default`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MonthSettings {
+    /// 格子之間畫不畫淡淡的格線（關掉可以多 1 行 1 格放內容）
     pub grid_lines: bool,
-    /// 大月曆的每個項目前面要不要加一個點（`∙ 14:00 標題`）；之後想擴成假日 🌴、使用者自訂 emoji
+    /// 每個項目前面要不要加一個點（`∙ 14:00 標題`）；之後想擴成假日 🌴、使用者自訂 emoji
     pub item_icons: bool,
-    /// 大月曆移動時選取的那週固定在畫面正中間（像 vim 的 `scrolloff=999`）；關掉就自由移動，掉出畫面才捲。
+    /// 移動時選取的那週固定在畫面正中間（像 vim 的 `scrolloff=999`）；關掉就自由移動，掉出畫面才捲。
     /// 小月曆不受影響（上下固定保留 1 週）
     pub center_cursor: bool,
 }
 
-impl Default for Settings {
+impl Default for MonthSettings {
     fn default() -> Self {
         Self {
             grid_lines: true,
@@ -37,11 +45,11 @@ impl Default for Settings {
 /// 設定頁的一列：一個開關，或 `Theme` 的一個顏色欄位
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
-    /// `Settings::grid_lines`
+    /// `Settings::month.grid_lines`
     GridLines,
-    /// `Settings::item_icons`
+    /// `Settings::month.item_icons`
     ItemIcons,
-    /// `Settings::center_cursor`
+    /// `Settings::month.center_cursor`
     CenterCursor,
     /// `Theme` 的一個顏色欄位，`h` / `l` 在 Catppuccin 色票裡換色
     Color(ColorField),
@@ -81,9 +89,9 @@ impl Row {
     /// 目前的值：開關回傳 `on` / `off`；顏色回傳色票名字和顏色本身（畫色塊用）
     pub fn value(self, settings: &Settings, theme: &Theme) -> (String, Option<Color>) {
         match self {
-            Self::GridLines => (on_off(settings.grid_lines).to_string(), None),
-            Self::ItemIcons => (on_off(settings.item_icons).to_string(), None),
-            Self::CenterCursor => (on_off(settings.center_cursor).to_string(), None),
+            Self::GridLines => (on_off(settings.month.grid_lines).to_string(), None),
+            Self::ItemIcons => (on_off(settings.month.item_icons).to_string(), None),
+            Self::CenterCursor => (on_off(settings.month.center_cursor).to_string(), None),
             Self::Color(field) => {
                 let current = field.color(theme);
                 let label = PALETTE
@@ -98,9 +106,9 @@ impl Row {
     /// 改這列的值：開關直接切換；顏色往色票的前（`step` = −1）/ 後（+1）一格，頭尾相接
     pub fn adjust(self, step: isize, settings: &mut Settings, theme: &mut Theme) {
         match self {
-            Self::GridLines => settings.grid_lines = !settings.grid_lines,
-            Self::ItemIcons => settings.item_icons = !settings.item_icons,
-            Self::CenterCursor => settings.center_cursor = !settings.center_cursor,
+            Self::GridLines => settings.month.grid_lines = !settings.month.grid_lines,
+            Self::ItemIcons => settings.month.item_icons = !settings.month.item_icons,
+            Self::CenterCursor => settings.month.center_cursor = !settings.month.center_cursor,
             Self::Color(field) => {
                 let current = field.color(theme);
                 let index = PALETTE
@@ -116,9 +124,9 @@ impl Row {
     pub fn reset(self, settings: &mut Settings, theme: &mut Theme) {
         let defaults = Settings::default();
         match self {
-            Self::GridLines => settings.grid_lines = defaults.grid_lines,
-            Self::ItemIcons => settings.item_icons = defaults.item_icons,
-            Self::CenterCursor => settings.center_cursor = defaults.center_cursor,
+            Self::GridLines => settings.month.grid_lines = defaults.month.grid_lines,
+            Self::ItemIcons => settings.month.item_icons = defaults.month.item_icons,
+            Self::CenterCursor => settings.month.center_cursor = defaults.month.center_cursor,
             Self::Color(field) => field.reset(theme),
         }
     }
@@ -163,11 +171,11 @@ mod tests {
         let mut theme = Theme::default();
         assert_eq!(Row::GridLines.value(&settings, &theme).0, "on");
         Row::GridLines.adjust(1, &mut settings, &mut theme);
-        assert!(!settings.grid_lines);
+        assert!(!settings.month.grid_lines);
         assert_eq!(Row::GridLines.value(&settings, &theme).0, "off");
         // 往左也是切換
         Row::GridLines.adjust(-1, &mut settings, &mut theme);
-        assert!(settings.grid_lines);
+        assert!(settings.month.grid_lines);
     }
 
     #[test]
@@ -226,9 +234,9 @@ mod tests {
         Row::Color(ColorField::Item).reset(&mut settings, &mut theme);
         assert_eq!(theme.item, Theme::default().item);
         assert_ne!(theme.item_done, Theme::default().item_done);
-        assert!(!settings.grid_lines);
+        assert!(!settings.month.grid_lines);
         Row::GridLines.reset(&mut settings, &mut theme);
-        assert!(settings.grid_lines);
+        assert!(settings.month.grid_lines);
     }
 
     #[test]

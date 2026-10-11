@@ -37,8 +37,8 @@ pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let (header, weeks) = grid(inner, app.settings.grid_lines);
-    if app.settings.grid_lines {
+    let (header, weeks) = grid(inner, app.settings.month.grid_lines);
+    if app.settings.month.grid_lines {
         render_grid_lines(frame.buffer_mut(), inner, &header, &weeks, &app.theme);
     }
 
@@ -118,7 +118,7 @@ fn render_week(
 pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
     // 外框各佔 1 格；`Block::inner` 跟 render 用同一套算法
     let inner = Block::bordered().inner(app.screen);
-    let (_, weeks) = grid(inner, app.settings.grid_lines);
+    let (_, weeks) = grid(inner, app.settings.month.grid_lines);
     let position = Position::new(column, row);
     for (week, cells) in weeks.iter().enumerate() {
         for (weekday, cell) in cells.iter().enumerate() {
@@ -341,7 +341,7 @@ fn item_line(item: &Item, dim: Style, app: &App) -> Line<'static> {
     }
     .patch(dim);
     let mut text = String::from(" ");
-    if app.settings.item_icons {
+    if app.settings.month.item_icons {
         text.push_str(ITEM_ICON);
     }
     if let Some(time) = item.time {
@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn cell_lists_items_or_shows_how_many_are_hidden() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         let by_day = items_by_day(&app.items);
         let items = &by_day[&date(2026, 10, 12)];
         let lines = |rows| cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, rows, &app);
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn item_colors_follow_done_and_other_month() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), sample());
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         let by_day = items_by_day(&app.items);
         let items = &by_day[&date(2026, 10, 12)];
         // 本月：完成的灰 + 劃線、其他一般色（沒 checkbox 的也是）；整行（含時間）一個 span 同色
@@ -515,7 +515,7 @@ mod tests {
             Texts::en(),
             crate::tasks::parse(text).items,
         );
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         app.view = View::Month;
         // 80 × 24：每格 2 行（日期 + 1 行）
         let buffer = draw(&app, 24);
@@ -545,7 +545,7 @@ mod tests {
             Texts::en(),
             crate::tasks::parse(text).items,
         );
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         app.view = View::Month;
         // 80 × 30：每格 3 行（日期 + 2 行），兩個項目都列得出來
         let buffer = draw(&app, 30);
@@ -582,7 +582,7 @@ mod tests {
         // `+N` 那行不加點
         let short = cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, 4, &app);
         assert_eq!(text(&short[3]), " +2");
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         let lines = cell_lines(date(2026, 10, 12), date(2026, 10, 1), items, 5, &app);
         assert_eq!(text(&lines[1]), " 09:00 早上");
     }
@@ -594,7 +594,7 @@ mod tests {
         let items =
             crate::tasks::parse(&std::fs::read_to_string("testdata/tasks.md").unwrap()).items;
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), items);
-        app.settings.item_icons = false;
+        app.settings.month.item_icons = false;
         app.view = View::Month;
         // 80 × 30：框內 28 行 − 星期列 1 − 格線 6 = 21 ÷ 6 = 每格 3 行（日期 + 2 行）
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
