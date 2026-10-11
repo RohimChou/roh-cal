@@ -1,6 +1,7 @@
 mod app;
 mod calendar;
 mod i18n;
+mod settings;
 #[expect(
     dead_code,
     reason = "畫面目前只用到日期，其他欄位（分組、行號…）之後的任務欄、寫入才會用"

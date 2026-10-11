@@ -2,7 +2,7 @@
 
 use ratatui::style::{Color, Modifier, Style};
 
-/// Catppuccin Mocha 全部 26 色（名字, 顏色），debug 選色器用；順序照官方色票
+/// Catppuccin Mocha 全部 26 色（名字, 顏色），設定頁換色用；順序照官方色票
 pub const PALETTE: [(&str, Color); 26] = [
     ("rosewater", Color::Rgb(245, 224, 220)),
     ("flamingo", Color::Rgb(242, 205, 205)),
@@ -30,22 +30,6 @@ pub const PALETTE: [(&str, Color); 26] = [
     ("base", Color::Rgb(30, 30, 46)),
     ("mantle", Color::Rgb(24, 24, 37)),
     ("crust", Color::Rgb(17, 17, 27)),
-];
-
-/// debug 選色器可以調的欄位（名字照 `Theme` 的欄位名）；`Tab` 照這個順序輪
-const PICKER_FIELDS: [&str; 12] = [
-    "item",
-    "item_done",
-    "item_more",
-    "day",
-    "other_month",
-    "title",
-    "month_marker",
-    "weekday_header",
-    "cell_selected_day",
-    "today",
-    "cell_selected",
-    "grid",
 ];
 
 /// 月曆各部分的樣式
@@ -158,8 +142,8 @@ impl Theme {
         }
     }
 
-    /// 依名字拿到欄位（debug 選色器用）；`PICKER_FIELDS` 以外的名字不會出現
-    fn field_mut(&mut self, name: &str) -> &mut Style {
+    /// 依名字拿到欄位（設定頁換色用；名字見 `settings::ROWS`），不認識的名字當 `cell_selected`
+    pub fn field_mut(&mut self, name: &str) -> &mut Style {
         match name {
             "item" => &mut self.item,
             "item_done" => &mut self.item_done,
@@ -175,73 +159,4 @@ impl Theme {
             _ => &mut self.cell_selected,
         }
     }
-}
-
-/// debug 用的選色器：Option+q 打開，即時改 theme 的某個顏色看效果（決定配色用，不是正式功能）
-///
-/// `Tab` / `Shift+Tab` 換欄位，`j` / `k` 換顏色（Catppuccin 26 色輪著選），再按 Option+q 或 `Esc` 關掉
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Picker {
-    /// 現在在調 `PICKER_FIELDS` 的第幾個欄位
-    field: usize,
-    /// 現在選到 `PALETTE` 的第幾個顏色
-    color: usize,
-}
-
-impl Picker {
-    /// 打開：從第一個欄位開始，顏色對到它現在的值（對不到就從第一個色開始）
-    pub fn open(theme: &Theme) -> Self {
-        let mut picker = Self { field: 0, color: 0 };
-        picker.sync_color(theme);
-        picker
-    }
-
-    /// 目前在調的欄位名
-    pub fn field_name(self) -> &'static str {
-        PICKER_FIELDS[self.field]
-    }
-
-    /// 目前選到的顏色（名字, 顏色）
-    pub fn color(self) -> (&'static str, Color) {
-        PALETTE[self.color]
-    }
-
-    /// 這個欄位調的是底色（`cell_selected`）還是文字色（其他）
-    fn uses_bg(self) -> bool {
-        self.field_name() == "cell_selected"
-    }
-
-    /// 換欄位（`step` = +1 / −1，頭尾相接），顏色游標跳到新欄位現在的值
-    pub fn next_field(&mut self, theme: &Theme, step: isize) {
-        self.field = wrap(self.field, step, PICKER_FIELDS.len());
-        self.sync_color(theme);
-    }
-
-    /// 換顏色（`step` = +1 / −1，頭尾相接），馬上套到 theme 上
-    pub fn next_color(&mut self, theme: &mut Theme, step: isize) {
-        self.color = wrap(self.color, step, PALETTE.len());
-        let color = self.color().1;
-        let style = theme.field_mut(self.field_name());
-        *style = if self.uses_bg() {
-            style.bg(color)
-        } else {
-            style.fg(color)
-        };
-    }
-
-    /// 顏色游標對到欄位現在的值
-    fn sync_color(&mut self, theme: &Theme) {
-        let mut theme = *theme;
-        let style = theme.field_mut(self.field_name());
-        let current = if self.uses_bg() { style.bg } else { style.fg };
-        self.color = PALETTE
-            .iter()
-            .position(|&(_, color)| Some(color) == current)
-            .unwrap_or(0);
-    }
-}
-
-/// `index + step`，超出 0..len 就從另一頭接回來
-fn wrap(index: usize, step: isize, len: usize) -> usize {
-    (index as isize + step).rem_euclid(len as isize) as usize
 }

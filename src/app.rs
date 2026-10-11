@@ -2,8 +2,9 @@
 
 use crate::calendar::{monday_of, month_top};
 use crate::i18n::Texts;
+use crate::settings::{Panel, Settings};
 use crate::tasks::Item;
-use crate::theme::{Picker, Theme};
+use crate::theme::Theme;
 use crate::ui::{self, compact};
 use color_eyre::Result;
 use jiff::{ToSpan, Zoned, civil::Date};
@@ -68,8 +69,10 @@ pub struct App {
     pub items: Vec<Item>,
     /// 現在顯示哪一種畫面
     pub view: View,
-    /// debug 選色器；`Some` 表示打開中（Option+q）
-    pub picker: Option<Picker>,
+    /// 執行時可以改的設定（格線開關…）
+    pub settings: Settings,
+    /// 設定頁；`Some` 表示打開中（Option+q）
+    pub panel: Option<Panel>,
 }
 
 impl App {
@@ -89,7 +92,8 @@ impl App {
             texts,
             items,
             view: View::Compact,
-            picker: None,
+            settings: Settings::default(),
+            panel: None,
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （compact 8 週、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -120,36 +124,34 @@ impl App {
 
     /// 處理一個按鍵
     fn handle_key(&mut self, key: KeyEvent) {
-        // Option+q：debug 選色器開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
+        // Option+q：設定頁開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
         // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
         let option_q = key.code == KeyCode::Char('œ')
             || (key.code == KeyCode::Char('q') && key.modifiers.contains(KeyModifiers::ALT));
         if option_q {
-            self.picker = match self.picker {
+            self.panel = match self.panel {
                 Some(_) => None,
-                None => Some(Picker::open(&self.theme)),
+                None => Some(Panel::default()),
             };
             return;
         }
-        // 選色器開著：按鍵都給它
-        if let Some(mut picker) = self.picker {
+        // 設定頁開著：按鍵都給它（j / k 選列、h / l 改值），月曆不動
+        if let Some(mut panel) = self.panel {
             match key.code {
-                KeyCode::Esc => self.picker = None,
-                KeyCode::Tab => {
-                    picker.next_field(&self.theme, 1);
-                    self.picker = Some(picker);
-                }
-                KeyCode::BackTab => {
-                    picker.next_field(&self.theme, -1);
-                    self.picker = Some(picker);
-                }
+                KeyCode::Esc => self.panel = None,
                 KeyCode::Char('j') | KeyCode::Down => {
-                    picker.next_color(&mut self.theme, 1);
-                    self.picker = Some(picker);
+                    panel.select(1);
+                    self.panel = Some(panel);
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    picker.next_color(&mut self.theme, -1);
-                    self.picker = Some(picker);
+                    panel.select(-1);
+                    self.panel = Some(panel);
+                }
+                KeyCode::Char('h') | KeyCode::Left => {
+                    panel.row().adjust(-1, &mut self.settings, &mut self.theme);
+                }
+                KeyCode::Char('l') | KeyCode::Right | KeyCode::Char(' ') | KeyCode::Enter => {
+                    panel.row().adjust(1, &mut self.settings, &mut self.theme);
                 }
                 _ => {}
             }
@@ -371,26 +373,26 @@ mod tests {
     }
 
     #[test]
-    fn option_q_opens_the_color_picker_and_j_changes_the_color() {
+    fn option_q_opens_the_settings_panel_and_hjkl_edits_it() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // Option+q（送成 œ）打開；第一個欄位是 item，顏色對到它現在的值 subtext1
+        // Option+q（送成 œ）打開；第一列是 grid lines
         app.handle_key(key(KeyCode::Char('œ')));
-        let picker = app.picker.expect("picker open");
-        assert_eq!(picker.field_name(), "item");
-        assert_eq!(picker.color().0, "subtext1");
-        // j：下一個顏色（subtext0）馬上套到 theme.item
+        assert_eq!(app.panel, Some(Panel { selected: 0 }));
+        // l：切換開關；h：再切回來
+        app.handle_key(key(KeyCode::Char('l')));
+        assert!(!app.settings.grid_lines);
+        app.handle_key(key(KeyCode::Char('h')));
+        assert!(app.settings.grid_lines);
+        // j：下一列（item）；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
         app.handle_key(key(KeyCode::Char('j')));
-        let picker = app.picker.expect("still open");
-        assert_eq!(picker.color().0, "subtext0");
-        assert_eq!(app.theme.item.fg, Some(picker.color().1));
-        // 開著的時候 j 不會動選取的日期
+        assert_eq!(app.panel, Some(Panel { selected: 1 }));
+        app.handle_key(key(KeyCode::Char('l')));
+        assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
+        // 開著的時候 h / j / k / l 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
-        // Tab：換到 item_done，顏色對到 surface2；q + ALT 也能關
-        app.handle_key(key(KeyCode::Tab));
-        assert_eq!(app.picker.expect("open").field_name(), "item_done");
-        assert_eq!(app.picker.expect("open").color().0, "surface2");
+        // q + ALT 也能關；關了之後 q 才是離開
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
-        assert_eq!(app.picker, None);
+        assert_eq!(app.panel, None);
         assert!(!app.should_quit);
     }
 
