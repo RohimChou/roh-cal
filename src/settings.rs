@@ -54,14 +54,14 @@ pub const ROWS: [Row; 16] = [
     Row::CenterCursor,
     Row::Color(ColorField::Item),
     Row::Color(ColorField::ItemDone),
-    Row::Color(ColorField::ItemMore),
-    Row::Color(ColorField::Grid),
-    Row::Color(ColorField::CellSelected),
+    Row::Color(ColorField::MoreItems),
+    Row::Color(ColorField::GridLines),
+    Row::Color(ColorField::SelectedBg),
     Row::Color(ColorField::Day),
     Row::Color(ColorField::OtherMonth),
     Row::Color(ColorField::Today),
     Row::Color(ColorField::Title),
-    Row::Color(ColorField::MonthMarker),
+    Row::Color(ColorField::MonthLabel),
     Row::Color(ColorField::WeekdayHeader),
     Row::Color(ColorField::Saturday),
     Row::Color(ColorField::Sunday),
@@ -183,10 +183,10 @@ mod tests {
         row.adjust(-2, &mut settings, &mut theme);
         assert_eq!(row.value(&settings, &theme).0, "text");
         // 底色欄位改的是 bg，不是 fg：surface1（第 21 個）往後一格是 surface0
-        let cell = Row::Color(ColorField::CellSelected);
+        let cell = Row::Color(ColorField::SelectedBg);
         cell.adjust(1, &mut settings, &mut theme);
-        assert_eq!(theme.cell_selected.bg, Some(PALETTE[22].1));
-        assert_eq!(theme.cell_selected.fg, None);
+        assert_eq!(theme.selected_bg.bg, Some(PALETTE[22].1));
+        assert_eq!(theme.selected_bg.fg, None);
     }
 
     #[test]

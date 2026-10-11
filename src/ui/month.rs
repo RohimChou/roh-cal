@@ -84,7 +84,7 @@ fn render_week(
     // 底色：只有選取的那格
     for (&cell, &date) in cells.iter().zip(dates) {
         if date == app.selected {
-            frame.render_widget(Paragraph::new("").style(app.theme.cell_selected), cell);
+            frame.render_widget(Paragraph::new("").style(app.theme.selected_bg), cell);
         }
     }
     for (column, (&cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
@@ -206,13 +206,13 @@ fn render_grid_lines(
     // 直線：從星期列下面畫到最後一週的底
     for &x in &vertical_xs {
         for y in top..bottom {
-            put(x, y, line::VERTICAL, theme.grid);
+            put(x, y, line::VERTICAL, theme.grid_lines);
         }
     }
     // 橫線：整個 inner 的寬度；跟直線交叉的地方換成 ┬（星期列下面）/ ┼；兩端接外框 ├ ┤
     for (index, &y) in horizontal_ys.iter().enumerate() {
         for x in inner.x..inner.right() {
-            put(x, y, line::HORIZONTAL, theme.grid);
+            put(x, y, line::HORIZONTAL, theme.grid_lines);
         }
         let cross = if index == 0 {
             line::HORIZONTAL_DOWN
@@ -220,7 +220,7 @@ fn render_grid_lines(
             line::CROSS
         };
         for &x in &vertical_xs {
-            put(x, y, cross, theme.grid);
+            put(x, y, cross, theme.grid_lines);
         }
         put(
             inner.x.wrapping_sub(1),
@@ -237,10 +237,10 @@ fn render_grid_lines(
         }
     } else {
         for x in inner.x..inner.right() {
-            put(x, bottom, line::HORIZONTAL, theme.grid);
+            put(x, bottom, line::HORIZONTAL, theme.grid_lines);
         }
         for &x in &vertical_xs {
-            put(x, bottom, line::HORIZONTAL_UP, theme.grid);
+            put(x, bottom, line::HORIZONTAL_UP, theme.grid_lines);
         }
         put(
             inner.x.wrapping_sub(1),
@@ -306,8 +306,8 @@ fn cell_lines(
     }
     first.push_span(Span::styled(" ", number_style));
     if date.day() == 1 {
-        let marker = (app.texts.month_marker)(date.month());
-        first.push_span(Span::styled(marker, theme.month_marker.patch(dim)));
+        let label = (app.texts.month_label)(date.month());
+        first.push_span(Span::styled(label, theme.month_label.patch(dim)));
     }
 
     // 接下來的行：放得下就全列，放不下就少列一個、最後一行 `+N`
@@ -323,7 +323,7 @@ fn cell_lines(
     }
     if shown < items.len() {
         let more = format!(" +{}", items.len() - shown);
-        lines.push(Line::styled(more, theme.item_more.patch(dim)));
+        lines.push(Line::styled(more, theme.more_items.patch(dim)));
     }
     lines
 }
@@ -654,11 +654,11 @@ mod tests {
         );
         assert_eq!(
             buffer[(weeks[1][3].x + 3, weeks[1][3].y)].fg,
-            app.theme.month_marker.fg.unwrap()
+            app.theme.month_label.fg.unwrap()
         );
-        // 選取的 10/10（第 3 週星期六）整格都是 `cell_selected` 的底色：左上角到右下角
+        // 選取的 10/10（第 3 週星期六）整格都是 `selected_bg` 的底色：左上角到右下角
         let cell = weeks[2][5];
-        let selected_bg = app.theme.cell_selected.bg.unwrap();
+        let selected_bg = app.theme.selected_bg.bg.unwrap();
         assert_eq!(buffer[(cell.x, cell.y)].bg, selected_bg);
         assert_eq!(
             buffer[(cell.right() - 1, cell.bottom() - 1)].bg,

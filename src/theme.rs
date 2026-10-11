@@ -66,13 +66,13 @@ pub struct Theme {
     /// 數字旁邊的點點：那天的項目都完成了（比較安靜）
     pub dots_quiet: Style,
     /// 右邊的月份標記（每個月 15 號那行的「11 月」）
-    pub month_marker: Style,
+    pub month_label: Style,
     /// 左邊欄：選取那行的週數
     pub week_number: Style,
     /// 左邊欄：其他行跟選取那行差幾行
     pub row_distance: Style,
     /// 大月曆：選取那一格的整格底色（其他格子不塗底，日期數字也不換色）
-    pub cell_selected: Style,
+    pub selected_bg: Style,
     /// 大月曆：本月日期數字額外疊的樣式（粗體；格子大，數字要跳出來。其他月份不疊）
     pub cell_day: Style,
     /// 大月曆格子裡的項目：還沒完成的（`14:00 標題`，不加符號）
@@ -80,9 +80,9 @@ pub struct Theme {
     /// 大月曆格子裡的項目：完成的（整行變灰 + 劃線；不支援劃線的 terminal 只看到變灰）
     pub item_done: Style,
     /// 大月曆格子放不下時最後一行的 `+N`（項目的時間跟著項目自己的顏色，不用這個）
-    pub item_more: Style,
+    pub more_items: Style,
     /// 大月曆格子之間淡淡的格線
-    pub grid: Style,
+    pub grid_lines: Style,
 }
 
 impl Default for Theme {
@@ -126,17 +126,17 @@ impl Theme {
             cursor_line: Style::new().bg(surface0),
             dots_open: Style::new().fg(peach),
             dots_quiet: Style::new().fg(subtext0),
-            month_marker: Style::new().fg(lavender),
+            month_label: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
-            cell_selected: Style::new().bg(surface1),
+            selected_bg: Style::new().bg(surface1),
             cell_day: Style::new().add_modifier(bold),
             item: Style::new().fg(subtext1),
             item_done: Style::new()
                 .fg(overlay0)
                 .add_modifier(Modifier::CROSSED_OUT),
-            item_more: Style::new().fg(subtext0),
-            grid: Style::new().fg(surface0),
+            more_items: Style::new().fg(subtext0),
+            grid_lines: Style::new().fg(surface0),
         }
     }
 }
@@ -149,14 +149,14 @@ impl Theme {
 pub enum ColorField {
     Item,
     ItemDone,
-    ItemMore,
-    Grid,
-    CellSelected,
+    MoreItems,
+    GridLines,
+    SelectedBg,
     Day,
     OtherMonth,
     Today,
     Title,
-    MonthMarker,
+    MonthLabel,
     WeekdayHeader,
     Saturday,
     Sunday,
@@ -168,14 +168,14 @@ impl ColorField {
         match self {
             Self::Item => "item",
             Self::ItemDone => "item_done",
-            Self::ItemMore => "item_more",
-            Self::Grid => "grid",
-            Self::CellSelected => "cell_selected",
+            Self::MoreItems => "more_items",
+            Self::GridLines => "grid_lines",
+            Self::SelectedBg => "selected_bg",
             Self::Day => "day",
             Self::OtherMonth => "other_month",
             Self::Today => "today",
             Self::Title => "title",
-            Self::MonthMarker => "month_marker",
+            Self::MonthLabel => "month_label",
             Self::WeekdayHeader => "weekday_header",
             Self::Saturday => "saturday",
             Self::Sunday => "sunday",
@@ -205,7 +205,7 @@ impl ColorField {
 
     /// 調的是底色（整格塗色的那種）還是文字色
     fn uses_bg(self) -> bool {
-        self == Self::CellSelected
+        self == Self::SelectedBg
     }
 
     /// 這個欄位現在的樣式
@@ -220,14 +220,14 @@ impl ColorField {
         match self {
             Self::Item => &mut theme.item,
             Self::ItemDone => &mut theme.item_done,
-            Self::ItemMore => &mut theme.item_more,
-            Self::Grid => &mut theme.grid,
-            Self::CellSelected => &mut theme.cell_selected,
+            Self::MoreItems => &mut theme.more_items,
+            Self::GridLines => &mut theme.grid_lines,
+            Self::SelectedBg => &mut theme.selected_bg,
             Self::Day => &mut theme.day,
             Self::OtherMonth => &mut theme.other_month,
             Self::Today => &mut theme.today,
             Self::Title => &mut theme.title,
-            Self::MonthMarker => &mut theme.month_marker,
+            Self::MonthLabel => &mut theme.month_label,
             Self::WeekdayHeader => &mut theme.weekday_header,
             Self::Saturday => &mut theme.saturday,
             Self::Sunday => &mut theme.sunday,

@@ -67,7 +67,7 @@ pub struct Texts {
     /// 上邊線標題，例：`October 2026` / `2026 年 10 月`
     pub title: fn(year: i16, month: i8) -> String,
     /// 右邊的月份標記，例：`Nov` / `11 月`
-    pub month_marker: fn(month: i8) -> String,
+    pub month_label: fn(month: i8) -> String,
     /// 星期列，星期一到星期日
     pub weekdays: [&'static str; 7],
     /// 下邊線的操作說明
@@ -80,7 +80,7 @@ impl Texts {
         Self {
             title: |year, month| format!("{} {year}", month_name(month)),
             // 月份縮寫：取全名前 3 個字母，例：November → Nov
-            month_marker: |month| month_name(month)[..3].to_string(),
+            month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
             hint: "h/j/k/l move · t today · v view · q quit",
         }
@@ -90,7 +90,7 @@ impl Texts {
     pub fn zh_tw() -> Self {
         Self {
             title: |year, month| format!("{year} 年 {month} 月"),
-            month_marker: |month| format!("{month:>2} 月"),
+            month_label: |month| format!("{month:>2} 月"),
             hint: "h/j/k/l 移動 · t 今天 · v 切換 · q 離開",
             ..Self::en()
         }
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn english_month_names() {
         assert_eq!((Texts::en().title)(2026, 10), "October 2026");
-        assert_eq!((Texts::en().month_marker)(11), "Nov");
+        assert_eq!((Texts::en().month_label)(11), "Nov");
         assert_eq!((Texts::zh_tw().title)(2026, 10), "2026 年 10 月");
     }
 }

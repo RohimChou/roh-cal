@@ -22,9 +22,9 @@ const PADDING: Padding = Padding::symmetric(2, 1);
 /// 月份標記標在每個月幾號的那一行；15 號一定在一個月的中間幾行
 const MARKER_DAY: i8 = 15;
 /// 右邊月份標記的寬度：「 11 月」= 空白 1 + 月份 2 + 空白 1 + 「月」2（中文字佔 2 格）
-const MONTH_MARKER_WIDTH: u16 = 6;
+const MONTH_LABEL_WIDTH: u16 = 6;
 /// 月曆框的寬度：左右框線 2 + 左右 padding + 左邊欄 4 + 7 天 × 每格 5 + 月份標記
-const CALENDAR_WIDTH: u16 = 2 + PADDING.left + PADDING.right + 4 + 7 * 5 + MONTH_MARKER_WIDTH;
+const CALENDAR_WIDTH: u16 = 2 + PADDING.left + PADDING.right + 4 + 7 * 5 + MONTH_LABEL_WIDTH;
 /// 月曆框的高度：上下框線 2 + 上下 padding + 星期列 1 + WEEKS 週
 const CALENDAR_HEIGHT: u16 = 2 + PADDING.top + PADDING.bottom + 1 + WEEKS as u16;
 
@@ -135,11 +135,11 @@ fn calendar_lines(
         week.push_span(" ");
 
         // 這週如果有某個月的 MARKER_DAY 號，記下是幾月，排完 7 天後標在最右邊
-        let mut marker_month = None;
+        let mut label_month = None;
         // 這一週的 7 天（只有 9999-12-31 這種日期上限才會不滿 7 天）
         for date in monday.series(1.day()).take(7) {
             if date.day() == MARKER_DAY {
-                marker_month = Some(date.month());
+                label_month = Some(date.month());
             }
             // 依序疊上 style（順序見 `Theme` 的說明）；數字和點點都疊同樣的「其他月份 → 今天 → 選取」，
             // 點點才會跟著數字變暗 / 變綠 / 在選取的藥丸裡變深色
@@ -168,14 +168,14 @@ fn calendar_lines(
             week.push_span(Span::styled(format!(" {:>2}", date.day()), number_style));
             week.push_span(Span::styled(item_dots(day.count), dots_style));
         }
-        let marker = match marker_month {
-            Some(month) => format!(" {}", (texts.month_marker)(month)),
+        let label = match label_month {
+            Some(month) => format!(" {}", (texts.month_label)(month)),
             None => String::new(),
         };
         // 補空白到同樣寬度，每行才一樣寬（cursorline 的底色才會一樣長）
-        let width = usize::from(MONTH_MARKER_WIDTH);
-        let padding = " ".repeat(width.saturating_sub(display_width(&marker)));
-        week.push_span(Span::styled(marker, theme.month_marker));
+        let width = usize::from(MONTH_LABEL_WIDTH);
+        let padding = " ".repeat(width.saturating_sub(display_width(&label)));
+        week.push_span(Span::styled(label, theme.month_label));
         week.push_span(padding);
         lines.push(week);
     }
@@ -231,7 +231,7 @@ mod tests {
         );
         assert_eq!(lines.len(), 1 + usize::try_from(WEEKS).unwrap_or(0));
         // 每一行一樣寬：左邊欄 4 + 7 天 × 5 + 月份標記
-        let width = 4 + 7 * 5 + usize::from(MONTH_MARKER_WIDTH);
+        let width = 4 + 7 * 5 + usize::from(MONTH_LABEL_WIDTH);
         assert!(lines[1..].iter().all(|line| line.width() == width));
     }
 
@@ -286,7 +286,7 @@ mod tests {
         // 點點一定佔 1 格，每行一樣寬
         assert_eq!(
             display_width(&row),
-            4 + 7 * 5 + usize::from(MONTH_MARKER_WIDTH)
+            4 + 7 * 5 + usize::from(MONTH_LABEL_WIDTH)
         );
     }
 
@@ -308,13 +308,13 @@ mod tests {
     }
 
     #[test]
-    fn month_markers_fit_their_column() {
+    fn month_labels_fit_their_column() {
         for texts in [Texts::en(), Texts::zh_tw()] {
             for month in 1..=12 {
-                let marker = format!(" {}", (texts.month_marker)(month));
+                let label = format!(" {}", (texts.month_label)(month));
                 assert!(
-                    display_width(&marker) <= usize::from(MONTH_MARKER_WIDTH),
-                    "{marker}"
+                    display_width(&label) <= usize::from(MONTH_LABEL_WIDTH),
+                    "{label}"
                 );
             }
         }

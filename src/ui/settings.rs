@@ -49,7 +49,7 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
             spans.push(Span::raw(value));
             let mut line = Line::from(spans);
             if index == panel.selected {
-                line.style = theme.cell_selected;
+                line.style = theme.selected_bg;
             }
             line
         })
