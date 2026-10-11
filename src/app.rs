@@ -76,9 +76,12 @@ pub struct App {
 }
 
 impl App {
-    /// 建立 app，今天用系統時間（本機時區）
-    pub fn new(texts: Texts, items: Vec<Item>) -> Self {
-        Self::on_date(Zoned::now().date(), texts, items)
+    /// 建立 app，今天用系統時間（本機時區），開關用設定檔讀到的
+    pub fn new(texts: Texts, items: Vec<Item>, settings: Settings) -> Self {
+        let mut app = Self::on_date(Zoned::now().date(), texts, items);
+        // 一開始是小月曆，捲動規則不看開關，所以換掉開關不用重新捲
+        app.settings = settings;
+        app
     }
 
     /// 建立 app，指定「今天」是哪天；一開始選取今天（test 用這個指定日期）

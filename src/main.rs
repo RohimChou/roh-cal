@@ -1,6 +1,8 @@
 mod app;
 mod calendar;
+mod config;
 mod i18n;
+mod paths;
 mod settings;
 #[expect(
     dead_code,
@@ -20,6 +22,7 @@ use ratatui::crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
 };
+use settings::Settings;
 use std::io::{ErrorKind, stdout};
 use std::path::PathBuf;
 use tasks::Item;
@@ -30,13 +33,18 @@ fn main() -> Result<()> {
     let args = parse_args(std::env::args().skip(1))?;
     // 語言：--lang 參數 → 系統語言 → 英文
     let lang = args.lang.unwrap_or_else(Lang::from_system);
-    // 進 TUI 之前先讀任務檔，讀不到才能正常印出錯誤
+    // 進 TUI 之前先讀設定檔和任務檔，讀不到才能正常印出錯誤
+    // 設定檔：連 HOME 都沒有（找不到放設定檔的地方）就全部用預設值
+    let settings = match paths::config_file() {
+        Some(path) => config::load(&path)?,
+        None => Settings::default(),
+    };
     let items = load_items(args.tasks)?;
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
     ratatui::run(|terminal| {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
-        App::new(lang.texts(), items).run(terminal)
+        App::new(lang.texts(), items, settings).run(terminal)
     })
 }
 
@@ -95,20 +103,11 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Args> {
     Ok(parsed)
 }
 
-/// 任務檔的預設位置：`$XDG_DATA_HOME/roh-cal/tasks.md`，沒設就是 `~/.local/share/roh-cal/tasks.md`
-fn default_tasks_path() -> Option<PathBuf> {
-    let data_home = match std::env::var_os("XDG_DATA_HOME") {
-        Some(dir) => PathBuf::from(dir),
-        None => PathBuf::from(std::env::var_os("HOME")?).join(".local/share"),
-    };
-    Some(data_home.join("roh-cal").join("tasks.md"))
-}
-
 /// 讀任務檔：有給 `--tasks` 就一定要讀得到；用預設位置時，檔案不存在就當作沒有任務
 fn load_items(tasks: Option<PathBuf>) -> Result<Vec<Item>> {
     let (path, required) = match tasks {
         Some(path) => (path, true),
-        None => match default_tasks_path() {
+        None => match paths::tasks_file() {
             Some(path) => (path, false),
             None => return Ok(Vec::new()),
         },

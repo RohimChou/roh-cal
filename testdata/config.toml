@@ -1,0 +1,9 @@
+# roh-cal 設定檔範例（真正的位置：~/.config/roh-cal/config.toml）
+# 只寫想改的就好，沒寫的用預設值；這裡三個開關都寫成跟預設相反
+
+# 大月曆的格子之間畫淡淡的格線（預設 true）
+grid_lines = false
+# 大月曆的每個項目前面加一個點（預設 true）
+item_icons = false
+# 大月曆移動時選取的那週固定在畫面正中間（預設 true）
+center_cursor = false
