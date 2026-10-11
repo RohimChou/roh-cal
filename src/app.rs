@@ -3,13 +3,15 @@
 use crate::calendar::{monday_of, month_top};
 use crate::i18n::Texts;
 use crate::tasks::Item;
-use crate::theme::Theme;
+use crate::theme::{Picker, Theme};
 use crate::ui::{self, compact};
 use color_eyre::Result;
 use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, KeyCode, MouseButton, MouseEvent, MouseEventKind},
+    crossterm::event::{
+        self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    },
 };
 
 /// 選取的那週離上下邊緣至少保留幾週，不夠就捲動（像 vim 的 scrolloff）
@@ -66,6 +68,8 @@ pub struct App {
     pub items: Vec<Item>,
     /// 現在顯示哪一種畫面
     pub view: View,
+    /// debug 選色器；`Some` 表示打開中（Option+q）
+    pub picker: Option<Picker>,
 }
 
 impl App {
@@ -85,6 +89,7 @@ impl App {
             texts,
             items,
             view: View::Compact,
+            picker: None,
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （compact 8 週、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -106,7 +111,7 @@ impl App {
         let event = event::read()?;
         // 鍵盤只理會「按下」，忽略放開 / 長按重複
         if let Some(key) = event.as_key_press_event() {
-            self.handle_key(key.code);
+            self.handle_key(key);
         } else if let Some(mouse) = event.as_mouse_event() {
             self.handle_mouse(mouse);
         }
@@ -114,8 +119,43 @@ impl App {
     }
 
     /// 處理一個按鍵
-    fn handle_key(&mut self, code: KeyCode) {
-        match code {
+    fn handle_key(&mut self, key: KeyEvent) {
+        // Option+q：debug 選色器開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
+        // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
+        let option_q = key.code == KeyCode::Char('œ')
+            || (key.code == KeyCode::Char('q') && key.modifiers.contains(KeyModifiers::ALT));
+        if option_q {
+            self.picker = match self.picker {
+                Some(_) => None,
+                None => Some(Picker::open(&self.theme)),
+            };
+            return;
+        }
+        // 選色器開著：按鍵都給它
+        if let Some(mut picker) = self.picker {
+            match key.code {
+                KeyCode::Esc => self.picker = None,
+                KeyCode::Tab => {
+                    picker.next_field(&self.theme, 1);
+                    self.picker = Some(picker);
+                }
+                KeyCode::BackTab => {
+                    picker.next_field(&self.theme, -1);
+                    self.picker = Some(picker);
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    picker.next_color(&mut self.theme, 1);
+                    self.picker = Some(picker);
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    picker.next_color(&mut self.theme, -1);
+                    self.picker = Some(picker);
+                }
+                _ => {}
+            }
+            return;
+        }
+        match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             // h / l（或 ← / →）：前一天 / 後一天
             KeyCode::Char('h') | KeyCode::Left => self.move_selected(-1),
@@ -202,7 +242,11 @@ impl App {
 mod tests {
     use super::*;
     use jiff::civil::{Weekday, date};
-    use ratatui::crossterm::event::KeyModifiers;
+
+    /// 沒有修飾鍵的按鍵事件（test 用）
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
 
     /// 選取的那週在畫面第幾行（0 = 最上面）；不在畫面上回傳 `None`
     fn selected_row(app: &App) -> Option<i64> {
@@ -290,8 +334,8 @@ mod tests {
         for (letter, arrow) in pairs {
             let mut by_letter = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
             let mut by_arrow = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-            by_letter.handle_key(letter);
-            by_arrow.handle_key(arrow);
+            by_letter.handle_key(key(letter));
+            by_arrow.handle_key(key(arrow));
             assert_ne!(
                 by_arrow.selected,
                 date(2026, 10, 10),
@@ -309,12 +353,12 @@ mod tests {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.move_selected(7);
         assert_eq!(app.view, View::Compact);
-        app.handle_key(KeyCode::Char('v'));
+        app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Month);
         // 選取在第 4 行，6 週的畫面也放得下：選取和捲動位置都不動
         assert_eq!(app.selected, date(2026, 10, 17));
         assert_eq!(app.top, date(2026, 9, 21));
-        app.handle_key(KeyCode::Char('v'));
+        app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Compact);
     }
 
@@ -328,10 +372,34 @@ mod tests {
         assert_eq!(app.selected, date(2026, 11, 7));
         assert_eq!(selected_row(&app), Some(6));
         // 切到 6 週的大月曆：第 7 行不存在，往下捲到選取在第 5 行（倒數第 2 行）
-        app.handle_key(KeyCode::Char('v'));
+        app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.selected, date(2026, 11, 7));
         assert_eq!(selected_row(&app), Some(4));
         assert_eq!(app.top, date(2026, 10, 5));
+    }
+
+    #[test]
+    fn option_q_opens_the_color_picker_and_j_changes_the_color() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        // Option+q（送成 œ）打開；第一個欄位是 item，顏色對到它現在的值 text
+        app.handle_key(key(KeyCode::Char('œ')));
+        let picker = app.picker.expect("picker open");
+        assert_eq!(picker.field_name(), "item");
+        assert_eq!(picker.color().0, "text");
+        // j：下一個顏色（subtext1）馬上套到 theme.item
+        app.handle_key(key(KeyCode::Char('j')));
+        let picker = app.picker.expect("still open");
+        assert_eq!(picker.color().0, "subtext1");
+        assert_eq!(app.theme.item.fg, Some(picker.color().1));
+        // 開著的時候 j 不會動選取的日期
+        assert_eq!(app.selected, date(2026, 10, 10));
+        // Tab：換到 item_done，顏色對到 surface2；q + ALT 也能關
+        app.handle_key(key(KeyCode::Tab));
+        assert_eq!(app.picker.expect("open").field_name(), "item_done");
+        assert_eq!(app.picker.expect("open").color().0, "surface2");
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
+        assert_eq!(app.picker, None);
+        assert!(!app.should_quit);
     }
 
     #[test]

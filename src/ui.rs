@@ -7,7 +7,13 @@ use crate::app::{App, View};
 use crate::tasks::Item;
 use crate::theme::Theme;
 use jiff::civil::{Date, Weekday};
-use ratatui::{Frame, style::Style};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, BorderType, Clear, Paragraph},
+};
 use std::collections::HashMap;
 
 /// 一週的 7 天，照畫面上由左到右的順序（星期一開始）
@@ -21,12 +27,51 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面
+/// 依 `app.view` 畫出現在的畫面；debug 選色器開著就疊在右下角
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
         View::Month => month::render(frame, app),
     }
+    if let Some(picker) = app.picker {
+        render_picker(frame, picker, &app.theme);
+    }
+}
+
+/// debug 選色器的小框（右下角）：欄位、顏色名和 RGB、一段用那個顏色畫的範例字
+fn render_picker(frame: &mut Frame, picker: crate::theme::Picker, theme: &Theme) {
+    let (name, color) = picker.color();
+    let rgb = match color {
+        ratatui::style::Color::Rgb(r, g, b) => format!("({r}, {g}, {b})"),
+        other => format!("{other:?}"),
+    };
+    let lines = vec![
+        Line::from(format!(
+            " field  {}   (Tab / Shift+Tab)",
+            picker.field_name()
+        )),
+        Line::from(format!(" color  {name} {rgb}   (j / k)")),
+        Line::from(vec![
+            Span::raw(" sample "),
+            Span::styled("14:00 範例標題 sample", Style::new().fg(color)),
+        ]),
+    ];
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(theme.border)
+        .title_top(Line::styled(" colors (Option+q / Esc) ", theme.title));
+    let width = 44;
+    let height = 5;
+    let area = frame.area();
+    let overlay = Rect {
+        x: area.right().saturating_sub(width),
+        y: area.bottom().saturating_sub(height),
+        width: width.min(area.width),
+        height: height.min(area.height),
+    };
+    // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(Paragraph::new(lines).block(block), overlay);
 }
 
 /// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）
