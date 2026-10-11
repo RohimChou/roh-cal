@@ -140,7 +140,7 @@ pub fn test_dir(name: &str) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::MonthSettings;
+    use crate::settings::{CalendarSettings, MonthSettings};
     use crate::theme::{ColorField, HexColor};
     use std::collections::BTreeMap;
 
@@ -187,6 +187,9 @@ mod tests {
         assert_eq!(
             settings,
             Settings {
+                calendar: CalendarSettings {
+                    week_numbers: false,
+                },
                 month: MonthSettings {
                     grid_lines: false,
                     item_icons: false,

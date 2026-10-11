@@ -1,6 +1,6 @@
 //! 執行時可以改的設定（開關、顏色）和設定頁（Option+q）的狀態
 //!
-//! 設定頁是一張清單，跟設定檔一樣分成 `[month]`、`[colors]` 兩段、名字一模一樣：
+//! 設定頁是一張清單，跟設定檔一樣分成 `[calendar]`、`[month]`、`[colors]` 三段、名字一模一樣：
 //! `j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
 //! 畫面馬上跟著變；`r` 把那一列還原成預設；`R`（Shift+r）全部還原，要再按 `y` 確認；`q` / `Esc` 關閉。
 //! 開關和改過的顏色啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）。
@@ -11,7 +11,7 @@ use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`month` = `[month]`、`colors` = `[colors]`
+/// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`calendar` = `[calendar]`、`month` = `[month]`、`colors` = `[colors]`
 ///
 /// 設定檔裡的名字就是欄位名（例：`[month]` 底下寫 `grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用 `Default` 的值；
 /// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML。
@@ -19,6 +19,8 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
+    /// `[calendar]`：大小月曆共用的開關
+    pub calendar: CalendarSettings,
     /// `[month]`：大月曆的開關
     pub month: MonthSettings,
     /// `[colors]`：改過的顏色（例：`sunday = "#f38ba8"`）；沒寫的用預設 theme 的。
@@ -39,6 +41,20 @@ impl Settings {
                 self.colors.remove(&field);
             }
         }
+    }
+}
+
+/// 大小月曆共用的開關（設定檔的 `[calendar]`）；預設值在 `Default`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CalendarSettings {
+    /// 左邊欄：選取那週顯示週數、其他週顯示跟選取那週差幾週（像 vim 的 relativenumber）
+    pub week_numbers: bool,
+}
+
+impl Default for CalendarSettings {
+    fn default() -> Self {
+        Self { week_numbers: true }
     }
 }
 
@@ -68,6 +84,8 @@ impl Default for MonthSettings {
 /// 設定頁的一列：一個開關，或 `Theme` 的一個顏色欄位
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
+    /// `Settings::calendar.week_numbers`
+    WeekNumbers,
     /// `Settings::month.grid_lines`
     GridLines,
     /// `Settings::month.item_icons`
@@ -79,7 +97,8 @@ pub enum Row {
 }
 
 /// 設定頁的列，照顯示順序：開關在上面，顏色在下面
-pub const ROWS: [Row; 16] = [
+pub const ROWS: [Row; 17] = [
+    Row::WeekNumbers,
     Row::GridLines,
     Row::ItemIcons,
     Row::CenterCursor,
@@ -102,6 +121,7 @@ impl Row {
     /// 顯示在左邊的名字 = 設定檔裡的名字（開關的名字 = `MonthSettings` 的欄位名，有 test 釘住）
     pub fn label(self) -> &'static str {
         match self {
+            Self::WeekNumbers => "week_numbers",
             Self::GridLines => "grid_lines",
             Self::ItemIcons => "item_icons",
             Self::CenterCursor => "center_cursor",
@@ -112,6 +132,7 @@ impl Row {
     /// 這一列在設定檔的哪個表（`[month]`、`[colors]`）；設定頁也照這個分段
     pub fn section(self) -> &'static str {
         match self {
+            Self::WeekNumbers => "calendar",
             Self::GridLines | Self::ItemIcons | Self::CenterCursor => "month",
             Self::Color(_) => "colors",
         }
@@ -120,6 +141,7 @@ impl Row {
     /// 目前的值：開關回傳 `on` / `off`；顏色回傳色票名字和顏色本身（畫色塊用）
     pub fn value(self, settings: &Settings, theme: &Theme) -> (String, Option<Color>) {
         match self {
+            Self::WeekNumbers => (on_off(settings.calendar.week_numbers).to_string(), None),
             Self::GridLines => (on_off(settings.month.grid_lines).to_string(), None),
             Self::ItemIcons => (on_off(settings.month.item_icons).to_string(), None),
             Self::CenterCursor => (on_off(settings.month.center_cursor).to_string(), None),
@@ -140,6 +162,9 @@ impl Row {
     /// 改這列的值：開關直接切換；顏色往色票的前（`step` = −1）/ 後（+1）一格，頭尾相接
     pub fn adjust(self, step: isize, settings: &mut Settings, theme: &mut Theme) {
         match self {
+            Self::WeekNumbers => {
+                settings.calendar.week_numbers = !settings.calendar.week_numbers;
+            }
             Self::GridLines => settings.month.grid_lines = !settings.month.grid_lines,
             Self::ItemIcons => settings.month.item_icons = !settings.month.item_icons,
             Self::CenterCursor => settings.month.center_cursor = !settings.month.center_cursor,
@@ -160,6 +185,7 @@ impl Row {
     pub fn reset(self, settings: &mut Settings, theme: &mut Theme) {
         let defaults = Settings::default();
         match self {
+            Self::WeekNumbers => settings.calendar.week_numbers = defaults.calendar.week_numbers,
             Self::GridLines => settings.month.grid_lines = defaults.month.grid_lines,
             Self::ItemIcons => settings.month.item_icons = defaults.month.item_icons,
             Self::CenterCursor => settings.month.center_cursor = defaults.month.center_cursor,
@@ -337,7 +363,7 @@ mod tests {
     #[test]
     fn panel_selection_wraps_around() {
         let mut panel = Panel::default();
-        assert_eq!(panel.row(), Row::GridLines);
+        assert_eq!(panel.row(), Row::WeekNumbers);
         panel.select(-1);
         assert_eq!(panel.selected, ROWS.len() - 1);
         panel.select(1);

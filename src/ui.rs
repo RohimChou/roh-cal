@@ -5,10 +5,11 @@ pub mod month;
 pub mod settings;
 
 use crate::app::{App, View};
+use crate::calendar::week_of_year;
 use crate::tasks::Item;
 use crate::theme::Theme;
 use jiff::civil::{Date, Weekday};
-use ratatui::{Frame, style::Style};
+use ratatui::{Frame, style::Style, text::Span};
 use std::collections::HashMap;
 
 /// 一週的 7 天，照畫面上由左到右的順序（星期一開始）
@@ -53,6 +54,22 @@ fn item_dots(count: usize) -> &'static str {
         2 => "⠒",
         3 => "⠖",
         _ => "⠶",
+    }
+}
+
+/// 左邊欄的數字（3 格寬）：選取那週（第 `selected_row` 行）顯示選取日期的週數（靠左、醒目），
+/// 其他週顯示跟選取那週差幾週（靠右、淡）；像 vim 的 `number` + `relativenumber`，大小月曆共用
+fn week_number_span(
+    row: usize,
+    selected_row: usize,
+    selected: Date,
+    theme: &Theme,
+) -> Span<'static> {
+    if row == selected_row {
+        Span::styled(format!("{:<3}", week_of_year(selected)), theme.week_number)
+    } else {
+        let distance = row.abs_diff(selected_row);
+        Span::styled(format!("{distance:>3}"), theme.row_distance)
     }
 }
 

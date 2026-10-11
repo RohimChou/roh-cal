@@ -1,11 +1,11 @@
 //! compact view：固定大小的小月曆（8 週），畫在 terminal 左上角
 
 use crate::app::{App, View};
-use crate::calendar::{monday_of, week_of_year};
+use crate::calendar::monday_of;
 use crate::i18n::Texts;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{WEEKDAYS, item_dots, weekend_style};
+use crate::ui::{WEEKDAYS, item_dots, week_number_span, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -23,8 +23,18 @@ const PADDING: Padding = Padding::symmetric(2, 1);
 const MARKER_DAY: i8 = 15;
 /// 右邊月份標記的寬度：「 11 月」= 空白 1 + 月份 2 + 空白 1 + 「月」2（中文字佔 2 格）
 const MONTH_LABEL_WIDTH: u16 = 6;
-/// 月曆框的寬度：左右框線 2 + 左右 padding + 左邊欄 4 + 7 天 × 每格 5 + 月份標記
-const CALENDAR_WIDTH: u16 = 2 + PADDING.left + PADDING.right + 4 + 7 * 5 + MONTH_LABEL_WIDTH;
+/// 左邊欄（週數 / 相對週數）的寬度：數字 3 + 空白 1
+const WEEK_NUMBERS_WIDTH: u16 = 4;
+
+/// 左邊欄的寬度：設定頁的 `week_numbers` 關掉時是 0（整欄拿掉）
+fn left_width(week_numbers: bool) -> u16 {
+    if week_numbers { WEEK_NUMBERS_WIDTH } else { 0 }
+}
+
+/// 月曆框的寬度：左右框線 2 + 左右 padding + 左邊欄 + 7 天 × 每格 5 + 月份標記
+fn calendar_width(week_numbers: bool) -> u16 {
+    2 + PADDING.left + PADDING.right + left_width(week_numbers) + 7 * 5 + MONTH_LABEL_WIDTH
+}
 /// 月曆框的高度：上下框線 2 + 上下 padding + 星期列 1 + WEEKS 週
 const CALENDAR_HEIGHT: u16 = 2 + PADDING.top + PADDING.bottom + 1 + WEEKS as u16;
 
@@ -46,7 +56,9 @@ pub fn render(frame: &mut Frame, app: &App) {
     // 框只畫到剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
     let area = frame.area();
     let area = Rect {
-        width: area.width.min(CALENDAR_WIDTH),
+        width: area
+            .width
+            .min(calendar_width(app.settings.calendar.week_numbers)),
         height: area.height.min(CALENDAR_HEIGHT),
         ..area
     };
@@ -58,19 +70,21 @@ pub fn render(frame: &mut Frame, app: &App) {
         &days,
         &app.theme,
         &app.texts,
+        app.settings.calendar.week_numbers,
     );
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
 /// 最上面那週是 `top` 時，滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期格子上回傳 `None`
 ///
-/// 月曆框固定畫在 terminal 左上角（見 `render`），例：預設排版時
-/// `x` 7～11 是星期一、12～16 是星期二…；`y` 3 是第 1 週、4 是第 2 週…
-pub fn date_at(top: Date, column: u16, row: u16) -> Option<Date> {
+/// 月曆框固定畫在 terminal 左上角（見 `render`），例：預設排版（有左邊欄）時
+/// `x` 7～11 是星期一、12～16 是星期二…；`y` 3 是第 1 週、4 是第 2 週…；左邊欄關掉時 `x` 全部往左 4 格
+pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
+    let top = app.top;
     // 第 1 週那行的 y：框線 1 + 上 padding + 星期列 1
     let first_row = 1 + PADDING.top + 1;
-    // 星期一那格的 x：框線 1 + 左 padding + 左邊欄 4
-    let first_column = 1 + PADDING.left + 4;
+    // 星期一那格的 x：框線 1 + 左 padding + 左邊欄
+    let first_column = 1 + PADDING.left + left_width(app.settings.calendar.week_numbers);
     // 比第一格還上面 / 左邊：checked_sub 得到 None，`?` 直接回傳 None
     let week = i64::from(row.checked_sub(first_row)?);
     let weekday = i64::from(column.checked_sub(first_column)? / 5);
@@ -82,7 +96,8 @@ pub fn date_at(top: Date, column: u16, row: u16) -> Option<Date> {
 
 /// 組出月曆：星期列，接著從 `top` 那週開始一週一行，共 `WEEKS` 週
 ///
-/// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行。
+/// 每行最左邊像 vim 的 relativenumber：選取的那行顯示選取日期的週數，其他行顯示跟選取那行差幾行
+/// （`week_numbers` = false 時整欄拿掉）。
 /// 每行最右邊：這週有某個月的 `MARKER_DAY` 號，就標出那個月（例：「11 月」），看起來像標在月份中間。
 /// 顏色都來自 `theme`：週末、其他月份、今天、選取各有自己的樣式（疊的順序見 `Theme`）
 ///
@@ -102,6 +117,7 @@ fn calendar_lines(
     days: &HashMap<Date, DaySummary>,
     theme: &Theme,
     texts: &Texts,
+    week_numbers: bool,
 ) -> Vec<Line<'static>> {
     let month = selected.first_of_month();
     // 畫面上每一行的星期一
@@ -112,8 +128,8 @@ fn calendar_lines(
         .position(|&monday| monday == monday_of(selected))
         .unwrap_or(0);
 
-    // 星期列：前面空出左邊欄的 4 格，每個星期名稱佔 5 格（靠右對齊 4 格 + 1 個空白）
-    let mut header = Line::from("    ");
+    // 星期列：前面空出左邊欄的寬度，每個星期名稱佔 5 格（靠右對齊 4 格 + 1 個空白）
+    let mut header = Line::from(" ".repeat(usize::from(left_width(week_numbers))));
     for (name, weekday) in texts.weekdays.into_iter().zip(WEEKDAYS) {
         let style = theme.weekday_header.patch(weekend_style(weekday, theme));
         let padding = " ".repeat(4_usize.saturating_sub(display_width(name)));
@@ -122,17 +138,15 @@ fn calendar_lines(
     let mut lines = vec![header];
     for (row, monday) in mondays.into_iter().enumerate() {
         let mut week = Line::default();
-        // 左邊欄：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）
         if row == selected_row {
             // 選取那行整行墊底色；每個日期自己的顏色會疊在上面
             week.style = theme.cursor_line;
-            let week_number = format!("{:<3}", week_of_year(selected));
-            week.push_span(Span::styled(week_number, theme.week_number));
-        } else {
-            let distance = row.abs_diff(selected_row);
-            week.push_span(Span::styled(format!("{distance:>3}"), theme.row_distance));
         }
-        week.push_span(" ");
+        // 左邊欄（設定頁可以關）：選取那行顯示選取日期的週數（靠左），其他行顯示差幾行（靠右）
+        if week_numbers {
+            week.push_span(week_number_span(row, selected_row, selected, theme));
+            week.push_span(" ");
+        }
 
         // 這週如果有某個月的 MARKER_DAY 號，記下是幾月，排完 7 天後標在最右邊
         let mut label_month = None;
@@ -228,6 +242,7 @@ mod tests {
             &HashMap::new(),
             &app.theme,
             &app.texts,
+            true,
         );
         assert_eq!(lines.len(), 1 + usize::try_from(WEEKS).unwrap_or(0));
         // 每一行一樣寬：左邊欄 4 + 7 天 × 5 + 月份標記
@@ -273,6 +288,7 @@ mod tests {
             &days,
             &app.theme,
             &app.texts,
+            true,
         );
         // 10/12 那週在第 4 行（9/21、9/28、10/5、10/12）
         let row: String = lines[4]
@@ -295,16 +311,44 @@ mod tests {
         // 一打開：最上面那週從 9/21（星期一）開始
         let app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         // 第 1 週星期一那格的頭、尾
-        assert_eq!(date_at(app.top, 7, 3), Some(date(2026, 9, 21)));
-        assert_eq!(date_at(app.top, 11, 3), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 7, 3), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 11, 3), Some(date(2026, 9, 21)));
         // 第 3 週星期六（x = 7 + 5 × 5）
-        assert_eq!(date_at(app.top, 32, 5), Some(date(2026, 10, 10)));
+        assert_eq!(date_at(&app, 32, 5), Some(date(2026, 10, 10)));
         // 最後一週星期日那格的尾
-        assert_eq!(date_at(app.top, 41, 10), Some(date(2026, 11, 15)));
+        assert_eq!(date_at(&app, 41, 10), Some(date(2026, 11, 15)));
         // 不是日期格子：框線、左邊欄、星期列、月份標記、最後一週下面
         for (column, row) in [(0, 0), (4, 5), (10, 2), (42, 5), (10, 11)] {
-            assert_eq!(date_at(app.top, column, row), None, "({column}, {row})");
+            assert_eq!(date_at(&app, column, row), None, "({column}, {row})");
         }
+    }
+
+    #[test]
+    fn week_numbers_off_removes_the_left_column() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        let lines = calendar_lines(
+            app.top,
+            app.selected,
+            app.today,
+            &HashMap::new(),
+            &app.theme,
+            &app.texts,
+            false,
+        );
+        // 每一週少了左邊欄的 4 格：7 天 × 5 + 月份標記；星期列也少 4 格
+        let width = 7 * 5 + usize::from(MONTH_LABEL_WIDTH);
+        assert!(lines[1..].iter().all(|line| line.width() == width));
+        assert_eq!(lines[0].width(), 7 * 5);
+        // 選取那週（第 3 週，`lines[3]`）不再以週數「41」開頭；cursorline 的底色還在
+        assert!(!lines[3].to_string().starts_with("41"));
+        assert_eq!(lines[3].style, app.theme.cursor_line);
+        // 滑鼠：星期一那格整個往左 4 格（x = 3～7）
+        app.settings.calendar.week_numbers = false;
+        assert_eq!(date_at(&app, 3, 3), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 7, 3), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 8, 3), Some(date(2026, 9, 22)));
+        assert_eq!(date_at(&app, 2, 3), None);
+        assert_eq!(calendar_width(false), calendar_width(true) - 4);
     }
 
     #[test]

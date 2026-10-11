@@ -1,5 +1,10 @@
 # roh-cal 設定檔範例（真正的位置：~/.config/roh-cal/config.toml）
-# 只寫想改的就好，沒寫的用預設值；這裡三個開關都寫成跟預設相反
+# 只寫想改的就好，沒寫的用預設值；這裡的開關都寫成跟預設相反
+
+# 大小月曆共用
+[calendar]
+# 左邊欄的週數 / 相對週數（預設 true）
+week_numbers = false
 
 # 大月曆
 [month]

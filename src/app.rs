@@ -243,7 +243,7 @@ impl App {
             // （設定頁開著時不理，免得點到設定頁底下的格子）
             MouseEventKind::Down(MouseButton::Left) if self.panel.is_none() => {
                 let date = match self.view {
-                    View::Compact => compact::date_at(self.top, mouse.column, mouse.row),
+                    View::Compact => compact::date_at(self, mouse.column, mouse.row),
                     View::Month => month::date_at(self, mouse.column, mouse.row),
                 };
                 if let Some(date) = date {
@@ -466,35 +466,35 @@ mod tests {
     #[test]
     fn option_q_opens_the_settings_panel_and_hjkl_edits_it() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // Option+q（送成 œ）打開；第一列是 grid_lines
+        // Option+q（送成 œ）打開；第一列是 week_numbers
         app.handle_key(key(KeyCode::Char('œ')));
         assert_eq!(app.panel, Some(Panel::default()));
         // l：切換開關；h：再切回來
         app.handle_key(key(KeyCode::Char('l')));
-        assert!(!app.settings.month.grid_lines);
+        assert!(!app.settings.calendar.week_numbers);
         app.handle_key(key(KeyCode::Char('h')));
-        assert!(app.settings.month.grid_lines);
-        // j 三次：跳過 item_icons、center_cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
-        for _ in 0..3 {
+        assert!(app.settings.calendar.week_numbers);
+        // j 四次：跳過 grid_lines、item_icons、center_cursor 到 item；l：顏色從 subtext1 換成下一個色 subtext0，馬上套到 theme
+        for _ in 0..4 {
             app.handle_key(key(KeyCode::Char('j')));
         }
-        assert_eq!(app.panel.map(|panel| panel.selected), Some(3));
+        assert_eq!(app.panel.map(|panel| panel.selected), Some(4));
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
-        // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 grid_lines 不受影響）
-        for _ in 0..3 {
+        // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 week_numbers 不受影響）
+        for _ in 0..4 {
             app.handle_key(key(KeyCode::Char('k')));
         }
         app.handle_key(key(KeyCode::Char('l')));
-        assert!(!app.settings.month.grid_lines);
-        for _ in 0..3 {
+        assert!(!app.settings.calendar.week_numbers);
+        for _ in 0..4 {
             app.handle_key(key(KeyCode::Char('j')));
         }
         app.handle_key(key(KeyCode::Char('r')));
         assert_eq!(app.theme.item, Theme::default().item);
-        assert!(!app.settings.month.grid_lines);
+        assert!(!app.settings.calendar.week_numbers);
         // q / Esc / q + ALT 都能關；關了之後 q 才是離開
         app.handle_key(key(KeyCode::Char('q')));
         assert_eq!(app.panel, None);
@@ -567,7 +567,7 @@ mod tests {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.handle_key(key(KeyCode::Char('œ')));
         app.handle_key(key(KeyCode::Char('l')));
-        assert!(!app.settings.month.grid_lines);
+        assert!(!app.settings.calendar.week_numbers);
         for other in [
             KeyCode::Char('n'),
             KeyCode::Esc,
@@ -578,7 +578,7 @@ mod tests {
             // 其他鍵只會取消：不還原、不關設定頁、不移動、不改值
             app.handle_key(key(other));
             assert_eq!(app.panel, Some(Panel::default()), "{other:?}");
-            assert!(!app.settings.month.grid_lines, "{other:?}");
+            assert!(!app.settings.calendar.week_numbers, "{other:?}");
         }
     }
 
@@ -588,7 +588,7 @@ mod tests {
         let path = dir.join("config.toml");
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.config_path = Some(path.clone());
-        // 打開設定頁、關掉格線：設定頁還開著 → 還不存
+        // 打開設定頁、關掉週數（第一列）：設定頁還開著 → 還不存
         app.handle_key(key(KeyCode::Char('œ')));
         app.handle_key(key(KeyCode::Char('l')));
         app.save_settings().expect("save");
@@ -597,7 +597,7 @@ mod tests {
         app.handle_key(key(KeyCode::Char('q')));
         app.save_settings().expect("save");
         assert_eq!(config::load(&path).expect("load"), app.settings);
-        assert!(!config::load(&path).expect("load").month.grid_lines);
+        assert!(!config::load(&path).expect("load").calendar.week_numbers);
         // 打開又關掉、沒改東西 → 不寫（刪掉檔案來確認沒有被重新建立）
         std::fs::remove_file(&path).expect("remove");
         app.handle_key(key(KeyCode::Char('œ')));
