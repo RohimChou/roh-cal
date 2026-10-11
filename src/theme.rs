@@ -139,23 +139,98 @@ impl Theme {
             grid: Style::new().fg(surface0),
         }
     }
+}
 
-    /// 依名字拿到欄位（設定頁換色用；名字見 `settings::ROWS`），不認識的名字當 `cell_selected`
-    pub fn field_mut(&mut self, name: &str) -> &mut Style {
-        match name {
-            "item" => &mut self.item,
-            "item_done" => &mut self.item_done,
-            "item_more" => &mut self.item_more,
-            "day" => &mut self.day,
-            "other_month" => &mut self.other_month,
-            "title" => &mut self.title,
-            "month_marker" => &mut self.month_marker,
-            "weekday_header" => &mut self.weekday_header,
-            "today" => &mut self.today,
-            "grid" => &mut self.grid,
-            "saturday" => &mut self.saturday,
-            "sunday" => &mut self.sunday,
-            _ => &mut self.cell_selected,
+/// `Theme` 裡可以換色的欄位（設定頁一個欄位一列，順序見 `settings::ROWS`）
+///
+/// 每個欄位的名字、對到 `Theme` 哪個欄位、調底色還是文字色，都只寫在這裡；
+/// 新增一個欄位時，`match` 少寫一個 compiler 就會報錯
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorField {
+    Item,
+    ItemDone,
+    ItemMore,
+    Grid,
+    CellSelected,
+    Day,
+    OtherMonth,
+    Today,
+    Title,
+    MonthMarker,
+    WeekdayHeader,
+    Saturday,
+    Sunday,
+}
+
+impl ColorField {
+    /// 名字 = `Theme` 的欄位名（設定頁顯示的就是它）
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Item => "item",
+            Self::ItemDone => "item_done",
+            Self::ItemMore => "item_more",
+            Self::Grid => "grid",
+            Self::CellSelected => "cell_selected",
+            Self::Day => "day",
+            Self::OtherMonth => "other_month",
+            Self::Today => "today",
+            Self::Title => "title",
+            Self::MonthMarker => "month_marker",
+            Self::WeekdayHeader => "weekday_header",
+            Self::Saturday => "saturday",
+            Self::Sunday => "sunday",
+        }
+    }
+
+    /// 現在的顏色（底色或文字色，看 `uses_bg`）
+    pub fn color(self, theme: &Theme) -> Option<Color> {
+        let style = self.style(theme);
+        if self.uses_bg() { style.bg } else { style.fg }
+    }
+
+    /// 換顏色（底色或文字色，看 `uses_bg`）；粗體、劃線這些不動
+    pub fn set_color(self, theme: &mut Theme, color: Color) {
+        let style = self.style_mut(theme);
+        *style = if self.uses_bg() {
+            style.bg(color)
+        } else {
+            style.fg(color)
+        };
+    }
+
+    /// 整個樣式（顏色、粗體…）還原成預設 theme 裡的
+    pub fn reset(self, theme: &mut Theme) {
+        *self.style_mut(theme) = self.style(&Theme::default());
+    }
+
+    /// 調的是底色（整格塗色的那種）還是文字色
+    fn uses_bg(self) -> bool {
+        self == Self::CellSelected
+    }
+
+    /// 這個欄位現在的樣式
+    fn style(self, theme: &Theme) -> Style {
+        // `style_mut` 要 `&mut`；Theme 是 Copy，複製一份來讀就好
+        let mut theme = *theme;
+        *self.style_mut(&mut theme)
+    }
+
+    /// 這個欄位在 `theme` 裡的位置（要改它就透過這裡）
+    fn style_mut(self, theme: &mut Theme) -> &mut Style {
+        match self {
+            Self::Item => &mut theme.item,
+            Self::ItemDone => &mut theme.item_done,
+            Self::ItemMore => &mut theme.item_more,
+            Self::Grid => &mut theme.grid,
+            Self::CellSelected => &mut theme.cell_selected,
+            Self::Day => &mut theme.day,
+            Self::OtherMonth => &mut theme.other_month,
+            Self::Today => &mut theme.today,
+            Self::Title => &mut theme.title,
+            Self::MonthMarker => &mut theme.month_marker,
+            Self::WeekdayHeader => &mut theme.weekday_header,
+            Self::Saturday => &mut theme.saturday,
+            Self::Sunday => &mut theme.sunday,
         }
     }
 }

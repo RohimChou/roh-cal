@@ -4,7 +4,7 @@
 //! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。
 //! 開關啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）；顏色在 `Theme`，還沒進設定檔
 
-use crate::theme::{PALETTE, Theme};
+use crate::theme::{ColorField, PALETTE, Theme};
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
@@ -43,8 +43,8 @@ pub enum Row {
     ItemIcons,
     /// `Settings::center_cursor`
     CenterCursor,
-    /// `Theme` 的某個欄位（名字照欄位名），`h` / `l` 在 Catppuccin 色票裡換色
-    Color(&'static str),
+    /// `Theme` 的一個顏色欄位，`h` / `l` 在 Catppuccin 色票裡換色
+    Color(ColorField),
 }
 
 /// 設定頁的列，照顯示順序：開關在上面，顏色在下面
@@ -52,19 +52,19 @@ pub const ROWS: [Row; 16] = [
     Row::GridLines,
     Row::ItemIcons,
     Row::CenterCursor,
-    Row::Color("item"),
-    Row::Color("item_done"),
-    Row::Color("item_more"),
-    Row::Color("grid"),
-    Row::Color("cell_selected"),
-    Row::Color("day"),
-    Row::Color("other_month"),
-    Row::Color("today"),
-    Row::Color("title"),
-    Row::Color("month_marker"),
-    Row::Color("weekday_header"),
-    Row::Color("saturday"),
-    Row::Color("sunday"),
+    Row::Color(ColorField::Item),
+    Row::Color(ColorField::ItemDone),
+    Row::Color(ColorField::ItemMore),
+    Row::Color(ColorField::Grid),
+    Row::Color(ColorField::CellSelected),
+    Row::Color(ColorField::Day),
+    Row::Color(ColorField::OtherMonth),
+    Row::Color(ColorField::Today),
+    Row::Color(ColorField::Title),
+    Row::Color(ColorField::MonthMarker),
+    Row::Color(ColorField::WeekdayHeader),
+    Row::Color(ColorField::Saturday),
+    Row::Color(ColorField::Sunday),
 ];
 
 impl Row {
@@ -74,7 +74,7 @@ impl Row {
             Self::GridLines => "grid lines",
             Self::ItemIcons => "item icons",
             Self::CenterCursor => "center cursor",
-            Self::Color(name) => name,
+            Self::Color(field) => field.name(),
         }
     }
 
@@ -84,8 +84,8 @@ impl Row {
             Self::GridLines => (on_off(settings.grid_lines).to_string(), None),
             Self::ItemIcons => (on_off(settings.item_icons).to_string(), None),
             Self::CenterCursor => (on_off(settings.center_cursor).to_string(), None),
-            Self::Color(name) => {
-                let current = current_color(name, theme);
+            Self::Color(field) => {
+                let current = field.color(theme);
                 let label = PALETTE
                     .iter()
                     .find(|&&(_, color)| Some(color) == current)
@@ -101,19 +101,13 @@ impl Row {
             Self::GridLines => settings.grid_lines = !settings.grid_lines,
             Self::ItemIcons => settings.item_icons = !settings.item_icons,
             Self::CenterCursor => settings.center_cursor = !settings.center_cursor,
-            Self::Color(name) => {
-                let current = current_color(name, theme);
+            Self::Color(field) => {
+                let current = field.color(theme);
                 let index = PALETTE
                     .iter()
                     .position(|&(_, color)| Some(color) == current)
                     .unwrap_or(0);
-                let color = PALETTE[wrap(index, step, PALETTE.len())].1;
-                let style = theme.field_mut(name);
-                *style = if uses_bg(name) {
-                    style.bg(color)
-                } else {
-                    style.fg(color)
-                };
+                field.set_color(theme, PALETTE[wrap(index, step, PALETTE.len())].1);
             }
         }
     }
@@ -121,27 +115,13 @@ impl Row {
     /// 把這一列還原成預設值（`Settings::default()` / `Theme::default()` 裡的那個）
     pub fn reset(self, settings: &mut Settings, theme: &mut Theme) {
         let defaults = Settings::default();
-        let mut default_theme = Theme::default();
         match self {
             Self::GridLines => settings.grid_lines = defaults.grid_lines,
             Self::ItemIcons => settings.item_icons = defaults.item_icons,
             Self::CenterCursor => settings.center_cursor = defaults.center_cursor,
-            Self::Color(name) => *theme.field_mut(name) = *default_theme.field_mut(name),
+            Self::Color(field) => field.reset(theme),
         }
     }
-}
-
-/// 這個欄位調的是底色（整格塗色的那種）還是文字色
-fn uses_bg(name: &str) -> bool {
-    name == "cell_selected"
-}
-
-/// 欄位現在的顏色（底色或文字色，看 `uses_bg`）
-fn current_color(name: &str, theme: &Theme) -> Option<Color> {
-    // `field_mut` 要 `&mut`；Theme 是 Copy，複製一份來讀就好
-    let mut theme = *theme;
-    let style = theme.field_mut(name);
-    if uses_bg(name) { style.bg } else { style.fg }
 }
 
 /// `true` → `on`、`false` → `off`
@@ -194,7 +174,7 @@ mod tests {
     fn color_row_cycles_through_the_palette_and_writes_the_theme() {
         let mut settings = Settings::default();
         let mut theme = Theme::default();
-        let row = Row::Color("item");
+        let row = Row::Color(ColorField::Item);
         assert_eq!(row.value(&settings, &theme).0, "subtext1");
         row.adjust(1, &mut settings, &mut theme);
         assert_eq!(row.value(&settings, &theme).0, "subtext0");
@@ -203,10 +183,36 @@ mod tests {
         row.adjust(-2, &mut settings, &mut theme);
         assert_eq!(row.value(&settings, &theme).0, "text");
         // 底色欄位改的是 bg，不是 fg：surface1（第 21 個）往後一格是 surface0
-        let cell = Row::Color("cell_selected");
+        let cell = Row::Color(ColorField::CellSelected);
         cell.adjust(1, &mut settings, &mut theme);
         assert_eq!(theme.cell_selected.bg, Some(PALETTE[22].1));
         assert_eq!(theme.cell_selected.fg, None);
+    }
+
+    #[test]
+    fn each_color_field_changes_the_theme_field_with_its_name() {
+        // 一個特別的顏色，預設 theme 裡沒有
+        let marker = Color::Rgb(1, 2, 3);
+        let before = format!("{:#?}", Theme::default());
+        for row in ROWS {
+            let Row::Color(field) = row else { continue };
+            let mut theme = Theme::default();
+            field.set_color(&mut theme, marker);
+            // `{:#?}` 一個欄位印一行（例：`saturday: Style::new().fg(...),`）；
+            // 跟預設比，只有名字 = `field.name()` 的那一行會變
+            let after = format!("{theme:#?}");
+            let changed: Vec<&str> = after
+                .lines()
+                .zip(before.lines())
+                .filter(|(after, before)| after != before)
+                .map(|(after, _)| after.trim())
+                .collect();
+            assert_eq!(changed.len(), 1, "{field:?}: {changed:?}");
+            assert!(
+                changed[0].starts_with(&format!("{}: ", field.name())),
+                "{field:?}: {changed:?}"
+            );
+        }
     }
 
     #[test]
@@ -214,10 +220,10 @@ mod tests {
         let mut settings = Settings::default();
         let mut theme = Theme::default();
         Row::GridLines.adjust(1, &mut settings, &mut theme);
-        Row::Color("item").adjust(1, &mut settings, &mut theme);
-        Row::Color("item_done").adjust(1, &mut settings, &mut theme);
+        Row::Color(ColorField::Item).adjust(1, &mut settings, &mut theme);
+        Row::Color(ColorField::ItemDone).adjust(1, &mut settings, &mut theme);
         // 只還原 item：item_done 和 grid lines 保持改過的值
-        Row::Color("item").reset(&mut settings, &mut theme);
+        Row::Color(ColorField::Item).reset(&mut settings, &mut theme);
         assert_eq!(theme.item, Theme::default().item);
         assert_ne!(theme.item_done, Theme::default().item_done);
         assert!(!settings.grid_lines);
