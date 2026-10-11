@@ -4,7 +4,7 @@
 //! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
 
 use super::{Item, checkbox, indent_width, parse};
-use jiff::civil::Date;
+use jiff::civil::{Date, Time};
 
 /// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
 #[derive(Debug, PartialEq, Eq)]
@@ -74,6 +74,32 @@ pub fn add(
     Ok((result, at + 1))
 }
 
+/// 編輯項目：那一行重寫成標準的樣子 `- [ ] 標題 @日期 時間`，回傳整個檔案
+///
+/// 縮排和打勾狀態（`[ ]` / `[x]` / `[X]` / 沒寫 checkbox）照原本那一行，日期放最後面，`time` 是 `None` 就不寫時間。
+/// 標題、日期、時間都跟原本一樣就一個字都不動。例：`- [ ] 會議 @2026-10-12 跟客戶` 改成 10/13 →
+/// `- [ ] 會議 跟客戶 @2026-10-13`
+///
+/// `title` 裡不能有 `@日期`：parser 只認第一個 `@日期`，日期放最後面的話會被標題裡的搶走，呼叫的人要先擋掉
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "test 已經在用；畫面要等之後的編輯表單才會用到")
+)]
+pub fn update(
+    text: &str,
+    item: &Item,
+    title: &str,
+    date: Date,
+    time: Option<Time>,
+) -> Result<String, Changed> {
+    let title = title.trim();
+    // 什麼都沒改：那一行照原樣（還是要確認那一行沒被別人改過）
+    if title == item.title && Some(date) == item.date && time == item.time {
+        return replace_line(text, item, &item.line_text);
+    }
+    replace_line(text, item, &rewritten(&item.line_text, title, date, time))
+}
+
 /// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
 fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     let index = item.line.checked_sub(1).ok_or(Changed)?;
@@ -122,6 +148,30 @@ fn toggled(line: &str) -> String {
     }
 }
 
+/// 一行重寫成 `- [ ] 標題 @日期 時間`，縮排和 checkbox 照原本那一行（`line` 是 parser 認過的項目那一行）
+///
+/// 例：`  - [x] 準備 slides @2026-10-12` → `  - [x] 準備投影片 @2026-10-12 09:00`
+fn rewritten(line: &str, title: &str, date: Date, time: Option<Time>) -> String {
+    let trimmed = line.trim_start();
+    let indent = &line[..line.len() - trimmed.len()];
+    let rest = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+    // checkbox 照原本的寫法（`[ ]`、`[x]`、`[X]` 都是 3 個 byte）；沒寫 checkbox 就不補
+    let mark = match checkbox(rest) {
+        Some(_) => format!("{} ", &rest[..3]),
+        None => String::new(),
+    };
+    // 標題是空的：日期緊接在 checkbox 後面，不多留空白
+    let title = if title.is_empty() {
+        String::new()
+    } else {
+        format!("{title} ")
+    };
+    let time = time
+        .map(|time| format!(" {}", time.strftime("%H:%M")))
+        .unwrap_or_default();
+    format!("{indent}- {mark}{title}@{date}{time}")
+}
+
 /// 把 `item` 那一行換成 `new`；那一行現在跟 `item.line_text` 不一樣（或已經沒有那一行）就回傳 `Changed`
 fn replace_line(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
     let mut result = String::with_capacity(text.len() + new.len());
@@ -146,6 +196,7 @@ fn replace_line(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
 mod tests {
     use super::*;
     use crate::tasks::parse;
+    use jiff::civil::{date, time};
 
     /// 第 `line` 行的項目打勾 / 取消，回傳新的檔案內容（test 用）
     fn toggle_line(text: &str, line: usize) -> Result<String, Changed> {
@@ -400,6 +451,158 @@ mod tests {
                 ("新的", Some(jiff::civil::date(2026, 10, 12)))
             );
             assert_eq!(added.depth, 0, "line {}", item.line);
+        }
+    }
+
+    /// 編輯第 `line` 行的項目（test 用）
+    fn update_line(
+        text: &str,
+        line: usize,
+        title: &str,
+        day: Date,
+        at: Option<Time>,
+    ) -> Result<String, Changed> {
+        let items = parse(text).items;
+        let item = items.iter().find(|item| item.line == line).expect("item");
+        update(text, item, title, day, at)
+    }
+
+    #[test]
+    fn update_rewrites_the_line_in_the_standard_form() {
+        let cases = [
+            // 日期移到最後面
+            (
+                "- [ ] 會議 @2026-10-12 跟客戶",
+                "會議 跟客戶",
+                date(2026, 10, 13),
+                None,
+                "- [ ] 會議 跟客戶 @2026-10-13",
+            ),
+            // 縮排、[x] 照舊；改標題
+            (
+                "  - [x] 準備 slides @2026-10-12 09:00",
+                "準備投影片",
+                date(2026, 10, 12),
+                Some(time(9, 0, 0, 0)),
+                "  - [x] 準備投影片 @2026-10-12 09:00",
+            ),
+            // [X] 照舊；加時間
+            (
+                "- [X] 週報 @2026-10-16",
+                "週報",
+                date(2026, 10, 16),
+                Some(time(17, 30, 0, 0)),
+                "- [X] 週報 @2026-10-16 17:30",
+            ),
+            // 沒寫 checkbox 就不補；拿掉時間
+            (
+                "- 看牙醫 @2026-10-14 10:30",
+                "看牙醫",
+                date(2026, 10, 14),
+                None,
+                "- 看牙醫 @2026-10-14",
+            ),
+            // tab 縮排照留；多的空白收成一個，@人名、網址照留；標題前後的空白去掉
+            (
+                "\t- [ ]  跟 @Kevin 對   https://x.io @2026-10-12",
+                "  跟 @Kevin 對 https://x.io ",
+                date(2026, 10, 12),
+                Some(time(14, 0, 0, 0)),
+                "\t- [ ] 跟 @Kevin 對 https://x.io @2026-10-12 14:00",
+            ),
+        ];
+        for (line, title, day, at, expected) in cases {
+            assert_eq!(
+                update_line(line, 1, title, day, at),
+                Ok(expected.to_string()),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn update_without_changes_leaves_the_line_alone() {
+        // 標題（前後多的空白不算）、日期、時間都沒改：多的空白、日期的位置都照原樣
+        let text = "- [ ]  會議   @2026-10-12 14:00 跟客戶\n";
+        assert_eq!(
+            update_line(
+                text,
+                1,
+                " 會議 跟客戶 ",
+                date(2026, 10, 12),
+                Some(time(14, 0, 0, 0))
+            ),
+            Ok(text.to_string())
+        );
+    }
+
+    #[test]
+    fn update_changes_only_that_line() {
+        // 標題、說明、子任務、\r\n、最後一行沒換行，都原封不動
+        let text = "# 例行\r\n說明文字\r\n- [ ] 週會 @2026-10-12\r\n  - [ ] 準備投影片\r\n- 交週報 @2026-10-16";
+        assert_eq!(
+            update_line(text, 3, "週會（改）", date(2026, 10, 19), None),
+            Ok(
+                "# 例行\r\n說明文字\r\n- [ ] 週會（改） @2026-10-19\r\n  - [ ] 準備投影片\r\n- 交週報 @2026-10-16"
+                    .to_string()
+            )
+        );
+        assert_eq!(
+            update_line(text, 5, "交週報", date(2026, 10, 16), Some(time(17, 0, 0, 0))),
+            Ok(
+                "# 例行\r\n說明文字\r\n- [ ] 週會 @2026-10-12\r\n  - [ ] 準備投影片\r\n- 交週報 @2026-10-16 17:00"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn update_refuses_when_the_line_changed() {
+        let item = parse("- [ ] 週會 @2026-10-12\n").items[0].clone();
+        // 那一行被改過：有改東西、沒改東西都不寫
+        for title in ["週會（改）", "週會"] {
+            assert_eq!(
+                update(
+                    "- [ ] 週會 @2026-10-13\n",
+                    &item,
+                    title,
+                    date(2026, 10, 12),
+                    None
+                ),
+                Err(Changed),
+                "{title}"
+            );
+        }
+        // 檔案變短，沒有那一行了
+        assert_eq!(
+            update("", &item, "週會", date(2026, 10, 12), None),
+            Err(Changed)
+        );
+    }
+
+    #[test]
+    fn update_every_item_of_the_sample_file() {
+        let text = include_str!("../../testdata/tasks.md");
+        let items = parse(text).items;
+        let (new_date, new_time) = (date(2026, 11, 3), Some(time(8, 15, 0, 0)));
+        for (index, item) in items.iter().enumerate() {
+            let new_text =
+                update(text, item, "改過的標題", new_date, new_time).expect("file not changed");
+            let new_items = parse(&new_text).items;
+            // 只有這個項目的標題 / 日期 / 時間變了；完成狀態、分組、層級、父項目和其他項目都一樣
+            let mut expected = items.clone();
+            expected[index].title = "改過的標題".to_string();
+            expected[index].date = Some(new_date);
+            expected[index].time = new_time;
+            expected[index].line_text = new_items[index].line_text.clone();
+            assert_eq!(new_items, expected, "line {}", item.line);
+            // 整個檔案只差這一行
+            let changed = text
+                .lines()
+                .zip(new_text.lines())
+                .filter(|(old, new)| old != new);
+            assert_eq!(changed.count(), 1, "line {}", item.line);
+            assert_eq!(new_text.lines().count(), text.lines().count());
         }
     }
 }
