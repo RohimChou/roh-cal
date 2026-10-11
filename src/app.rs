@@ -207,14 +207,10 @@ impl App {
         self.scroll_to_selected();
     }
 
-    /// 跳回今天：今天還在畫面上就只移動選取（畫面不動），不在畫面上就回到剛打開 app 的畫面
+    /// 跳回今天，畫面也回到剛打開 app 的位置（本月的前一週在最上面），小 / 大月曆都一樣
     fn jump_to_today(&mut self) {
         self.selected = self.today;
-        let week = monday_of(self.today);
-        let last_week = self.top.saturating_add((self.view.weeks() - 1).weeks());
-        if week < self.top || week > last_week {
-            self.top = month_top(self.today);
-        }
+        self.top = month_top(self.today);
         // 今天在畫面最上 / 最下那行時，照 SCROLLOFF 再捲一行
         self.scroll_to_selected();
     }
@@ -302,24 +298,20 @@ mod tests {
     }
 
     #[test]
-    fn jump_to_today_keeps_screen_when_today_is_visible() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.move_selected(7);
-        let top = app.top;
-        app.jump_to_today();
-        assert_eq!(app.selected, date(2026, 10, 10));
-        assert_eq!(app.top, top);
-    }
-
-    #[test]
-    fn jump_to_today_resets_screen_when_far_away() {
-        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        for _ in 0..52 {
-            app.move_selected(7);
+    fn jump_to_today_restores_the_opening_screen_in_both_views() {
+        for view in [View::Compact, View::Month] {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.view = view;
+            // 捲了幾週（今天還在畫面上）和捲到一年後，按 t 都回到剛打開的畫面
+            for weeks in [3, 52] {
+                for _ in 0..weeks {
+                    app.move_selected(7);
+                }
+                app.jump_to_today();
+                assert_eq!(app.selected, date(2026, 10, 10), "{view:?} {weeks}");
+                assert_eq!(app.top, date(2026, 9, 21), "{view:?} {weeks}");
+            }
         }
-        app.jump_to_today();
-        assert_eq!(app.selected, date(2026, 10, 10));
-        assert_eq!(app.top, month_top(date(2026, 10, 10)));
     }
 
     #[test]
