@@ -160,6 +160,10 @@ impl App {
                 KeyCode::Char('l') | KeyCode::Right | KeyCode::Char(' ') | KeyCode::Enter => {
                     panel.row().adjust(1, &mut self.settings, &mut self.theme);
                 }
+                // r：這一列還原成預設
+                KeyCode::Char('r') => {
+                    panel.row().reset(&mut self.settings, &mut self.theme);
+                }
                 _ => {}
             }
             return;
@@ -400,6 +404,16 @@ mod tests {
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
         assert_eq!(app.selected, date(2026, 10, 10));
+        // r：只有選到的那列回到預設（item 回 subtext1，上面改過的 grid lines 不受影響）
+        app.handle_key(key(KeyCode::Char('k')));
+        app.handle_key(key(KeyCode::Char('k')));
+        app.handle_key(key(KeyCode::Char('l')));
+        assert!(!app.settings.grid_lines);
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('r')));
+        assert_eq!(app.theme.item, Theme::default().item);
+        assert!(!app.settings.grid_lines);
         // q + ALT 也能關；關了之後 q 才是離開
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
         assert_eq!(app.panel, None);

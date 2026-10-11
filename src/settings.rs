@@ -1,7 +1,7 @@
 //! 執行時可以改的設定（開關、顏色）和設定頁（Option+q）的狀態
 //!
 //! 設定頁是一張清單：`j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
-//! 畫面馬上跟著變。之後要存設定檔，存的就是 `Settings`（顏色在 `Theme`）
+//! 畫面馬上跟著變；`r` 把那一列還原成預設。之後要存設定檔，存的就是 `Settings`（顏色在 `Theme`）
 
 use crate::theme::{PALETTE, Theme};
 use ratatui::style::Color;
@@ -100,6 +100,17 @@ impl Row {
             }
         }
     }
+
+    /// 把這一列還原成預設值（`Settings::default()` / `Theme::default()` 裡的那個）
+    pub fn reset(self, settings: &mut Settings, theme: &mut Theme) {
+        let defaults = Settings::default();
+        let mut default_theme = Theme::default();
+        match self {
+            Self::GridLines => settings.grid_lines = defaults.grid_lines,
+            Self::ItemIcons => settings.item_icons = defaults.item_icons,
+            Self::Color(name) => *theme.field_mut(name) = *default_theme.field_mut(name),
+        }
+    }
 }
 
 /// 這個欄位調的是底色（整格塗色的那種）還是文字色
@@ -178,6 +189,22 @@ mod tests {
         cell.adjust(1, &mut settings, &mut theme);
         assert_eq!(theme.cell_selected.bg, Some(PALETTE[1].1));
         assert_eq!(theme.cell_selected.fg, None);
+    }
+
+    #[test]
+    fn reset_restores_only_that_row() {
+        let mut settings = Settings::default();
+        let mut theme = Theme::default();
+        Row::GridLines.adjust(1, &mut settings, &mut theme);
+        Row::Color("item").adjust(1, &mut settings, &mut theme);
+        Row::Color("item_done").adjust(1, &mut settings, &mut theme);
+        // 只還原 item：item_done 和 grid lines 保持改過的值
+        Row::Color("item").reset(&mut settings, &mut theme);
+        assert_eq!(theme.item, Theme::default().item);
+        assert_ne!(theme.item_done, Theme::default().item_done);
+        assert!(!settings.grid_lines);
+        Row::GridLines.reset(&mut settings, &mut theme);
+        assert!(settings.grid_lines);
     }
 
     #[test]

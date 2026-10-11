@@ -54,7 +54,10 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
             line
         })
         .collect();
-    lines.push(Line::styled(" j/k select · h/l change", theme.hint));
+    lines.push(Line::styled(
+        " j/k select · h/l change · r reset",
+        theme.hint,
+    ));
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -100,7 +103,7 @@ mod tests {
         assert!(text.contains("grid lines        on"));
         assert!(text.contains("item              ██ subtext1"));
         assert!(text.contains("weekday_header    ██ subtext0"));
-        assert!(text.contains("j/k select · h/l change"));
+        assert!(text.contains("j/k select · h/l change · r reset"));
     }
 
     #[test]
