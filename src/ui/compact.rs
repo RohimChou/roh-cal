@@ -3,7 +3,7 @@
 use crate::app::{App, View};
 use crate::calendar::{monday_of, week_of_year};
 use crate::i18n::Texts;
-use crate::tasks::{Item, Kind};
+use crate::tasks::Item;
 use crate::theme::Theme;
 use crate::ui::{WEEKDAYS, weekend_style};
 use jiff::{ToSpan, civil::Date};
@@ -145,7 +145,7 @@ fn calendar_lines(
             // 點點才會跟著數字變暗 / 變綠 / 在選取的藥丸裡變深色
             let mut number_style = theme.day.patch(weekend_style(date.weekday(), theme));
             let day = days.get(&date).copied().unwrap_or_default();
-            // 還有沒完成的任務 → 醒目的點；只有事件或都完成了 → 安靜的點
+            // 還有沒完成的 → 醒目的點；都完成了 → 安靜的點
             let mut dots_style = if day.has_open_task {
                 theme.dots_open
             } else {
@@ -185,7 +185,7 @@ fn calendar_lines(
 /// 某一天的項目摘要，決定點點畫幾個、用什麼顏色
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct DaySummary {
-    /// 任務 + 事件一共幾個
+    /// 那天一共幾個項目
     count: usize,
     /// 有沒有還沒完成的任務
     has_open_task: bool,
@@ -201,7 +201,7 @@ fn summarize_days(items: &[Item]) -> HashMap<Date, DaySummary> {
         };
         let day = days.entry(date).or_default();
         day.count += 1;
-        if item.kind == (Kind::Task { done: false }) {
+        if !item.done {
             day.has_open_task = true;
         }
     }
@@ -251,14 +251,14 @@ mod tests {
 
     #[test]
     fn summarize_days_counts_items_and_open_tasks() {
-        let text = "- [ ] a @2026-10-12\n- 週會 @2026-10-12\n- 國慶日 @2026-10-10\n\
+        let text = "- [ ] a @2026-10-12\n- 週會 @2026-10-12\n- [x] 國慶日 @2026-10-10\n\
                     - [x] 完成了 @2026-10-05\n- [ ] 沒日期";
         let days = summarize_days(&crate::tasks::parse(text).items);
         let summary = |count, has_open_task| DaySummary {
             count,
             has_open_task,
         };
-        // 有沒完成的任務 → 醒目；只有事件、只有完成的任務 → 安靜；沒日期的不算
+        // 有沒完成的 → 醒目（沒 checkbox 的也算未完成）；都完成了 → 安靜；沒日期的不算
         assert_eq!(days[&date(2026, 10, 12)], summary(2, true));
         assert_eq!(days[&date(2026, 10, 10)], summary(1, false));
         assert_eq!(days[&date(2026, 10, 5)], summary(1, false));

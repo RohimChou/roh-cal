@@ -33,7 +33,7 @@ pub struct Theme {
     pub cursor_line: Style,
     /// 數字旁邊的點點（1～4 個）：那天還有沒完成的任務
     pub dots_open: Style,
-    /// 數字旁邊的點點：那天只有事件、或任務都完成了（比較安靜）
+    /// 數字旁邊的點點：那天的項目都完成了（比較安靜）
     pub dots_quiet: Style,
     /// 右邊的月份標記（每個月 15 號那行的「11 月」）
     pub month_marker: Style,

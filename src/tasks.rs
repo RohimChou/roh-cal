@@ -16,8 +16,8 @@ pub struct Parsed {
 /// 任務檔裡的一個項目（`- ` 開頭的那一行）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
-    /// 任務或事件
-    pub kind: Kind,
+    /// 完成了沒：`[x]` / `[X]` 是完成；`[ ]` 或沒寫 checkbox 都是未完成（每一行都可以打勾）
+    pub done: bool,
     /// 去掉 `- [ ] ` 和日期之後的文字，例：`實作退款 API`
     pub title: String,
     /// 出現在月曆的哪一天；沒寫就是還沒排日期
@@ -32,15 +32,6 @@ pub struct Item {
     pub parent: Option<usize>,
     /// 在檔案的第幾行（從 1 開始，跟編輯器顯示的一樣）
     pub line: usize,
-}
-
-/// 項目的種類
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    /// `- [ ]` / `- [x]`：要勾的任務
-    Task { done: bool },
-    /// `- `（沒有 checkbox）：某天發生的事，不用勾
-    Event,
 }
 
 /// 分組標題，例：`# 付款 API 改版`
@@ -100,7 +91,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         }
 
-        let Some((kind, rest)) = parse_item_start(trimmed) else {
+        let Some((done, rest)) = parse_item_start(trimmed) else {
             continue;
         };
 
@@ -115,7 +106,7 @@ pub fn parse(text: &str) -> Parsed {
         let (title, date, time) = parse_title(rest, line, &mut parsed.warnings);
         ancestors.push((indent, parsed.items.len()));
         parsed.items.push(Item {
-            kind,
+            done,
             title,
             date,
             time,
@@ -142,10 +133,10 @@ fn parse_heading(line: &str) -> Option<Heading> {
     })
 }
 
-/// 看這行是不是項目：回傳種類和剩下的文字；不是 `- ` 開頭就回傳 `None`
+/// 看這行是不是項目：回傳（完成了沒, 剩下的文字）；不是 `- ` 開頭就回傳 `None`
 ///
-/// 例：`- [ ] 打包` → (未完成的任務, `打包`)；`- 搬家` → (事件, `搬家`)
-fn parse_item_start(trimmed: &str) -> Option<(Kind, &str)> {
+/// 例：`- [x] 打包` → (true, `打包`)；`- [ ] 打包` 和 `- 搬家` → (false, ...)
+fn parse_item_start(trimmed: &str) -> Option<(bool, &str)> {
     // 要「- 」加空白；`-這樣` 不算
     let rest = trimmed.strip_prefix("- ")?;
     // checkbox：`[ ]`、`[x]`、`[X]`，後面接空白或直接結束
@@ -154,10 +145,11 @@ fn parse_item_start(trimmed: &str) -> Option<(Kind, &str)> {
         if let Some(after) = rest.strip_prefix(mark)
             && (after.is_empty() || after.starts_with(' '))
         {
-            return Some((Kind::Task { done }, after.trim_start()));
+            return Some((done, after.trim_start()));
         }
     }
-    Some((Kind::Event, rest))
+    // 沒有 checkbox：也是未完成的項目
+    Some((false, rest))
 }
 
 /// 縮排寬度：空白算 1、tab 算 4（混用時才比得出誰比較深）
@@ -251,20 +243,22 @@ mod tests {
 
     #[test]
     fn rule1_tasks_open_and_done() {
-        assert_eq!(one("- [ ] 打包").kind, Kind::Task { done: false });
-        assert_eq!(one("- [x] 打包").kind, Kind::Task { done: true });
-        assert_eq!(one("- [X] 打包").kind, Kind::Task { done: true });
+        assert!(!one("- [ ] 打包").done);
+        assert!(one("- [x] 打包").done);
+        assert!(one("- [X] 打包").done);
         // checkbox 後面沒有內容也算（空的任務）
         assert_eq!(one("- [ ]").title, "");
     }
 
     #[test]
-    fn rule2_item_without_checkbox_is_event() {
+    fn rule2_item_without_checkbox_is_an_open_item() {
         let item = one("- 看牙醫 @2026-10-14");
-        assert_eq!(item.kind, Kind::Event);
+        assert!(!item.done);
         assert_eq!(item.title, "看牙醫");
-        // `[ ]` 後面沒有空白就不是 checkbox
-        assert_eq!(one("- [ ]打包").kind, Kind::Event);
+        // `[ ]` 後面沒有空白就不是 checkbox：整段當文字，一樣是未完成
+        let item = one("- [ ]打包");
+        assert!(!item.done);
+        assert_eq!(item.title, "[ ]打包");
     }
 
     #[test]
@@ -401,9 +395,9 @@ mod tests {
         let parsed = parse(include_str!("../testdata/tasks.md"));
         let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
         assert_eq!(parsed.items.len(), 56);
-        assert_eq!(count(|item| item.kind == Kind::Task { done: true }), 7);
-        assert_eq!(count(|item| item.kind == Kind::Task { done: false }), 31);
-        assert_eq!(count(|item| item.kind == Kind::Event), 18);
+        // 7 個 `[x]`；31 個 `[ ]` + 18 個沒 checkbox 的 = 49 個未完成
+        assert_eq!(count(|item| item.done), 7);
+        assert_eq!(count(|item| !item.done), 49);
         assert_eq!(count(|item| item.date.is_none()), 12);
         // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
         // 唯一一個寫錯的日期

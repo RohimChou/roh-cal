@@ -62,7 +62,7 @@ pub struct App {
     pub theme: Theme,
     /// 畫面上的字（語言）
     pub texts: Texts,
-    /// 任務檔裡的項目（任務、事件）
+    /// 任務檔裡的項目
     pub items: Vec<Item>,
     /// 現在顯示哪一種畫面
     pub view: View,
