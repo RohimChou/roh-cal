@@ -22,6 +22,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `t` | Jump to today |
 | `Enter` / `o` | Open the selected day's list |
+| `u` | Undo roh-cal's last change to the task file (up to 50 steps) |
 | `v` | Switch between the compact view and the month view |
 | `Option+q` | Open / close the settings panel |
 | `q` / `Esc` | Quit |
@@ -33,6 +34,7 @@ In the day list:
 | :- | :- |
 | `j` / `k` | Pick an item |
 | `Space` / `x` | Check off / uncheck, saved to the task file right away |
+| `u` | Undo |
 | `q` / `Esc` | Close |
 
 In the settings panel:
@@ -82,4 +84,4 @@ A Markdown file, one item per line. It reads well in any editor, Obsidian or Git
 - `# Heading` starts a group; deeper indentation = a subtask
 - Everything else is left alone
 
-Checking an item off rewrites only that line. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. Adding and editing are next.
+Checking an item off rewrites only that line. If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Adding and editing are next.

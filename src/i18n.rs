@@ -88,6 +88,10 @@ pub struct Texts {
     pub file_reloaded: &'static str,
     /// 提示：讀 / 寫任務檔失敗，例：`can't save the task file: permission denied`
     pub file_failed: fn(kind: ErrorKind) -> String,
+    /// 提示：undo 成功，例：`undone: 週會`
+    pub undone: fn(title: &str) -> String,
+    /// 提示：沒有可以 undo 的
+    pub nothing_to_undo: &'static str,
 }
 
 impl Texts {
@@ -101,9 +105,11 @@ impl Texts {
             hint: "hjkl move · o open · t today · v view · q quit",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
-            day_hint: "j/k select · Space/x check · q/Esc close",
+            day_hint: "j/k select · Space check · u undo · q close",
             file_reloaded: "file changed elsewhere, reloaded",
             file_failed: |kind| format!("can't save the task file: {kind}"),
+            undone: |title| format!("undone: {title}"),
+            nothing_to_undo: "nothing to undo",
         }
     }
 
@@ -115,9 +121,11 @@ impl Texts {
             hint: "hjkl 移動 · o 開啟 · t 今天 · v 切換 · q 離開",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
-            day_hint: "j/k 選擇 · Space/x 打勾 · q/Esc 關閉",
+            day_hint: "j/k 選擇 · Space 打勾 · u 復原 · q 關閉",
             file_reloaded: "檔案在別處改過，已重新載入",
             file_failed: |kind| format!("任務檔存不了：{kind}"),
+            undone: |title| format!("已復原：{title}"),
+            nothing_to_undo: "沒有可以復原的",
             ..Self::en()
         }
     }
@@ -184,5 +192,11 @@ mod tests {
             (Texts::zh_tw().file_failed)(denied),
             "任務檔存不了：permission denied"
         );
+    }
+
+    #[test]
+    fn undone_names_the_item() {
+        assert_eq!((Texts::en().undone)("週會"), "undone: 週會");
+        assert_eq!((Texts::zh_tw().undone)("週會"), "已復原：週會");
     }
 }

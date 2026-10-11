@@ -8,7 +8,9 @@ use crate::app::{App, View};
 use crate::calendar::monday_of;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{WEEKDAYS, item_dots, items_by_day, week_number_span, weekend_style};
+use crate::ui::{
+    WEEKDAYS, calendar_bottom, item_dots, items_by_day, week_number_span, weekend_style,
+};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -29,12 +31,11 @@ const SIDEBAR_WIDTH: u16 = 5;
 pub fn render(frame: &mut Frame, app: &App) {
     let month = app.selected.first_of_month();
     let title = format!(" {} ", (app.texts.title)(month.year(), month.month()));
-    let hint = format!(" {} ", app.texts.hint);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(app.theme.border)
         .title_top(Line::styled(title, app.theme.title).centered())
-        .title_bottom(Line::styled(hint, app.theme.hint).centered());
+        .title_bottom(calendar_bottom(app));
 
     // 框佔整個 terminal；`inner` 是框線裡面的區域，格子都切在這裡面
     let area = frame.area();

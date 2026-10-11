@@ -144,7 +144,7 @@ mod tests {
         let rows = rows(&buffer);
         let text = rows.join("\n");
         assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("j/k select · Space/x check · q/Esc close"));
+        assert!(text.contains("j/k select · Space check · u undo · q close"));
         // 有時間的照時間排、沒時間的在後面；沒 checkbox 的也顯示 [ ]；別天的不列
         let early = row_of(&rows, "[x] 09:00 早上的會");
         let late = row_of(&rows, "[ ] 14:00 下午的會");
@@ -180,7 +180,7 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("2026-10-14（三）"));
         assert!(text.contains("這天沒有項目"));
-        assert!(text.contains("j/k 選擇 · Space/x 打勾 · q/Esc 關閉"));
+        assert!(text.contains("j/k 選擇 · Space 打勾 · u 復原 · q 關閉"));
     }
 
     #[test]
@@ -199,9 +199,24 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("file changed elsewhere, reloaded"));
         assert!(!text.contains("j/k select"));
+        // 清單開著時提示只在清單上，月曆的下框線照常是操作說明
+        assert!(text.contains("hjkl move"));
         let denied = Some(Notice::Failed(std::io::ErrorKind::PermissionDenied));
         let (buffer, _) = draw_with_notice(Texts::zh_tw(), 12, 0, denied, 80, 24);
         let text = rows(&buffer).join("\n");
         assert!(text.contains("任務檔存不了：permission denied"));
+    }
+
+    #[test]
+    fn notice_goes_to_the_calendar_when_no_list_is_open() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::zh_tw(), parse(TASKS).items);
+        app.notice = Some(Notice::Undone("早上的會".into()));
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &app))
+            .unwrap();
+        let text = rows(terminal.backend().buffer()).join("\n");
+        assert!(text.contains("已復原：早上的會"));
+        assert!(!text.contains("hjkl 移動"));
     }
 }

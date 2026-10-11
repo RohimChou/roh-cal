@@ -54,6 +54,7 @@ roh-cal writes the file when you check an item off; adding and editing items are
 | Identity | No IDs. roh-cal remembers each item's line number and original text; before writing it re-reads the file, and if that line changed it reloads instead of overwriting |
 | Only that line | Only the changed line is rewritten; every other byte stays the same |
 | Safe write | Write to a temp file in the same folder, then rename, so a crash never leaves a half-written file |
+| Undo | roh-cal keeps the whole file from before each of its writes (the last 50). `u` puts it back only if the file is still exactly what roh-cal wrote; otherwise it reloads and forgets that history |
 
 ## Not in v0
 Recurring items, due vs scheduled dates, priorities, inline `#tags`, time ranges and multi-day events, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.

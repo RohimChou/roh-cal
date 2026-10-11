@@ -55,11 +55,26 @@ fn calendar_area(screen: Rect, app: &App) -> Rect {
 
 /// 下框線暫時換成的提示（醒目的顏色）；沒有提示回傳 `None`，下框線照常顯示操作說明
 fn notice_line(app: &App) -> Option<Line<'static>> {
-    let text = match app.notice? {
+    let text = match app.notice.as_ref()? {
         Notice::Reloaded => app.texts.file_reloaded.to_string(),
-        Notice::Failed(kind) => (app.texts.file_failed)(kind),
+        Notice::Failed(kind) => (app.texts.file_failed)(*kind),
+        Notice::Undone(title) => (app.texts.undone)(title),
+        Notice::NothingToUndo => app.texts.nothing_to_undo.to_string(),
     };
     Some(Line::styled(format!(" {text} "), app.theme.title))
+}
+
+/// 月曆（大小都是）的下框線：平常是操作說明；有提示、而且沒有跳窗蓋在上面時換成提示
+/// （有跳窗時，提示顯示在跳窗的下框線）
+fn calendar_bottom(app: &App) -> Line<'static> {
+    let notice = if app.overlay.is_none() {
+        notice_line(app)
+    } else {
+        None
+    };
+    notice
+        .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.hint), app.theme.hint))
+        .centered()
 }
 
 /// 星期六、星期日的樣式；平日不另外上色（回傳空的 `Style`，疊上去不會改變任何東西）

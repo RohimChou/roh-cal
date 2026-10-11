@@ -5,7 +5,7 @@ use crate::calendar::monday_of;
 use crate::i18n::Texts;
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{WEEKDAYS, item_dots, week_number_span, weekend_style};
+use crate::ui::{WEEKDAYS, calendar_bottom, item_dots, week_number_span, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -42,7 +42,6 @@ const CALENDAR_HEIGHT: u16 = 2 + PADDING.top + PADDING.bottom + 1 + WEEKS as u16
 pub fn render(frame: &mut Frame, app: &App) {
     let month = app.selected.first_of_month();
     let title = format!(" {} ", (app.texts.title)(month.year(), month.month()));
-    let hint = format!(" {} ", app.texts.hint);
     let block = Block::bordered()
         // 圓角框線 ╭─╮
         .border_type(BorderType::Rounded)
@@ -50,8 +49,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         .padding(PADDING)
         // 上邊線中間：選取日期的年月
         .title_top(Line::styled(title, app.theme.title).centered())
-        // 下邊線中間：操作說明
-        .title_bottom(Line::styled(hint, app.theme.hint).centered());
+        // 下邊線中間：操作說明（有提示時換成提示）
+        .title_bottom(calendar_bottom(app));
 
     let area = area(frame.area(), app);
     let days = summarize_days(&app.items);
