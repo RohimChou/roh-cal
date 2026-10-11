@@ -124,6 +124,13 @@ pub fn parse(text: &str) -> Parsed {
     parsed
 }
 
+/// 這段文字裡有沒有 parser 會當成日期的 `@日期`，例：`延到 @2026-10-20` 有；`@Kevin`、不存在的 `@2026-13-01` 沒有
+///
+/// roh-cal 寫進去的標題不能有：parser 只認一行裡第一個 `@日期`，會搶走項目的日期（表單存檔前用這個擋）
+pub fn has_date(text: &str) -> bool {
+    parse_title(text, 0, &mut Vec::new()).1.is_some()
+}
+
 /// `# 名稱` ～ `###### 名稱`（`#` 要在行首、後面要有空白）；不是標題回傳 `None`
 fn parse_heading(line: &str) -> Option<Heading> {
     let level = line.chars().take_while(|&c| c == '#').count();
@@ -424,5 +431,21 @@ mod tests {
             parsed.warnings[0].kind,
             WarningKind::InvalidDate("@2026-13-01".into())
         );
+    }
+
+    #[test]
+    fn has_date_finds_only_real_date_tokens() {
+        assert!(has_date("延到 @2026-10-20"));
+        assert!(has_date("@2026-10-20 開會"));
+        // @人名、沒有 @ 的日期、黏在字後面的、不存在的日期、空的：都不算
+        for text in [
+            "跟 @Kevin 對",
+            "2026-10-20 前交",
+            "a@2026-10-20",
+            "繳房屋稅 @2026-13-01",
+            "",
+        ] {
+            assert!(!has_date(text), "{text}");
+        }
     }
 }

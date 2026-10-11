@@ -36,6 +36,7 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
 
     let bottom = match form.problem {
         Some(FormProblem::EmptyTitle) => Some(app.texts.form_empty_title),
+        Some(FormProblem::DateInTitle) => Some(app.texts.form_date_in_title),
         Some(FormProblem::BadDate) => Some(app.texts.form_bad_date),
         None => None,
     }
@@ -247,6 +248,15 @@ mod tests {
         assert!(text.contains("新增項目"));
         assert!(text.contains("標題   x"));
         assert!(text.contains("日期要像 2026-10-12"));
+        // 標題裡有 @日期：中英文都整句看得到（下框線放得下）
+        for (texts, expected) in [
+            (Texts::en(), "the title can't contain an @date"),
+            (Texts::zh_tw(), "標題不能有 @日期，請用日期欄"),
+        ] {
+            let problem = Some(FormProblem::DateInTitle);
+            let (rows, _) = draw(texts, "x", OCT_12, FormField::Title, problem);
+            assert!(rows.join("\n").contains(expected), "{expected}");
+        }
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! 新增表單（月曆或當天清單按 `a`）：標題、日期兩欄，和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
 
 use super::{App, DayList, Overlay};
+use crate::tasks;
 use crate::ui;
 use jiff::{ToSpan, civil::Date};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -84,6 +85,8 @@ impl FormField {
 pub enum FormProblem {
     /// 標題是空的
     EmptyTitle,
+    /// 標題裡有 `@日期`（例：`延到 @2026-10-20`）：parser 只認第一個 `@日期`，存進去會變成項目的日期
+    DateInTitle,
     /// 日期不是 `2026-10-12` 這種寫法，或不存在（例：`2026-13-01`）
     BadDate,
 }
@@ -157,6 +160,10 @@ impl App {
         let title = form.title.value().trim().to_string();
         if title.is_empty() {
             form.problem = Some(FormProblem::EmptyTitle);
+            return None;
+        }
+        if tasks::has_date(&title) {
+            form.problem = Some(FormProblem::DateInTitle);
             return None;
         }
         let Ok(date) = form.date.value().parse::<Date>() else {
@@ -391,6 +398,25 @@ mod tests {
         assert_eq!(app.overlay, None);
         assert_eq!(read(), before);
         assert_eq!(app.selected, date(2026, 10, 18));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn a_title_with_an_at_date_is_refused() {
+        let (mut app, path) = app_with_task_file("add-at-date", "");
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.handle_key(key(KeyCode::Char('a')));
+        // 標題裡有 @日期：存了會跑到 10/20，所以不存，表單留著、下框線說原因
+        type_text(&mut app, "延到 @2026-10-20");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(form(&app).problem, Some(FormProblem::DateInTitle));
+        assert_eq!(read(), "");
+        // 拿掉「 @2026-10-20」（12 個字）就存得進去，日期是表單上的 10/10
+        for _ in 0..12 {
+            app.handle_key(key(KeyCode::Backspace));
+        }
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(read(), "- [ ] 延到 @2026-10-10\n");
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }
