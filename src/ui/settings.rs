@@ -99,6 +99,7 @@ fn row_lines(panel: Panel, app: &App) -> Vec<(Option<usize>, Line<'static>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::Overlay;
     use crate::i18n::Texts;
     use jiff::civil::date;
     use ratatui::{Terminal, backend::TestBackend};
@@ -106,10 +107,10 @@ mod tests {
     /// 畫出設定頁，回傳每一行的文字（去掉尾端空白）
     fn draw(selected: usize, height: u16) -> Vec<String> {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.panel = Some(Panel {
+        app.overlay = Some(Overlay::Settings(Panel {
             selected,
             ..Panel::default()
-        });
+        }));
         let mut terminal = Terminal::new(TestBackend::new(80, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))
@@ -157,10 +158,10 @@ mod tests {
     #[test]
     fn reset_all_asks_for_confirmation_at_the_bottom() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.panel = Some(Panel {
+        app.overlay = Some(Overlay::Settings(Panel {
             confirm_reset_all: true,
             ..Panel::default()
-        });
+        }));
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))

@@ -4,7 +4,7 @@ pub mod compact;
 pub mod month;
 pub mod settings;
 
-use crate::app::{App, View};
+use crate::app::{App, Overlay, View};
 use crate::calendar::week_of_year;
 use crate::tasks::Item;
 use crate::theme::Theme;
@@ -23,13 +23,13 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面；設定頁開著就疊在右下角
+/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角）
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
         View::Month => month::render(frame, app),
     }
-    if let Some(panel) = app.panel {
+    if let Some(Overlay::Settings(panel)) = app.overlay {
         settings::render(frame, panel, app);
     }
 }

@@ -50,6 +50,13 @@ impl View {
     }
 }
 
+/// 疊在月曆上面的跳窗；一次只會開一個，開著時按鍵都給它
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overlay {
+    /// 設定頁（Option+q）
+    Settings(Panel),
+}
+
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
 #[derive(Debug)]
 pub struct App {
@@ -75,8 +82,8 @@ pub struct App {
     saved_settings: Settings,
     /// 設定檔的位置；`None` = 不存檔（test 用 `on_date` 建的 app 都是 `None`，不會寫到真的設定檔）
     config_path: Option<PathBuf>,
-    /// 設定頁；`Some` 表示打開中（Option+q）
-    pub panel: Option<Panel>,
+    /// 現在開著的跳窗；`None` = 沒有跳窗，按鍵給月曆
+    pub overlay: Option<Overlay>,
     /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
     pub screen: Rect,
 }
@@ -112,7 +119,7 @@ impl App {
             settings: Settings::default(),
             saved_settings: Settings::default(),
             config_path: None,
-            panel: None,
+            overlay: None,
             screen: Rect::default(),
         };
         // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
@@ -135,7 +142,8 @@ impl App {
 
     /// 設定頁關掉之後，開關跟設定檔裡的不一樣就存回去（設定頁開著時先不存，改來改去只寫一次）
     fn save_settings(&mut self) -> Result<()> {
-        if self.panel.is_some() || self.settings == self.saved_settings {
+        let settings_open = matches!(self.overlay, Some(Overlay::Settings(_)));
+        if settings_open || self.settings == self.saved_settings {
             return Ok(());
         }
         if let Some(path) = &self.config_path {
@@ -157,61 +165,63 @@ impl App {
         Ok(())
     }
 
-    /// 處理一個按鍵
+    /// 處理一個按鍵：有跳窗就給跳窗，沒有就給月曆
     fn handle_key(&mut self, key: KeyEvent) {
         // Option+q：設定頁開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
         // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
         let option_q = key.code == KeyCode::Char('œ')
             || (key.code == KeyCode::Char('q') && key.modifiers.contains(KeyModifiers::ALT));
         if option_q {
-            self.panel = match self.panel {
-                Some(_) => None,
-                None => Some(Panel::default()),
+            self.overlay = match self.overlay {
+                Some(Overlay::Settings(_)) => None,
+                None => Some(Overlay::Settings(Panel::default())),
             };
             return;
         }
-        // 設定頁開著：按鍵都給它（j / k 選列、h / l 改值），月曆不動
-        if let Some(mut panel) = self.panel {
-            // 正在問「全部還原嗎？」：只有 y 會還原，其他鍵都只是取消（按錯不會有事）
-            if panel.confirm_reset_all {
-                if key.code == KeyCode::Char('y') {
-                    self.settings = Settings::default();
-                    self.theme = Theme::with_colors(&self.settings.colors);
-                }
-                panel.confirm_reset_all = false;
-                self.panel = Some(panel);
-                return;
+        match self.overlay {
+            Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
+            None => self.handle_calendar_key(key),
+        }
+    }
+
+    /// 設定頁開著時的按鍵（j / k 選列、h / l 改值），月曆不動
+    fn handle_settings_key(&mut self, mut panel: Panel, key: KeyEvent) {
+        // 正在問「全部還原嗎？」：只有 y 會還原，其他鍵都只是取消（按錯不會有事）
+        if panel.confirm_reset_all {
+            if key.code == KeyCode::Char('y') {
+                self.settings = Settings::default();
+                self.theme = Theme::with_colors(&self.settings.colors);
             }
-            match key.code {
-                // q / Esc：關閉設定頁（q 在這裡不是離開 app）
-                KeyCode::Char('q') | KeyCode::Esc => self.panel = None,
-                KeyCode::Char('j') | KeyCode::Down => {
-                    panel.select(1);
-                    self.panel = Some(panel);
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    panel.select(-1);
-                    self.panel = Some(panel);
-                }
-                KeyCode::Char('h') | KeyCode::Left => {
-                    panel.row().adjust(-1, &mut self.settings, &mut self.theme);
-                }
-                KeyCode::Char('l') | KeyCode::Right | KeyCode::Char(' ') | KeyCode::Enter => {
-                    panel.row().adjust(1, &mut self.settings, &mut self.theme);
-                }
-                // r：這一列還原成預設
-                KeyCode::Char('r') => {
-                    panel.row().reset(&mut self.settings, &mut self.theme);
-                }
-                // R（Shift+r）：全部還原成預設，先問一次
-                KeyCode::Char('R') => {
-                    panel.confirm_reset_all = true;
-                    self.panel = Some(panel);
-                }
-                _ => {}
-            }
+            panel.confirm_reset_all = false;
+            self.overlay = Some(Overlay::Settings(panel));
             return;
         }
+        match key.code {
+            // q / Esc：關閉設定頁（q 在這裡不是離開 app）
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.overlay = None;
+                return;
+            }
+            KeyCode::Char('j') | KeyCode::Down => panel.select(1),
+            KeyCode::Char('k') | KeyCode::Up => panel.select(-1),
+            KeyCode::Char('h') | KeyCode::Left => {
+                panel.row().adjust(-1, &mut self.settings, &mut self.theme);
+            }
+            KeyCode::Char('l') | KeyCode::Right | KeyCode::Char(' ') | KeyCode::Enter => {
+                panel.row().adjust(1, &mut self.settings, &mut self.theme);
+            }
+            // r：這一列還原成預設
+            KeyCode::Char('r') => panel.row().reset(&mut self.settings, &mut self.theme),
+            // R（Shift+r）：全部還原成預設，先問一次
+            KeyCode::Char('R') => panel.confirm_reset_all = true,
+            _ => {}
+        }
+        // panel 是複製一份出來改的（`Copy`），改完放回去
+        self.overlay = Some(Overlay::Settings(panel));
+    }
+
+    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、離開
+    fn handle_calendar_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             // h / l（或 ← / →）：前一天 / 後一天
@@ -240,8 +250,8 @@ impl App {
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
             // 左鍵按下：點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
-            // （設定頁開著時不理，免得點到設定頁底下的格子）
-            MouseEventKind::Down(MouseButton::Left) if self.panel.is_none() => {
+            // （跳窗開著時不理，免得點到跳窗底下的格子）
+            MouseEventKind::Down(MouseButton::Left) if self.overlay.is_none() => {
                 let date = match self.view {
                     View::Compact => compact::date_at(self, mouse.column, mouse.row),
                     View::Month => month::date_at(self, mouse.column, mouse.row),
@@ -296,6 +306,11 @@ mod tests {
     use super::*;
     use crate::files;
     use jiff::civil::{Weekday, date};
+
+    /// 設定頁開著就回傳它的狀態，沒開是 `None`（test 用）
+    fn panel(app: &App) -> Option<Panel> {
+        app.overlay.map(|Overlay::Settings(panel)| panel)
+    }
 
     /// 沒有修飾鍵的按鍵事件（test 用）
     fn key(code: KeyCode) -> KeyEvent {
@@ -469,7 +484,7 @@ mod tests {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         // Option+q（送成 œ）打開；第一列是 week_numbers
         app.handle_key(key(KeyCode::Char('œ')));
-        assert_eq!(app.panel, Some(Panel::default()));
+        assert_eq!(panel(&app), Some(Panel::default()));
         // l：切換開關；h：再切回來
         app.handle_key(key(KeyCode::Char('l')));
         assert!(!app.settings.calendar.week_numbers);
@@ -479,7 +494,7 @@ mod tests {
         for _ in 0..4 {
             app.handle_key(key(KeyCode::Char('j')));
         }
-        assert_eq!(app.panel.map(|panel| panel.selected), Some(4));
+        assert_eq!(panel(&app).map(|panel| panel.selected), Some(4));
         app.handle_key(key(KeyCode::Char('l')));
         assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
         // 開著的時候 h / j / k / l 不會動選取的日期
@@ -498,14 +513,14 @@ mod tests {
         assert!(!app.settings.calendar.week_numbers);
         // q / Esc / q + ALT 都能關；關了之後 q 才是離開
         app.handle_key(key(KeyCode::Char('q')));
-        assert_eq!(app.panel, None);
+        assert_eq!(app.overlay, None);
         assert!(!app.should_quit);
         app.handle_key(key(KeyCode::Char('œ')));
         app.handle_key(key(KeyCode::Esc));
-        assert_eq!(app.panel, None);
+        assert_eq!(app.overlay, None);
         app.handle_key(key(KeyCode::Char('œ')));
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
-        assert_eq!(app.panel, None);
+        assert_eq!(app.overlay, None);
         assert!(!app.should_quit);
     }
 
@@ -546,13 +561,13 @@ mod tests {
         app.handle_key(key(KeyCode::Char('œ')));
         // R：先問，還沒還原
         app.handle_key(key(KeyCode::Char('R')));
-        assert!(app.panel.is_some_and(|panel| panel.confirm_reset_all));
+        assert!(panel(&app).is_some_and(|panel| panel.confirm_reset_all));
         assert!(app.settings.month.grid_lines);
         // y：全部回到預設，畫面的顏色也是
         app.handle_key(key(KeyCode::Char('y')));
         assert_eq!(app.settings, Settings::default());
         assert_eq!(app.theme, Theme::default());
-        assert!(app.panel.is_some_and(|panel| !panel.confirm_reset_all));
+        assert!(panel(&app).is_some_and(|panel| !panel.confirm_reset_all));
         // 關掉設定頁 → 存：開關寫回預設值（註解留著），[colors] 整段拿掉
         app.handle_key(key(KeyCode::Char('q')));
         app.save_settings().expect("save");
@@ -578,7 +593,7 @@ mod tests {
             app.handle_key(key(KeyCode::Char('R')));
             // 其他鍵只會取消：不還原、不關設定頁、不移動、不改值
             app.handle_key(key(other));
-            assert_eq!(app.panel, Some(Panel::default()), "{other:?}");
+            assert_eq!(panel(&app), Some(Panel::default()), "{other:?}");
             assert!(!app.settings.calendar.week_numbers, "{other:?}");
         }
     }
@@ -678,7 +693,7 @@ mod tests {
         assert_eq!(selected_row(&app), Some(2));
         assert_eq!(app.top, date(2026, 9, 14));
         // 設定頁開著：點擊不理（點的位置現在是 9/24，選取不會變）
-        app.panel = Some(Panel::default());
+        app.overlay = Some(Overlay::Settings(Panel::default()));
         app.handle_mouse(click(36, 7));
         assert_eq!(app.selected, date(2026, 10, 1));
     }
