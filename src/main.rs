@@ -34,9 +34,10 @@ fn main() -> Result<()> {
     // 語言：--lang 參數 → 系統語言 → 英文
     let lang = args.lang.unwrap_or_else(Lang::from_system);
     // 進 TUI 之前先讀設定檔和任務檔，讀不到才能正常印出錯誤
-    // 設定檔：連 HOME 都沒有（找不到放設定檔的地方）就全部用預設值
-    let settings = match paths::config_file() {
-        Some(path) => config::load(&path)?,
+    // 設定檔：連 HOME 都沒有（找不到放設定檔的地方）就全部用預設值，也不存檔
+    let config_path = paths::config_file();
+    let settings = match &config_path {
+        Some(path) => config::load(path)?,
         None => Settings::default(),
     };
     let items = load_items(args.tasks)?;
@@ -44,7 +45,7 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
-        App::new(lang.texts(), items, settings).run(terminal)
+        App::new(lang.texts(), items, settings, config_path).run(terminal)
     })
 }
 

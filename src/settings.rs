@@ -2,17 +2,17 @@
 //!
 //! 設定頁是一張清單：`j` / `k` 選一列，`h` / `l` 改那列的值（開關 on ↔ off、顏色換色票），
 //! 畫面馬上跟著變；`r` 把那一列還原成預設；`q` / `Esc` 關閉。
-//! 開關一開始的值從設定檔來（`config.rs`）；顏色在 `Theme`，還沒進設定檔
+//! 開關啟動時從設定檔讀、設定頁關掉時存回去（`config.rs`）；顏色在 `Theme`，還沒進設定檔
 
 use crate::theme::{PALETTE, Theme};
 use ratatui::style::Color;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// 執行時可以改的開關；預設值在 `Default`
 ///
 /// 設定檔裡的名字就是欄位名（例：`grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用 `Default` 的值；
-/// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// `deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     /// 大月曆的格子之間畫不畫淡淡的格線（關掉可以多 1 行 1 格放內容）

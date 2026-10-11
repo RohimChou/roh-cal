@@ -1,6 +1,7 @@
 //! App 的狀態、按鍵 / 滑鼠處理、捲動規則（畫面在 `ui`）
 
 use crate::calendar::{Scroll, monday_of, month_top, scrolled_top};
+use crate::config;
 use crate::i18n::Texts;
 use crate::settings::{Panel, Settings};
 use crate::tasks::Item;
@@ -15,6 +16,7 @@ use ratatui::{
     },
     layout::Rect,
 };
+use std::path::PathBuf;
 
 /// 現在顯示哪一種畫面；按 `v` 切換
 ///
@@ -69,6 +71,10 @@ pub struct App {
     pub view: View,
     /// 執行時可以改的設定（格線開關…）
     pub settings: Settings,
+    /// 設定檔裡現在的開關（啟動時讀到的，或上次存的）；跟 `settings` 不一樣 = 有改過還沒存
+    saved_settings: Settings,
+    /// 設定檔的位置；`None` = 不存檔（test 用 `on_date` 建的 app 都是 `None`，不會寫到真的設定檔）
+    config_path: Option<PathBuf>,
     /// 設定頁；`Some` 表示打開中（Option+q）
     pub panel: Option<Panel>,
     /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
@@ -76,11 +82,18 @@ pub struct App {
 }
 
 impl App {
-    /// 建立 app，今天用系統時間（本機時區），開關用設定檔讀到的
-    pub fn new(texts: Texts, items: Vec<Item>, settings: Settings) -> Self {
+    /// 建立 app，今天用系統時間（本機時區），開關用設定檔讀到的；設定頁改過的開關存回 `config_path`
+    pub fn new(
+        texts: Texts,
+        items: Vec<Item>,
+        settings: Settings,
+        config_path: Option<PathBuf>,
+    ) -> Self {
         let mut app = Self::on_date(Zoned::now().date(), texts, items);
         // 一開始是小月曆，捲動規則不看開關，所以換掉開關不用重新捲
         app.settings = settings;
+        app.saved_settings = settings;
+        app.config_path = config_path;
         app
     }
 
@@ -96,6 +109,8 @@ impl App {
             items,
             view: View::Compact,
             settings: Settings::default(),
+            saved_settings: Settings::default(),
+            config_path: None,
             panel: None,
             screen: Rect::default(),
         };
@@ -112,7 +127,20 @@ impl App {
             self.screen = Rect::new(0, 0, size.width, size.height);
             terminal.draw(|frame| ui::render(frame, &self))?;
             self.handle_events()?;
+            self.save_settings()?;
         }
+        Ok(())
+    }
+
+    /// 設定頁關掉之後，開關跟設定檔裡的不一樣就存回去（設定頁開著時先不存，改來改去只寫一次）
+    fn save_settings(&mut self) -> Result<()> {
+        if self.panel.is_some() || self.settings == self.saved_settings {
+            return Ok(());
+        }
+        if let Some(path) = &self.config_path {
+            config::save(path, self.settings)?;
+        }
+        self.saved_settings = self.settings;
         Ok(())
     }
 
@@ -462,6 +490,31 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
         assert_eq!(app.panel, None);
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn closing_the_settings_panel_saves_changed_toggles() {
+        let dir = config::test_dir("app-save");
+        let path = dir.join("config.toml");
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.config_path = Some(path.clone());
+        // 打開設定頁、關掉格線：設定頁還開著 → 還不存
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char('l')));
+        app.save_settings().expect("save");
+        assert!(!path.exists());
+        // 關掉設定頁 → 存
+        app.handle_key(key(KeyCode::Char('q')));
+        app.save_settings().expect("save");
+        assert_eq!(config::load(&path).expect("load"), app.settings);
+        assert!(!config::load(&path).expect("load").grid_lines);
+        // 打開又關掉、沒改東西 → 不寫（刪掉檔案來確認沒有被重新建立）
+        std::fs::remove_file(&path).expect("remove");
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Esc));
+        app.save_settings().expect("save");
+        assert!(!path.exists());
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]
