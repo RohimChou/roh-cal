@@ -36,7 +36,7 @@ pub enum Row {
 }
 
 /// 設定頁的列，照顯示順序：開關在上面，顏色在下面
-pub const ROWS: [Row; 14] = [
+pub const ROWS: [Row; 15] = [
     Row::GridLines,
     Row::ItemIcons,
     Row::Color("item"),
@@ -44,13 +44,14 @@ pub const ROWS: [Row; 14] = [
     Row::Color("item_more"),
     Row::Color("grid"),
     Row::Color("cell_selected"),
-    Row::Color("cell_selected_day"),
     Row::Color("day"),
     Row::Color("other_month"),
     Row::Color("today"),
     Row::Color("title"),
     Row::Color("month_marker"),
     Row::Color("weekday_header"),
+    Row::Color("saturday"),
+    Row::Color("sunday"),
 ];
 
 impl Row {
@@ -184,10 +185,10 @@ mod tests {
         // 往前兩格：subtext1 → text（頭尾相接在第一個色 rosewater 之前才會發生）
         row.adjust(-2, &mut settings, &mut theme);
         assert_eq!(row.value(&settings, &theme).0, "text");
-        // 底色欄位改的是 bg，不是 fg
+        // 底色欄位改的是 bg，不是 fg：surface0（第 22 個）往後一格是 base
         let cell = Row::Color("cell_selected");
         cell.adjust(1, &mut settings, &mut theme);
-        assert_eq!(theme.cell_selected.bg, Some(PALETTE[1].1));
+        assert_eq!(theme.cell_selected.bg, Some(PALETTE[23].1));
         assert_eq!(theme.cell_selected.fg, None);
     }
 

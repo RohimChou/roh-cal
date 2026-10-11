@@ -49,9 +49,9 @@ pub struct Theme {
     pub weekday_header: Style,
     /// 一般日期
     pub day: Style,
-    /// 星期六（星期列和日期都用）
+    /// 星期六（星期列和日期都用，小 / 大月曆共用）
     pub saturday: Style,
-    /// 星期日（星期列和日期都用）
+    /// 星期日（同上；預設跟星期六同色，分成兩個欄位是讓想分開的人可以分）
     pub sunday: Style,
     /// 不是選取日期那個月的日期
     pub other_month: Style,
@@ -71,10 +71,10 @@ pub struct Theme {
     pub week_number: Style,
     /// 左邊欄：其他行跟選取那行差幾行
     pub row_distance: Style,
-    /// 大月曆：選取那一格的整格底色（比 terminal 底色亮一點點；其他格子不塗底）
+    /// 大月曆：選取那一格的整格底色（其他格子不塗底，日期數字也不換色）
     pub cell_selected: Style,
-    /// 大月曆：選取那一格的日期數字（格子已有底色，數字只換顏色，不用藥丸）
-    pub cell_selected_day: Style,
+    /// 大月曆：日期數字額外疊的樣式（粗體；格子大，數字要跳出來）
+    pub cell_day: Style,
     /// 大月曆格子裡的項目：還沒完成的（`14:00 標題`，不加符號）
     pub item: Style,
     /// 大月曆格子裡的項目：完成的（整行變灰 + 劃線；不支援劃線的 terminal 只看到變灰）
@@ -103,11 +103,8 @@ impl Theme {
         let surface2 = Color::Rgb(88, 91, 112);
         let surface0 = Color::Rgb(49, 50, 68);
         let base = Color::Rgb(30, 30, 46);
-        // 不在 Catppuccin 色票上：base 往亮調一點點，選取的格子才不會像一塊色板
-        let base_lighter = Color::Rgb(40, 40, 58);
         let lavender = Color::Rgb(180, 190, 254);
         let blue = Color::Rgb(137, 180, 250);
-        let red = Color::Rgb(243, 139, 168);
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
         let mauve = Color::Rgb(203, 166, 247);
@@ -121,7 +118,7 @@ impl Theme {
             weekday_header: Style::new().fg(subtext0),
             day: Style::new().fg(text),
             saturday: Style::new().fg(blue),
-            sunday: Style::new().fg(red),
+            sunday: Style::new().fg(blue),
             other_month: Style::new().fg(overlay0),
             today: Style::new().fg(green).add_modifier(bold),
             selected: Style::new().fg(base).bg(mauve).add_modifier(bold),
@@ -131,8 +128,8 @@ impl Theme {
             month_marker: Style::new().fg(lavender),
             week_number: Style::new().fg(yellow).add_modifier(bold),
             row_distance: Style::new().fg(overlay0),
-            cell_selected: Style::new().bg(base_lighter),
-            cell_selected_day: Style::new().fg(mauve).add_modifier(bold),
+            cell_selected: Style::new().bg(surface0),
+            cell_day: Style::new().add_modifier(bold),
             item: Style::new().fg(subtext1),
             item_done: Style::new()
                 .fg(surface2)
@@ -153,9 +150,10 @@ impl Theme {
             "title" => &mut self.title,
             "month_marker" => &mut self.month_marker,
             "weekday_header" => &mut self.weekday_header,
-            "cell_selected_day" => &mut self.cell_selected_day,
             "today" => &mut self.today,
             "grid" => &mut self.grid,
+            "saturday" => &mut self.saturday,
+            "sunday" => &mut self.sunday,
             _ => &mut self.cell_selected,
         }
     }

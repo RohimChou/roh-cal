@@ -259,7 +259,7 @@ fn render_grid_lines(
 /// - 格子只有 1 行時不列項目，改在日期旁邊畫點點（跟 compact view 一樣，橘 = 有沒完成的任務）
 /// - 標題太長：先往右延伸（見 `render_week`），還是放不下就截斷，不加 `…`（那個字寬度不固定，會把月曆弄歪）
 ///
-/// 顏色：其他月份整格（數字、標記、項目）都變灰；數字再疊今天 / 選取。
+/// 顏色：其他月份整格（數字、標記、項目）都變灰；數字再疊今天；選取只靠整格底色。
 /// 項目不設底色，畫在選取的格子上時自然露出格子的底色
 fn cell_lines(
     date: Date,
@@ -277,9 +277,10 @@ fn cell_lines(
         Style::new()
     };
 
-    // 第一行：數字依序疊上 style：一般 → 週末 → 其他月份 → 今天 → 選取（順序見 `Theme`）
+    // 第一行：數字依序疊上 style：一般 → 大月曆的粗體 → 週末 → 其他月份 → 今天（順序見 `Theme`）；選取只靠整格底色
     let mut number_style = theme
         .day
+        .patch(theme.cell_day)
         .patch(weekend_style(date.weekday(), theme))
         .patch(dim);
     let mut dots_style = if items.iter().any(|item| !item.done) {
@@ -288,15 +289,9 @@ fn cell_lines(
         theme.dots_quiet
     }
     .patch(dim);
-    let layers = [
-        (date == app.today, theme.today),
-        (date == app.selected, theme.cell_selected_day),
-    ];
-    for (applies, layer) in layers {
-        if applies {
-            number_style = number_style.patch(layer);
-            dots_style = dots_style.patch(layer);
-        }
+    if date == app.today {
+        number_style = number_style.patch(theme.today);
+        dots_style = dots_style.patch(theme.today);
     }
     let mut first = Line::from(Span::styled(format!(" {:>2}", date.day()), number_style));
     let rows = usize::from(rows);
