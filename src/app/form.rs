@@ -1,13 +1,14 @@
-//! 新增表單（月曆或當天清單按 `a`）：標題、日期兩欄，和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
+//! 新增 / 編輯表單（月曆或當天清單按 `a` 新增，清單按 `Enter` / `o` / `e` 編輯）：標題、日期兩欄，
+//! 和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
 
-use super::{App, DayList, Overlay};
-use crate::tasks;
+use super::{App, DayList, Notice, Overlay};
+use crate::tasks::{self, Item};
 use crate::ui;
 use jiff::{ToSpan, civil::Date};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use tui_input::{Input, InputRequest, backend::crossterm::to_input_request};
 
-/// 新增表單：標題、日期兩欄
+/// 新增 / 編輯表單：標題、日期兩欄
 #[derive(Debug, Clone)]
 pub struct Form {
     /// 標題欄
@@ -20,6 +21,8 @@ pub struct Form {
     pub focus: FormField,
     /// 從哪裡打開的：當天清單（存好 / 取消之後回到清單，新項目放在清單選到的項目同一組），`None` = 月曆
     pub back: Option<DayList>,
+    /// 在編輯哪個項目（打開時讀到的樣子，存檔時用來確認那一行沒被別人改過）；`None` = 新增
+    pub editing: Option<Item>,
     /// 按 Enter 時沒通過的檢查（顯示在下框線），下一個按鍵就消失
     pub problem: Option<FormProblem>,
 }
@@ -33,7 +36,18 @@ impl Form {
             picked: date,
             focus: FormField::Title,
             back,
+            editing: None,
             problem: None,
+        }
+    }
+
+    /// 打開表單編輯 `item`（從清單 `back` 打開）：標題、日期是那個項目的，游標在標題最後面
+    pub(super) fn edit(item: &Item, back: DayList) -> Self {
+        let date = item.date.unwrap_or(back.date);
+        Self {
+            title: Input::new(item.title.clone()),
+            editing: Some(item.clone()),
+            ..Self::open(date, Some(back))
         }
     }
 
@@ -57,6 +71,7 @@ impl PartialEq for Form {
             && self.picked == other.picked
             && self.focus == other.focus
             && self.back == other.back
+            && self.editing == other.editing
             && self.problem == other.problem
     }
 }
@@ -118,6 +133,16 @@ impl App {
                     }
                     return;
                 }
+                // 編輯時檔案在別處改過（已重新載入）：這個表單對不上了，回到清單，要改再打開一次
+                if form.editing.is_some()
+                    && self.notice == Some(Notice::Reloaded)
+                    && let Some(mut list) = form.back
+                {
+                    let count = ui::items_on(&self.items, list.date).len();
+                    list.selected = list.selected.min(count.saturating_sub(1));
+                    self.overlay = Some(Overlay::DayList(list));
+                    return;
+                }
             }
             // 日期欄：h / l（← / →）前一天 / 後一天、k / j（↑ / ↓）上一週 / 下一週，跟月曆一樣
             KeyCode::Char('h') | KeyCode::Left if form.focus == FormField::Date => {
@@ -154,7 +179,7 @@ impl App {
         self.overlay = Some(Overlay::Form(form));
     }
 
-    /// 表單按 Enter：檢查標題、日期，寫進任務檔。存好了回傳新項目那天的清單（選到新項目）；
+    /// 表單按 Enter：檢查標題、日期，寫進任務檔（新增一行，或改編輯的那一行）。存好了回傳那個項目那天的清單（選到它）；
     /// 沒存成回傳 `None`，原因放在 `form.problem`（欄位寫錯）或 `self.notice`（檔案的問題），表單留著讓使用者改
     fn save_form(&mut self, form: &mut Form) -> Option<DayList> {
         let title = form.title.value().trim().to_string();
@@ -170,14 +195,21 @@ impl App {
             form.problem = Some(FormProblem::BadDate);
             return None;
         };
-        // 新項目放在清單選到的那個項目同一組；從月曆打開的，跟打開那天的清單再按 a 一樣（選第一個）。
-        // 表單開著時月曆不會動，所以 `self.selected` 還是打開表單的那天
-        let list = form.back.unwrap_or_else(|| DayList::open(self.selected));
-        let near = ui::items_on(&self.items, list.date)
-            .get(list.selected)
-            .copied()
-            .cloned();
-        let line = match self.add_item(title, date, near.as_ref()) {
+        let saved = match form.editing.clone() {
+            // 編輯：那一行改成新的標題和日期（時間不變）
+            Some(item) => self.update_item(&item, title, date),
+            // 新增：放在清單選到的那個項目同一組；從月曆打開的，跟打開那天的清單再按 a 一樣（選第一個）。
+            // 表單開著時月曆不會動，所以 `self.selected` 還是打開表單的那天
+            None => {
+                let list = form.back.unwrap_or_else(|| DayList::open(self.selected));
+                let near = ui::items_on(&self.items, list.date)
+                    .get(list.selected)
+                    .copied()
+                    .cloned();
+                self.add_item(title, date, near.as_ref())
+            }
+        };
+        let line = match saved {
             Ok(line) => line?,
             Err(notice) => {
                 self.notice = Some(notice);
@@ -417,6 +449,113 @@ mod tests {
         }
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(read(), "- [ ] 延到 @2026-10-10\n");
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    /// 10/10 早上有子任務、下午已經打勾（編輯的 test 用）
+    const MORNING_AND_DONE_AFTERNOON: &str =
+        "- [ ] 早上 @2026-10-10 09:00\n  - [ ] 子任務\n- [x] 下午 @2026-10-10 14:00\n";
+
+    #[test]
+    fn enter_o_or_e_in_the_day_list_opens_the_item_for_editing() {
+        let text = MORNING_AND_DONE_AFTERNOON;
+        let (mut app, path) = app_with_task_file("edit-open", text);
+        // 選第二個（下午，第 3 行）：三個鍵都打開它，標題、日期是它的、游標在標題；Esc 回到清單、還選著它
+        app.handle_key(key(KeyCode::Char('j')));
+        for open in [KeyCode::Enter, KeyCode::Char('o'), KeyCode::Char('e')] {
+            app.handle_key(key(open));
+            assert_eq!(form(&app).title.value(), "下午", "{open:?}");
+            assert_eq!(form(&app).date.value(), "2026-10-10");
+            assert_eq!(form(&app).focus, FormField::Title);
+            let line = form(&app).editing.as_ref().map(|item| item.line);
+            assert_eq!(line, Some(3));
+            app.handle_key(key(KeyCode::Esc));
+            assert!(
+                matches!(
+                    app.overlay,
+                    Some(Overlay::DayList(DayList { selected: 1, .. }))
+                ),
+                "{open:?}"
+            );
+        }
+        // 沒有項目的那天（10/11）：e 不會打開表單
+        for code in [
+            KeyCode::Char('q'),
+            KeyCode::Char('l'),
+            KeyCode::Enter,
+            KeyCode::Char('e'),
+        ] {
+            app.handle_key(key(code));
+        }
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn editing_rewrites_the_line_and_u_undoes_it() {
+        let text = MORNING_AND_DONE_AFTERNOON;
+        let (mut app, path) = app_with_task_file("edit-save", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('e')));
+        // 標題改成「晚上」、日期往後一天：打勾狀態和時間照舊、子任務不動；回到 10/11 的清單、選到它
+        app.handle_key(key(KeyCode::Backspace));
+        app.handle_key(key(KeyCode::Backspace));
+        type_text(&mut app, "晚上");
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Char('l')));
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(
+            read(),
+            "- [ ] 早上 @2026-10-10 09:00\n  - [ ] 子任務\n- [x] 晚上 @2026-10-11 14:00\n"
+        );
+        assert_eq!(
+            app.overlay,
+            Some(Overlay::DayList(DayList {
+                date: date(2026, 10, 11),
+                selected: 0,
+                confirm_delete: None
+            }))
+        );
+        // u：整行回到原本的樣子，提示原本的標題
+        app.handle_key(key(KeyCode::Char('u')));
+        assert_eq!(read(), text);
+        assert_eq!(app.notice, Some(Notice::Undone("下午".into())));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn saving_an_unchanged_item_writes_nothing() {
+        let text = MORNING_AND_DONE_AFTERNOON;
+        let (mut app, path) = app_with_task_file("edit-same", text);
+        app.handle_key(key(KeyCode::Char('e')));
+        app.handle_key(key(KeyCode::Enter));
+        // 檔案不動、沒記 undo；回到清單、還選著它
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::DayList(DayList { selected: 0, .. }))
+        ));
+        app.handle_key(key(KeyCode::Char('u')));
+        assert_eq!(app.notice, Some(Notice::NothingToUndo));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn editing_after_the_file_changed_elsewhere_goes_back_to_the_list() {
+        let (mut app, path) = app_with_task_file("edit-changed", MORNING_AND_DONE_AFTERNOON);
+        app.handle_key(key(KeyCode::Char('e')));
+        type_text(&mut app, "（改）");
+        // 表單開著的時候，在別處（例：Obsidian）改了這一行
+        let edited = MORNING_AND_DONE_AFTERNOON.replace("早上", "早上九點");
+        std::fs::write(&path, &edited).expect("edit");
+        app.handle_key(key(KeyCode::Enter));
+        // 不寫、重新載入、回到清單、提示；別人的改動留著
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+        assert_eq!(app.notice, Some(Notice::Reloaded));
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
+        assert_eq!(app.items[0].title, "早上九點");
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }

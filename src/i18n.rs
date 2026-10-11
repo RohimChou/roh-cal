@@ -120,6 +120,8 @@ pub struct Texts {
     pub help: Help,
     /// 新增表單的標題（上框線）
     pub form_title: &'static str,
+    /// 編輯表單的標題（上框線）
+    pub form_edit_title: &'static str,
     /// 新增表單的欄位名：標題、日期
     pub form_labels: [&'static str; 2],
     /// 新增表單最下面的操作說明
@@ -172,6 +174,7 @@ impl Texts {
                     title: "EDITING",
                     keys: &[
                         ("a", "add an item"),
+                        ("e", "edit an item"),
                         ("Space / x", "check off / uncheck"),
                         ("d", "delete (with subtasks)"),
                         ("u", "undo"),
@@ -179,6 +182,7 @@ impl Texts {
                 }],
             },
             form_title: "new item",
+            form_edit_title: "edit item",
             form_labels: ["title", "date"],
             form_hint: "Tab next · Enter save · Esc cancel",
             form_date_hint: "hjkl change date",
@@ -222,6 +226,7 @@ impl Texts {
                     title: "編輯",
                     keys: &[
                         ("a", "新增項目"),
+                        ("e", "編輯項目"),
                         ("Space / x", "打勾 / 取消"),
                         ("d", "刪除（連子任務）"),
                         ("u", "復原"),
@@ -229,6 +234,7 @@ impl Texts {
                 }],
             },
             form_title: "新增項目",
+            form_edit_title: "編輯項目",
             form_labels: ["標題", "日期"],
             form_hint: "Tab 換欄 · Enter 存 · Esc 取消",
             form_date_hint: "hjkl 換日期",

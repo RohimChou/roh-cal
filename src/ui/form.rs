@@ -1,4 +1,4 @@
-//! 新增表單：月曆或當天清單按 `a` 打開，疊在月曆框的正中間（跟當天清單一樣），兩欄：標題、日期；游標在日期欄時下面出現小月曆
+//! 新增 / 編輯表單：月曆或當天清單按 `a` 新增、清單按 `Enter` / `o` / `e` 編輯，疊在月曆框的正中間（跟當天清單一樣），兩欄：標題、日期；游標在日期欄時下面出現小月曆
 
 use crate::app::{App, Form, FormField, FormProblem};
 use crate::calendar::monday_of;
@@ -43,14 +43,16 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
     .map(|problem| Line::styled(format!(" {problem} "), theme.title))
     .or_else(|| notice_line(app))
     .unwrap_or_else(|| Line::styled(format!(" {} ", app.texts.form_hint), theme.hint));
+    let heading = if form.editing.is_some() {
+        app.texts.form_edit_title
+    } else {
+        app.texts.form_title
+    };
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(theme.border)
         .padding(PADDING)
-        .title_top(Line::styled(
-            format!(" {} ", app.texts.form_title),
-            theme.title,
-        ))
+        .title_top(Line::styled(format!(" {heading} "), theme.title))
         .title_bottom(bottom);
     let inner = block.inner(area);
     // 先清掉底下的畫面，框才不會跟清單的字疊在一起
@@ -172,7 +174,7 @@ mod tests {
         problem: Option<FormProblem>,
     ) -> (Vec<String>, Terminal<TestBackend>) {
         let mut app = App::on_date(date(2026, 10, 10), texts, Vec::new());
-        app.overlay = Some(Overlay::Form(Form {
+        app.overlay = Some(Overlay::Form(Box::new(Form {
             title: Input::new(title.to_string()),
             date: Input::new(picked.to_string()),
             picked,
@@ -182,8 +184,9 @@ mod tests {
                 selected: 0,
                 confirm_delete: None,
             }),
+            editing: None,
             problem,
-        }));
+        })));
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))
@@ -327,14 +330,15 @@ mod tests {
         for (back, list_shown) in [(Some(list), true), (None, false)] {
             let items = crate::tasks::parse(&text).items;
             let mut app = App::on_date(OCT_12, Texts::en(), items);
-            app.overlay = Some(Overlay::Form(Form {
+            app.overlay = Some(Overlay::Form(Box::new(Form {
                 title: Input::default(),
                 date: Input::new(OCT_12.to_string()),
                 picked: OCT_12,
                 focus: FormField::Title,
                 back,
+                editing: None,
                 problem: None,
-            }));
+            })));
             let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
             terminal
                 .draw(|frame| crate::ui::render(frame, &app))
@@ -342,6 +346,37 @@ mod tests {
             let text = rows(terminal.backend().buffer()).join("\n");
             assert!(text.contains(" new item "), "{back:?}");
             assert_eq!(text.contains("2026-10-12 Mon"), list_shown, "{back:?}");
+        }
+    }
+
+    #[test]
+    fn the_edit_form_says_edit_in_its_title() {
+        let list = DayList {
+            date: OCT_12,
+            selected: 0,
+            confirm_delete: None,
+        };
+        for (texts, heading) in [(Texts::en(), " edit item "), (Texts::zh_tw(), " 編輯項目 ")] {
+            let item = crate::tasks::parse("- [ ] 週會 @2026-10-12")
+                .items
+                .remove(0);
+            let mut app = App::on_date(OCT_12, texts, vec![item.clone()]);
+            app.overlay = Some(Overlay::Form(Box::new(Form {
+                title: Input::new(item.title.clone()),
+                date: Input::new(OCT_12.to_string()),
+                picked: OCT_12,
+                focus: FormField::Title,
+                back: Some(list),
+                editing: Some(item),
+                problem: None,
+            })));
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, &app))
+                .unwrap();
+            let text = rows(terminal.backend().buffer()).join("\n");
+            assert!(text.contains(heading), "{heading}");
+            assert!(!text.contains(" new item ") && !text.contains(" 新增項目 "));
         }
     }
 }

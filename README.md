@@ -35,6 +35,7 @@ In the day list:
 | Key | Action |
 | :- | :- |
 | `j` / `k` | Pick an item |
+| `Enter` / `o` / `e` | Edit the item (opens the form) |
 | `a` | Add an item (opens a form) |
 | `Space` / `x` | Check off / uncheck, saved to the task file right away |
 | `d` | Delete the item and its subtasks (asks first: `y` = yes, any other key = no) |
@@ -42,7 +43,7 @@ In the day list:
 | `?` | Help |
 | `q` / `Esc` | Close |
 
-In the add form:
+In the add / edit form:
 
 | Key | Action |
 | :- | :- |

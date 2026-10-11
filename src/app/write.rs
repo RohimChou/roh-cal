@@ -1,4 +1,4 @@
-//! 寫任務檔：打勾、刪除、新增、undo；寫之前一定先重讀，檔案在別處改過就不寫、改成重新載入
+//! 寫任務檔：打勾、刪除、新增、編輯、undo；寫之前一定先重讀，檔案在別處改過就不寫、改成重新載入
 
 use super::{App, DayList};
 use crate::files;
@@ -117,6 +117,34 @@ impl App {
                     return Err(notice);
                 }
                 Ok(Some(line))
+            }
+            Err(edit::Changed) => Err(self.reload(&text)),
+        }
+    }
+
+    /// 編輯：`item` 那一行改成新的標題、日期（時間不變），寫進任務檔；什麼都沒改就不寫（也不記 undo）。
+    /// 回傳那個項目在檔案的第幾行（編輯不會換行），沒有任務檔（test）是 `Ok(None)`；讀寫失敗、那一行在別處改過回傳提示
+    pub(super) fn update_item(
+        &mut self,
+        item: &Item,
+        title: String,
+        date: Date,
+    ) -> Result<Option<usize>, Notice> {
+        let Some(path) = self.tasks_path.clone() else {
+            return Ok(None);
+        };
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => return Err(Notice::Failed(error.kind())),
+        };
+        match edit::update(&text, item, &title, date, item.time) {
+            Ok(new_text) if new_text == text => Ok(Some(item.line)),
+            Ok(new_text) => {
+                // undo 的提示用原本的標題：復原之後回來的是它
+                if let Some(notice) = self.write_tasks(&path, text, new_text, item.title.clone()) {
+                    return Err(notice);
+                }
+                Ok(Some(item.line))
             }
             Err(edit::Changed) => Err(self.reload(&text)),
         }

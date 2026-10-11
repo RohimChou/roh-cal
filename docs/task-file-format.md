@@ -46,7 +46,7 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 Default `~/.local/share/roh-cal/tasks.md` (XDG data dir; `$XDG_DATA_HOME` respected). Point roh-cal at your own file — e.g. inside a notes vault or a git repo — with `--tasks <path>`.
 
 ## Writing
-roh-cal writes the file when you check an item off, delete one or add one; editing items is planned. Every write follows these rules:
+roh-cal writes the file when you check an item off, delete, add or edit one. Every write follows these rules:
 
 | Topic | Rule |
 | :- | :- |

@@ -70,8 +70,9 @@ pub enum Overlay {
     DayList(DayList),
     /// 說明頁（`?`）；`back` = 關掉之後回到哪裡（從當天清單打開的，就回到那個清單）
     Help { back: Option<DayList> },
-    /// 新增表單（清單裡按 `a`）
-    Form(Form),
+    /// 新增 / 編輯表單（月曆或清單按 `a`、清單按 `Enter` / `o` / `e`）；表單比其他幾種大很多（字串、編輯中的項目），
+    /// 放在 `Box` 裡（heap），`Overlay` 才不會每一種都佔表單那麼大的空間
+    Form(Box<Form>),
 }
 
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
@@ -284,7 +285,7 @@ impl App {
             }
             // a：新增表單，日期是選取的那天；存好 / 取消之後回到月曆
             KeyCode::Char('a') => {
-                self.overlay = Some(Overlay::Form(Form::open(self.selected, None)));
+                self.overlay = Some(Overlay::Form(Box::new(Form::open(self.selected, None))));
             }
             // u：復原 roh-cal 最後一次寫檔
             KeyCode::Char('u') => self.notice = Some(self.undo()),

@@ -35,7 +35,7 @@ impl DayList {
 }
 
 impl App {
-    /// 當天清單開著時的按鍵：j / k 選項目、a 新增、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
+    /// 當天清單開著時的按鍵：j / k 選項目、Enter / o / e 編輯、a 新增、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
     pub(super) fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
         if let Some(count) = list.confirm_delete.take() {
             // 正在問「刪除嗎？」：只有 y 會刪，其他鍵都只是取消（按錯不會有事）
@@ -56,9 +56,16 @@ impl App {
                 KeyCode::Char(' ') | KeyCode::Char('x') => {
                     self.notice = self.toggle_selected(list);
                 }
+                // Enter / o / e：打開選到的項目 = 編輯表單（那天沒有項目就不動）
+                KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('e') => {
+                    if let Some(item) = ui::items_on(&self.items, list.date).get(list.selected) {
+                        self.overlay = Some(Overlay::Form(Box::new(Form::edit(item, list))));
+                        return;
+                    }
+                }
                 // a：新增表單，存好 / 取消之後回到清單
                 KeyCode::Char('a') => {
-                    self.overlay = Some(Overlay::Form(Form::open(list.date, Some(list))));
+                    self.overlay = Some(Overlay::Form(Box::new(Form::open(list.date, Some(list)))));
                     return;
                 }
                 // d：先問一次（顯示會刪掉幾筆），按 y 才刪

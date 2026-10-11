@@ -81,10 +81,6 @@ pub fn add(
 /// `- [ ] 會議 跟客戶 @2026-10-13`
 ///
 /// `title` 裡不能有 `@日期`：parser 只認第一個 `@日期`，日期放最後面的話會被標題裡的搶走，呼叫的人要先擋掉
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "test 已經在用；畫面要等之後的編輯表單才會用到")
-)]
 pub fn update(
     text: &str,
     item: &Item,
