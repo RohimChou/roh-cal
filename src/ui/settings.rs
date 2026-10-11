@@ -11,11 +11,11 @@ use ratatui::{
 };
 
 /// 框的寬度（含框線）
-const WIDTH: u16 = 40;
+const WIDTH: u16 = 44;
 /// 左邊名字那欄的寬度
 const LABEL_WIDTH: usize = 18;
 /// 最下面操作提示的行數
-const HINT_LINES: u16 = 2;
+const HINT_LINES: u16 = 1;
 
 /// 畫設定頁：照設定檔分段（`[month]`、`[colors]`），一列一個設定，選到的那列整行底色；
 /// 放不下時只顯示一段，選到的列一定在框內
@@ -23,7 +23,7 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
     let theme = &app.theme;
     let area = frame.area();
     let lines = row_lines(panel, app);
-    // 高度：框線 2 + 段落名和列 + 最下面 2 行操作提示；視窗不夠高就縮
+    // 高度：框線 2 + 段落名和列 + 最下面 1 行操作提示；視窗不夠高就縮
     let wanted = 2 + lines.len() as u16 + HINT_LINES;
     let height = wanted.min(area.height);
     let width = WIDTH.min(area.width);
@@ -48,16 +48,14 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
         .take(visible)
         .map(|(_, line)| line)
         .collect();
-    // 最下面 2 行：平常是操作說明；按了 R 就換成確認的問題（醒目的顏色）
+    // 最下面 1 行：平常是操作說明（r 還原一列、R 全部還原）；按了 R 就換成確認的問題（醒目的顏色）
     if panel.confirm_reset_all {
-        lines.push(Line::styled(" reset everything to defaults?", theme.title));
-        lines.push(Line::styled(" y = yes · any other key = no", theme.title));
+        lines.push(Line::styled(" reset all? y = yes, other = no", theme.title));
     } else {
         lines.push(Line::styled(
-            " j/k select · h/l change · r reset",
+            " j/k select · h/l change · r/R reset/all",
             theme.hint,
         ));
-        lines.push(Line::styled(" R reset all", theme.hint));
     }
 
     let block = Block::bordered()
@@ -139,13 +137,12 @@ mod tests {
         assert!(text.contains("grid_lines        on"));
         assert!(text.contains("item              ██ subtext1"));
         assert!(text.contains("sunday            ██ blue"));
-        assert!(text.contains("j/k select · h/l change · r reset"));
-        assert!(text.contains("R reset all"));
+        assert!(text.contains("j/k select · h/l change · r/R reset/all"));
     }
 
     #[test]
     fn panel_scrolls_so_the_selected_row_stays_visible() {
-        // 12 行高：框線 2 + 提示 2 → 只放得下 8 行（段落名也算一行）；選最後一列（sunday）時前面的捲掉
+        // 12 行高：框線 2 + 提示 1 → 只放得下 9 行（段落名也算一行）；選最後一列（sunday）時前面的捲掉
         let screen = draw(ROWS.len() - 1, 12);
         let text = screen.join("\n");
         assert!(!text.contains("[month]"));
@@ -174,8 +171,7 @@ mod tests {
             .map(|(x, y)| buffer[(x, y)].symbol().to_string())
             .collect();
         // 操作說明換成確認的問題
-        assert!(text.contains("reset everything to defaults?"));
-        assert!(text.contains("y = yes · any other key = no"));
-        assert!(!text.contains("R reset all"));
+        assert!(text.contains("reset all? y = yes, other = no"));
+        assert!(!text.contains("r/R reset/all"));
     }
 }
