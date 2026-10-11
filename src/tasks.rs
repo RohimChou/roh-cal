@@ -1,6 +1,8 @@
 //! 任務檔的 parser：純文字進去、項目出來（格式見 `docs/task-file-format.md`）
 //!
-//! 只讀不寫；每個項目都記下行號，之後寫回檔案時才知道要改哪一行
+//! 每個項目都記下行號和那一行原本的文字，寫回檔案時（`edit`）才知道要改哪一行、那一行有沒有被別人改過
+
+pub mod edit;
 
 use jiff::civil::{Date, Time};
 
@@ -32,6 +34,8 @@ pub struct Item {
     pub parent: Option<usize>,
     /// 在檔案的第幾行（從 1 開始，跟編輯器顯示的一樣）
     pub line: usize,
+    /// 那一行原本的文字（整行，含縮排，不含換行），例：`  - [ ] 寫 integration test @2026-10-13`
+    pub line_text: String,
 }
 
 /// 分組標題，例：`# 付款 API 改版`
@@ -114,6 +118,7 @@ pub fn parse(text: &str) -> Parsed {
             depth,
             parent,
             line,
+            line_text: raw.to_string(),
         });
     }
     parsed
@@ -139,17 +144,26 @@ fn parse_heading(line: &str) -> Option<Heading> {
 fn parse_item_start(trimmed: &str) -> Option<(bool, &str)> {
     // 要「- 」加空白；`-這樣` 不算
     let rest = trimmed.strip_prefix("- ")?;
-    // checkbox：`[ ]`、`[x]`、`[X]`，後面接空白或直接結束
-    let checkbox = [("[ ]", false), ("[x]", true), ("[X]", true)];
-    for (mark, done) in checkbox {
+    match checkbox(rest) {
+        Some((done, after)) => Some((done, after.trim_start())),
+        // 沒有 checkbox：也是未完成的項目
+        None => Some((false, rest)),
+    }
+}
+
+/// `- ` 後面的 checkbox：回傳（完成了沒, checkbox 後面的文字，空白照留）；沒有 checkbox 回傳 `None`
+///
+/// `[ ]`、`[x]`、`[X]` 後面要接空白或直接結束。例：`[x] 打包` → (true, ` 打包`)；`[ ]打包` 不算 checkbox
+fn checkbox(rest: &str) -> Option<(bool, &str)> {
+    let marks = [("[ ]", false), ("[x]", true), ("[X]", true)];
+    for (mark, done) in marks {
         if let Some(after) = rest.strip_prefix(mark)
             && (after.is_empty() || after.starts_with(' '))
         {
-            return Some((done, after.trim_start()));
+            return Some((done, after));
         }
     }
-    // 沒有 checkbox：也是未完成的項目
-    Some((false, rest))
+    None
 }
 
 /// 縮排寬度：空白算 1、tab 算 4（混用時才比得出誰比較深）
@@ -361,6 +375,8 @@ mod tests {
                 (0, None)
             ]
         );
+        // 原本那一行連縮排一起記
+        assert_eq!(items[2].line_text, "    - [ ] 比價");
         // tab 也算縮排
         let items = parse("- [ ] 打包\n\t- [ ] 書房").items;
         assert_eq!(items[1].parent, Some(0));
@@ -388,6 +404,8 @@ mod tests {
             (items[0].title.as_str(), items[1].title.as_str()),
             ("a", "b")
         );
+        // 原本那一行不含 \r
+        assert_eq!(items[1].line_text, "- [x] b");
     }
 
     #[test]
