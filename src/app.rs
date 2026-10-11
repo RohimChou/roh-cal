@@ -5,7 +5,7 @@ use crate::i18n::Texts;
 use crate::settings::{Panel, Settings};
 use crate::tasks::Item;
 use crate::theme::Theme;
-use crate::ui::{self, compact};
+use crate::ui::{self, compact, month};
 use color_eyre::Result;
 use jiff::{ToSpan, Zoned, civil::Date};
 use ratatui::{
@@ -13,6 +13,7 @@ use ratatui::{
     crossterm::event::{
         self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
+    layout::Rect,
 };
 
 /// 選取的那週離上下邊緣至少保留幾週，不夠就捲動（像 vim 的 scrolloff）
@@ -73,6 +74,8 @@ pub struct App {
     pub settings: Settings,
     /// 設定頁；`Some` 表示打開中（Option+q）
     pub panel: Option<Panel>,
+    /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
+    pub screen: Rect,
 }
 
 impl App {
@@ -94,6 +97,7 @@ impl App {
             view: View::Compact,
             settings: Settings::default(),
             panel: None,
+            screen: Rect::default(),
         };
         // 今天如果太靠近上下邊緣，先捲到保留 SCROLLOFF 的位置
         // （compact 8 週、SCROLLOFF = 1 時本月一定在第 2～7 行，不會捲；改了這兩個值才可能捲）
@@ -104,6 +108,9 @@ impl App {
     /// 主迴圈：畫畫面 → 等按鍵 → 更新狀態，直到要離開
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
+            // 先記下 terminal 的大小（視窗拉大縮小也會跟著變），畫面和滑鼠換算才一致
+            let size = terminal.size()?;
+            self.screen = Rect::new(0, 0, size.width, size.height);
             terminal.draw(|frame| ui::render(frame, &self))?;
             self.handle_events()?;
         }
@@ -184,12 +191,14 @@ impl App {
             MouseEventKind::ScrollDown => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
-            // 左鍵按下：點在日期上才選取；點到最上 / 最下那行時照 SCROLLOFF 捲一行
-            // （`date_at` 只認得 compact view 的排版，大月曆的格子大小會變，點擊之後再做）
-            MouseEventKind::Down(MouseButton::Left) => {
-                if self.view == View::Compact
-                    && let Some(date) = compact::date_at(self.top, mouse.column, mouse.row)
-                {
+            // 左鍵按下：點在日期格子上才選取；點到最上 / 最下那行時照 SCROLLOFF 捲一行
+            // （設定頁開著時不理，免得點到設定頁底下的格子）
+            MouseEventKind::Down(MouseButton::Left) if self.panel.is_none() => {
+                let date = match self.view {
+                    View::Compact => compact::date_at(self.top, mouse.column, mouse.row),
+                    View::Month => month::date_at(self, mouse.column, mouse.row),
+                };
+                if let Some(date) = date {
                     self.selected = date;
                     self.scroll_to_selected();
                 }
@@ -431,6 +440,36 @@ mod tests {
         app.handle_mouse(click(12, 3));
         assert_eq!(app.selected, date(2026, 9, 22));
         assert_eq!(selected_row(&app), Some(SCROLLOFF));
+    }
+
+    #[test]
+    fn left_click_selects_a_cell_in_the_month_view() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.view = View::Month;
+        app.screen = Rect::new(0, 0, 80, 24);
+        let click = |column, row| MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        };
+        // 80 × 24 有格線：星期列 y=1、格線 y=2、第 1 週 y=3～4、格線 y=5、第 2 週 y=6～7…
+        // 第 2 週星期四（x 從 35 開始）= 10/1
+        app.handle_mouse(click(36, 7));
+        assert_eq!(app.selected, date(2026, 10, 1));
+        // 點在格線上：不動
+        app.handle_mouse(click(11, 7));
+        assert_eq!(app.selected, date(2026, 10, 1));
+        app.handle_mouse(click(36, 5));
+        assert_eq!(app.selected, date(2026, 10, 1));
+        // 點最上面那週（9/21 那列）：選取後照 scrolloff 往上捲一行
+        app.handle_mouse(click(2, 3));
+        assert_eq!(app.selected, date(2026, 9, 21));
+        assert_eq!(selected_row(&app), Some(SCROLLOFF));
+        // 設定頁開著：點擊不理
+        app.panel = Some(Panel::default());
+        app.handle_mouse(click(36, 7));
+        assert_eq!(app.selected, date(2026, 9, 21));
     }
 
     #[test]

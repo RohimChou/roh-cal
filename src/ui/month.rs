@@ -112,6 +112,27 @@ fn render_week(
     }
 }
 
+/// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；點在格線、星期列、外框上回傳 `None`
+///
+/// 用 `app.screen`（terminal 大小）重算一次跟 `render` 一樣的格子位置，不用在畫面上記東西
+pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
+    // 外框各佔 1 格；`Block::inner` 跟 render 用同一套算法
+    let inner = Block::bordered().inner(app.screen);
+    let (_, weeks) = grid(inner, app.settings.grid_lines);
+    let position = Position::new(column, row);
+    for (week, cells) in weeks.iter().enumerate() {
+        for (weekday, cell) in cells.iter().enumerate() {
+            if cell.contains(position) {
+                return app
+                    .top
+                    .checked_add(((week * 7 + weekday) as i64).days())
+                    .ok();
+            }
+        }
+    }
+    None
+}
+
 /// 把框裡面切成格子：最上面 1 行是星期列，下面 `WEEKS` 週**每週一樣高**；每一行再平分成 7 欄。
 /// `lines` = true 時，星期列和第 1 週之間、週與週之間各留 1 行畫格線，欄與欄之間留 1 格
 ///
