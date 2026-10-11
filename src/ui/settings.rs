@@ -134,7 +134,7 @@ mod tests {
         // 跟設定檔一樣分段，名字一模一樣
         assert!(text.contains("[month]"));
         assert!(text.contains("[colors]"));
-        assert!(text.contains("grid_lines        on"));
+        assert!(text.contains("grid_lines        off"));
         assert!(text.contains("item              ██ subtext1"));
         assert!(text.contains("sunday            ██ blue"));
         assert!(text.contains("j/k select · h/l change · r/R reset/all"));

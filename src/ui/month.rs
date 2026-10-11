@@ -556,6 +556,8 @@ mod tests {
         // 下面的格子寬度是沒有左邊欄（週數）的排版
         app.settings.calendar.week_numbers = false;
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         // 80 × 24：每格 2 行（日期 + 1 行）
         let buffer = draw(&app, 24);
         let (_, weeks) = grid(Rect::new(1, 1, 78, 22), true, false);
@@ -588,6 +590,8 @@ mod tests {
         // 下面的格子寬度是沒有左邊欄（週數）的排版
         app.settings.calendar.week_numbers = false;
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         // 80 × 30：每格 3 行（日期 + 2 行），兩個項目都列得出來
         let buffer = draw(&app, 30);
         let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true, false);
@@ -639,6 +643,8 @@ mod tests {
         // 下面的格子寬度是沒有左邊欄（週數）的排版
         app.settings.calendar.week_numbers = false;
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         // 80 × 30：框內 28 行 − 星期列 1 − 格線 6 = 21 ÷ 6 = 每格 3 行（日期 + 2 行）
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
         terminal.draw(|frame| render(frame, &app)).unwrap();
@@ -667,6 +673,8 @@ mod tests {
     fn month_view_draws_dates_and_cell_backgrounds() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal.draw(|frame| render(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
@@ -724,6 +732,8 @@ mod tests {
     fn sidebar_shows_the_week_number_and_relative_weeks() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         app.screen = Rect::new(0, 0, 80, 30);
         let buffer = draw(&app, 30);
         let (_, weeks) = grid(Rect::new(1, 1, 78, 28), true, true);
@@ -763,6 +773,8 @@ mod tests {
         // 畫出來也沒有左邊欄：每週第一行從日期開始
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.view = View::Month;
+        // 下面的位置是有格線的排版
+        app.settings.month.grid_lines = true;
         app.settings.calendar.week_numbers = false;
         let buffer = draw(&app, 30);
         let first: String = (1..4)

@@ -538,7 +538,7 @@ mod tests {
         let dir = config::test_dir("app-reset-all");
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("config.toml");
-        let text = "[month]\n# 我的開關\ngrid_lines = false\n\n[colors]\nsunday = \"#f38ba8\"\n";
+        let text = "[month]\n# 我的開關\ngrid_lines = true\n\n[colors]\nsunday = \"#f38ba8\"\n";
         std::fs::write(&path, text).expect("write");
         let settings = config::load(&path).expect("load");
         let mut app = App::new(Texts::en(), Vec::new(), settings, Some(path.clone()));
@@ -546,7 +546,7 @@ mod tests {
         // R：先問，還沒還原
         app.handle_key(key(KeyCode::Char('R')));
         assert!(app.panel.is_some_and(|panel| panel.confirm_reset_all));
-        assert!(!app.settings.month.grid_lines);
+        assert!(app.settings.month.grid_lines);
         // y：全部回到預設，畫面的顏色也是
         app.handle_key(key(KeyCode::Char('y')));
         assert_eq!(app.settings, Settings::default());
@@ -557,7 +557,7 @@ mod tests {
         app.save_settings().expect("save");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "[month]\n# 我的開關\ngrid_lines = true\n"
+            "[month]\n# 我的開關\ngrid_lines = false\n"
         );
         std::fs::remove_dir_all(&dir).expect("clean up");
     }
@@ -648,7 +648,8 @@ mod tests {
     fn left_click_selects_a_cell_in_the_month_view() {
         let mut app = month_view_without_centering(date(2026, 10, 10));
         app.screen = Rect::new(0, 0, 80, 24);
-        // 下面的座標是沒有左邊欄（週數）的排版；有左邊欄的另外測
+        // 下面的座標是有格線、沒有左邊欄（週數）的排版；有左邊欄的另外測
+        app.settings.month.grid_lines = true;
         app.settings.calendar.week_numbers = false;
         let click = |column, row| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),

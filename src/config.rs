@@ -191,7 +191,7 @@ mod tests {
                     week_numbers: false,
                 },
                 month: MonthSettings {
-                    grid_lines: false,
+                    grid_lines: true,
                     item_icons: false,
                     center_cursor: false,
                 },
@@ -210,9 +210,12 @@ mod tests {
     fn updated_changes_only_what_differs_and_keeps_comments() {
         let text =
             "# 我的設定\n\n[month]\n# 格線\ngrid_lines = false   # 太花了\ncenter_cursor = true\n";
-        // grid_lines 改回 true（有那一行：只換值，兩個註解都留著）；
+        // grid_lines 改成 true（有那一行：只換值，兩個註解都留著）；
         // item_icons 改成 false（沒有那一行：加在 [month] 的最後）；center_cursor 沒變（不動）
-        let settings = with_month(|month| month.item_icons = false);
+        let settings = with_month(|month| {
+            month.grid_lines = true;
+            month.item_icons = false;
+        });
         assert_eq!(
             updated(text, &settings).expect("valid file"),
             "# 我的設定\n\n[month]\n# 格線\ngrid_lines = true   # 太花了\ncenter_cursor = true\nitem_icons = false\n"
@@ -221,10 +224,10 @@ mod tests {
 
     #[test]
     fn updated_creates_the_month_table_when_the_file_has_none() {
-        let settings = with_month(|month| month.grid_lines = false);
+        let settings = with_month(|month| month.grid_lines = true);
         assert_eq!(
             updated("", &settings).expect("empty file"),
-            "[month]\ngrid_lines = false\n"
+            "[month]\ngrid_lines = true\n"
         );
     }
 
@@ -232,7 +235,10 @@ mod tests {
     fn updated_adds_new_lines_before_the_comments_at_the_end() {
         // 檔案結尾的註解（例：先註解掉的設定）留在最後面，新加的那行放在它們前面
         let text = "[month]\ngrid_lines = true\n# item_icons = true\n";
-        let settings = with_month(|month| month.center_cursor = false);
+        let settings = with_month(|month| {
+            month.grid_lines = true;
+            month.center_cursor = false;
+        });
         assert_eq!(
             updated(text, &settings).expect("valid file"),
             "[month]\ngrid_lines = true\ncenter_cursor = false\n# item_icons = true\n"
@@ -295,8 +301,8 @@ mod tests {
 
     #[test]
     fn updated_leaves_the_text_alone_when_nothing_changed() {
-        // 檔案裡寫的跟預設一樣的值也不會被拿掉
-        let text = "# 註解\n[month]\ngrid_lines = true\n";
+        // 檔案裡寫的跟預設一樣的值也不會被拿掉（grid_lines 預設 false）
+        let text = "# 註解\n[month]\ngrid_lines = false\n";
         assert_eq!(updated(text, &Settings::default()).expect("valid"), text);
         // 空檔案 + 全部預設 → 還是空的（不會把預設值都寫進去，也不會多出空的 [month]）
         assert_eq!(updated("", &Settings::default()).expect("empty"), "");

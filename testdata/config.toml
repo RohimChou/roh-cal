@@ -8,8 +8,8 @@ week_numbers = false
 
 # 大月曆
 [month]
-# 格子之間畫淡淡的格線（預設 true）
-grid_lines = false
+# 格子之間畫淡淡的格線（預設 false）
+grid_lines = true
 # 每個項目前面加一個點（預設 true）
 item_icons = false
 # 移動時選取的那週固定在畫面正中間（預設 true）

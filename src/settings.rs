@@ -74,7 +74,7 @@ pub struct MonthSettings {
 impl Default for MonthSettings {
     fn default() -> Self {
         Self {
-            grid_lines: true,
+            grid_lines: false,
             item_icons: true,
             center_cursor: true,
         }
@@ -236,13 +236,14 @@ mod tests {
     fn grid_lines_row_toggles() {
         let mut settings = Settings::default();
         let mut theme = Theme::default();
-        assert_eq!(Row::GridLines.value(&settings, &theme).0, "on");
-        Row::GridLines.adjust(1, &mut settings, &mut theme);
-        assert!(!settings.month.grid_lines);
+        // 預設關
         assert_eq!(Row::GridLines.value(&settings, &theme).0, "off");
+        Row::GridLines.adjust(1, &mut settings, &mut theme);
+        assert!(settings.month.grid_lines);
+        assert_eq!(Row::GridLines.value(&settings, &theme).0, "on");
         // 往左也是切換
         Row::GridLines.adjust(-1, &mut settings, &mut theme);
-        assert!(settings.month.grid_lines);
+        assert!(!settings.month.grid_lines);
     }
 
     #[test]
@@ -355,9 +356,9 @@ mod tests {
         Row::Color(ColorField::Item).reset(&mut settings, &mut theme);
         assert_eq!(theme.item, Theme::default().item);
         assert_ne!(theme.item_done, Theme::default().item_done);
-        assert!(!settings.month.grid_lines);
-        Row::GridLines.reset(&mut settings, &mut theme);
         assert!(settings.month.grid_lines);
+        Row::GridLines.reset(&mut settings, &mut theme);
+        assert!(!settings.month.grid_lines);
     }
 
     #[test]
