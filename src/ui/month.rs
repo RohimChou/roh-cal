@@ -11,8 +11,10 @@ use crate::ui::{WEEKDAYS, item_dots, items_by_day, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    buffer::Buffer,
+    layout::{Constraint, Layout, Position, Rect},
     style::Style,
+    symbols::line,
     text::{Line, Span},
     widgets::{Block, BorderType, Paragraph},
 };
@@ -36,6 +38,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let (header, weeks) = grid(inner);
+    render_grid_lines(frame.buffer_mut(), inner, &header, &weeks, &app.theme);
 
     // 星期列：每個星期名稱放在自己那欄的最左邊，跟下面的日期對齊
     for ((cell, name), weekday) in header.into_iter().zip(app.texts.weekdays).zip(WEEKDAYS) {
@@ -92,7 +95,8 @@ fn render_week(
                     if !free {
                         break;
                     }
-                    width += cells[next].width;
+                    // 借隔壁格的寬度，中間那 1 格的格線也蓋過去
+                    width += 1 + cells[next].width;
                 }
             }
             let area = Rect {
@@ -106,29 +110,121 @@ fn render_week(
     }
 }
 
-/// 把框裡面切成格子：最上面 1 行是星期列，下面 `WEEKS` 週**每週一樣高**；每一行再平分成 7 欄
+/// 把框裡面切成格子：最上面 1 行是星期列，下面 `WEEKS` 週**每週一樣高**；每一行再平分成 7 欄。
+/// 星期列和第 1 週之間、週與週之間各留 1 行畫格線，欄與欄之間留 1 格
 ///
-/// 每週的高度 = (框裡面的高度 − 星期列) ÷ 週數，取整數；除不盡的零頭留在最底下當空白，
+/// 每週的高度 = (框裡面的高度 − 星期列 1 − 格線 6) ÷ 週數，取整數；除不盡的零頭留在最底下當空白，
 /// 不用 `Fill` 平分（`Fill` 會讓有些週多 1 行，看起來高低不齊）。
-/// 回傳（星期列的 7 格, 每週的 7 格）。terminal 太小時格子可能是 0 高 / 0 寬，畫不出東西但不會壞
+/// 回傳（星期列的 7 格, 每週的 7 格），都是**不含格線**的內容區。terminal 太小時格子可能是 0 高 / 0 寬，畫不出東西但不會壞
 fn grid(inner: Rect) -> ([Rect; 7], Vec<[Rect; 7]>) {
-    let week_height = inner.height.saturating_sub(1) / WEEKS as u16;
-    // 直的切：星期列 `Length(1)`，每週 `Length(week_height)`，零頭 `Fill(1)` 吃掉
-    let mut constraints = vec![Constraint::Length(1)];
-    constraints.extend(std::iter::repeat_n(
-        Constraint::Length(week_height),
-        WEEKS as usize,
-    ));
+    let weeks = WEEKS as usize;
+    let week_height = inner.height.saturating_sub(1 + weeks as u16) / WEEKS as u16;
+    // 直的切：星期列、格線、(週、格線) × 5、週、零頭 `Fill(1)` 吃掉
+    let mut constraints = vec![Constraint::Length(1), Constraint::Length(1)];
+    for row in 0..weeks {
+        constraints.push(Constraint::Length(week_height));
+        if row + 1 < weeks {
+            constraints.push(Constraint::Length(1));
+        }
+    }
     constraints.push(Constraint::Fill(1));
     let rows = Layout::vertical(constraints).split(inner);
-    // 橫的切：7 欄平分（寬度差 1 格看不出來）
-    let columns = |row: Rect| Layout::horizontal([Constraint::Fill(1); 7]).areas::<7>(row);
+    // 橫的切：7 欄平分（寬度差 1 格看不出來），欄之間各 1 格給格線
+    let mut columns_constraints = Vec::new();
+    for column in 0..7 {
+        columns_constraints.push(Constraint::Fill(1));
+        if column < 6 {
+            columns_constraints.push(Constraint::Length(1));
+        }
+    }
+    let columns = |row: Rect| {
+        let parts = Layout::horizontal(columns_constraints.clone()).split(row);
+        // 偶數位置是欄、奇數位置是格線
+        std::array::from_fn(|column| parts[column * 2])
+    };
     let header = columns(rows[0]);
-    let weeks = rows[1..=WEEKS as usize]
-        .iter()
-        .map(|&row| columns(row))
-        .collect();
-    (header, weeks)
+    // rows[0] 星期列、rows[1] 格線、之後每 2 個一週
+    let week_rows = (0..weeks).map(|row| columns(rows[2 + row * 2])).collect();
+    (header, week_rows)
+}
+
+/// 畫淡淡的格線：欄與欄之間 `│`、星期列下面和週與週之間 `─`、交叉 `┼`，最後一週底下收尾，碰到外框接成 `├ ┤ ┬ ┴`
+///
+/// 直接寫進 `Buffer`（一格一格放符號），不用 widget；位置超出畫面時 `cell_mut` 回傳 `None`，直接略過
+fn render_grid_lines(
+    buffer: &mut Buffer,
+    inner: Rect,
+    header: &[Rect; 7],
+    weeks: &[[Rect; 7]],
+    theme: &Theme,
+) {
+    let Some(last_week) = weeks.last() else {
+        return;
+    };
+    let mut put = |x: u16, y: u16, symbol: &str, style: Style| {
+        if let Some(cell) = buffer.cell_mut(Position::new(x, y)) {
+            cell.set_symbol(symbol).set_style(style);
+        }
+    };
+    // 直線的 x：每一欄的右邊那 1 格（最後一欄右邊是外框，不畫）
+    let vertical_xs: Vec<u16> = header[..6].iter().map(|cell| cell.right()).collect();
+    // 橫線的 y：星期列下面那行，和前 5 週各自下面那行
+    let mut horizontal_ys = vec![header[0].bottom()];
+    horizontal_ys.extend(
+        weeks[..weeks.len() - 1]
+            .iter()
+            .map(|cells| cells[0].bottom()),
+    );
+    let top = header[0].bottom();
+    let bottom = last_week[0].bottom();
+
+    // 直線：從星期列下面畫到最後一週的底
+    for &x in &vertical_xs {
+        for y in top..bottom {
+            put(x, y, line::VERTICAL, theme.grid);
+        }
+    }
+    // 橫線：整個 inner 的寬度；跟直線交叉的地方換成 ┬（星期列下面）/ ┼；兩端接外框 ├ ┤
+    for (index, &y) in horizontal_ys.iter().enumerate() {
+        for x in inner.x..inner.right() {
+            put(x, y, line::HORIZONTAL, theme.grid);
+        }
+        let cross = if index == 0 {
+            line::HORIZONTAL_DOWN
+        } else {
+            line::CROSS
+        };
+        for &x in &vertical_xs {
+            put(x, y, cross, theme.grid);
+        }
+        put(
+            inner.x.wrapping_sub(1),
+            y,
+            line::VERTICAL_RIGHT,
+            theme.border,
+        );
+        put(inner.right(), y, line::VERTICAL_LEFT, theme.border);
+    }
+    // 最後一週底下收尾：剛好貼到外框就把外框接成 ┴；還有空行就自己畫一條 ├──┴──┤
+    if bottom == inner.bottom() {
+        for &x in &vertical_xs {
+            put(x, bottom, line::HORIZONTAL_UP, theme.border);
+        }
+    } else {
+        for x in inner.x..inner.right() {
+            put(x, bottom, line::HORIZONTAL, theme.grid);
+        }
+        for &x in &vertical_xs {
+            put(x, bottom, line::HORIZONTAL_UP, theme.grid);
+        }
+        put(
+            inner.x.wrapping_sub(1),
+            bottom,
+            line::VERTICAL_RIGHT,
+            theme.border,
+        );
+        put(inner.right(), bottom, line::VERTICAL_LEFT, theme.border);
+    }
 }
 
 /// 一格裡的每一行：第一行日期（每個月 1 號後面標月份，例：` 1 Oct`），接著當天的項目
@@ -238,34 +334,32 @@ mod tests {
 
     #[test]
     fn grid_has_one_header_row_and_equal_cells() {
-        // 70 寬 × 25 高：星期列 1 行，剩下 24 行平分 6 週 = 每週 4 行；70 平分 7 欄 = 每欄 10 格
+        // 70 寬 × 25 高：星期列 1 + 格線 6 = 7 行，剩下 18 行平分 6 週 = 每週 3 行；
+        // 70 寬扣 6 條直線 = 64，平分 7 欄 = 9 或 10 格
         let (header, weeks) = grid(Rect::new(1, 1, 70, 25));
         assert_eq!(weeks.len(), 6);
-        assert!(
-            header
-                .iter()
-                .all(|cell| cell.height == 1 && cell.width == 10)
-        );
+        assert!(header.iter().all(|cell| cell.height == 1));
+        let widths: Vec<u16> = header.iter().map(|cell| cell.width).collect();
+        assert!(widths.iter().all(|&width| width == 9 || width == 10));
+        assert_eq!(widths.iter().sum::<u16>(), 64);
         for cells in &weeks {
-            assert!(
-                cells
-                    .iter()
-                    .all(|cell| cell.height == 4 && cell.width == 10)
-            );
+            assert!(cells.iter().all(|cell| cell.height == 3));
         }
-        // 第 1 週星期一的格子從星期列下面開始；第 2 週接在第 1 週下面
-        assert_eq!(weeks[0][0], Rect::new(1, 2, 10, 4));
-        assert_eq!(weeks[1][0], Rect::new(1, 6, 10, 4));
+        // 第 1 週星期一：星期列 y=1、格線 y=2、格子從 y=3 開始；第 2 週隔一條格線，y=7
+        assert_eq!(weeks[0][0], Rect::new(1, 3, 9, 3));
+        assert_eq!(weeks[1][0], Rect::new(1, 7, 9, 3));
+        // 欄之間空 1 格放直線
+        assert_eq!(weeks[0][1].x, weeks[0][0].right() + 1);
         // 星期日那欄貼到最右邊
         assert_eq!(weeks[0][6].right(), 71);
     }
 
     #[test]
     fn leftover_rows_stay_blank_at_the_bottom() {
-        // 27 高：26 ÷ 6 = 4 餘 2 → 每週還是 4 行，最後 2 行空著（不會有某週變 5 行）
+        // 27 高：(27 − 7) ÷ 6 = 3 餘 2 → 每週還是 3 行，最後 2 行空著（不會有某週變 4 行）
         let (_, weeks) = grid(Rect::new(1, 1, 70, 27));
-        assert!(weeks.iter().all(|cells| cells[0].height == 4));
-        assert_eq!(weeks[5][0].bottom(), 1 + 1 + 6 * 4);
+        assert!(weeks.iter().all(|cells| cells[0].height == 3));
+        assert_eq!(weeks[5][0].bottom(), 1 + 1 + 1 + 6 * 3 + 5);
     }
 
     /// 把一行的 span 接成字串（方便比對）
@@ -354,15 +448,15 @@ mod tests {
         }
     }
 
-    /// 畫出 80 × 24 的大月曆，回傳畫面的 buffer
-    fn draw(app: &App) -> ratatui::buffer::Buffer {
-        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    /// 畫出 80 寬、`height` 高的大月曆，回傳畫面的 buffer
+    fn draw(app: &App, height: u16) -> Buffer {
+        let mut terminal = Terminal::new(TestBackend::new(80, height)).unwrap();
         terminal.draw(|frame| render(frame, app)).unwrap();
         terminal.backend().buffer().clone()
     }
 
     /// 從 `cell` 的第 `row` 行開始往右讀 `width` 格（可以超過格子的寬度，用來看溢出）
-    fn text_from(buffer: &ratatui::buffer::Buffer, cell: Rect, row: u16, width: u16) -> String {
+    fn text_from(buffer: &Buffer, cell: Rect, row: u16, width: u16) -> String {
         (cell.x..cell.x + width)
             .map(|x| buffer[(x, cell.y + row)].symbol())
             .collect()
@@ -378,17 +472,21 @@ mod tests {
             crate::tasks::parse(text).items,
         );
         app.view = View::Month;
-        let buffer = draw(&app);
+        // 80 × 24：每格 2 行（日期 + 1 行）
+        let buffer = draw(&app, 24);
         let (_, weeks) = grid(Rect::new(1, 1, 78, 22));
         // 10/12 是第 4 週星期一、10/13 星期二；項目在格子的第 2 行
         let monday = weeks[3][0];
         let tuesday = weeks[3][1];
-        // 格子 11 格寬：開頭空白 1 格 + 5 個中文字各 2 格 = 11，第 6 個字放不下就不畫
-        // （buffer 裡中文字佔 2 格，第 2 格是空白，所以讀出來是「很 長 很 長 的」）
+        // 格子 10 格寬：開頭空白 1 格 + 4 個中文字各 2 格 = 9，第 5 個字放不下就不畫
+        // （buffer 裡中文字佔 2 格，第 2 格是空白，所以讀出來是「很 長 很 長」）
+        assert_eq!(monday.width, 10);
         assert_eq!(
             text_from(&buffer, monday, 1, monday.width),
-            " 很 長 很 長 的 "
+            " 很 長 很 長  "
         );
+        // 中間的格線還在，隔壁從「短」開始
+        assert_eq!(buffer[(monday.right(), monday.y + 1)].symbol(), "│");
         assert_eq!(text_from(&buffer, tuesday, 1, 3), " 短 ");
     }
 
@@ -403,24 +501,27 @@ mod tests {
             crate::tasks::parse(text).items,
         );
         app.view = View::Month;
-        let buffer = draw(&app);
-        let (_, weeks) = grid(Rect::new(1, 1, 78, 22));
+        // 80 × 30：每格 3 行（日期 + 2 行），兩個項目都列得出來
+        let buffer = draw(&app, 30);
+        let (_, weeks) = grid(Rect::new(1, 1, 78, 28));
         let monday = weeks[3][0];
         let wednesday = weeks[3][2];
-        // 兩格 22 格寬：空白 1 + 10 個中文字 20 = 21，第 11 個字放不下（剩 1 格空白）
+        // 兩格 + 中間格線 = 10 + 1 + 11 = 22 格寬：空白 1 + 10 個中文字 20 = 21，第 11 個字放不下
         assert_eq!(
             text_from(&buffer, monday, 1, 22),
             " 很 長 很 長 的 中 文 標 題 會  "
         );
+        // 格線被字蓋過去了
+        assert_ne!(buffer[(monday.right(), monday.y + 1)].symbol(), "│");
         assert_eq!(text_from(&buffer, wednesday, 1, 3), " 短 ");
         // 第二行也延伸：10/13、10/14 的第 2 行都沒東西，整句（15 格）寫得完
         assert_eq!(text_from(&buffer, monday, 2, 16), " 第 二 行 只 有 自 己  ");
-        // 選取的格子不借：選 10/13 之後第一行就截在 10/12 的邊界
+        // 選取的格子不借：選 10/13 之後第一行就截在 10/12 的邊界，格線還在
         app.selected = date(2026, 10, 13);
-        let buffer = draw(&app);
+        let buffer = draw(&app, 30);
         assert_eq!(
             text_from(&buffer, monday, 1, monday.width + 1),
-            " 很 長 很 長 的  "
+            " 很 長 很 長  │"
         );
     }
 
@@ -432,7 +533,7 @@ mod tests {
             crate::tasks::parse(&std::fs::read_to_string("testdata/tasks.md").unwrap()).items;
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), items);
         app.view = View::Month;
-        // 80 × 30：框內 28 行 − 星期列 = 27 ÷ 6 = 每格 4 行（日期 + 3 行）
+        // 80 × 30：框內 28 行 − 星期列 1 − 格線 6 = 21 ÷ 6 = 每格 3 行（日期 + 2 行）
         let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
         terminal.draw(|frame| render(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
@@ -444,16 +545,16 @@ mod tests {
                 .trim_end()
                 .to_string()
         };
-        // 10/12：第 4 週星期一，2 個都放得下，照時間排
+        // 10/12：第 4 週星期一（10 格寬），2 個都放得下，照時間排；右邊 10/13 有東西，截在格子邊界
         let mon = weeks[3][0];
-        assert_eq!(line_at(mon, 1), " 10:00 週 會");
-        assert_eq!(line_at(mon, 2), " 14:00 Code");
-        assert_eq!(line_at(mon, 3), "");
-        // 10/16：星期五，5 個放不下：列 2 個 + "+3"
+        assert_eq!(mon.width, 10);
+        assert_eq!(line_at(mon, 1), " 10:00 週");
+        assert_eq!(line_at(mon, 2), " 14:00 Cod");
+        // 10/16：星期五，5 個放不下：列 1 個 + "+4"；右邊 10/17 沒東西，標題延伸過去寫完
         let fri = weeks[3][4];
         assert_eq!(line_at(fri, 1), " 17:30 交 週");
-        assert_eq!(line_at(fri, 2), " 18:30 團 隊");
-        assert_eq!(line_at(fri, 3), " +3");
+        assert_eq!(text_from(buffer, fri, 1, 14).trim_end(), " 17:30 交 週 報");
+        assert_eq!(line_at(fri, 2), " +4");
     }
 
     #[test]

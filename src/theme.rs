@@ -33,7 +33,7 @@ pub const PALETTE: [(&str, Color); 26] = [
 ];
 
 /// debug 選色器可以調的欄位（名字照 `Theme` 的欄位名）；`Tab` 照這個順序輪
-const PICKER_FIELDS: [&str; 11] = [
+const PICKER_FIELDS: [&str; 12] = [
     "item",
     "item_done",
     "item_more",
@@ -45,6 +45,7 @@ const PICKER_FIELDS: [&str; 11] = [
     "cell_selected_day",
     "today",
     "cell_selected",
+    "grid",
 ];
 
 /// 月曆各部分的樣式
@@ -96,6 +97,8 @@ pub struct Theme {
     pub item_done: Style,
     /// 大月曆格子放不下時最後一行的 `+N`（項目的時間跟著項目自己的顏色，不用這個）
     pub item_more: Style,
+    /// 大月曆格子之間淡淡的格線
+    pub grid: Style,
 }
 
 impl Default for Theme {
@@ -151,6 +154,7 @@ impl Theme {
                 .fg(surface2)
                 .add_modifier(Modifier::CROSSED_OUT),
             item_more: Style::new().fg(subtext0),
+            grid: Style::new().fg(surface0),
         }
     }
 
@@ -167,6 +171,7 @@ impl Theme {
             "weekday_header" => &mut self.weekday_header,
             "cell_selected_day" => &mut self.cell_selected_day,
             "today" => &mut self.today,
+            "grid" => &mut self.grid,
             _ => &mut self.cell_selected,
         }
     }
