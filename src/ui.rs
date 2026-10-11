@@ -2,6 +2,7 @@
 
 pub mod compact;
 pub mod day_list;
+pub mod help;
 pub mod month;
 pub mod settings;
 
@@ -29,7 +30,7 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單在月曆正中間）
+/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單在月曆正中間、說明頁在畫面正中間）
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
@@ -40,6 +41,14 @@ pub fn render(frame: &mut Frame, app: &App) {
         Some(Overlay::DayList(list)) => {
             let calendar = calendar_area(frame.area(), app);
             day_list::render(frame, list, app, calendar);
+        }
+        Some(Overlay::Help { back }) => {
+            // 從當天清單打開的：清單照畫，說明頁疊在上面
+            if let Some(list) = back {
+                let calendar = calendar_area(frame.area(), app);
+                day_list::render(frame, list, app, calendar);
+            }
+            help::render(frame, app);
         }
         None => {}
     }
@@ -146,6 +155,24 @@ fn sort_day(day: &mut [&Item]) {
     day.sort_by_key(|item| (item.time.is_none(), item.time));
 }
 
+/// 畫面每一行的文字，去掉尾端空白（test 用）；中文字佔 2 格，後面那格（buffer 裡是空白）跳過，接起來才是原本的字
+#[cfg(test)]
+pub fn rows(buffer: &ratatui::buffer::Buffer) -> Vec<String> {
+    let area = buffer.area;
+    (0..area.height)
+        .map(|y| {
+            let mut row = String::new();
+            let mut x = 0;
+            while x < area.width {
+                let symbol = buffer[(x, y)].symbol();
+                row.push_str(symbol);
+                x += u16::try_from(Span::raw(symbol).width().max(1)).unwrap();
+            }
+            row.trim_end().to_string()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,5 +197,19 @@ mod tests {
             days[&date(2026, 10, 12)]
         );
         assert!(items_on(&items, date(2026, 10, 14)).is_empty());
+    }
+
+    #[test]
+    fn calendar_hint_fits_the_compact_view() {
+        use crate::i18n::Texts;
+        use ratatui::{Terminal, backend::TestBackend};
+        // 小月曆的寬度是固定的：下框線的操作說明中英文都要整句看得到
+        for texts in [Texts::en(), Texts::zh_tw()] {
+            let app = App::on_date(date(2026, 10, 10), texts, Vec::new());
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal.draw(|frame| render(frame, &app)).unwrap();
+            let text = rows(terminal.backend().buffer()).join("\n");
+            assert!(text.contains(texts.hint), "{}", texts.hint);
+        }
     }
 }

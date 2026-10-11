@@ -65,6 +65,28 @@ impl Lang {
     }
 }
 
+/// 說明頁（`?`）的內容：左右兩欄的按鍵（照 tuxedo 的排法）
+#[derive(Debug, Clone, Copy)]
+pub struct Help {
+    /// 上框線 `roh-cal · keys` 的 `keys`
+    pub title: &'static str,
+    /// 下框線的操作說明
+    pub hint: &'static str,
+    /// 左欄的段落
+    pub left: &'static [HelpSection],
+    /// 右欄的段落
+    pub right: &'static [HelpSection],
+}
+
+/// 說明頁的一段：標題 + 每個按鍵做什麼
+#[derive(Debug, Clone, Copy)]
+pub struct HelpSection {
+    /// 段落標題，例：`Calendar` / `月曆`
+    pub title: &'static str,
+    /// (按鍵, 做什麼)，例：`("t", "today")`；按鍵那欄每種語言都一樣（有 test 釘住）
+    pub keys: &'static [(&'static str, &'static str)],
+}
+
 /// 畫面上要翻譯的字
 ///
 /// 每種語言一個 function（`en()`、`zh_tw()`）；沒翻譯的欄位寫 `..Self::en()`，就會用英文
@@ -94,6 +116,8 @@ pub struct Texts {
     pub nothing_to_undo: &'static str,
     /// 當天清單按了 `d`，問要不要刪；`subtasks` = 會一起刪掉的子任務數，例：`delete with 2 subtasks? y = yes, other = no`
     pub delete_confirm: fn(subtasks: usize) -> String,
+    /// 說明頁（`?`）
+    pub help: Help,
 }
 
 impl Texts {
@@ -104,10 +128,10 @@ impl Texts {
             // 月份縮寫：取全名前 3 個字母，例：November → Nov
             month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
-            hint: "hjkl move · o open · t today · v view · q quit",
+            hint: "hjkl move · o open · v view · ? help · q quit",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
-            day_hint: "Space check · d delete · u undo · q close",
+            day_hint: "Space check · d delete · ? help · q close",
             file_reloaded: "file changed elsewhere, reloaded",
             file_failed: |kind| format!("can't save the task file: {kind}"),
             undone: |title| format!("undone: {title}"),
@@ -117,6 +141,28 @@ impl Texts {
                 1 => "delete with 1 subtask? y = yes, other = no".to_string(),
                 n => format!("delete with {n} subtasks? y = yes, other = no"),
             },
+            help: Help {
+                title: "keys",
+                hint: "?/q/Esc close",
+                left: &[HelpSection {
+                    title: "NAVIGATION",
+                    keys: &[
+                        ("h j k l", "move (arrow keys too)"),
+                        ("t", "jump to today"),
+                        ("o / Enter", "open detail"),
+                        ("v", "switch view"),
+                        ("Option+q", "open settings"),
+                    ],
+                }],
+                right: &[HelpSection {
+                    title: "EDITING",
+                    keys: &[
+                        ("Space / x", "check off / uncheck"),
+                        ("d", "delete (with subtasks)"),
+                        ("u", "undo"),
+                    ],
+                }],
+            },
         }
     }
 
@@ -125,10 +171,10 @@ impl Texts {
         Self {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_label: |month| format!("{month:>2} 月"),
-            hint: "hjkl 移動 · o 開啟 · t 今天 · v 切換 · q 離開",
+            hint: "hjkl 移動 · o 開啟 · v 切換 · ? 說明 · q 離開",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
-            day_hint: "Space 打勾 · d 刪除 · u 復原 · q 關閉",
+            day_hint: "Space 打勾 · d 刪除 · ? 說明 · q 關閉",
             file_reloaded: "檔案在別處改過，已重新載入",
             file_failed: |kind| format!("任務檔存不了：{kind}"),
             undone: |title| format!("已復原：{title}"),
@@ -136,6 +182,28 @@ impl Texts {
             delete_confirm: |subtasks| match subtasks {
                 0 => "刪除？y = 是，其他鍵 = 否".to_string(),
                 n => format!("刪除（含 {n} 個子任務）？y = 是，其他鍵 = 否"),
+            },
+            help: Help {
+                title: "按鍵",
+                hint: "?/q/Esc 關閉",
+                left: &[HelpSection {
+                    title: "移動",
+                    keys: &[
+                        ("h j k l", "移動（方向鍵也可以）"),
+                        ("t", "跳回今天"),
+                        ("o / Enter", "打開當天清單"),
+                        ("v", "切換大小月曆"),
+                        ("Option+q", "打開設定頁"),
+                    ],
+                }],
+                right: &[HelpSection {
+                    title: "編輯",
+                    keys: &[
+                        ("Space / x", "打勾 / 取消"),
+                        ("d", "刪除（連子任務）"),
+                        ("u", "復原"),
+                    ],
+                }],
             },
             ..Self::en()
         }
@@ -209,6 +277,21 @@ mod tests {
     fn undone_names_the_item() {
         assert_eq!((Texts::en().undone)("週會"), "undone: 週會");
         assert_eq!((Texts::zh_tw().undone)("週會"), "已復原：週會");
+    }
+
+    #[test]
+    fn help_lists_the_same_keys_in_every_language() {
+        // 只看按鍵那欄：每種語言的段落數、每段的按鍵和順序都一樣（翻譯時不會漏掉或多出一個鍵）
+        let keys = |texts: Texts| -> Vec<Vec<&str>> {
+            let help = texts.help;
+            help.left
+                .iter()
+                .chain(help.right)
+                .map(|section| section.keys.iter().map(|&(key, _)| key).collect())
+                .collect()
+        };
+        assert_eq!(keys(Texts::en()), keys(Texts::zh_tw()));
+        assert_eq!(keys(Texts::en()).len(), 2);
     }
 
     #[test]

@@ -86,6 +86,7 @@ mod tests {
     use crate::app::{Notice, Overlay};
     use crate::i18n::Texts;
     use crate::tasks::parse;
+    use crate::ui::rows;
     use jiff::civil::date;
     use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
@@ -123,23 +124,6 @@ mod tests {
         (terminal.backend().buffer().clone(), app)
     }
 
-    /// 每一行的文字，去掉尾端空白；中文字佔 2 格，後面那格（buffer 裡是空白）跳過，接起來才是原本的字
-    fn rows(buffer: &Buffer) -> Vec<String> {
-        let area = buffer.area;
-        (0..area.height)
-            .map(|y| {
-                let mut row = String::new();
-                let mut x = 0;
-                while x < area.width {
-                    let symbol = buffer[(x, y)].symbol();
-                    row.push_str(symbol);
-                    x += u16::try_from(Span::raw(symbol).width().max(1)).unwrap();
-                }
-                row.trim_end().to_string()
-            })
-            .collect()
-    }
-
     /// 找出含有 `text` 的那一行是第幾行
     fn row_of(rows: &[String], text: &str) -> u16 {
         let index = rows.iter().position(|row| row.contains(text));
@@ -152,7 +136,7 @@ mod tests {
         let rows = rows(&buffer);
         let text = rows.join("\n");
         assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("Space check · d delete · u undo · q close"));
+        assert!(text.contains("Space check · d delete · ? help · q close"));
         // 有時間的照時間排、沒時間的在後面；沒 checkbox 的也顯示 [ ]；別天的不列
         let early = row_of(&rows, "[x] 09:00 早上的會");
         let late = row_of(&rows, "[ ] 14:00 下午的會");
@@ -188,7 +172,7 @@ mod tests {
         let text = rows(&buffer).join("\n");
         assert!(text.contains("2026-10-14（三）"));
         assert!(text.contains("這天沒有項目"));
-        assert!(text.contains("Space 打勾 · d 刪除 · u 復原 · q 關閉"));
+        assert!(text.contains("Space 打勾 · d 刪除 · ? 說明 · q 關閉"));
     }
 
     #[test]

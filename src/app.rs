@@ -61,6 +61,8 @@ pub enum Overlay {
     Settings(Panel),
     /// 當天清單（`Enter` / `o`）
     DayList(DayList),
+    /// 說明頁（`?`）；`back` = 關掉之後回到哪裡（從當天清單打開的，就回到那個清單）
+    Help { back: Option<DayList> },
 }
 
 /// 當天清單：哪一天、選到第幾個項目
@@ -245,14 +247,15 @@ impl App {
             self.overlay = match self.overlay {
                 Some(Overlay::Settings(_)) => None,
                 None => Some(Overlay::Settings(Panel::default())),
-                // 當天清單開著時不理：一次只開一個跳窗，要先關掉清單
-                Some(Overlay::DayList(_)) => return,
+                // 當天清單、說明頁開著時不理：一次只開一個跳窗，要先關掉它
+                Some(Overlay::DayList(_) | Overlay::Help { .. }) => return,
             };
             return;
         }
         match self.overlay {
             Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
             Some(Overlay::DayList(list)) => self.handle_day_list_key(list, key),
+            Some(Overlay::Help { back }) => self.handle_help_key(back, key),
             None => self.handle_calendar_key(key),
         }
     }
@@ -321,6 +324,11 @@ impl App {
                 },
                 // u：復原 roh-cal 最後一次寫檔
                 KeyCode::Char('u') => self.notice = Some(self.undo()),
+                // ?：說明頁，關掉之後回到這個清單
+                KeyCode::Char('?') => {
+                    self.overlay = Some(Overlay::Help { back: Some(list) });
+                    return;
+                }
                 _ => {}
             }
         }
@@ -452,7 +460,17 @@ impl App {
         Notice::Undone(step.title)
     }
 
-    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、復原、離開
+    /// 說明頁開著時的按鍵：`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
+    fn handle_help_key(&mut self, back: Option<DayList>, key: KeyEvent) {
+        if matches!(
+            key.code,
+            KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc
+        ) {
+            self.overlay = back.map(Overlay::DayList);
+        }
+    }
+
+    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、復原、說明、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -470,6 +488,8 @@ impl App {
             }
             // u：復原 roh-cal 最後一次寫檔
             KeyCode::Char('u') => self.notice = Some(self.undo()),
+            // ?：說明頁
+            KeyCode::Char('?') => self.overlay = Some(Overlay::Help { back: None }),
             // v：小月曆 ↔ 大月曆；週數變少時選取的那週可能掉出畫面，所以要重新對齊
             KeyCode::Char('v') => {
                 self.view = self.view.toggled();
@@ -482,8 +502,11 @@ impl App {
 
     /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點日期 = 選取那天
     fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // 當天清單開著時不理：清單是那一天的，底下的月曆動了會對不起來
-        if matches!(self.overlay, Some(Overlay::DayList(_))) {
+        // 當天清單、說明頁開著時不理：清單是那一天的，底下的月曆動了會對不起來
+        if matches!(
+            self.overlay,
+            Some(Overlay::DayList(_) | Overlay::Help { .. })
+        ) {
             return;
         }
         match mouse.kind {
@@ -1254,5 +1277,42 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
         assert_eq!(app.notice, Some(Notice::Reloaded));
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn question_mark_opens_help_and_closing_it_goes_back() {
+        let mut app = app_with_two_items();
+        // 從月曆打開：?、q、Esc 都能關，關掉回到月曆（q 不會離開 app）
+        for close in ['?', 'q']
+            .map(KeyCode::Char)
+            .into_iter()
+            .chain([KeyCode::Esc])
+        {
+            app.handle_key(key(KeyCode::Char('?')));
+            assert_eq!(app.overlay, Some(Overlay::Help { back: None }));
+            app.handle_key(key(close));
+            assert_eq!(app.overlay, None, "{close:?}");
+            assert!(!app.should_quit);
+        }
+        // 從清單打開（選了第二個）：說明頁開著時其他鍵、Option+q 都不理；關掉回到同一個清單、同一個選取
+        app.handle_key(key(KeyCode::Enter));
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('?')));
+        for code in ['j', 'h', 'd', 'œ'].map(KeyCode::Char) {
+            app.handle_key(key(code));
+        }
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert!(matches!(app.overlay, Some(Overlay::Help { back: Some(_) })));
+        assert_eq!(app.selected, date(2026, 10, 10));
+        app.handle_key(key(KeyCode::Char('q')));
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::DayList(DayList { selected: 1, .. }))
+        ));
     }
 }

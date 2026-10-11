@@ -25,6 +25,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `u` | Undo roh-cal's last change to the task file (up to 50 steps) |
 | `v` | Switch between the compact view and the month view |
 | `Option+q` | Open / close the settings panel |
+| `?` | Help: the main keys on one page (`?` / `q` / `Esc` closes it) |
 | `q` / `Esc` | Quit |
 | Mouse wheel / click | Move one week / select a day (hold `Shift` to select text in the terminal) |
 
@@ -36,6 +37,7 @@ In the day list:
 | `Space` / `x` | Check off / uncheck, saved to the task file right away |
 | `d` | Delete the item and its subtasks (asks first: `y` = yes, any other key = no) |
 | `u` | Undo |
+| `?` | Help |
 | `q` / `Esc` | Close |
 
 In the settings panel:

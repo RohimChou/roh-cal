@@ -85,6 +85,10 @@ pub struct Theme {
     pub more_items: Style,
     /// 大月曆格子之間淡淡的格線
     pub grid_lines: Style,
+    /// 說明頁（`?`）的段落名，例：`CALENDAR`
+    pub help_section: Style,
+    /// 說明頁的按鍵那欄，例：`Enter / o`
+    pub help_key: Style,
 }
 
 impl Default for Theme {
@@ -139,6 +143,8 @@ impl Theme {
                 .add_modifier(Modifier::CROSSED_OUT),
             more_items: Style::new().fg(subtext0),
             grid_lines: Style::new().fg(surface0),
+            help_section: Style::new().fg(blue).add_modifier(bold),
+            help_key: Style::new().fg(peach).add_modifier(bold),
         }
     }
 
