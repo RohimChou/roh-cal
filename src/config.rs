@@ -4,6 +4,7 @@
 //! 只寫想改的就好，沒寫的用預設值；
 //! 範例見 `testdata/config.toml`。存檔只改有變的那幾行，其他行和註解一字不動（手寫的設定檔不會被蓋掉）
 
+use crate::files;
 use crate::settings::Settings;
 use color_eyre::{Result, eyre::WrapErr};
 use std::io::ErrorKind;
@@ -25,7 +26,7 @@ pub fn save(path: &Path, settings: &Settings) -> Result<()> {
     if new_text == text {
         return Ok(());
     }
-    write_atomically(path, &new_text)
+    files::write_atomically(path, &new_text)
         .wrap_err_with(|| format!("cannot write config file: {}", path.display()))
 }
 
@@ -111,30 +112,6 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
     for key in stale {
         doc.remove(&key);
     }
-}
-
-/// 安全地寫檔：先寫到旁邊的暫存檔（`config.toml.tmp`），再 rename 蓋過去。
-/// rename 是一次完成的，寫到一半當掉也不會留下寫壞的設定檔
-fn write_atomically(path: &Path, text: &str) -> Result<()> {
-    // 設定檔是 symlink（例：dotfiles 統一管理）就寫到它指向的真正檔案，symlink 才不會被換成一般檔案
-    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let mut temp = path.clone().into_os_string();
-    temp.push(".tmp");
-    std::fs::write(&temp, text)?;
-    std::fs::rename(&temp, &path)?;
-    Ok(())
-}
-
-/// test 用的暫存資料夾（每次先清空）：`$TMPDIR/roh-cal-<pid>-<name>`，不會碰到真的 `~/.config`
-#[cfg(test)]
-pub fn test_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("roh-cal-{}-{name}", std::process::id()));
-    // 上次留下的先刪掉；本來就沒有也沒關係
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
 }
 
 #[cfg(test)]
@@ -310,7 +287,7 @@ mod tests {
 
     #[test]
     fn save_creates_the_folder_and_load_reads_it_back() {
-        let dir = test_dir("save");
+        let dir = files::test_dir("save");
         let path = dir.join("roh-cal").join("config.toml");
         // 檔案不存在、開關都是預設：沒有要改的 → 什麼都不寫，連資料夾都不建
         save(&path, &Settings::default()).expect("nothing to save");
@@ -329,7 +306,7 @@ mod tests {
 
     #[test]
     fn save_refuses_to_touch_a_broken_file() {
-        let dir = test_dir("broken");
+        let dir = files::test_dir("broken");
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
@@ -338,26 +315,6 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "[month]\ngrid_line = false\n"
-        );
-        std::fs::remove_dir_all(&dir).expect("clean up");
-    }
-
-    #[test]
-    fn save_writes_through_a_symlink() {
-        let dir = test_dir("symlink");
-        std::fs::create_dir_all(&dir).expect("dir");
-        // dotfiles 的寫法：真正的檔案在別處，config.toml 是指過去的 symlink
-        let real = dir.join("dotfiles-config.toml");
-        let link = dir.join("config.toml");
-        std::fs::write(&real, "[month]\ngrid_lines = true\n").expect("write");
-        std::os::unix::fs::symlink(&real, &link).expect("symlink");
-        save(&link, &with_month(|month| month.grid_lines = false)).expect("save");
-        // symlink 還是 symlink，內容寫進真正的檔案
-        let file_type = std::fs::symlink_metadata(&link).expect("meta").file_type();
-        assert!(file_type.is_symlink());
-        assert_eq!(
-            std::fs::read_to_string(&real).expect("read"),
-            "[month]\ngrid_lines = false\n"
         );
         std::fs::remove_dir_all(&dir).expect("clean up");
     }

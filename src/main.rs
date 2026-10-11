@@ -1,6 +1,7 @@
 mod app;
 mod calendar;
 mod config;
+mod files;
 mod i18n;
 mod paths;
 mod settings;

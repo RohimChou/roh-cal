@@ -294,6 +294,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::files;
     use jiff::civil::{Weekday, date};
 
     /// 沒有修飾鍵的按鍵事件（test 用）
@@ -510,7 +511,7 @@ mod tests {
 
     #[test]
     fn colors_from_the_config_file_are_on_screen_and_reset_removes_them() {
-        let dir = config::test_dir("app-colors");
+        let dir = files::test_dir("app-colors");
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[colors]\nsunday = \"#f38ba8\"\n").expect("write");
@@ -535,7 +536,7 @@ mod tests {
 
     #[test]
     fn shift_r_resets_everything_after_y_and_saves_the_defaults() {
-        let dir = config::test_dir("app-reset-all");
+        let dir = files::test_dir("app-reset-all");
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("config.toml");
         let text = "[month]\n# 我的開關\ngrid_lines = true\n\n[colors]\nsunday = \"#f38ba8\"\n";
@@ -584,7 +585,7 @@ mod tests {
 
     #[test]
     fn closing_the_settings_panel_saves_changed_toggles() {
-        let dir = config::test_dir("app-save");
+        let dir = files::test_dir("app-save");
         let path = dir.join("config.toml");
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.config_path = Some(path.clone());
