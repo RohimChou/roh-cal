@@ -1,5 +1,7 @@
 //! 畫面上所有的字；換語言 = 換一組 `Texts`
 
+use jiff::civil::Date;
+
 /// 英文月份全名，`[0]` 是一月
 const MONTH_NAMES: [&str; 12] = [
     "January",
@@ -15,6 +17,9 @@ const MONTH_NAMES: [&str; 12] = [
     "November",
     "December",
 ];
+
+/// 中文的星期，`[0]` 是星期一
+const ZH_WEEKDAYS: [&str; 7] = ["一", "二", "三", "四", "五", "六", "日"];
 
 /// 支援的語言
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +77,12 @@ pub struct Texts {
     pub weekdays: [&'static str; 7],
     /// 下邊線的操作說明
     pub hint: &'static str,
+    /// 當天清單的標題，例：`2026-10-12 Mon` / `2026-10-12（一）`
+    pub day_title: fn(date: Date) -> String,
+    /// 當天清單：那天沒有項目時顯示的字
+    pub day_empty: &'static str,
+    /// 當天清單最下面的操作說明
+    pub day_hint: &'static str,
 }
 
 impl Texts {
@@ -82,7 +93,10 @@ impl Texts {
             // 月份縮寫：取全名前 3 個字母，例：November → Nov
             month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
-            hint: "h/j/k/l move · t today · v view · q quit",
+            hint: "hjkl move · o open · t today · v view · q quit",
+            day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
+            day_empty: "no items",
+            day_hint: "j/k select · q/Esc close",
         }
     }
 
@@ -91,7 +105,10 @@ impl Texts {
         Self {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_label: |month| format!("{month:>2} 月"),
-            hint: "h/j/k/l 移動 · t 今天 · v 切換 · q 離開",
+            hint: "hjkl 移動 · o 開啟 · t 今天 · v 切換 · q 離開",
+            day_title: |date| format!("{date}（{}）", zh_weekday(date)),
+            day_empty: "這天沒有項目",
+            day_hint: "j/k 選擇 · q/Esc 關閉",
             ..Self::en()
         }
     }
@@ -101,6 +118,12 @@ impl Texts {
 fn month_name(month: i8) -> &'static str {
     // jiff 的月份一定是 1～12，所以 month - 1 一定在 0～11
     MONTH_NAMES[usize::try_from(month - 1).unwrap_or(0)]
+}
+
+/// 中文的星期，例：星期一 → `一`
+fn zh_weekday(date: Date) -> &'static str {
+    // 星期一 = 0 … 星期日 = 6，一定在 0～6
+    ZH_WEEKDAYS[usize::try_from(date.weekday().to_monday_zero_offset()).unwrap_or(0)]
 }
 
 #[cfg(test)]
@@ -130,5 +153,14 @@ mod tests {
         assert_eq!((Texts::en().title)(2026, 10), "October 2026");
         assert_eq!((Texts::en().month_label)(11), "Nov");
         assert_eq!((Texts::zh_tw().title)(2026, 10), "2026 年 10 月");
+    }
+
+    #[test]
+    fn day_titles_show_the_date_and_weekday() {
+        let monday = jiff::civil::date(2026, 10, 12);
+        let sunday = jiff::civil::date(2026, 10, 18);
+        assert_eq!((Texts::en().day_title)(monday), "2026-10-12 Mon");
+        assert_eq!((Texts::zh_tw().day_title)(monday), "2026-10-12（一）");
+        assert_eq!((Texts::zh_tw().day_title)(sunday), "2026-10-18（日）");
     }
 }

@@ -55,6 +55,31 @@ impl View {
 pub enum Overlay {
     /// 設定頁（Option+q）
     Settings(Panel),
+    /// 當天清單（`Enter` / `o`）
+    DayList(DayList),
+}
+
+/// 當天清單：哪一天、選到第幾個項目
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DayList {
+    /// 清單是哪一天的（打開時選取的那天）
+    pub date: Date,
+    /// 選到的項目：`ui::items_on(items, date)` 的 index
+    pub selected: usize,
+}
+
+impl DayList {
+    /// 打開某一天的清單，選第一個項目
+    fn open(date: Date) -> Self {
+        Self { date, selected: 0 }
+    }
+
+    /// 往下（`step` = +1）/ 往上（−1）選一個，頭尾相接；`count` = 那天有幾個項目，0 個就不動
+    fn select(&mut self, step: isize, count: usize) {
+        if let Some(index) = (self.selected as isize + step).checked_rem_euclid(count as isize) {
+            self.selected = index as usize;
+        }
+    }
 }
 
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
@@ -175,11 +200,14 @@ impl App {
             self.overlay = match self.overlay {
                 Some(Overlay::Settings(_)) => None,
                 None => Some(Overlay::Settings(Panel::default())),
+                // 當天清單開著時不理：一次只開一個跳窗，要先關掉清單
+                Some(Overlay::DayList(_)) => return,
             };
             return;
         }
         match self.overlay {
             Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
+            Some(Overlay::DayList(list)) => self.handle_day_list_key(list, key),
             None => self.handle_calendar_key(key),
         }
     }
@@ -220,7 +248,23 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
-    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、離開
+    /// 當天清單開著時的按鍵：j / k 選項目、q / Esc 關閉，月曆不動
+    fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
+        let count = ui::items_on(&self.items, list.date).len();
+        match key.code {
+            // q / Esc：關閉清單（q 在這裡不是離開 app）
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.overlay = None;
+                return;
+            }
+            KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
+            KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
+            _ => {}
+        }
+        self.overlay = Some(Overlay::DayList(list));
+    }
+
+    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -232,6 +276,10 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.move_selected(7),
             // t：跳回今天
             KeyCode::Char('t') => self.jump_to_today(),
+            // Enter / o：打開選取那天的清單
+            KeyCode::Enter | KeyCode::Char('o') => {
+                self.overlay = Some(Overlay::DayList(DayList::open(self.selected)));
+            }
             // v：小月曆 ↔ 大月曆；週數變少時選取的那週可能掉出畫面，所以要重新對齊
             KeyCode::Char('v') => {
                 self.view = self.view.toggled();
@@ -244,6 +292,10 @@ impl App {
 
     /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點日期 = 選取那天
     fn handle_mouse(&mut self, mouse: MouseEvent) {
+        // 當天清單開著時不理：清單是那一天的，底下的月曆動了會對不起來
+        if matches!(self.overlay, Some(Overlay::DayList(_))) {
+            return;
+        }
         match mouse.kind {
             // 往下滾（看後面的日期）：下一週
             MouseEventKind::ScrollDown => self.move_selected(7),
@@ -309,7 +361,10 @@ mod tests {
 
     /// 設定頁開著就回傳它的狀態，沒開是 `None`（test 用）
     fn panel(app: &App) -> Option<Panel> {
-        app.overlay.map(|Overlay::Settings(panel)| panel)
+        match app.overlay {
+            Some(Overlay::Settings(panel)) => Some(panel),
+            _ => None,
+        }
     }
 
     /// 沒有修飾鍵的按鍵事件（test 用）
@@ -703,5 +758,83 @@ mod tests {
         let mut app = App::on_date(Date::MAX, Texts::en(), Vec::new());
         app.move_selected(1);
         assert_eq!(app.selected, Date::MAX);
+    }
+
+    /// 10/10 有兩個項目、10/11 沒有（當天清單的 test 用）
+    fn app_with_two_items() -> App {
+        let text = "- [ ] 早上 @2026-10-10 09:00\n- [ ] 下午 @2026-10-10 14:00";
+        App::on_date(
+            date(2026, 10, 10),
+            Texts::en(),
+            crate::tasks::parse(text).items,
+        )
+    }
+
+    #[test]
+    fn enter_or_o_opens_the_day_list_and_q_or_esc_closes_it() {
+        let mut app = app_with_two_items();
+        for open in [KeyCode::Enter, KeyCode::Char('o')] {
+            for close in [KeyCode::Char('q'), KeyCode::Esc] {
+                app.handle_key(key(open));
+                assert_eq!(
+                    app.overlay,
+                    Some(Overlay::DayList(DayList {
+                        date: date(2026, 10, 10),
+                        selected: 0
+                    }))
+                );
+                // 清單開著時 q 只關清單，不離開 app
+                app.handle_key(key(close));
+                assert_eq!(app.overlay, None);
+                assert!(!app.should_quit);
+            }
+        }
+    }
+
+    #[test]
+    fn day_list_j_k_wrap_around_and_the_calendar_stays_put() {
+        let mut app = app_with_two_items();
+        app.handle_key(key(KeyCode::Enter));
+        let selected = |app: &App| match app.overlay {
+            Some(Overlay::DayList(list)) => Some(list.selected),
+            _ => None,
+        };
+        app.handle_key(key(KeyCode::Char('j')));
+        assert_eq!(selected(&app), Some(1));
+        // 兩個項目：再往下回到第一個，往上又到最後一個
+        app.handle_key(key(KeyCode::Down));
+        assert_eq!(selected(&app), Some(0));
+        app.handle_key(key(KeyCode::Char('k')));
+        assert_eq!(selected(&app), Some(1));
+        // 月曆的鍵、Option+q、滑鼠都不理：日期、畫面、跳窗都不變
+        for code in ['h', 'l', 't', 'v', 'œ'].map(KeyCode::Char) {
+            app.handle_key(key(code));
+        }
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert_eq!(app.selected, date(2026, 10, 10));
+        assert_eq!(app.view, View::Compact);
+        assert_eq!(selected(&app), Some(1));
+    }
+
+    #[test]
+    fn day_list_of_an_empty_day_ignores_j_k() {
+        let mut app = app_with_two_items();
+        app.handle_key(key(KeyCode::Char('l')));
+        app.handle_key(key(KeyCode::Char('o')));
+        // 10/11 沒有項目：j / k 不會出錯，選的還是 0
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('k')));
+        assert_eq!(
+            app.overlay,
+            Some(Overlay::DayList(DayList {
+                date: date(2026, 10, 11),
+                selected: 0
+            }))
+        );
     }
 }

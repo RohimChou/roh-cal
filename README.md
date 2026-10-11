@@ -21,10 +21,18 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `t` | Jump to today |
+| `Enter` / `o` | Open the selected day's list |
 | `v` | Switch between the compact view and the month view |
 | `Option+q` | Open / close the settings panel |
 | `q` / `Esc` | Quit |
 | Mouse wheel / click | Move one week / select a day (hold `Shift` to select text in the terminal) |
+
+In the day list:
+
+| Key | Action |
+| :- | :- |
+| `j` / `k` | Pick an item |
+| `q` / `Esc` | Close |
 
 In the settings panel:
 

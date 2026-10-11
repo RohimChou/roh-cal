@@ -1,6 +1,7 @@
 //! 畫面：每種 view 一個 module；兩種 view 共用的小東西（星期順序、週末顏色、點點、項目分組）也放這裡
 
 pub mod compact;
+pub mod day_list;
 pub mod month;
 pub mod settings;
 
@@ -9,7 +10,7 @@ use crate::calendar::week_of_year;
 use crate::tasks::Item;
 use crate::theme::Theme;
 use jiff::civil::{Date, Weekday};
-use ratatui::{Frame, style::Style, text::Span};
+use ratatui::{Frame, layout::Rect, style::Style, text::Span};
 use std::collections::HashMap;
 
 /// 一週的 7 天，照畫面上由左到右的順序（星期一開始）
@@ -23,14 +24,27 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角）
+/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單在月曆正中間）
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
         View::Month => month::render(frame, app),
     }
-    if let Some(Overlay::Settings(panel)) = app.overlay {
-        settings::render(frame, panel, app);
+    match app.overlay {
+        Some(Overlay::Settings(panel)) => settings::render(frame, panel, app),
+        Some(Overlay::DayList(list)) => {
+            let calendar = calendar_area(frame.area(), app);
+            day_list::render(frame, list, app, calendar);
+        }
+        None => {}
+    }
+}
+
+/// 月曆框在 terminal（`screen`）裡的位置：小月曆是左上角的框，大月曆是整個 terminal
+fn calendar_area(screen: Rect, app: &App) -> Rect {
+    match app.view {
+        View::Compact => compact::area(screen, app),
+        View::Month => screen,
     }
 }
 
@@ -73,9 +87,7 @@ fn week_number_span(
     }
 }
 
-/// 把有日期的項目依日期分組（沒日期的不算）
-///
-/// 每天的順序：有時間的先、照時間排；沒時間的排後面、照檔案順序
+/// 把有日期的項目依日期分組（沒日期的不算）；每天的順序見 `sort_day`
 fn items_by_day(items: &[Item]) -> HashMap<Date, Vec<&Item>> {
     let mut days: HashMap<Date, Vec<&Item>> = HashMap::new();
     for item in items {
@@ -84,10 +96,25 @@ fn items_by_day(items: &[Item]) -> HashMap<Date, Vec<&Item>> {
         }
     }
     for day in days.values_mut() {
-        // `None < Some(..)`，所以先用 is_none() 把沒時間的排到後面；stable sort 保留檔案順序
-        day.sort_by_key(|item| (item.time.is_none(), item.time));
+        sort_day(day);
     }
     days
+}
+
+/// 某一天的項目，順序跟月曆格子裡一樣（當天清單用）
+pub fn items_on(items: &[Item], date: Date) -> Vec<&Item> {
+    let mut day: Vec<&Item> = items
+        .iter()
+        .filter(|item| item.date == Some(date))
+        .collect();
+    sort_day(&mut day);
+    day
+}
+
+/// 一天裡的順序：有時間的先、照時間排；沒時間的排後面、照檔案順序
+fn sort_day(day: &mut [&Item]) {
+    // `None < Some(..)`，所以先用 is_none() 把沒時間的排到後面；stable sort 保留檔案順序
+    day.sort_by_key(|item| (item.time.is_none(), item.time));
 }
 
 #[cfg(test)]
@@ -108,5 +135,11 @@ mod tests {
         assert_eq!(titles, ["早上", "下午", "沒時間 A", "沒時間 B"]);
         assert_eq!(days[&date(2026, 10, 13)].len(), 1);
         assert_eq!(days.len(), 2);
+        // 當天清單拿到的跟月曆格子裡的一模一樣
+        assert_eq!(
+            items_on(&items, date(2026, 10, 12)),
+            days[&date(2026, 10, 12)]
+        );
+        assert!(items_on(&items, date(2026, 10, 14)).is_empty());
     }
 }

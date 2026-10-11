@@ -53,15 +53,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         // 下邊線中間：操作說明
         .title_bottom(Line::styled(hint, app.theme.hint).centered());
 
-    // 框只畫到剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
-    let area = frame.area();
-    let area = Rect {
-        width: area
-            .width
-            .min(calendar_width(app.settings.calendar.week_numbers)),
-        height: area.height.min(CALENDAR_HEIGHT),
-        ..area
-    };
+    let area = area(frame.area(), app);
     let days = summarize_days(&app.items);
     let lines = calendar_lines(
         app.top,
@@ -73,6 +65,17 @@ pub fn render(frame: &mut Frame, app: &App) {
         app.settings.calendar.week_numbers,
     );
     frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// 月曆框在 terminal（`screen`）裡的位置：左上角，剛好包住月曆的大小（terminal 比較小時就用 terminal 的大小）
+pub fn area(screen: Rect, app: &App) -> Rect {
+    Rect {
+        width: screen
+            .width
+            .min(calendar_width(app.settings.calendar.week_numbers)),
+        height: screen.height.min(CALENDAR_HEIGHT),
+        ..screen
+    }
 }
 
 /// 最上面那週是 `top` 時，滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期格子上回傳 `None`
