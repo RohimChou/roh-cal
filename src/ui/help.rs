@@ -151,6 +151,7 @@ mod tests {
             "t           jump to today",
             "o / Enter   open detail",
             "Option+q    open settings",
+            "Ctrl+C      quit from anywhere",
             "d           delete (with subtasks)",
             "?/q/Esc close",
         ] {
@@ -166,10 +167,7 @@ mod tests {
             column_of(&rows, "Space / x")
         );
         // 下框線和最後一行之間也空一行
-        assert_eq!(
-            row_of(&rows, "?/q/Esc close"),
-            row_of(&rows, "Option+q") + 2
-        );
+        assert_eq!(row_of(&rows, "?/q/Esc close"), row_of(&rows, "Ctrl+C") + 2);
     }
 
     /// `text` 在它那一行從第幾格開始（這裡的字都佔 1 格）
@@ -202,7 +200,7 @@ mod tests {
     fn narrow_screen_stacks_the_columns() {
         let rows = draw(Texts::en(), None, 60);
         // 一欄：EDITING 在 NAVIGATION 的最後一列下面，中間空一行
-        assert_eq!(row_of(&rows, "EDITING"), row_of(&rows, "Option+q") + 2);
+        assert_eq!(row_of(&rows, "EDITING"), row_of(&rows, "Ctrl+C") + 2);
     }
 
     #[test]

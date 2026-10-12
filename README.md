@@ -28,6 +28,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `Option+q` | Open / close the settings panel |
 | `?` | Help: the main keys on one page (`?` / `q` / `Esc` closes it) |
 | `q` / `Esc` | Quit |
+| `Ctrl+C` | Quit from anywhere (a list, a form, the settings panel); unsaved form input is dropped, settings are saved |
 | Mouse wheel / click | Move one week / select a day (hold `Shift` to select text in the terminal) |
 
 In the day list:

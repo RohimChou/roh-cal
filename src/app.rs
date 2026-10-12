@@ -199,6 +199,13 @@ impl App {
     fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示：按任何鍵就消失
         self.notice = None;
+        // Ctrl+C：在哪個畫面都直接離開（raw mode 下 Ctrl+C 只是一個按鍵，不會自己結束程式）。
+        // 跳窗先關掉：設定頁改過的設定照樣存（`run` 每個按鍵之後都會檢查）；表單還沒存的字丟掉，跟 Esc 一樣
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.overlay = None;
+            self.should_quit = true;
+            return;
+        }
         // Option+q：設定頁開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
         // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
         let option_q = key.code == KeyCode::Char('œ')
@@ -591,6 +598,61 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
         assert_eq!(app.overlay, None);
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn ctrl_c_quits_from_anywhere() {
+        let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        // 月曆、當天清單、表單、說明頁、設定頁：都直接離開，跳窗也關掉
+        let openers: [&[KeyCode]; 5] = [
+            &[],
+            &[KeyCode::Enter],
+            &[KeyCode::Char('a')],
+            &[KeyCode::Char('?')],
+            &[KeyCode::Char('œ')],
+        ];
+        for keys in openers {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            for &code in keys {
+                app.handle_key(key(code));
+            }
+            assert_eq!(app.overlay.is_some(), !keys.is_empty(), "{keys:?}");
+            app.handle_key(ctrl_c);
+            assert!(app.should_quit, "{keys:?}");
+            assert_eq!(app.overlay, None, "{keys:?}");
+        }
+        // 沒按 Ctrl 的 c：月曆上不理，表單裡就是打字
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.handle_key(key(KeyCode::Char('c')));
+        assert!(!app.should_quit);
+        app.handle_key(key(KeyCode::Char('a')));
+        app.handle_key(key(KeyCode::Char('c')));
+        assert!(!app.should_quit);
+        assert!(matches!(&app.overlay, Some(Overlay::Form(form)) if form.title.value() == "c"));
+    }
+
+    #[test]
+    fn ctrl_c_in_the_settings_panel_still_saves_the_settings() {
+        let dir = files::test_dir("app-ctrl-c");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("config.toml");
+        let mut app = App::new(
+            Texts::en(),
+            Vec::new(),
+            None,
+            Settings::default(),
+            Some(path.clone()),
+        );
+        // 設定頁：第一列（週數）關掉，直接 Ctrl+C
+        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char('l')));
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert!(app.should_quit);
+        // `run` 在每個按鍵之後存：設定頁已經關了，所以存得進去
+        app.save_settings().expect("save");
+        let saved = config::load(&path).expect("load");
+        assert!(!saved.calendar.week_numbers);
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]

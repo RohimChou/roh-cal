@@ -172,6 +172,7 @@ impl Texts {
                         ("o / Enter", "open detail"),
                         ("v", "switch view"),
                         ("Option+q", "open settings"),
+                        ("Ctrl+C", "quit from anywhere"),
                     ],
                 }],
                 right: &[HelpSection {
@@ -226,6 +227,7 @@ impl Texts {
                         ("o / Enter", "打開當天清單"),
                         ("v", "切換大小月曆"),
                         ("Option+q", "打開設定頁"),
+                        ("Ctrl+C", "直接離開（哪裡都可以）"),
                     ],
                 }],
                 right: &[HelpSection {
