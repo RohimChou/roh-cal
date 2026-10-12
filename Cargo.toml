@@ -2,7 +2,7 @@
 name = "roh-cal"
 version = "0.1.0"
 edition = "2024"
-description = "A terminal calendar for a plain-text task file"
+description = "A simple, keyboard-driven terminal calendar for plain-text tasks"
 license = "MIT"
 repository = "https://github.com/RohimChou/roh-cal"
 

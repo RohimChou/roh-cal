@@ -174,7 +174,9 @@ mod tests {
         }
         // 說明是英文：第一行是 Cargo.toml 的 description，有兩個參數的說明，沒有中文的 `///` 註解
         let help = Args::command().render_long_help().to_string();
-        assert!(help.starts_with("A terminal calendar for a plain-text task file\n"));
+        assert!(
+            help.starts_with("A simple, keyboard-driven terminal calendar for plain-text tasks\n")
+        );
         assert!(help.contains("Screen language") && help.contains("Task file to show"));
         assert!(!help.contains("系統語言") && !help.contains("命令列參數"));
     }

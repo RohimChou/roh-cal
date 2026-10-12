@@ -1,5 +1,5 @@
 # roh-cal
-A terminal calendar for a plain-text task file. Vim-style keys, a compact 8-week view and a big month view that lists each day's items. Built with Rust + [Ratatui](https://ratatui.rs/).
+A simple, keyboard-driven terminal calendar for plain-text tasks. Vim-style keys, a compact 8-week view and a big month view that lists each day's items. Built with Rust + [Ratatui](https://ratatui.rs/).
 
 ## Run
 Needs a recent stable Rust (`rustup update`).
