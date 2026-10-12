@@ -31,7 +31,7 @@ const WEEKDAYS: [Weekday; 7] = [
     Weekday::Sunday,
 ];
 
-/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單和表單在月曆正中間、說明頁在畫面正中間）
+/// 依 `app.view` 畫出現在的畫面；有跳窗就疊在上面（設定頁在右下角、當天清單和表單在月曆正中間、說明頁在月曆框的左上角或畫面正中間）
 pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),

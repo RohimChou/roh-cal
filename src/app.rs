@@ -1207,10 +1207,10 @@ mod tests {
         let text = "- [ ] 早上 @2026-10-10 09:00\n";
         let (mut app, path) = app_with_task_file("outside", text);
         app.screen = Rect::new(0, 0, 80, 24);
-        // 左上角：月曆框的角，在每一種跳窗的框外面
+        // 右上角：在每一種跳窗的框外面（說明頁在左上角、清單和表單在月曆框正中間、設定頁在右下角）
         let outside = MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
-            column: 0,
+            column: 79,
             row: 0,
             modifiers: KeyModifiers::NONE,
         };

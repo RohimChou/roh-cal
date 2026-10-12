@@ -1,8 +1,8 @@
-//! 說明頁：按 `?` 打開，疊在畫面正中間（排法照 tuxedo）；打開時是精簡版，`Tab` 換完整版
+//! 說明頁：按 `?` 打開，小月曆時疊在左上角、大月曆時疊在畫面正中間（排法照 tuxedo）；打開時是精簡版，`Tab` 換完整版
 //!
 //! 左右兩欄列按鍵；畫面不夠寬放兩欄時，改成一欄由上往下排。內容在 `Texts::help`
 
-use crate::app::App;
+use crate::app::{App, View};
 use crate::i18n::{HelpPage, HelpSection};
 use crate::theme::Theme;
 use ratatui::{
@@ -22,8 +22,7 @@ const SHORT_RIGHT_MARGIN: usize = GAP + 2;
 /// 框線和內容之間：上下各空 1 行（左邊靠段落名的縮排留空）
 const PADDING: Padding = Padding::vertical(1);
 
-/// 畫說明頁：大小剛好包住內容，放在整個 terminal 的正中間（說明頁不屬於哪一天，不用對齊月曆框）；
-/// terminal 太矮時下面的會被切掉
+/// 畫說明頁：大小剛好包住內容，放在哪見 `layout`；terminal 太矮時下面的會被切掉
 pub fn render(frame: &mut Frame, app: &App, full: bool) {
     let theme = &app.theme;
     let (lines, area) = layout(app, frame.area(), full);
@@ -70,10 +69,19 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     let box_height = u16::try_from(lines.len())
         .unwrap_or(u16::MAX)
         .saturating_add(PADDING.top + PADDING.bottom + 2);
-    let area = screen.centered(
-        Constraint::Length(box_width),
-        Constraint::Length(box_height),
-    );
+    let area = match app.view {
+        // 小月曆：跟月曆框一樣貼齊左上角（月曆框固定在左上角，放正中間會離月曆很遠）；超過畫面的部分切掉
+        View::Compact => Rect {
+            width: box_width.min(screen.width),
+            height: box_height.min(screen.height),
+            ..screen
+        },
+        // 大月曆佔滿整個 terminal：放在正中間（說明頁不屬於哪一天，不用對齊格子）
+        View::Month => screen.centered(
+            Constraint::Length(box_width),
+            Constraint::Length(box_height),
+        ),
+    };
     (lines, area)
 }
 
@@ -218,7 +226,7 @@ fn side_by_side(
 #[cfg(test)]
 mod tests {
     use super::{arrange, bounds};
-    use crate::app::{App, DayList, Overlay};
+    use crate::app::{App, DayList, Overlay, View};
     use crate::i18n::{HelpSection, Texts};
     use crate::theme::Theme;
     use crate::ui::rows;
@@ -416,9 +424,47 @@ mod tests {
             selected: 0,
             confirm_delete: None,
         };
-        let text = draw(Texts::en(), Some(list), false, 100, 40).join("\n");
-        assert!(text.contains("2026-10-12 Mon"));
-        assert!(text.contains("NAVIGATION"));
+        // 大月曆：說明頁在正中間，比它寬的清單從兩邊露出來（小月曆時清單整個被說明頁蓋住，看不出來）
+        let draw_month = |back: Option<DayList>| {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.view = View::Month;
+            app.overlay = Some(Overlay::Help { back, full: false });
+            let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, &app))
+                .unwrap();
+            rows(terminal.backend().buffer())
+        };
+        let (with_list, without_list) = (draw_month(Some(list)), draw_month(None));
+        assert!(with_list.join("\n").contains("NAVIGATION"));
+        assert_ne!(with_list, without_list);
+    }
+
+    #[test]
+    fn help_sits_at_the_top_left_in_the_compact_view_and_in_the_middle_in_the_month_view() {
+        for full in [false, true] {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.screen = ratatui::layout::Rect::new(0, 0, 120, 40);
+            // 小月曆：跟月曆框一樣貼齊左上角
+            let compact = bounds(&app, full);
+            assert_eq!((compact.x, compact.y), (0, 0), "{full}");
+            // 大月曆：一樣大，放在正中間（左右、上下的留白最多差 1 格）
+            app.view = View::Month;
+            let month = bounds(&app, full);
+            assert_eq!(
+                (month.width, month.height),
+                (compact.width, compact.height),
+                "{full}"
+            );
+            assert!(month.x.abs_diff(120 - month.right()) <= 1, "{full}");
+            assert!(month.y.abs_diff(40 - month.bottom()) <= 1, "{full}");
+        }
+        // 畫面比說明頁小：小月曆時框切到畫面大小（點框外的判斷才對得上），照樣畫得出來
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.screen = ratatui::layout::Rect::new(0, 0, 30, 8);
+        assert_eq!(bounds(&app, false), ratatui::layout::Rect::new(0, 0, 30, 8));
+        let rows = draw(Texts::en(), None, false, 30, 8);
+        assert!(rows[0].starts_with("╭ roh-cal"));
     }
 
     #[test]
