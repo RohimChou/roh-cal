@@ -259,16 +259,17 @@ mod tests {
         let text = rows.join("\n");
         for expected in [
             "roh-cal · keys",
-            // 按鍵那欄兩欄一樣寬 = 最長的鍵 + 3 格：hjkl 4 格 → 7 格
-            "hjkl   move",
-            "t      jump to today",
-            "o      open",
-            "V      cycle view",
-            "v      view picker",
-            "a      add item",
-            "?      help",
-            ",      settings",
-            "q      quit",
+            // 按鍵那欄兩欄一樣寬 = 最長的鍵 + 3 格：[ / ] 5 格 → 8 格
+            "hjkl    move",
+            "[ / ]   prev/next month",
+            "t       jump to today",
+            "o       open",
+            "V       cycle view",
+            "v       view picker",
+            "a       add item",
+            "?       help",
+            ",       settings",
+            "q       quit",
             "Tab all keys · ?/q/Esc close",
         ] {
             assert!(text.contains(expected), "{expected}");
@@ -281,18 +282,18 @@ mod tests {
         let top = row_of(&rows, "roh-cal · keys");
         assert_eq!(row_of(&rows, "NAVIGATION"), top + 2);
         assert_eq!(row_of(&rows, "EDITING"), top + 2);
-        // 段落名水平對齊：右欄 EDITING 比較長（4 個鍵），VIEW 跟著 SYSTEM 往下，兩個在同一行
+        // 段落名水平對齊：NAVIGATION、EDITING 都是 4 個鍵，VIEW、SYSTEM 在同一行
         assert_eq!(row_of(&rows, "VIEW"), row_of(&rows, "SYSTEM"));
-        assert_eq!(row_of(&rows, "VIEW"), row_of(&rows, "u      undo") + 2);
-        // 右欄從哪裡開始：左欄最長的一行（"    t      jump to today"，24 格）+ 兩欄之間 1 格
+        assert_eq!(row_of(&rows, "VIEW"), row_of(&rows, "u       undo") + 2);
+        // 右欄從哪裡開始：左欄最長的一行（"    [ / ]   prev/next month"，27 格）+ 兩欄之間 1 格
         assert_eq!(
             column_of(&rows, "EDITING") - column_of(&rows, "NAVIGATION"),
-            24 + 1
+            27 + 1
         );
         // 右欄對齊：段落名縮排 2、按鍵縮排 4
         assert_eq!(
             column_of(&rows, "EDITING") + 2,
-            column_of(&rows, "a      add item")
+            column_of(&rows, "a       add item")
         );
         // 右邊的留白跟兩欄之間一樣：最寬的右欄那行（settings）和右框線之間空 3 格
         let row = &rows[row_of(&rows, "settings")];
@@ -301,7 +302,7 @@ mod tests {
         // 下框線和最後一行（右欄的 q）之間也空一行
         assert_eq!(
             row_of(&rows, "?/q/Esc close"),
-            row_of(&rows, "q      quit") + 2
+            row_of(&rows, "q       quit") + 2
         );
     }
 
@@ -381,7 +382,7 @@ mod tests {
             buffer[(u16::try_from(x).unwrap(), u16::try_from(y).unwrap())].fg
         };
         assert_eq!(Some(fg("NAVIGATION")), app.theme.help_section.fg);
-        assert_eq!(Some(fg("hjkl   move")), app.theme.help_key.fg);
+        assert_eq!(Some(fg("hjkl    move")), app.theme.help_key.fg);
     }
 
     #[test]
@@ -397,10 +398,10 @@ mod tests {
         for expected in [
             "roh-cal · 按鍵",
             "移動",
-            "o      打開",
+            "o       打開",
             "畫面",
             "編輯",
-            "a      新增",
+            "a       新增",
             "系統",
             "Tab 全部按鍵 · ?/q/Esc 關閉",
         ] {

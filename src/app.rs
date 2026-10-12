@@ -299,7 +299,7 @@ impl App {
         }
     }
 
-    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、新增、復原、說明、設定頁、離開
+    /// 沒有跳窗時的按鍵：移動、換月、跳回今天、切換畫面、打開當天清單、新增、復原、說明、設定頁、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
         // 按了 v 之後的下一個鍵：c 小月曆、m 大月曆；其他鍵（含 Esc、q）只是取消，不做那個鍵原本的事
         if self.view_prefix {
@@ -319,6 +319,9 @@ impl App {
             // k / j（或 ↑ / ↓）：上一週 / 下一週（同一欄往上 / 往下）
             KeyCode::Char('k') | KeyCode::Up => self.move_selected(-7),
             KeyCode::Char('j') | KeyCode::Down => self.move_selected(7),
+            // [ / ]：上個月 / 下個月的同一天
+            KeyCode::Char('[') => self.move_selected_months(-1),
+            KeyCode::Char(']') => self.move_selected_months(1),
             // t：跳回今天
             KeyCode::Char('t') => self.jump_to_today(),
             // Enter / o：打開選取那天的清單
@@ -443,10 +446,25 @@ impl App {
         self.scroll_to_selected();
     }
 
-    /// 跳回今天，畫面也回到剛打開 app 的位置（本月的前一週在最上面；大月曆置中時今天那週在正中間）
+    /// 選取的日期移到 `months` 個月後的同一天（負數 = 往前）；那個月沒有這天就停在月底（例：10/31 → 11/30）。
+    /// 畫面跟按 `t` 一樣，換成那個月剛打開的樣子
+    fn move_selected_months(&mut self, months: i64) {
+        // jiff 加月份時，日子超過那個月的天數會自動夾到月底；超出 jiff 能表示的範圍就不動
+        let Ok(date) = self.selected.checked_add(months.months()) else {
+            return;
+        };
+        self.show_month_of(date);
+    }
+
+    /// 跳回今天，畫面也回到剛打開 app 的位置
     fn jump_to_today(&mut self) {
-        self.selected = self.today;
-        self.top = month_top(self.today);
+        self.show_month_of(self.today);
+    }
+
+    /// 選取 `date`，畫面換成那天剛打開 app 的樣子（那個月的前一週在最上面；大月曆置中時選取的那週在正中間）
+    fn show_month_of(&mut self, date: Date) {
+        self.selected = date;
+        self.top = month_top(date);
         self.scroll_to_selected();
     }
 
@@ -587,6 +605,63 @@ mod tests {
                 assert_eq!(app.top, top, "{view:?} {center} {weeks}");
             }
         }
+    }
+
+    #[test]
+    fn brackets_move_a_month_and_stop_at_the_month_end() {
+        // (開始, 按鍵, 選到哪天)
+        let cases = [
+            (date(2026, 10, 10), ']', date(2026, 11, 10)),
+            (date(2026, 10, 10), '[', date(2026, 9, 10)),
+            // 下個月沒有那天：停在月底
+            (date(2026, 10, 31), ']', date(2026, 11, 30)),
+            (date(2026, 3, 31), '[', date(2026, 2, 28)),
+            // 閏年 2 月有 29 天
+            (date(2028, 1, 31), ']', date(2028, 2, 29)),
+            (date(2027, 1, 31), ']', date(2027, 2, 28)),
+            // 跨年
+            (date(2026, 12, 15), ']', date(2027, 1, 15)),
+            (date(2027, 1, 15), '[', date(2026, 12, 15)),
+            // 超出 jiff 能表示的範圍：不動
+            (date(9999, 12, 15), ']', date(9999, 12, 15)),
+        ];
+        for (start, bracket, expected) in cases {
+            let mut app = App::on_date(start, Texts::en(), Vec::new());
+            app.handle_key(key(KeyCode::Char(bracket)));
+            assert_eq!(app.selected, expected, "{start} {bracket}");
+        }
+        // 停在月底之後，日子就是那一天：10/31 按兩次 ] 是 12/30
+        let mut app = App::on_date(date(2026, 10, 31), Texts::en(), Vec::new());
+        app.handle_key(key(KeyCode::Char(']')));
+        app.handle_key(key(KeyCode::Char(']')));
+        assert_eq!(app.selected, date(2026, 12, 30));
+    }
+
+    #[test]
+    fn brackets_show_the_month_like_opening_the_app_on_that_day() {
+        // 10/10 按 ]：11/10（星期二，那週的星期一是 11/9）；11/1 是星期日 → 那週的星期一 10/26 → 前一週 10/19
+        let cases = [
+            // 小月曆：10/19 在最上面，11/9 那週在第 4 行
+            (View::Compact, true, date(2026, 10, 19)),
+            // 大月曆置中：11/9 那週在 6 行的第 3 行 → 最上面 10/26
+            (View::Month, true, date(2026, 10, 26)),
+            // 大月曆不置中：跟小月曆一樣 10/19，11/9 那週在畫面上，不用再捲
+            (View::Month, false, date(2026, 10, 19)),
+        ];
+        for (view, center, top) in cases {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.view = view;
+            app.settings.month.center_cursor = center;
+            app.scroll_to_selected();
+            app.handle_key(key(KeyCode::Char(']')));
+            assert_eq!(app.selected, date(2026, 11, 10), "{view:?} {center}");
+            assert_eq!(app.top, top, "{view:?} {center}");
+        }
+        // 小月曆按 [：9/10；9/1 是星期二 → 那週的星期一 8/31 → 前一週 8/24
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.handle_key(key(KeyCode::Char('[')));
+        assert_eq!(app.selected, date(2026, 9, 10));
+        assert_eq!(app.top, date(2026, 8, 24));
     }
 
     #[test]

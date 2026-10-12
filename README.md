@@ -20,6 +20,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | Key | Action |
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
+| `[` / `]` | Same day in the previous / next month; stops at the month's last day (10/31 → 11/30) |
 | `t` | Jump to today |
 | `Enter` / `o` | Open the selected day's list |
 | `a` | Add an item on the selected day (opens the add form) |

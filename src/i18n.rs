@@ -180,7 +180,12 @@ impl Texts {
                     left: &[
                         HelpSection {
                             title: "NAVIGATION",
-                            keys: &[("hjkl", "move"), ("t", "jump to today"), ("o", "open")],
+                            keys: &[
+                                ("hjkl", "move"),
+                                ("[ / ]", "prev/next month"),
+                                ("t", "jump to today"),
+                                ("o", "open"),
+                            ],
                         },
                         HelpSection {
                             title: "VIEW",
@@ -211,6 +216,7 @@ impl Texts {
                             title: "NAVIGATION",
                             keys: &[
                                 ("hjkl ←↓↑→", "move a day / week"),
+                                ("[ / ]", "prev / next month"),
                                 ("t", "jump to today"),
                                 ("o / Enter", "open the day"),
                             ],
@@ -311,7 +317,12 @@ impl Texts {
                     left: &[
                         HelpSection {
                             title: "移動",
-                            keys: &[("hjkl", "移動"), ("t", "跳回今天"), ("o", "打開")],
+                            keys: &[
+                                ("hjkl", "移動"),
+                                ("[ / ]", "上個月/下個月"),
+                                ("t", "跳回今天"),
+                                ("o", "打開"),
+                            ],
                         },
                         HelpSection {
                             title: "畫面",
@@ -337,6 +348,7 @@ impl Texts {
                             title: "移動",
                             keys: &[
                                 ("hjkl ←↓↑→", "移一天 / 一週"),
+                                ("[ / ]", "上個月 / 下個月"),
                                 ("t", "跳回今天"),
                                 ("o / Enter", "打開當天清單"),
                             ],
