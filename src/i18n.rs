@@ -122,18 +122,22 @@ pub struct Texts {
     pub form_title: &'static str,
     /// 編輯表單的標題（上框線）
     pub form_edit_title: &'static str,
-    /// 新增表單的欄位名：標題、日期
-    pub form_labels: [&'static str; 2],
+    /// 新增表單的欄位名：標題、日期、時間
+    pub form_labels: [&'static str; 3],
     /// 新增表單最下面的操作說明
     pub form_hint: &'static str,
     /// 新增表單：游標在日期欄時，日期右邊的操作說明
     pub form_date_hint: &'static str,
+    /// 新增表單：游標在時間欄時，時間右邊的說明
+    pub form_time_hint: &'static str,
     /// 新增表單：標題是空的
     pub form_empty_title: &'static str,
     /// 新增表單：標題裡有 `@日期`
     pub form_date_in_title: &'static str,
     /// 新增表單：日期寫錯
     pub form_bad_date: &'static str,
+    /// 新增表單：時間寫錯
+    pub form_bad_time: &'static str,
 }
 
 impl Texts {
@@ -183,12 +187,14 @@ impl Texts {
             },
             form_title: "new item",
             form_edit_title: "edit item",
-            form_labels: ["title", "date"],
+            form_labels: ["title", "date", "time"],
             form_hint: "Tab next · Enter save · Esc cancel",
             form_date_hint: "hjkl change date",
+            form_time_hint: "optional",
             form_empty_title: "the title is empty",
             form_date_in_title: "the title can't contain an @date",
             form_bad_date: "date should look like 2026-10-12",
+            form_bad_time: "time should look like 14:00 or 1400",
         }
     }
 
@@ -235,12 +241,14 @@ impl Texts {
             },
             form_title: "新增項目",
             form_edit_title: "編輯項目",
-            form_labels: ["標題", "日期"],
+            form_labels: ["標題", "日期", "時間"],
             form_hint: "Tab 換欄 · Enter 存 · Esc 取消",
             form_date_hint: "hjkl 換日期",
+            form_time_hint: "可以空著",
             form_empty_title: "標題是空的",
             form_date_in_title: "標題不能有 @日期，請用日期欄",
             form_bad_date: "日期要像 2026-10-12",
+            form_bad_time: "時間要像 14:00 或 1400",
             ..Self::en()
         }
     }

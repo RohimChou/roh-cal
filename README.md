@@ -47,12 +47,12 @@ In the add / edit form:
 
 | Key | Action |
 | :- | :- |
-| `Tab` / `Shift+Tab` | Next / previous field (title, date) |
+| `Tab` / `Shift+Tab` | Next / previous field (title, date, time) |
 | `h` `j` `k` `l` / arrows (date field) | Previous day / next week / previous week / next day |
 | `Enter` | Save and go back; the day list / calendar selects the new item |
 | `Esc` | Cancel |
 
-The date field shows a small calendar and takes digits and `-` only, e.g. `2026-10-12`.
+The date field shows a small calendar and takes digits and `-` only, e.g. `2026-10-12`. The time field is optional and takes digits and `:` only: `14:00`, `9:00`, `1400` or `930` (saved as `14:00`, `09:00`, `14:00`, `09:30`).
 
 In the settings panel:
 
@@ -101,4 +101,4 @@ A Markdown file, one item per line. It reads well in any editor, Obsidian or Git
 - `# Heading` starts a group; deeper indentation = a subtask
 - Everything else is left alone
 
-Checking an item off rewrites only that line; deleting one removes it together with the lines indented below it; adding one writes `- [ ] title @date` after the last item of the selected item's group (or at the end of the file). If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere. Editing is next.
+Checking an item off rewrites only that line; deleting one removes it together with the lines indented below it; adding one writes `- [ ] title @date time` after the last item of the selected item's group (or at the end of the file). If the file was changed elsewhere since roh-cal read it (e.g. in Obsidian), roh-cal reloads it instead of writing. `u` undoes roh-cal's changes one at a time, but never over changes made elsewhere.

@@ -1,20 +1,25 @@
-//! 新增 / 編輯表單（月曆或當天清單按 `a` 新增，清單按 `Enter` / `o` / `e` 編輯）：標題、日期兩欄，
+//! 新增 / 編輯表單（月曆或當天清單按 `a` 新增，清單按 `Enter` / `o` / `e` 編輯）：標題、日期、時間三欄，
 //! 和表單開著時的按鍵、按 Enter 的檢查（畫面在 `ui::form`、寫檔在 `write`）
 
 use super::{App, DayList, Notice, Overlay};
 use crate::tasks::{self, Item};
 use crate::ui;
-use jiff::{ToSpan, civil::Date};
+use jiff::{
+    ToSpan,
+    civil::{Date, Time},
+};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use tui_input::{Input, InputRequest, backend::crossterm::to_input_request};
 
-/// 新增 / 編輯表單：標題、日期兩欄
+/// 新增 / 編輯表單：標題、日期、時間三欄
 #[derive(Debug, Clone)]
 pub struct Form {
     /// 標題欄
     pub title: Input,
     /// 日期欄（`2026-10-12`），一開始是打開表單的那一天
     pub date: Input,
+    /// 時間欄（`14:00`），可以空著 = 沒有時間；也收 `9:00`、`1400` 這種寫法，存檔時寫成 `09:00`、`14:00`
+    pub time: Input,
     /// 小月曆選到的日期：日期欄最後一次是完整日期時的那天（打到一半時不變），`h/j/k/l` 從這天開始換
     pub picked: Date,
     /// 游標在哪一欄
@@ -28,11 +33,12 @@ pub struct Form {
 }
 
 impl Form {
-    /// 打開表單：標題空的、日期是 `date`，游標在標題；`back` = 從哪個清單打開的（`None` = 月曆）
+    /// 打開表單：標題、時間空的，日期是 `date`，游標在標題；`back` = 從哪個清單打開的（`None` = 月曆）
     pub(super) fn open(date: Date, back: Option<DayList>) -> Self {
         Self {
             title: Input::default(),
             date: Input::new(date.to_string()),
+            time: Input::default(),
             picked: date,
             focus: FormField::Title,
             back,
@@ -41,11 +47,13 @@ impl Form {
         }
     }
 
-    /// 打開表單編輯 `item`（從清單 `back` 打開）：標題、日期是那個項目的，游標在標題最後面
+    /// 打開表單編輯 `item`（從清單 `back` 打開）：標題、日期、時間是那個項目的，游標在標題最後面
     pub(super) fn edit(item: &Item, back: DayList) -> Self {
         let date = item.date.unwrap_or(back.date);
+        let time = item.time.map(|time| time.strftime("%H:%M").to_string());
         Self {
             title: Input::new(item.title.clone()),
+            time: Input::new(time.unwrap_or_default()),
             editing: Some(item.clone()),
             ..Self::open(date, Some(back))
         }
@@ -68,6 +76,7 @@ impl PartialEq for Form {
         let same = |a: &Input, b: &Input| a.value() == b.value() && a.cursor() == b.cursor();
         same(&self.title, &other.title)
             && same(&self.date, &other.date)
+            && same(&self.time, &other.time)
             && self.picked == other.picked
             && self.focus == other.focus
             && self.back == other.back
@@ -78,19 +87,39 @@ impl PartialEq for Form {
 
 impl Eq for Form {}
 
-/// 表單的欄位
+/// 表單的欄位（照畫面上由上到下的順序）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormField {
     Title,
     Date,
+    Time,
 }
 
 impl FormField {
-    /// `Tab` / `Shift+Tab` 換到的另一欄（只有兩欄，往前往後都一樣）
-    fn other(self) -> Self {
+    /// `Tab` 換到的下一欄（最後一欄再按就回到第一欄）
+    fn next(self) -> Self {
         match self {
             Self::Title => Self::Date,
+            Self::Date => Self::Time,
+            Self::Time => Self::Title,
+        }
+    }
+
+    /// `Shift+Tab` 換到的上一欄（第一欄再按就到最後一欄）
+    fn previous(self) -> Self {
+        match self {
+            Self::Title => Self::Time,
             Self::Date => Self::Title,
+            Self::Time => Self::Date,
+        }
+    }
+
+    /// 這一欄收不收打的這個字：標題什麼都收，日期欄只收數字和 `-`，時間欄只收數字和 `:`
+    fn accepts(self, c: char) -> bool {
+        match self {
+            Self::Title => true,
+            Self::Date => c.is_ascii_digit() || c == '-',
+            Self::Time => c.is_ascii_digit() || c == ':',
         }
     }
 }
@@ -104,6 +133,8 @@ pub enum FormProblem {
     DateInTitle,
     /// 日期不是 `2026-10-12` 這種寫法，或不存在（例：`2026-13-01`）
     BadDate,
+    /// 時間不是 `14:00`、`9:00`、`1400`、`930` 這幾種寫法，或不存在（例：`25:00`）
+    BadTime,
 }
 
 impl FormProblem {
@@ -112,6 +143,7 @@ impl FormProblem {
         match self {
             Self::EmptyTitle | Self::DateInTitle => FormField::Title,
             Self::BadDate => FormField::Date,
+            Self::BadTime => FormField::Time,
         }
     }
 }
@@ -130,7 +162,8 @@ impl App {
                 self.overlay = form.back.map(Overlay::DayList);
                 return;
             }
-            KeyCode::Tab | KeyCode::BackTab => form.focus = form.focus.other(),
+            KeyCode::Tab => form.focus = form.focus.next(),
+            KeyCode::BackTab => form.focus = form.focus.previous(),
             KeyCode::Enter => {
                 if let Some(list) = self.save_form(&mut form) {
                     if form.back.is_some() {
@@ -169,16 +202,18 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down if form.focus == FormField::Date => {
                 form.move_date(7)
             }
-            // 其他鍵交給 tui-input（打字、Backspace、←/→、Ctrl+U…）；日期欄只收數字和 `-`
+            // 其他鍵交給 tui-input（打字、Backspace、←/→、Ctrl+U…）；日期、時間欄不收字母（`FormField::accepts`）
             _ => {
                 let request = to_input_request(&Event::Key(key));
                 let input = match form.focus {
                     FormField::Title => &mut form.title,
                     FormField::Date => &mut form.date,
+                    FormField::Time => &mut form.time,
                 };
-                let typed_letter = matches!(request, Some(InputRequest::InsertChar(c)) if !(c.is_ascii_digit() || c == '-'));
+                let refused =
+                    matches!(request, Some(InputRequest::InsertChar(c)) if !form.focus.accepts(c));
                 if let Some(request) = request
-                    && !(form.focus == FormField::Date && typed_letter)
+                    && !refused
                 {
                     input.handle(request);
                 }
@@ -193,7 +228,7 @@ impl App {
         self.overlay = Some(Overlay::Form(form));
     }
 
-    /// 表單按 Enter：檢查標題、日期，寫進任務檔（新增一行，或改編輯的那一行）。存好了回傳那個項目那天的清單（選到它）；
+    /// 表單按 Enter：檢查標題、日期、時間，寫進任務檔（新增一行，或改編輯的那一行）。存好了回傳那個項目那天的清單（選到它）；
     /// 沒存成回傳 `None`，原因放在 `form.problem`（欄位寫錯）或 `self.notice`（檔案的問題），表單留著讓使用者改
     fn save_form(&mut self, form: &mut Form) -> Option<DayList> {
         let title = form.title.value().trim().to_string();
@@ -209,9 +244,20 @@ impl App {
             form.problem = Some(FormProblem::BadDate);
             return None;
         };
+        // 時間欄空著 = 沒有時間
+        let typed = form.time.value().trim();
+        let time = if typed.is_empty() {
+            None
+        } else {
+            let Some(time) = typed_time(typed) else {
+                form.problem = Some(FormProblem::BadTime);
+                return None;
+            };
+            Some(time)
+        };
         let saved = match form.editing.clone() {
-            // 編輯：那一行改成新的標題和日期（時間不變）
-            Some(item) => self.update_item(&item, title, date),
+            // 編輯：那一行改成新的標題、日期、時間
+            Some(item) => self.update_item(&item, title, date, time),
             // 新增：放在清單選到的那個項目同一組；從月曆打開的，跟打開那天的清單再按 a 一樣（選第一個）。
             // 表單開著時月曆不會動，所以 `self.selected` 還是打開表單的那天
             None => {
@@ -220,7 +266,7 @@ impl App {
                     .get(list.selected)
                     .copied()
                     .cloned();
-                self.add_item(title, date, near.as_ref())
+                self.add_item(title, date, time, near.as_ref())
             }
         };
         let line = match saved {
@@ -242,12 +288,28 @@ impl App {
     }
 }
 
+/// 時間欄打的字 → 時間：`14:00`、`9:00`（冒號前 1～2 位、後 2 位）或 `1400`、`930`（3～4 位數字，最後兩位是分鐘）。
+/// 寫法不對或時間不存在（例：`9`、`9:5`、`25:00`）回傳 `None`
+fn typed_time(text: &str) -> Option<Time> {
+    let (hour, minute) = match text.split_once(':') {
+        Some(parts) => parts,
+        // 沒有冒號：最後兩位是分鐘，前面是小時（`1400` → `14` + `00`）
+        None => text.split_at_checked(text.len().checked_sub(2)?)?,
+    };
+    let digits = |part: &str| part.bytes().all(|byte| byte.is_ascii_digit());
+    if !((1..=2).contains(&hour.len()) && minute.len() == 2 && digits(hour) && digits(minute)) {
+        return None;
+    }
+    // 小時、分鐘超出範圍（例：`25`、`60`）時 jiff 回傳錯誤
+    Time::new(hour.parse().ok()?, minute.parse().ok()?, 0, 0).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::Notice;
     use crate::app::tests::{app_with_task_file, app_with_two_items, key};
-    use jiff::civil::date;
+    use jiff::civil::{date, time};
     use ratatui::crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
 
     /// 一個一個字打進去（test 用）
@@ -592,11 +654,116 @@ mod tests {
         assert_eq!(form(&app).problem, Some(FormProblem::BadDate));
         assert_eq!(form(&app).focus, FormField::Date);
         // 游標在日期、標題裡有 @日期 → 跳到標題（標題的問題先檢查）
-        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
         type_text(&mut app, " @2026-10-20");
         app.handle_key(key(KeyCode::Tab));
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(form(&app).problem, Some(FormProblem::DateInTitle));
         assert_eq!(form(&app).focus, FormField::Title);
+    }
+
+    #[test]
+    fn tab_and_shift_tab_go_around_the_three_fields() {
+        let mut app = app_with_two_items();
+        app.handle_key(key(KeyCode::Char('a')));
+        let shift_tab = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
+        // Tab：標題 → 日期 → 時間 → 回到標題；Shift+Tab 反過來
+        for (event, expected) in [
+            (key(KeyCode::Tab), FormField::Date),
+            (key(KeyCode::Tab), FormField::Time),
+            (key(KeyCode::Tab), FormField::Title),
+            (shift_tab, FormField::Time),
+            (shift_tab, FormField::Date),
+            (shift_tab, FormField::Title),
+        ] {
+            app.handle_key(event);
+            assert_eq!(form(&app).focus, expected);
+        }
+    }
+
+    #[test]
+    fn typed_time_takes_a_few_ways_of_writing() {
+        let cases = [
+            ("14:00", Some(time(14, 0, 0, 0))),
+            ("9:00", Some(time(9, 0, 0, 0))),
+            ("09:05", Some(time(9, 5, 0, 0))),
+            ("1400", Some(time(14, 0, 0, 0))),
+            ("930", Some(time(9, 30, 0, 0))),
+            ("0000", Some(time(0, 0, 0, 0))),
+            ("23:59", Some(time(23, 59, 0, 0))),
+            // 只有小時、分鐘只有 1 位、位數不對、多的冒號、不存在的時間：都不收
+            ("9", None),
+            ("14", None),
+            ("9:5", None),
+            ("12345", None),
+            ("123:45", None),
+            (":30", None),
+            ("1:2:3", None),
+            ("24:00", None),
+            ("9:60", None),
+            ("2500", None),
+            ("", None),
+        ];
+        for (text, expected) in cases {
+            assert_eq!(typed_time(text), expected, "{text}");
+        }
+    }
+
+    #[test]
+    fn the_time_field_takes_digits_and_colons_and_saves_the_time() {
+        let (mut app, path) = app_with_task_file("add-time", "");
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.handle_key(key(KeyCode::Char('a')));
+        type_text(&mut app, "早餐");
+        // Shift+Tab 從標題直接到時間欄：字母、`-` 不收
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        type_text(&mut app, "25q-:00");
+        assert_eq!(form(&app).time.value(), "25:00");
+        // 25 點不存在：不存；從標題按 Enter，游標也跳回時間欄
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(form(&app).problem, Some(FormProblem::BadTime));
+        assert_eq!(form(&app).focus, FormField::Time);
+        assert_eq!(read(), "");
+        // 改成 930：存成兩位數的 09:30
+        for _ in 0..5 {
+            app.handle_key(key(KeyCode::Backspace));
+        }
+        type_text(&mut app, "930");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(read(), "- [ ] 早餐 @2026-10-10 09:30\n");
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn editing_changes_or_clears_the_time() {
+        let text = MORNING_AND_DONE_AFTERNOON;
+        let (mut app, path) = app_with_task_file("edit-time", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        let shift_tab = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
+        // 打開「早上」：時間欄是它的 09:00；改成 1530
+        app.handle_key(key(KeyCode::Char('e')));
+        assert_eq!(form(&app).time.value(), "09:00");
+        app.handle_key(shift_tab);
+        for _ in 0..5 {
+            app.handle_key(key(KeyCode::Backspace));
+        }
+        type_text(&mut app, "1530");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(read(), text.replace("09:00", "15:30"));
+        // 清單照時間排：下午（14:00）在前，早上（15:30）在後、還選著它
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::DayList(DayList { selected: 1, .. }))
+        ));
+        // 再打開它，把時間清掉：那一行就沒有時間
+        app.handle_key(key(KeyCode::Char('e')));
+        app.handle_key(shift_tab);
+        for _ in 0..5 {
+            app.handle_key(key(KeyCode::Backspace));
+        }
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(read(), text.replace(" 09:00", ""));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }

@@ -1,4 +1,4 @@
-//! 新增 / 編輯表單：月曆或當天清單按 `a` 新增、清單按 `Enter` / `o` / `e` 編輯，疊在月曆框的正中間（跟當天清單一樣），兩欄：標題、日期；游標在日期欄時下面出現小月曆
+//! 新增 / 編輯表單：月曆或當天清單按 `a` 新增、清單按 `Enter` / `o` / `e` 編輯，疊在月曆框的正中間（跟當天清單一樣），三欄：標題、日期、時間；游標在日期欄時下面出現小月曆
 
 use crate::app::{App, Form, FormField, FormProblem};
 use crate::calendar::monday_of;
@@ -23,7 +23,7 @@ const LABEL_WIDTH: u16 = 7;
 const PICKER_ROWS: u16 = 4;
 
 /// 畫新增表單：一欄一行（欄位名 + 打的字），游標那欄的欄位名醒目、terminal 的游標停在打字的位置；
-/// 游標在日期欄時，日期下面出現小月曆。
+/// 游標在日期欄時，日期下面出現小月曆（時間欄往下移）。
 /// 下框線：欄位寫錯的原因 > 提示（例：檔案在別處改過）> 操作說明
 pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
     let theme = &app.theme;
@@ -31,13 +31,14 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
     // 小月曆只在游標在日期欄時出現，框跟著變高（一樣置中，跟底下的清單對齊）
     let picker = form.focus == FormField::Date;
     let picker_rows = if picker { PICKER_ROWS } else { 0 };
-    let height = 2 + PADDING.top + PADDING.bottom + 2 + picker_rows;
+    let height = 2 + PADDING.top + PADDING.bottom + 3 + picker_rows;
     let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
 
     let bottom = match form.problem {
         Some(FormProblem::EmptyTitle) => Some(app.texts.form_empty_title),
         Some(FormProblem::DateInTitle) => Some(app.texts.form_date_in_title),
         Some(FormProblem::BadDate) => Some(app.texts.form_bad_date),
+        Some(FormProblem::BadTime) => Some(app.texts.form_bad_time),
         None => None,
     }
     .map(|problem| Line::styled(format!(" {problem} "), theme.error))
@@ -59,16 +60,18 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
 
-    let [title_row, date_row, picker_area] = Layout::vertical([
+    let [title_row, date_row, picker_area, time_row] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(picker_rows),
+        Constraint::Length(1),
     ])
     .areas(inner);
-    let [title_label, date_label] = app.texts.form_labels;
+    let [title_label, date_label, time_label] = app.texts.form_labels;
     let fields = [
         (FormField::Title, title_row, title_label, &form.title),
         (FormField::Date, date_row, date_label, &form.date),
+        (FormField::Time, time_row, time_label, &form.time),
     ];
     for (field, row, label, input) in fields {
         let focused = form.focus == field;
@@ -76,9 +79,14 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
             Layout::horizontal([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)]).areas(row);
         let label_style = if focused { theme.title } else { theme.hint };
         frame.render_widget(Paragraph::new(Line::styled(label, label_style)), label_area);
-        // 游標在日期欄：最右邊提示可以用 hjkl 換日期（打的字放在左邊剩下的位置，不會被蓋住）
-        if focused && field == FormField::Date {
-            let hint = Line::styled(app.texts.form_date_hint, theme.hint);
+        // 游標那欄的說明放最右邊（日期：可以用 hjkl 換日期；時間：可以空著），打的字放在左邊剩下的位置，不會被蓋住
+        let field_hint = match field {
+            FormField::Title => None,
+            FormField::Date => Some(app.texts.form_date_hint),
+            FormField::Time => Some(app.texts.form_time_hint),
+        };
+        if focused && let Some(field_hint) = field_hint {
+            let hint = Line::styled(field_hint, theme.hint);
             let hint_width = u16::try_from(hint.width()).unwrap_or(u16::MAX);
             let [input_area, hint_area] =
                 Layout::horizontal([Constraint::Fill(1), Constraint::Length(hint_width)])
@@ -164,7 +172,7 @@ mod tests {
     use jiff::civil::date;
     use ratatui::{Terminal, backend::TestBackend};
 
-    /// 畫一個表單（標題打了 `title`、日期欄是 `picked`、游標在 `focus`、`problem` 是沒通過的檢查）
+    /// 畫一個表單（標題打了 `title`、日期欄是 `picked`、時間欄是 `14:00`、游標在 `focus`、`problem` 是沒通過的檢查）
     /// 在 80 × 24 的畫面上（今天是 10/10），回傳畫面每一行的文字和 terminal
     fn draw(
         texts: Texts,
@@ -177,6 +185,7 @@ mod tests {
         app.overlay = Some(Overlay::Form(Box::new(Form {
             title: Input::new(title.to_string()),
             date: Input::new(picked.to_string()),
+            time: Input::new("14:00".to_string()),
             picked,
             focus,
             back: Some(DayList {
@@ -205,17 +214,21 @@ mod tests {
     }
 
     #[test]
-    fn form_shows_both_fields_and_the_cursor_in_the_title() {
+    fn form_shows_all_fields_and_the_cursor_in_the_title() {
         let (rows, mut terminal) = draw(Texts::en(), "abc", OCT_12, FormField::Title, None);
         let text = rows.join("\n");
         for expected in [
             " new item ",
             "title  abc",
             "date   2026-10-12",
+            "time   14:00",
             "Tab next · Enter save · Esc cancel",
         ] {
             assert!(text.contains(expected), "{expected}");
         }
+        // 沒有小月曆時，時間就在日期的下一行
+        let date_row = position_of(&rows, "2026-10-12").1;
+        assert_eq!(position_of(&rows, "time   14:00").1, date_row + 1);
         // 游標停在標題最後一個字的後面
         let (x, y) = position_of(&rows, "abc");
         terminal.backend_mut().assert_cursor_position((x + 3, y));
@@ -226,6 +239,24 @@ mod tests {
         let (rows, mut terminal) = draw(Texts::en(), "abc", OCT_12, FormField::Date, None);
         let (x, y) = position_of(&rows, "2026-10-12");
         terminal.backend_mut().assert_cursor_position((x + 10, y));
+        let (rows, mut terminal) = draw(Texts::en(), "abc", OCT_12, FormField::Time, None);
+        let (x, y) = position_of(&rows, "14:00");
+        terminal.backend_mut().assert_cursor_position((x + 5, y));
+    }
+
+    #[test]
+    fn the_time_field_says_it_is_optional() {
+        // 游標在時間欄：同一行最右邊是「可以空著」；沒有小月曆
+        for texts in [Texts::en(), Texts::zh_tw()] {
+            let (hint, date_hint) = (texts.form_time_hint, texts.form_date_hint);
+            let (rows, _) = draw(texts, "abc", OCT_12, FormField::Time, None);
+            let y = usize::from(position_of(&rows, "14:00").1);
+            assert!(rows[y].contains(hint), "{hint}");
+            assert!(!rows.join("\n").contains(date_hint), "{date_hint}");
+        }
+        // 游標在別欄：不顯示
+        let (rows, _) = draw(Texts::en(), "abc", OCT_12, FormField::Title, None);
+        assert!(!rows.join("\n").contains("optional"));
     }
 
     #[test]
@@ -256,6 +287,15 @@ mod tests {
         assert!(text.contains("新增項目"));
         assert!(text.contains("標題   x"));
         assert!(text.contains("日期要像 2026-10-12"));
+        // 時間寫錯
+        for (texts, expected) in [
+            (Texts::en(), "time should look like 14:00 or 1400"),
+            (Texts::zh_tw(), "時間要像 14:00 或 1400"),
+        ] {
+            let problem = Some(FormProblem::BadTime);
+            let (rows, _) = draw(texts, "x", OCT_12, FormField::Time, problem);
+            assert!(rows.join("\n").contains(expected), "{expected}");
+        }
         // 標題裡有 @日期：中英文都整句看得到（下框線放得下）
         for (texts, expected) in [
             (Texts::en(), "the title can't contain an @date"),
@@ -287,6 +327,8 @@ mod tests {
         for (row, line) in (1..).zip(expected) {
             assert_eq!(position_of(&rows, line), (x, y + row), "{line}");
         }
+        // 時間欄在小月曆下面
+        assert_eq!(position_of(&rows, "14:00"), (x, y + 5));
         // 選到的 12 號：整格（4 格）是選取的底色，13 號不是
         let theme = Theme::default();
         let buffer = terminal.backend().buffer();
@@ -339,6 +381,7 @@ mod tests {
             app.overlay = Some(Overlay::Form(Box::new(Form {
                 title: Input::default(),
                 date: Input::new(OCT_12.to_string()),
+                time: Input::default(),
                 picked: OCT_12,
                 focus: FormField::Title,
                 back,
@@ -370,6 +413,7 @@ mod tests {
             app.overlay = Some(Overlay::Form(Box::new(Form {
                 title: Input::new(item.title.clone()),
                 date: Input::new(OCT_12.to_string()),
+                time: Input::default(),
                 picked: OCT_12,
                 focus: FormField::Title,
                 back: Some(list),

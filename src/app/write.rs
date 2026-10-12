@@ -4,7 +4,7 @@ use super::{App, DayList};
 use crate::files;
 use crate::tasks::{self, Item, edit};
 use crate::ui;
-use jiff::civil::Date;
+use jiff::civil::{Date, Time};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -94,12 +94,13 @@ impl App {
         }
     }
 
-    /// 新項目 `- [ ] 標題 @日期` 寫進任務檔，放在 `near`（清單選到的項目）同一組；
+    /// 新項目 `- [ ] 標題 @日期 時間` 寫進任務檔（`time` 是 `None` 就不寫時間），放在 `near`（清單選到的項目）同一組；
     /// 回傳新項目在檔案的第幾行，沒有任務檔（test）是 `Ok(None)`；讀寫失敗、檔案在別處改過回傳提示
     pub(super) fn add_item(
         &mut self,
         title: String,
         date: Date,
+        time: Option<Time>,
         near: Option<&Item>,
     ) -> Result<Option<usize>, Notice> {
         let Some(path) = self.tasks_path.clone() else {
@@ -111,7 +112,7 @@ impl App {
             Err(error) if error.kind() == ErrorKind::NotFound => String::new(),
             Err(error) => return Err(Notice::Failed(error.kind())),
         };
-        match edit::add(&text, &title, date, near) {
+        match edit::add(&text, &title, date, time, near) {
             Ok((new_text, line)) => {
                 if let Some(notice) = self.write_tasks(&path, text, new_text, title) {
                     return Err(notice);
@@ -122,13 +123,14 @@ impl App {
         }
     }
 
-    /// 編輯：`item` 那一行改成新的標題、日期（時間不變），寫進任務檔；什麼都沒改就不寫（也不記 undo）。
+    /// 編輯：`item` 那一行改成新的標題、日期、時間（`None` = 拿掉時間），寫進任務檔；什麼都沒改就不寫（也不記 undo）。
     /// 回傳那個項目在檔案的第幾行（編輯不會換行），沒有任務檔（test）是 `Ok(None)`；讀寫失敗、那一行在別處改過回傳提示
     pub(super) fn update_item(
         &mut self,
         item: &Item,
         title: String,
         date: Date,
+        time: Option<Time>,
     ) -> Result<Option<usize>, Notice> {
         let Some(path) = self.tasks_path.clone() else {
             return Ok(None);
@@ -137,7 +139,7 @@ impl App {
             Ok(text) => text,
             Err(error) => return Err(Notice::Failed(error.kind())),
         };
-        match edit::update(&text, item, &title, date, item.time) {
+        match edit::update(&text, item, &title, date, time) {
             Ok(new_text) if new_text == text => Ok(Some(item.line)),
             Ok(new_text) => {
                 // undo 的提示用原本的標題：復原之後回來的是它

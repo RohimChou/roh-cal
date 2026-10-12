@@ -35,7 +35,7 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     Ok((result, count))
 }
 
-/// 新增一個項目 `- [ ] 標題 @日期`；回傳新的檔案內容，和新項目在第幾行（從 1 開始）
+/// 新增一個項目 `- [ ] 標題 @日期 時間`（`time` 是 `None` 就不寫時間）；回傳新的檔案內容，和新項目在第幾行（從 1 開始）
 ///
 /// 放在 `near`（清單上選到的項目）那一組（同一個標題底下）的最後一個項目和它的子任務下面；
 /// `near` 是 `None`（那天還沒有項目）就加在檔案最後面。換行照檔案原本用的（`\n` 或 `\r\n`）
@@ -43,6 +43,7 @@ pub fn add(
     text: &str,
     title: &str,
     date: Date,
+    time: Option<Time>,
     near: Option<&Item>,
 ) -> Result<(String, usize), Changed> {
     let lines: Vec<&str> = text.lines().collect();
@@ -69,7 +70,11 @@ pub fn add(
     if !result.is_empty() && !result.ends_with('\n') {
         result.push_str(newline);
     }
-    result.push_str(&format!("- [ ] {} @{date}{newline}", title.trim()));
+    result.push_str(&format!(
+        "- [ ] {} {}{newline}",
+        title.trim(),
+        date_and_time(date, time)
+    ));
     result.push_str(&segments[at..].concat());
     Ok((result, at + 1))
 }
@@ -162,10 +167,15 @@ fn rewritten(line: &str, title: &str, date: Date, time: Option<Time>) -> String 
     } else {
         format!("{title} ")
     };
-    let time = time
-        .map(|time| format!(" {}", time.strftime("%H:%M")))
-        .unwrap_or_default();
-    format!("{indent}- {mark}{title}@{date}{time}")
+    format!("{indent}- {mark}{title}{}", date_and_time(date, time))
+}
+
+/// 一行最後面的日期和時間：`@2026-10-12 14:00`；沒有時間就只有 `@2026-10-12`（新增、編輯都用這個寫法）
+fn date_and_time(date: Date, time: Option<Time>) -> String {
+    match time {
+        Some(time) => format!("@{date} {}", time.strftime("%H:%M")),
+        None => format!("@{date}"),
+    }
 }
 
 /// 把 `item` 那一行換成 `new`；那一行現在跟 `item.line_text` 不一樣（或已經沒有那一行）就回傳 `Changed`
@@ -375,7 +385,7 @@ mod tests {
     fn add_near(text: &str, line: usize, title: &str) -> Result<(String, usize), Changed> {
         let items = parse(text).items;
         let near = items.iter().find(|item| item.line == line);
-        add(text, title, jiff::civil::date(2026, 10, 12), near)
+        add(text, title, jiff::civil::date(2026, 10, 12), None, near)
     }
 
     #[test]
@@ -423,9 +433,25 @@ mod tests {
         let item = parse("- [ ] 週會\n- [ ] 交週報\n").items[1].clone();
         let date = jiff::civil::date(2026, 10, 12);
         assert_eq!(
-            add("- [ ] 週會\n- [ ] 交週報（改）\n", "x", date, Some(&item)),
+            add(
+                "- [ ] 週會\n- [ ] 交週報（改）\n",
+                "x",
+                date,
+                None,
+                Some(&item)
+            ),
             Err(Changed)
         );
+    }
+
+    #[test]
+    fn add_writes_the_time_after_the_date() {
+        // 時間一律寫成兩位數的 HH:MM（9 點 5 分 → 09:05），parser 才認得
+        let at = Some(time(9, 5, 0, 0));
+        let (text, line) = add("", "週會", date(2026, 10, 12), at, None).expect("add");
+        assert_eq!((text.as_str(), line), ("- [ ] 週會 @2026-10-12 09:05\n", 1));
+        let added = &parse(&text).items[0];
+        assert_eq!((added.date, added.time), (Some(date(2026, 10, 12)), at));
     }
 
     #[test]
