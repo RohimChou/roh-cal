@@ -226,13 +226,6 @@ mod tests {
         assert!(matches!(&app.overlay, Some(Overlay::Form(form)) if form.title.value() == "下午"));
         app.handle_key(key(KeyCode::Esc));
         assert_eq!(selected(&app), Some(1));
-        // 點框外：不理
-        app.handle_mouse(MouseEvent {
-            column: 0,
-            row: 0,
-            ..morning
-        });
-        assert_eq!(selected(&app), Some(1));
         // 正在問「刪除嗎？」：點一下只是取消問題，不選、不刪
         app.handle_key(key(KeyCode::Char('d')));
         app.handle_mouse(morning);
@@ -248,6 +241,24 @@ mod tests {
         // 再點「早上」就選到它
         app.handle_mouse(morning);
         assert_eq!(selected(&app), Some(0));
+        // 點框外 = 按 Esc：還在問「刪除嗎？」時只取消問題，再點一次才關掉清單
+        let outside = MouseEvent {
+            column: 0,
+            row: 0,
+            ..morning
+        };
+        app.handle_key(key(KeyCode::Char('d')));
+        app.handle_mouse(outside);
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::DayList(DayList {
+                confirm_delete: None,
+                ..
+            }))
+        ));
+        app.handle_mouse(outside);
+        assert_eq!(app.overlay, None);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }

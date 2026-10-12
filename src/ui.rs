@@ -61,6 +61,17 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
+/// 現在開著的跳窗，框（含框線）在畫面上的範圍；沒有跳窗回傳 `None`（滑鼠點在框外 = 關掉跳窗）
+pub fn overlay_bounds(app: &App) -> Option<Rect> {
+    Some(match &app.overlay {
+        Some(Overlay::Settings(panel)) => settings::bounds(*panel, app),
+        Some(Overlay::DayList(list)) => day_list::bounds(*list, app),
+        Some(Overlay::Help { .. }) => help::bounds(app),
+        Some(Overlay::Form(form)) => form::bounds(form, app),
+        None => return None,
+    })
+}
+
 /// 月曆框在 terminal（`screen`）裡的位置：小月曆是左上角的框，大月曆是整個 terminal
 fn calendar_area(screen: Rect, app: &App) -> Rect {
     match app.view {

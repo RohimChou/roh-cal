@@ -7,7 +7,7 @@ use crate::i18n::HelpSection;
 use crate::theme::Theme;
 use ratatui::{
     Frame,
-    layout::Constraint,
+    layout::{Constraint, Rect},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, Padding, Paragraph},
 };
@@ -24,8 +24,34 @@ const PADDING: Padding = Padding::vertical(1);
 pub fn render(frame: &mut Frame, app: &App) {
     let theme = &app.theme;
     let help = app.texts.help;
-    let screen = frame.area();
+    let (lines, area) = layout(app, frame.area());
 
+    // 上框線：`roh-cal · keys`（app 名稱醒目，後面淡淡的）；下框線：操作說明
+    let title = Line::from(vec![
+        Span::raw(" "),
+        Span::styled("roh-cal", theme.title),
+        Span::styled(format!(" · {} ", help.title), theme.hint),
+    ]);
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(theme.border)
+        .padding(PADDING)
+        .title_top(title)
+        .title_bottom(Line::styled(format!(" {} ", help.hint), theme.hint));
+    // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
+    frame.render_widget(Clear, area);
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// 說明頁的框（含框線）在畫面上的範圍（點框外 = 關掉）
+pub fn bounds(app: &App) -> Rect {
+    layout(app, app.screen).1
+}
+
+/// 說明頁的內容（一行一行）和框放在哪（`render` 和 `bounds` 共用）
+fn layout(app: &App, screen: Rect) -> (Vec<Line<'static>>, Rect) {
+    let theme = &app.theme;
+    let help = app.texts.help;
     // 兩欄：右欄從 `split` 那格開始；整個寬度放不下（扣掉框線）就改成一欄
     let left = section_lines(help.left, theme);
     let right = section_lines(help.right, theme);
@@ -49,22 +75,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         Constraint::Length(box_width),
         Constraint::Length(box_height),
     );
-
-    // 上框線：`roh-cal · keys`（app 名稱醒目，後面淡淡的）；下框線：操作說明
-    let title = Line::from(vec![
-        Span::raw(" "),
-        Span::styled("roh-cal", theme.title),
-        Span::styled(format!(" · {} ", help.title), theme.hint),
-    ]);
-    let block = Block::bordered()
-        .border_type(BorderType::Rounded)
-        .border_style(theme.border)
-        .padding(PADDING)
-        .title_top(title)
-        .title_bottom(Line::styled(format!(" {} ", help.hint), theme.hint));
-    // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
-    frame.render_widget(Clear, area);
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    (lines, area)
 }
 
 /// 幾段按鍵說明排成一行一行：段落名（縮排 2）、每個按鍵一行（縮排 4，按鍵那欄固定寬），段落之間空一行。
@@ -119,6 +130,7 @@ fn side_by_side(
 
 #[cfg(test)]
 mod tests {
+    use super::bounds;
     use crate::app::{App, DayList, Overlay};
     use crate::i18n::Texts;
     use crate::ui::rows;
@@ -227,5 +239,29 @@ mod tests {
         let text = draw(Texts::en(), Some(list), 100).join("\n");
         assert!(text.contains("2026-10-12 Mon"));
         assert!(text.contains("NAVIGATION"));
+    }
+
+    #[test]
+    fn bounds_is_the_box_on_screen() {
+        // 兩欄（寬）、一欄（窄）都對：框的四個角從畫面上找
+        for width in [100, 60] {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.screen = ratatui::layout::Rect::new(0, 0, width, 40);
+            let rows = draw(Texts::en(), None, width);
+            let top = row_of(&rows, "roh-cal · keys");
+            let bottom = row_of(&rows, "?/q/Esc close");
+            let column = |row: usize, corner: char| {
+                rows[row][..rows[row].find(corner).unwrap()].chars().count()
+            };
+            let (left, right) = (column(top, '╭'), column(top, '╮'));
+            assert_eq!(column(bottom, '╰'), left);
+            let expected = ratatui::layout::Rect::new(
+                u16::try_from(left).unwrap(),
+                u16::try_from(top).unwrap(),
+                u16::try_from(right - left + 1).unwrap(),
+                u16::try_from(bottom - top + 1).unwrap(),
+            );
+            assert_eq!(bounds(&app), expected, "{width}");
+        }
     }
 }

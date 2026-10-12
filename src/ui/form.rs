@@ -144,6 +144,11 @@ pub enum Target {
     Day(Date),
 }
 
+/// 表單的框（含框線）在畫面上的範圍（點框外 = 關掉）
+pub fn bounds(form: &Form, app: &App) -> Rect {
+    areas(form, calendar_area(app.screen, app)).outer
+}
+
 /// 滑鼠點在 (`column`, `row`) 的是表單的什麼；點在框線、padding、星期列、框外回傳 `None`
 pub fn target_at(form: &Form, app: &App, column: u16, row: u16) -> Option<Target> {
     let areas = areas(form, calendar_area(app.screen, app));

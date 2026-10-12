@@ -68,14 +68,19 @@ fn area(count: usize, calendar: Rect) -> Rect {
     calendar.centered(Constraint::Length(width), Constraint::Length(height))
 }
 
+/// 清單的框（含框線）在畫面上的範圍（點框外 = 關掉）
+pub fn bounds(list: DayList, app: &App) -> Rect {
+    let count = items_on(&app.items, list.date).len();
+    area(count, calendar_area(app.screen, app))
+}
+
 /// 滑鼠點在 (`column`, `row`) 的是清單的第幾個項目（`items_on` 的 index）；點在框線、padding、框外，或那天沒有項目，回傳 `None`。
 /// 位置跟 `render` 用同一個 `area` 算。捲動照 ratatui `List` 的規則（ratatui-widgets 0.3 的 `get_items_bounds`）：
 /// 從第一個開始畫，選到的超出框底才往下捲，捲到它剛好在最後一行
 pub fn item_at(list: DayList, app: &App, column: u16, row: u16) -> Option<usize> {
     let count = items_on(&app.items, list.date).len();
-    let area = area(count, calendar_area(app.screen, app));
     // 項目畫在框線和 padding 裡面
-    let inner = Block::bordered().padding(PADDING).inner(area);
+    let inner = Block::bordered().padding(PADDING).inner(bounds(list, app));
     if !inner.contains(Position::new(column, row)) {
         return None;
     }

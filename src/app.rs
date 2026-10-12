@@ -22,7 +22,7 @@ use ratatui::{
     crossterm::event::{
         self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
-    layout::Rect,
+    layout::{Position, Rect},
 };
 use std::path::PathBuf;
 use write::UndoStep;
@@ -324,7 +324,16 @@ impl App {
             MouseEventKind::ScrollDown if !wheel_ignored => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp if !wheel_ignored => self.move_selected(-7),
-            // 左鍵按下：有跳窗就交給那個跳窗（點到框外不理，免得點到底下的格子）；沒有跳窗就是點月曆
+            // 左鍵按下：有跳窗時點在框外 = 按 Esc（關掉跳窗、回到打開它的地方；正在問「刪除嗎？」這類問題時只是取消問題），
+            // 底下的格子不會被選到
+            MouseEventKind::Down(MouseButton::Left)
+                if ui::overlay_bounds(self).is_some_and(|bounds| {
+                    !bounds.contains(Position::new(mouse.column, mouse.row))
+                }) =>
+            {
+                self.handle_key(KeyEvent::from(KeyCode::Esc));
+            }
+            // 點在跳窗裡就交給那個跳窗；沒有跳窗就是點月曆
             MouseEventKind::Down(MouseButton::Left) => match self.overlay {
                 Some(Overlay::Settings(panel)) => {
                     self.click_settings(panel, mouse.column, mouse.row)
@@ -869,15 +878,9 @@ mod tests {
         app.handle_mouse(at(month + 1));
         assert!(app.settings.month.grid_lines);
         assert_eq!(panel(&app).map(|panel| panel.selected), Some(1));
-        // 點段落名、點框外：都不理
+        // 點段落名：不理
         app.handle_mouse(at(colors));
-        app.handle_mouse(MouseEvent {
-            column: 0,
-            row: 0,
-            ..at(0)
-        });
         assert_eq!(panel(&app).map(|panel| panel.selected), Some(1));
-        assert_eq!(app.selected, date(2026, 10, 10));
         // 顏色（item）：點一下選、再點一下換成下一個顏色（跟按 l 一樣：subtext1 → subtext0）
         app.handle_mouse(at(colors + 1));
         assert_eq!(app.theme.item, Theme::default().item);
@@ -888,6 +891,58 @@ mod tests {
         app.handle_mouse(at(month + 1));
         assert!(panel(&app).is_some_and(|panel| !panel.confirm_reset_all && panel.selected == 4));
         assert!(app.settings.month.grid_lines);
+        // 點框外 = 按 Esc：還在問「全部還原嗎？」時只取消問題，再點一次才關掉設定頁；
+        // 點的地方是底下月曆的一格，但不會被選到
+        let outside = MouseEvent {
+            column: 8,
+            row: 3,
+            ..at(0)
+        };
+        assert!(compact::date_at(&app, 8, 3).is_some_and(|day| day != app.selected));
+        app.handle_key(key(KeyCode::Char('R')));
+        app.handle_mouse(outside);
+        assert!(panel(&app).is_some_and(|panel| !panel.confirm_reset_all));
+        app.handle_mouse(outside);
+        assert_eq!(app.overlay, None);
+        assert_eq!(app.selected, date(2026, 10, 10));
+    }
+
+    #[test]
+    fn clicking_outside_any_overlay_works_like_esc() {
+        let text = "- [ ] 早上 @2026-10-10 09:00\n";
+        let (mut app, path) = app_with_task_file("outside", text);
+        app.screen = Rect::new(0, 0, 80, 24);
+        // 左上角：月曆框的角，在每一種跳窗的框外面
+        let outside = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        // 清單 → 表單（打了字）→ 點外面：表單關掉、字丟掉，回到清單
+        app.handle_key(key(KeyCode::Char('a')));
+        for c in "沒存".chars() {
+            app.handle_key(key(KeyCode::Char(c)));
+        }
+        app.handle_mouse(outside);
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
+        // 清單 → 說明頁 → 點外面：回到清單；再點外面：清單也關掉
+        app.handle_key(key(KeyCode::Char('?')));
+        app.handle_mouse(outside);
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
+        app.handle_mouse(outside);
+        assert_eq!(app.overlay, None);
+        // 月曆上打開的說明頁、設定頁、表單：點外面都關掉，回到月曆
+        for open in [KeyCode::Char('?'), KeyCode::Char(','), KeyCode::Char('a')] {
+            app.handle_key(key(open));
+            assert!(app.overlay.is_some(), "{open:?}");
+            app.handle_mouse(outside);
+            assert_eq!(app.overlay, None, "{open:?}");
+        }
+        // 點外面不會離開 app、不會改到任務檔
+        assert!(!app.should_quit);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 
     #[test]

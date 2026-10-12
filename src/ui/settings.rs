@@ -75,6 +75,11 @@ pub fn row_at(panel: Panel, app: &App, column: u16, row: u16) -> Option<usize> {
     lines.get(offset + line).and_then(|&(index, _)| index)
 }
 
+/// 設定頁的框（含框線）在畫面上的範圍（點框外 = 關掉）
+pub fn bounds(panel: Panel, app: &App) -> Rect {
+    placement(panel, &row_lines(panel, app), app.screen).area
+}
+
 /// 設定頁在畫面上的位置
 struct Placement {
     /// 框的範圍（含框線），貼在畫面右下角
