@@ -15,6 +15,8 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | :- | :- |
 | `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
+| `-h`, `--help` | Print the options |
+| `-v`, `-V`, `--version` | Print the version |
 
 ## Keys
 | Key | Action |
