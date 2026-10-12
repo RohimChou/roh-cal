@@ -27,7 +27,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `V` | Next view (compact → month → compact) |
 | `v` then `c` / `m` | Compact view / month view (after `v` the bottom line lists the keys; any other key cancels) |
 | `,` | Open / close the settings panel |
-| `?` | Help: the main keys on one page (`?` / `q` / `Esc` closes it) |
+| `?` | Help: the main keys; `Tab` shows all keys (`?` / `q` / `Esc` closes it) |
 | `q` / `Esc` | Quit |
 | `Ctrl+C` | Quit from anywhere (a list, a form, the settings panel); unsaved form input is dropped, settings are saved |
 | Mouse wheel / click | Move one week / select a day; click the selected day again, or double-click a day, to open its list (hold `Shift` to select text in the terminal) |

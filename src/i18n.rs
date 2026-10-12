@@ -65,10 +65,19 @@ impl Lang {
     }
 }
 
-/// 說明頁（`?`）的內容：左右兩欄的按鍵（照 tuxedo 的排法）
+/// 說明頁（`?`）的內容：打開時是精簡版，`Tab` 換完整版（排法照 tuxedo）
 #[derive(Debug, Clone, Copy)]
 pub struct Help {
-    /// 上框線 `roh-cal · keys` 的 `keys`
+    /// 精簡版：最常用的鍵
+    pub short: HelpPage,
+    /// 完整版：所有的鍵，包括清單、表單、設定頁、滑鼠
+    pub full: HelpPage,
+}
+
+/// 說明頁的一版：上下框線的字、左右兩欄的段落
+#[derive(Debug, Clone, Copy)]
+pub struct HelpPage {
+    /// 上框線 `roh-cal · keys` 的 `keys`（兩版不一樣，看得出現在是哪一版）
     pub title: &'static str,
     /// 下框線的操作說明
     pub hint: &'static str,
@@ -165,30 +174,104 @@ impl Texts {
                 n => format!("delete with {n} subtasks? y = yes, other = no"),
             },
             help: Help {
-                title: "keys",
-                hint: "?/q/Esc close",
-                left: &[HelpSection {
-                    title: "NAVIGATION",
-                    keys: &[
-                        ("hjkl", "move (arrow keys too)"),
-                        ("t", "jump to today"),
-                        ("o / Enter", "open detail"),
-                        ("V", "next view"),
-                        ("v c / v m", "compact / month view"),
-                        (",", "open settings"),
-                        ("Ctrl+C", "quit from anywhere"),
+                short: HelpPage {
+                    title: "keys",
+                    hint: "Tab all keys · ?/q/Esc close",
+                    left: &[
+                        HelpSection {
+                            title: "NAVIGATION",
+                            keys: &[("hjkl", "move"), ("t", "jump to today"), ("o", "open")],
+                        },
+                        HelpSection {
+                            title: "VIEW",
+                            keys: &[("V", "cycle view"), ("v", "view picker")],
+                        },
                     ],
-                }],
-                right: &[HelpSection {
-                    title: "EDITING",
-                    keys: &[
-                        ("a", "add an item"),
-                        ("e", "edit an item"),
-                        ("Space / x", "check off / uncheck"),
-                        ("d", "delete (with subtasks)"),
-                        ("u", "undo"),
+                    right: &[
+                        HelpSection {
+                            title: "EDITING",
+                            keys: &[
+                                ("a", "add item"),
+                                ("e", "edit"),
+                                ("d", "delete"),
+                                ("u", "undo"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "SYSTEM",
+                            keys: &[("?", "help"), (",", "settings"), ("q", "quit")],
+                        },
                     ],
-                }],
+                },
+                full: HelpPage {
+                    title: "all keys",
+                    hint: "Tab fewer keys · ?/q/Esc close",
+                    left: &[
+                        HelpSection {
+                            title: "NAVIGATION",
+                            keys: &[
+                                ("hjkl ←↓↑→", "move a day / week"),
+                                ("t", "jump to today"),
+                                ("o / Enter", "open the day"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "VIEW",
+                            keys: &[
+                                ("V", "cycle view"),
+                                ("v c", "compact view"),
+                                ("v m", "month view"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "MOUSE",
+                            keys: &[
+                                ("wheel", "move a week"),
+                                ("click", "pick; again: open"),
+                                ("click outside", "close a popup"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "SYSTEM",
+                            keys: &[
+                                ("?", "help"),
+                                (",", "settings"),
+                                ("q / Esc", "quit"),
+                                ("Ctrl+C", "quit from anywhere"),
+                            ],
+                        },
+                    ],
+                    right: &[
+                        HelpSection {
+                            title: "DAY LIST",
+                            keys: &[
+                                ("j / k", "pick an item"),
+                                ("e / o / Enter", "edit"),
+                                ("a", "add item"),
+                                ("Space / x", "check off"),
+                                ("d", "delete + subtasks"),
+                                ("u", "undo"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "FORM",
+                            keys: &[
+                                ("Tab / S-Tab", "next / prev field"),
+                                ("hjkl", "change the date"),
+                                ("Enter", "save"),
+                                ("q / Esc", "cancel"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "SETTINGS",
+                            keys: &[
+                                ("j / k", "pick a row"),
+                                ("h / l", "change it"),
+                                ("r / R", "reset row / all"),
+                            ],
+                        },
+                    ],
+                },
             },
             form_title: "new item",
             form_edit_title: "edit item",
@@ -222,30 +305,95 @@ impl Texts {
                 n => format!("刪除（含 {n} 個子任務）？y = 是，其他鍵 = 否"),
             },
             help: Help {
-                title: "按鍵",
-                hint: "?/q/Esc 關閉",
-                left: &[HelpSection {
-                    title: "移動",
-                    keys: &[
-                        ("h j k l", "移動（方向鍵也可以）"),
-                        ("t", "跳回今天"),
-                        ("o / Enter", "打開當天清單"),
-                        ("V", "輪流切換月曆"),
-                        ("v c / v m", "小月曆 / 大月曆"),
-                        (",", "打開設定頁"),
-                        ("Ctrl+C", "直接離開（哪裡都可以）"),
+                short: HelpPage {
+                    title: "按鍵",
+                    hint: "Tab 全部按鍵 · ?/q/Esc 關閉",
+                    left: &[
+                        HelpSection {
+                            title: "移動",
+                            keys: &[("hjkl", "移動"), ("t", "跳回今天"), ("o", "打開")],
+                        },
+                        HelpSection {
+                            title: "畫面",
+                            keys: &[("V", "輪流切換"), ("v", "選擇畫面")],
+                        },
                     ],
-                }],
-                right: &[HelpSection {
-                    title: "編輯",
-                    keys: &[
-                        ("a", "新增項目"),
-                        ("e", "編輯項目"),
-                        ("Space / x", "打勾 / 取消"),
-                        ("d", "刪除（連子任務）"),
-                        ("u", "復原"),
+                    right: &[
+                        HelpSection {
+                            title: "編輯",
+                            keys: &[("a", "新增"), ("e", "編輯"), ("d", "刪除"), ("u", "復原")],
+                        },
+                        HelpSection {
+                            title: "系統",
+                            keys: &[("?", "說明"), (",", "設定"), ("q", "離開")],
+                        },
                     ],
-                }],
+                },
+                full: HelpPage {
+                    title: "全部按鍵",
+                    hint: "Tab 精簡 · ?/q/Esc 關閉",
+                    left: &[
+                        HelpSection {
+                            title: "移動",
+                            keys: &[
+                                ("hjkl ←↓↑→", "移一天 / 一週"),
+                                ("t", "跳回今天"),
+                                ("o / Enter", "打開當天清單"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "畫面",
+                            keys: &[("V", "輪流切換"), ("v c", "小月曆"), ("v m", "大月曆")],
+                        },
+                        HelpSection {
+                            title: "滑鼠",
+                            keys: &[
+                                ("wheel", "移一週"),
+                                ("click", "選；再點一次：打開"),
+                                ("click outside", "關掉跳窗"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "系統",
+                            keys: &[
+                                ("?", "說明"),
+                                (",", "設定"),
+                                ("q / Esc", "離開"),
+                                ("Ctrl+C", "哪裡都能直接離開"),
+                            ],
+                        },
+                    ],
+                    right: &[
+                        HelpSection {
+                            title: "當天清單",
+                            keys: &[
+                                ("j / k", "選項目"),
+                                ("e / o / Enter", "編輯"),
+                                ("a", "新增"),
+                                ("Space / x", "打勾 / 取消"),
+                                ("d", "刪除（連子任務）"),
+                                ("u", "復原"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "表單",
+                            keys: &[
+                                ("Tab / S-Tab", "下一欄 / 上一欄"),
+                                ("hjkl", "換日期"),
+                                ("Enter", "存"),
+                                ("q / Esc", "取消"),
+                            ],
+                        },
+                        HelpSection {
+                            title: "設定頁",
+                            keys: &[
+                                ("j / k", "選一列"),
+                                ("h / l", "改值"),
+                                ("r / R", "還原一列 / 全部"),
+                            ],
+                        },
+                    ],
+                },
             },
             form_title: "新增項目",
             form_edit_title: "編輯項目",
@@ -334,16 +482,18 @@ mod tests {
     #[test]
     fn help_lists_the_same_keys_in_every_language() {
         // 只看按鍵那欄：每種語言的段落數、每段的按鍵和順序都一樣（翻譯時不會漏掉或多出一個鍵）
-        let keys = |texts: Texts| -> Vec<Vec<&str>> {
-            let help = texts.help;
-            help.left
+        let keys = |page: HelpPage| -> Vec<Vec<&str>> {
+            page.left
                 .iter()
-                .chain(help.right)
+                .chain(page.right)
                 .map(|section| section.keys.iter().map(|&(key, _)| key).collect())
                 .collect()
         };
-        assert_eq!(keys(Texts::en()), keys(Texts::zh_tw()));
-        assert_eq!(keys(Texts::en()).len(), 2);
+        let (en, zh) = (Texts::en().help, Texts::zh_tw().help);
+        assert_eq!(keys(en.short), keys(zh.short));
+        assert_eq!(keys(en.full), keys(zh.full));
+        // 精簡版 4 段、完整版 7 段
+        assert_eq!((keys(en.short).len(), keys(en.full).len()), (4, 7));
     }
 
     #[test]

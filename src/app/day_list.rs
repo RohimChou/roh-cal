@@ -77,7 +77,10 @@ impl App {
                 KeyCode::Char('u') => self.notice = Some(self.undo()),
                 // ?：說明頁，關掉之後回到這個清單
                 KeyCode::Char('?') => {
-                    self.overlay = Some(Overlay::Help { back: Some(list) });
+                    self.overlay = Some(Overlay::Help {
+                        back: Some(list),
+                        full: false,
+                    });
                     return;
                 }
                 _ => {}

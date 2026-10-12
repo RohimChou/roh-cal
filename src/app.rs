@@ -69,8 +69,9 @@ pub enum Overlay {
     Settings(Panel),
     /// 當天清單（`Enter` / `o`）
     DayList(DayList),
-    /// 說明頁（`?`）；`back` = 關掉之後回到哪裡（從當天清單打開的，就回到那個清單）
-    Help { back: Option<DayList> },
+    /// 說明頁（`?`）；`back` = 關掉之後回到哪裡（從當天清單打開的，就回到那個清單）、
+    /// `full` = 顯示完整版（打開時是精簡版，`Tab` 切換）
+    Help { back: Option<DayList>, full: bool },
     /// 新增 / 編輯表單（月曆或清單按 `a`、清單按 `Enter` / `o` / `e`）；表單比其他幾種大很多（字串、編輯中的項目），
     /// 放在 `Box` 裡（heap），`Overlay` 才不會每一種都佔表單那麼大的空間
     Form(Box<Form>),
@@ -228,7 +229,7 @@ impl App {
         match self.overlay {
             Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
             Some(Overlay::DayList(list)) => self.handle_day_list_key(list, key),
-            Some(Overlay::Help { back }) => self.handle_help_key(back, key),
+            Some(Overlay::Help { back, full }) => self.handle_help_key(back, full, key),
             Some(Overlay::Form(_)) => self.handle_form_key(key),
             None => self.handle_calendar_key(key),
         }
@@ -285,13 +286,16 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
-    /// 說明頁開著時的按鍵：`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
-    fn handle_help_key(&mut self, back: Option<DayList>, key: KeyEvent) {
-        if matches!(
-            key.code,
-            KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc
-        ) {
-            self.overlay = back.map(Overlay::DayList);
+    /// 說明頁開著時的按鍵：`Tab` 換精簡版 / 完整版；`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
+    fn handle_help_key(&mut self, back: Option<DayList>, full: bool, key: KeyEvent) {
+        match key.code {
+            KeyCode::Tab | KeyCode::BackTab => {
+                self.overlay = Some(Overlay::Help { back, full: !full });
+            }
+            KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
+                self.overlay = back.map(Overlay::DayList);
+            }
+            _ => {}
         }
     }
 
@@ -328,7 +332,12 @@ impl App {
             // u：復原 roh-cal 最後一次寫檔
             KeyCode::Char('u') => self.notice = Some(self.undo()),
             // ?：說明頁
-            KeyCode::Char('?') => self.overlay = Some(Overlay::Help { back: None }),
+            KeyCode::Char('?') => {
+                self.overlay = Some(Overlay::Help {
+                    back: None,
+                    full: false,
+                });
+            }
             // `,`：打開設定頁（跟 macOS 的 Cmd+, 一樣）；其他跳窗開著時不會走到這裡，表單裡的 `,` 是打字
             KeyCode::Char(',') => self.overlay = Some(Overlay::Settings(Panel::default())),
             // V：輪流切換 view（小月曆 → 大月曆 → 小月曆）
@@ -1190,7 +1199,13 @@ mod tests {
             .chain([KeyCode::Esc])
         {
             app.handle_key(key(KeyCode::Char('?')));
-            assert_eq!(app.overlay, Some(Overlay::Help { back: None }));
+            assert_eq!(
+                app.overlay,
+                Some(Overlay::Help {
+                    back: None,
+                    full: false
+                })
+            );
             app.handle_key(key(close));
             assert_eq!(app.overlay, None, "{close:?}");
             assert!(!app.should_quit);
@@ -1208,12 +1223,50 @@ mod tests {
             row: 0,
             modifiers: KeyModifiers::NONE,
         });
-        assert!(matches!(app.overlay, Some(Overlay::Help { back: Some(_) })));
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::Help { back: Some(_), .. })
+        ));
         assert_eq!(app.selected, date(2026, 10, 10));
         app.handle_key(key(KeyCode::Char('q')));
         assert!(matches!(
             app.overlay,
             Some(Overlay::DayList(DayList { selected: 1, .. }))
         ));
+    }
+
+    #[test]
+    fn tab_switches_the_help_between_short_and_full() {
+        let mut app = app_with_two_items();
+        let full = |app: &App| match app.overlay {
+            Some(Overlay::Help { full, .. }) => Some(full),
+            _ => None,
+        };
+        // 打開是精簡版；Tab 換完整版、再 Tab 換回來；Shift+Tab 也一樣
+        app.handle_key(key(KeyCode::Char('?')));
+        assert_eq!(full(&app), Some(false));
+        app.handle_key(key(KeyCode::Tab));
+        assert_eq!(full(&app), Some(true));
+        app.handle_key(key(KeyCode::Tab));
+        assert_eq!(full(&app), Some(false));
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(full(&app), Some(true));
+        // 關掉再打開：又是精簡版；從清單打開的，換版之後關掉還是回到清單
+        app.handle_key(key(KeyCode::Esc));
+        app.handle_key(key(KeyCode::Char('?')));
+        assert_eq!(full(&app), Some(false));
+        app.handle_key(key(KeyCode::Esc));
+        app.handle_key(key(KeyCode::Enter));
+        app.handle_key(key(KeyCode::Char('?')));
+        app.handle_key(key(KeyCode::Tab));
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::Help {
+                back: Some(_),
+                full: true
+            })
+        ));
+        app.handle_key(key(KeyCode::Char('q')));
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
     }
 }

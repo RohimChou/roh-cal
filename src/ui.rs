@@ -43,13 +43,13 @@ pub fn render(frame: &mut Frame, app: &App) {
             let calendar = calendar_area(frame.area(), app);
             day_list::render(frame, list, app, calendar);
         }
-        Some(Overlay::Help { back }) => {
+        Some(Overlay::Help { back, full }) => {
             // 從當天清單打開的：清單照畫，說明頁疊在上面
             if let Some(list) = back {
                 let calendar = calendar_area(frame.area(), app);
                 day_list::render(frame, list, app, calendar);
             }
-            help::render(frame, app);
+            help::render(frame, app, full);
         }
         Some(Overlay::Form(ref form)) => {
             // 不管從清單還是月曆打開，表單都直接疊在月曆上（置中在月曆框上）；底下不畫清單，
@@ -66,7 +66,7 @@ pub fn overlay_bounds(app: &App) -> Option<Rect> {
     Some(match &app.overlay {
         Some(Overlay::Settings(panel)) => settings::bounds(*panel, app),
         Some(Overlay::DayList(list)) => day_list::bounds(*list, app),
-        Some(Overlay::Help { .. }) => help::bounds(app),
+        Some(Overlay::Help { full, .. }) => help::bounds(app, *full),
         Some(Overlay::Form(form)) => form::bounds(form, app),
         None => return None,
     })
