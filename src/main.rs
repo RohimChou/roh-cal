@@ -75,12 +75,13 @@ impl Drop for MouseCapture {
 }
 
 /// 命令列參數，例：`roh-cal --lang en --tasks ~/notes/tasks.md`；`--help` 由 clap 自動產生。
-/// `--help` 印出的英文寫在 `about`、`help` 裡：clap 預設拿 `///` 當說明，但這裡的 `///` 是給讀 code 的人看的
+/// `--help` 印出的英文：第一行是 `Cargo.toml` 的 `description`（`about` 沒給值），參數的說明寫在 `help` 裡；
+/// clap 預設拿 `///` 當說明，但這裡的 `///` 是給讀 code 的人看的
 #[derive(Debug, Default, PartialEq, Parser)]
 #[command(
     version,
     disable_version_flag = true,
-    about = "A terminal calendar for a plain-text task file",
+    about,
     long_about = None
 )]
 struct Args {
@@ -171,8 +172,9 @@ mod tests {
         ] {
             assert_eq!(args(line).expect_err(line).kind(), kind, "{line}");
         }
-        // 說明是英文：有兩個參數的說明，沒有中文的 `///` 註解
+        // 說明是英文：第一行是 Cargo.toml 的 description，有兩個參數的說明，沒有中文的 `///` 註解
         let help = Args::command().render_long_help().to_string();
+        assert!(help.starts_with("A terminal calendar for a plain-text task file\n"));
         assert!(help.contains("Screen language") && help.contains("Task file to show"));
         assert!(!help.contains("系統語言") && !help.contains("命令列參數"));
     }
