@@ -150,18 +150,21 @@ impl FormProblem {
 
 impl App {
     /// 表單開著時的按鍵：打字打進游標那一欄；`Tab` / `Shift+Tab` 換欄、`Enter` 存、`Esc` 取消（都回到打開表單的地方）；
-    /// 游標在日期欄時 `h/j/k/l`（或方向鍵）換日期
+    /// 游標在日期欄時 `h/j/k/l`（或方向鍵）換日期；游標在不收字母的欄（日期、時間）時 `q` 也是取消
     pub(super) fn handle_form_key(&mut self, key: KeyEvent) {
         // 表單裡有字串，不能複製：先拿出來改，最後再放回去
         let Some(Overlay::Form(mut form)) = self.overlay.take() else {
             return;
         };
         form.problem = None;
+        // 取消：Esc，或在不收字母的欄（日期、時間）按 q，跟其他跳窗一樣；標題欄的 q 是打字
+        let cancel = key.code == KeyCode::Esc
+            || (key.code == KeyCode::Char('q') && !form.focus.accepts('q'));
+        if cancel {
+            self.overlay = form.back.map(Overlay::DayList);
+            return;
+        }
         match key.code {
-            KeyCode::Esc => {
-                self.overlay = form.back.map(Overlay::DayList);
-                return;
-            }
             KeyCode::Tab => form.focus = form.focus.next(),
             KeyCode::BackTab => form.focus = form.focus.previous(),
             KeyCode::Enter => {
@@ -363,7 +366,7 @@ mod tests {
         // Tab 到日期欄：字母不收；刪掉兩個字改成 15 號
         app.handle_key(key(KeyCode::Tab));
         assert_eq!(form(&app).focus, FormField::Date);
-        type_text(&mut app, "xq");
+        type_text(&mut app, "xz");
         app.handle_key(key(KeyCode::Backspace));
         app.handle_key(key(KeyCode::Backspace));
         type_text(&mut app, "15");
@@ -717,7 +720,7 @@ mod tests {
         type_text(&mut app, "早餐");
         // Shift+Tab 從標題直接到時間欄：字母、`-` 不收
         app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
-        type_text(&mut app, "25q-:00");
+        type_text(&mut app, "25z-:00");
         assert_eq!(form(&app).time.value(), "25:00");
         // 25 點不存在：不存；從標題按 Enter，游標也跳回時間欄
         app.handle_key(key(KeyCode::Tab));
@@ -764,6 +767,42 @@ mod tests {
         }
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(read(), text.replace(" 09:00", ""));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn q_cancels_the_form_outside_the_title() {
+        let (mut app, path) = app_with_task_file("form-q", MORNING_AND_DONE_AFTERNOON);
+        // 標題欄：q 是打字
+        app.handle_key(key(KeyCode::Char('a')));
+        type_text(&mut app, "q");
+        assert_eq!(form(&app).title.value(), "q");
+        // 日期欄、時間欄：q = Esc，什麼都不存，回到清單
+        for tabs in [1, 2] {
+            if tabs == 2 {
+                app.handle_key(key(KeyCode::Char('a')));
+            }
+            for _ in 0..tabs {
+                app.handle_key(key(KeyCode::Tab));
+            }
+            app.handle_key(key(KeyCode::Char('q')));
+            assert!(matches!(app.overlay, Some(Overlay::DayList(_))), "{tabs}");
+        }
+        // 編輯表單一樣；從月曆打開的，q 回到月曆
+        app.handle_key(key(KeyCode::Char('e')));
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Char('q')));
+        assert!(matches!(app.overlay, Some(Overlay::DayList(_))));
+        app.handle_key(key(KeyCode::Char('q')));
+        app.handle_key(key(KeyCode::Char('a')));
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Char('q')));
+        assert_eq!(app.overlay, None);
+        assert!(!app.should_quit);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            MORNING_AND_DONE_AFTERNOON
+        );
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }
