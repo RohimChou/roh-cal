@@ -21,26 +21,12 @@ const HINT_LINES: u16 = 1;
 /// 放不下時只顯示一段，選到的列一定在框內
 pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
     let theme = &app.theme;
-    let area = frame.area();
     let lines = row_lines(panel, app);
-    // 高度：框線 2 + 段落名和列 + 最下面 1 行操作提示；視窗不夠高就縮
-    let wanted = 2 + lines.len() as u16 + HINT_LINES;
-    let height = wanted.min(area.height);
-    let width = WIDTH.min(area.width);
-    let overlay = Rect {
-        x: area.right().saturating_sub(width),
-        y: area.bottom().saturating_sub(height),
-        width,
-        height,
-    };
-    // 框內放得下幾行（扣掉框線和提示）
-    let visible = usize::from(height.saturating_sub(2 + HINT_LINES)).max(1);
-    // 捲動：選到的列（算進段落名之後是第幾行）超出下面就往下捲
-    let selected_line = lines
-        .iter()
-        .position(|&(index, _)| index == Some(panel.selected))
-        .unwrap_or(0);
-    let offset = selected_line.saturating_sub(visible - 1);
+    let Placement {
+        area: overlay,
+        offset,
+        visible,
+    } = placement(panel, &lines, frame.area());
 
     let mut lines: Vec<Line> = lines
         .into_iter()
@@ -65,6 +51,64 @@ pub fn render(frame: &mut Frame, panel: Panel, app: &App) {
     // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
     frame.render_widget(Clear, overlay);
     frame.render_widget(Paragraph::new(lines).block(block), overlay);
+}
+
+/// 滑鼠點在 (`column`, `row`) 的是設定頁的第幾列（`ROWS` 的 index）；點在段落名、操作說明、框線、框外面回傳 `None`。
+/// 位置跟 `render` 用同一個 `placement` 算，畫面捲動過也對得上
+pub fn row_at(panel: Panel, app: &App, column: u16, row: u16) -> Option<usize> {
+    let lines = row_lines(panel, app);
+    let Placement {
+        area,
+        offset,
+        visible,
+    } = placement(panel, &lines, app.screen);
+    // 框線裡面：左右框線、上框線都不算
+    let inside = column > area.x && column < area.right().saturating_sub(1) && row > area.y;
+    if !inside {
+        return None;
+    }
+    // 框內第幾行；超過放得下的行數 = 操作說明那行或下框線
+    let line = usize::from(row - area.y - 1);
+    if line >= visible {
+        return None;
+    }
+    lines.get(offset + line).and_then(|&(index, _)| index)
+}
+
+/// 設定頁在畫面上的位置
+struct Placement {
+    /// 框的範圍（含框線），貼在畫面右下角
+    area: Rect,
+    /// 捲動：前面跳過幾行（段落名也算一行）
+    offset: usize,
+    /// 框內放得下幾行（扣掉框線和最下面的操作說明）
+    visible: usize,
+}
+
+/// 算設定頁放在哪、捲到哪：`lines` 是 `row_lines` 的結果、`screen` 是整個畫面
+fn placement(panel: Panel, lines: &[(Option<usize>, Line)], screen: Rect) -> Placement {
+    // 高度：框線 2 + 段落名和列 + 最下面 1 行操作提示；視窗不夠高就縮
+    let wanted = 2 + lines.len() as u16 + HINT_LINES;
+    let height = wanted.min(screen.height);
+    let width = WIDTH.min(screen.width);
+    let area = Rect {
+        x: screen.right().saturating_sub(width),
+        y: screen.bottom().saturating_sub(height),
+        width,
+        height,
+    };
+    let visible = usize::from(height.saturating_sub(2 + HINT_LINES)).max(1);
+    // 捲動：選到的列（算進段落名之後是第幾行）超出下面就往下捲
+    let selected_line = lines
+        .iter()
+        .position(|&(index, _)| index == Some(panel.selected))
+        .unwrap_or(0);
+    let offset = selected_line.saturating_sub(visible - 1);
+    Placement {
+        area,
+        offset,
+        visible,
+    }
 }
 
 /// 設定頁的每一行，照設定檔的樣子：換段的地方先插一行段落名（例：`[month]`），後面接那段的列。
@@ -174,5 +218,88 @@ mod tests {
         // 操作說明換成確認的問題
         assert!(text.contains("reset all? y = yes, other = no"));
         assert!(!text.contains("r/R reset/all"));
+    }
+
+    /// `text` 在畫面那一行從第幾格開始（這裡的字都佔 1 格）
+    fn column_of(line: &str, text: &str) -> u16 {
+        u16::try_from(line[..line.find(text).expect(text)].chars().count()).unwrap()
+    }
+
+    #[test]
+    fn row_at_finds_the_row_under_the_mouse() {
+        let panel = Panel::default();
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.screen = Rect::new(0, 0, 80, 30);
+        let screen = draw(0, 30);
+        // 每一列：照順序在畫面上找它的名字（grid_lines 有兩列：開關和顏色，所以從上一列的下一行接著找）；
+        // 點名字、點那一行右邊的空白都算那一列
+        let mut y = 0;
+        for (index, row) in ROWS.iter().enumerate() {
+            let label = format!("   {:<LABEL_WIDTH$}", row.label());
+            y += screen[y..]
+                .iter()
+                .position(|line| line.contains(&label))
+                .unwrap_or_else(|| panic!("{}", row.label()));
+            let x = column_of(&screen[y], &label) + 3;
+            let row_y = u16::try_from(y).unwrap();
+            assert_eq!(
+                row_at(panel, &app, x, row_y),
+                Some(index),
+                "{}",
+                row.label()
+            );
+            assert_eq!(
+                row_at(panel, &app, 78, row_y),
+                Some(index),
+                "{}",
+                row.label()
+            );
+            y += 1;
+        }
+        // 框線的位置也從畫面上找：上框線那行有標題，左右是圓角；下框線是最後一個 ╰（月曆框的下框線也有 ╰）
+        let top = screen
+            .iter()
+            .position(|line| line.contains("settings (q / Esc)"))
+            .unwrap();
+        let (left, right) = (column_of(&screen[top], "╭"), column_of(&screen[top], "╮"));
+        let bottom = screen.iter().rposition(|line| line.contains("╰")).unwrap();
+        let line_of = |text: &str| {
+            u16::try_from(screen.iter().position(|line| line.contains(text)).unwrap()).unwrap()
+        };
+        let week_numbers = line_of("week_numbers");
+        // 段落名、操作說明、上下左右框線、框外：都不算
+        for (x, y) in [
+            (left + 4, line_of("[month]")),
+            (left + 4, line_of("j/k select")),
+            (left + 4, u16::try_from(top).unwrap()),
+            (left + 4, u16::try_from(bottom).unwrap()),
+            (left, week_numbers),
+            (right, week_numbers),
+            (left - 1, week_numbers),
+            (0, 0),
+        ] {
+            assert_eq!(row_at(panel, &app, x, y), None, "({x}, {y})");
+        }
+    }
+
+    #[test]
+    fn row_at_follows_the_scrolling() {
+        // 12 行高、選最後一列（sunday）：前面捲掉了，框內第一行不是第一列
+        let panel = Panel {
+            selected: ROWS.len() - 1,
+            ..Panel::default()
+        };
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.screen = Rect::new(0, 0, 80, 12);
+        let screen = draw(panel.selected, 12);
+        let y = screen
+            .iter()
+            .position(|line| line.contains("sunday"))
+            .unwrap();
+        let x = column_of(&screen[y], "sunday");
+        let y = u16::try_from(y).unwrap();
+        assert_eq!(row_at(panel, &app, x, y), Some(ROWS.len() - 1));
+        // 上一行是 saturday
+        assert_eq!(row_at(panel, &app, x, y - 1), Some(ROWS.len() - 2));
     }
 }

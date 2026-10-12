@@ -251,6 +251,21 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
+    /// 設定頁開著時點左鍵：點一列 = 選它，再點一次（點已經選到的那列）= 改值，跟按 `l` 一樣；
+    /// 點在段落名、操作說明、框外不理。正在問「全部還原嗎？」時點一下 = 取消那個問題（跟按其他鍵一樣）
+    fn click_settings(&mut self, mut panel: Panel, column: u16, row: u16) {
+        if panel.confirm_reset_all {
+            panel.confirm_reset_all = false;
+        } else if let Some(index) = ui::settings::row_at(panel, self, column, row) {
+            if index == panel.selected {
+                panel.row().adjust(1, &mut self.settings, &mut self.theme);
+            } else {
+                panel.selected = index;
+            }
+        }
+        self.overlay = Some(Overlay::Settings(panel));
+    }
+
     /// 說明頁開著時的按鍵：`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
     fn handle_help_key(&mut self, back: Option<DayList>, key: KeyEvent) {
         if matches!(
@@ -311,9 +326,13 @@ impl App {
             MouseEventKind::ScrollDown => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp => self.move_selected(-7),
-            // 左鍵按下：點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
-            // （跳窗開著時不理，免得點到跳窗底下的格子）
-            MouseEventKind::Down(MouseButton::Left) if self.overlay.is_none() => {
+            // 左鍵按下：設定頁開著 → 交給設定頁（點到框外不理，免得點到底下的格子）；
+            // 沒有跳窗 → 點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(Overlay::Settings(panel)) = self.overlay {
+                    self.click_settings(panel, mouse.column, mouse.row);
+                    return;
+                }
                 let date = match self.view {
                     View::Compact => compact::date_at(self, mouse.column, mouse.row),
                     View::Month => month::date_at(self, mouse.column, mouse.row),
@@ -812,10 +831,59 @@ mod tests {
         assert_eq!(app.selected, date(2026, 10, 1));
         assert_eq!(selected_row(&app), Some(2));
         assert_eq!(app.top, date(2026, 9, 14));
-        // 設定頁開著：點擊不理（點的位置現在是 9/24，選取不會變）
+        // 設定頁開著：點在設定頁外面（這裡剛好是它的左框線，底下是 9/24）不會選到底下的格子
         app.overlay = Some(Overlay::Settings(Panel::default()));
         app.handle_mouse(click(36, 7));
         assert_eq!(app.selected, date(2026, 10, 1));
+    }
+
+    #[test]
+    fn clicking_the_settings_panel_selects_a_row_then_changes_it() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.screen = Rect::new(0, 0, 80, 30);
+        app.handle_key(key(KeyCode::Char(',')));
+        // 從畫面上找位置：[month] 下一行是 grid_lines（開關），[colors] 下一行是 item（顏色）
+        let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+        terminal.draw(|frame| ui::render(frame, &app)).unwrap();
+        let screen = ui::rows(terminal.backend().buffer());
+        let line_of = |text: &str| screen.iter().position(|line| line.contains(text)).unwrap();
+        let (month, colors) = (line_of("[month]"), line_of("[colors]"));
+        // 框線字元佔 3 個 byte，所以數字元（這裡每個字都佔 1 格）
+        let line = &screen[month + 1];
+        let x = u16::try_from(line[..line.find("grid_lines").unwrap()].chars().count()).unwrap();
+        let at = |line: usize| MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: x,
+            row: u16::try_from(line).unwrap(),
+            modifiers: KeyModifiers::NONE,
+        };
+        // 點 grid_lines：先選到它，值不變；再點一次才切換
+        app.handle_mouse(at(month + 1));
+        assert_eq!(panel(&app).map(|panel| panel.selected), Some(1));
+        assert!(!app.settings.month.grid_lines);
+        app.handle_mouse(at(month + 1));
+        assert!(app.settings.month.grid_lines);
+        assert_eq!(panel(&app).map(|panel| panel.selected), Some(1));
+        // 點段落名、點框外：都不理
+        app.handle_mouse(at(colors));
+        app.handle_mouse(MouseEvent {
+            column: 0,
+            row: 0,
+            ..at(0)
+        });
+        assert_eq!(panel(&app).map(|panel| panel.selected), Some(1));
+        assert_eq!(app.selected, date(2026, 10, 10));
+        // 顏色（item）：點一下選、再點一下換成下一個顏色（跟按 l 一樣：subtext1 → subtext0）
+        app.handle_mouse(at(colors + 1));
+        assert_eq!(app.theme.item, Theme::default().item);
+        app.handle_mouse(at(colors + 1));
+        assert_eq!(app.theme.item.fg, Some(crate::theme::PALETTE[16].1));
+        // 正在問「全部還原嗎？」：點一下只是取消問題，不選、不改
+        app.handle_key(key(KeyCode::Char('R')));
+        app.handle_mouse(at(month + 1));
+        assert!(panel(&app).is_some_and(|panel| !panel.confirm_reset_all && panel.selected == 4));
+        assert!(app.settings.month.grid_lines);
     }
 
     #[test]

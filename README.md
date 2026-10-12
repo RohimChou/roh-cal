@@ -64,6 +64,7 @@ In the settings panel:
 | `r` | Reset this row to its default |
 | `R` | Reset everything; press `y` to confirm, any other key cancels |
 | `q` / `Esc` / `,` | Close and save |
+| Mouse click | Pick a row; click the picked row again to change it (like `l`) |
 
 ## Settings file
 `~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). Every key is optional; edit it by hand or with the settings panel. Saving from the panel rewrites only the lines whose value changed, so your comments and layout stay. A typo or an unknown key is an error shown before the calendar starts.
