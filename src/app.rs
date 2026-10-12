@@ -51,7 +51,7 @@ impl View {
         }
     }
 
-    /// 下一種畫面（`V` 輪流切換）：小月曆 → 大月曆 → 小月曆
+    /// 下一種畫面（`v` 輪流切換）：小月曆 → 大月曆 → 小月曆
     fn next(self) -> Self {
         match self {
             Self::Compact => Self::Month,
@@ -121,7 +121,7 @@ pub struct App {
     pub overlay: Option<Overlay>,
     /// 下框線暫時換成的提示（例：檔案在別處改過）；下一個按鍵就消失
     pub notice: Option<Notice>,
-    /// 按了 `v`，正在等下一個鍵選 view（`c` 小月曆、`m` 大月曆，其他鍵取消）；下框線換成可以按的鍵
+    /// 按了 `V`，正在等下一個鍵選 view（`c` 小月曆、`m` 大月曆，其他鍵取消）；下框線換成可以按的鍵
     pub view_prefix: bool,
     /// 上一次在月曆上點到日期（按了任何鍵就忘掉）；下一下點同一格、隔不到 `DOUBLE_CLICK` 就是點兩下
     last_click: Option<Click>,
@@ -301,12 +301,12 @@ impl App {
 
     /// 沒有跳窗時的按鍵：移動、換月、跳回今天、切換畫面、打開當天清單、新增、復原、說明、設定頁、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
-        // 按了 v 之後的下一個鍵：c 小月曆、m 大月曆；其他鍵（含 Esc、q）只是取消，不做那個鍵原本的事
+        // 按了 V 之後的下一個鍵：c 小月曆、m 大月曆（大寫也算：Shift 還沒放開）；其他鍵（含 Esc、q）只是取消，不做那個鍵原本的事
         if self.view_prefix {
             self.view_prefix = false;
             match key.code {
-                KeyCode::Char('c') => self.set_view(View::Compact),
-                KeyCode::Char('m') => self.set_view(View::Month),
+                KeyCode::Char('c' | 'C') => self.set_view(View::Compact),
+                KeyCode::Char('m' | 'M') => self.set_view(View::Month),
                 _ => {}
             }
             return;
@@ -343,10 +343,10 @@ impl App {
             }
             // `,`：打開設定頁（跟 macOS 的 Cmd+, 一樣）；其他跳窗開著時不會走到這裡，表單裡的 `,` 是打字
             KeyCode::Char(',') => self.overlay = Some(Overlay::Settings(Panel::default())),
-            // V：輪流切換 view（小月曆 → 大月曆 → 小月曆）
-            KeyCode::Char('V') => self.set_view(self.view.next()),
-            // v：等下一個鍵選 view（v c / v m），下框線列出可以按的鍵
-            KeyCode::Char('v') => self.view_prefix = true,
+            // v：輪流切換 view（小月曆 → 大月曆 → 小月曆）
+            KeyCode::Char('v') => self.set_view(self.view.next()),
+            // V：等下一個鍵選 view（V c / V m），下框線列出可以按的鍵
+            KeyCode::Char('V') => self.view_prefix = true,
             // 其他按鍵不理
             _ => {}
         }
@@ -691,23 +691,23 @@ mod tests {
     }
 
     #[test]
-    fn shift_v_cycles_the_view_and_keeps_the_selection() {
+    fn v_cycles_the_view_and_keeps_the_selection() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.move_selected(7);
         assert_eq!(app.view, View::Compact);
-        app.handle_key(key(KeyCode::Char('V')));
+        app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Month);
         // 選取不動，大月曆置中：10/12 那週在 6 行的第 3 行 → 最上面 9/28
         assert_eq!(app.selected, date(2026, 10, 17));
         assert_eq!(app.top, date(2026, 9, 28));
         // 再按一次回到小月曆：10/12 那週在第 3 行，沒碰到邊界，畫面不動
-        app.handle_key(key(KeyCode::Char('V')));
+        app.handle_key(key(KeyCode::Char('v')));
         assert_eq!(app.view, View::Compact);
         assert_eq!(app.top, date(2026, 9, 28));
     }
 
     #[test]
-    fn v_scrolls_only_when_the_selected_week_would_fall_off_without_centering() {
+    fn switching_view_scrolls_only_when_the_selected_week_would_fall_off_without_centering() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.settings.month.center_cursor = false;
         // compact：往下 4 週到 11/7，選取在第 7 行（上下各留 1 週的最後一行）
@@ -717,8 +717,8 @@ mod tests {
         assert_eq!(app.selected, date(2026, 11, 7));
         assert_eq!(selected_row(&app), Some(6));
         assert_eq!(app.top, date(2026, 9, 21));
-        // v m 切到 6 週的大月曆（不置中）：第 7 行不存在，往下捲到選取在最後一行
-        app.handle_key(key(KeyCode::Char('v')));
+        // V m 切到 6 週的大月曆（不置中）：第 7 行不存在，往下捲到選取在最後一行
+        app.handle_key(key(KeyCode::Char('V')));
         app.handle_key(key(KeyCode::Char('m')));
         assert_eq!(app.selected, date(2026, 11, 7));
         assert_eq!(selected_row(&app), Some(5));
@@ -726,31 +726,37 @@ mod tests {
     }
 
     #[test]
-    fn v_then_c_or_m_picks_a_view_and_any_other_key_cancels() {
+    fn shift_v_then_c_or_m_picks_a_view_and_any_other_key_cancels() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // v：還沒換，等下一個鍵；m：大月曆
-        app.handle_key(key(KeyCode::Char('v')));
+        // V：還沒換，等下一個鍵；m：大月曆
+        app.handle_key(key(KeyCode::Char('V')));
         assert!(app.view_prefix);
         assert_eq!(app.view, View::Compact);
         app.handle_key(key(KeyCode::Char('m')));
         assert_eq!(app.view, View::Month);
         assert!(!app.view_prefix);
-        // 再 v m 還是大月曆；v c：小月曆
-        for (second, view) in [('m', View::Month), ('c', View::Compact)] {
-            app.handle_key(key(KeyCode::Char('v')));
+        // 再 V m 還是大月曆；V c：小月曆；大寫（Shift 還沒放開）也一樣
+        for (second, view) in [
+            ('m', View::Month),
+            ('c', View::Compact),
+            ('M', View::Month),
+            ('C', View::Compact),
+        ] {
+            app.handle_key(key(KeyCode::Char('V')));
             app.handle_key(key(KeyCode::Char(second)));
-            assert_eq!(app.view, view, "v {second}");
+            assert_eq!(app.view, view, "V {second}");
             assert!(!app.view_prefix);
         }
-        // v 之後按別的鍵：只是取消，不做那個鍵原本的事（不移動、不離開、不開表單），也不換 view
+        // V 之後按別的鍵：只是取消，不做那個鍵原本的事（不移動、不離開、不開表單、v 不輪流），也不換 view
         for other in [
             KeyCode::Char('j'),
             KeyCode::Char('q'),
             KeyCode::Esc,
             KeyCode::Char('a'),
             KeyCode::Char('v'),
+            KeyCode::Char('V'),
         ] {
-            app.handle_key(key(KeyCode::Char('v')));
+            app.handle_key(key(KeyCode::Char('V')));
             app.handle_key(key(other));
             assert!(!app.view_prefix, "{other:?}");
             assert_eq!(app.view, View::Compact, "{other:?}");

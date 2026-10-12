@@ -264,8 +264,8 @@ mod tests {
             "[ / ]   prev/next month",
             "t       jump to today",
             "o       open",
-            "V       cycle view",
-            "v       view picker",
+            "v       cycle view",
+            "V       view picker",
             "a       add item",
             "?       help",
             ",       settings",
@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn narrow_screen_stacks_the_columns() {
         let rows = draw(Texts::en(), None, false, 40, 40);
-        // 一欄：EDITING 在左欄最後一列（v view picker）下面，中間空一行
+        // 一欄：EDITING 在左欄最後一列（V view picker）下面，中間空一行
         assert_eq!(row_of(&rows, "EDITING"), row_of(&rows, "view picker") + 2);
     }
 

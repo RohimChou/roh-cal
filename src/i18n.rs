@@ -109,7 +109,7 @@ pub struct Texts {
     pub weekdays: [&'static str; 7],
     /// 下邊線的操作說明
     pub hint: &'static str,
-    /// 按了 `v` 之後，下邊線換成接下來可以按的鍵
+    /// 按了 `V` 之後，下邊線換成接下來可以按的鍵
     pub view_prefix_hint: &'static str,
     /// 當天清單的標題，例：`2026-10-12 Mon` / `2026-10-12（一）`
     pub day_title: fn(date: Date) -> String,
@@ -160,7 +160,7 @@ impl Texts {
             month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
             hint: "hjkl move · o open · v view · ? help · q quit",
-            view_prefix_hint: "v: c compact · m month · Esc cancel",
+            view_prefix_hint: "pick view: c compact · m month",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
             day_hint: "a add · Space check · d delete · ? help",
@@ -189,7 +189,7 @@ impl Texts {
                         },
                         HelpSection {
                             title: "VIEW",
-                            keys: &[("V", "cycle view"), ("v", "view picker")],
+                            keys: &[("v", "cycle view"), ("V", "view picker")],
                         },
                     ],
                     right: &[
@@ -224,9 +224,9 @@ impl Texts {
                         HelpSection {
                             title: "VIEW",
                             keys: &[
-                                ("V", "cycle view"),
-                                ("v c", "compact view"),
-                                ("v m", "month view"),
+                                ("v", "cycle view"),
+                                ("V c", "compact view"),
+                                ("V m", "month view"),
                             ],
                         },
                         HelpSection {
@@ -298,7 +298,7 @@ impl Texts {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_label: |month| format!("{month:>2} 月"),
             hint: "hjkl 移動 · o 開啟 · v 切換 · ? 說明 · q 離開",
-            view_prefix_hint: "v：c 小月曆 · m 大月曆 · Esc 取消",
+            view_prefix_hint: "pick view：c 小月曆 · m 大月曆",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
             day_hint: "a 新增 · Space 打勾 · d 刪除 · ? 說明",
@@ -326,7 +326,7 @@ impl Texts {
                         },
                         HelpSection {
                             title: "畫面",
-                            keys: &[("V", "輪流切換"), ("v", "選擇畫面")],
+                            keys: &[("v", "輪流切換"), ("V", "選擇畫面")],
                         },
                     ],
                     right: &[
@@ -355,7 +355,7 @@ impl Texts {
                         },
                         HelpSection {
                             title: "畫面",
-                            keys: &[("V", "輪流切換"), ("v c", "小月曆"), ("v m", "大月曆")],
+                            keys: &[("v", "輪流切換"), ("V c", "小月曆"), ("V m", "大月曆")],
                         },
                         HelpSection {
                             title: "滑鼠",
