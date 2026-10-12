@@ -25,6 +25,7 @@ use ratatui::{
     layout::{Position, Rect},
 };
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use write::UndoStep;
 
 /// 現在顯示哪一種畫面；按 `v` 切換
@@ -75,6 +76,17 @@ pub enum Overlay {
     Form(Box<Form>),
 }
 
+/// 兩下之間最多隔多久才算「點兩下」（跟 Windows 預設一樣）
+const DOUBLE_CLICK: Duration = Duration::from_millis(500);
+
+/// 上一次在月曆上點到日期的時間和位置（判斷「點兩下」用）
+#[derive(Debug, Clone, Copy)]
+struct Click {
+    at: Instant,
+    column: u16,
+    row: u16,
+}
+
 /// 整個 app 的狀態；畫面（`ui`）拿 `&App` 唯讀，所以畫面要用的欄位是 `pub`
 #[derive(Debug)]
 pub struct App {
@@ -110,6 +122,8 @@ pub struct App {
     pub notice: Option<Notice>,
     /// 按了 `v`，正在等下一個鍵選 view（`c` 小月曆、`m` 大月曆，其他鍵取消）；下框線換成可以按的鍵
     pub view_prefix: bool,
+    /// 上一次在月曆上點到日期（按了任何鍵就忘掉）；下一下點同一格、隔不到 `DOUBLE_CLICK` 就是點兩下
+    last_click: Option<Click>,
     /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
     pub screen: Rect,
 }
@@ -153,6 +167,7 @@ impl App {
             overlay: None,
             notice: None,
             view_prefix: false,
+            last_click: None,
             screen: Rect::default(),
         };
         // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
@@ -200,8 +215,9 @@ impl App {
 
     /// 處理一個按鍵：有跳窗就給跳窗，沒有就給月曆
     fn handle_key(&mut self, key: KeyEvent) {
-        // 上一次的提示：按任何鍵就消失
+        // 上一次的提示：按任何鍵就消失；中間按了鍵，前後兩下點擊就不算點兩下
         self.notice = None;
+        self.last_click = None;
         // Ctrl+C：在哪個畫面都直接離開（raw mode 下 Ctrl+C 只是一個按鍵，不會自己結束程式）。
         // 跳窗先關掉：設定頁改過的設定照樣存（`run` 每個按鍵之後都會檢查）；表單還沒存的字丟掉，跟 Esc 一樣
         if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
@@ -336,6 +352,16 @@ impl App {
             MouseEventKind::ScrollDown if !wheel_ignored => self.move_selected(7),
             // 往上滾：上一週
             MouseEventKind::ScrollUp if !wheel_ignored => self.move_selected(-7),
+            // 點兩下月曆的同一格：打開第一下選到的那天的清單（第一下之後畫面可能捲動了，第二下底下已經是別天）；
+            // 第一下就打開了清單（點的是已經選到的那天）就不再做事，免得第二下被當成點在清單上
+            MouseEventKind::Down(MouseButton::Left)
+                if self.is_double_click(mouse.column, mouse.row) =>
+            {
+                self.last_click = None;
+                if self.overlay.is_none() {
+                    self.overlay = Some(Overlay::DayList(DayList::open(self.selected)));
+                }
+            }
             // 左鍵按下：有跳窗時點在框外 = 按 Esc（關掉跳窗、回到打開它的地方；正在問「刪除嗎？」這類問題時只是取消問題），
             // 底下的格子不會被選到
             MouseEventKind::Down(MouseButton::Left)
@@ -360,16 +386,36 @@ impl App {
         }
     }
 
-    /// 沒有跳窗時點左鍵：點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
+    /// 沒有跳窗時點左鍵：點在日期格子上 = 選那天（選完照捲動規則對齊，置中時那一格會移到中間）；
+    /// 點已經選到的那天 = 打開那天的清單，跟按 `Enter` 一樣（點兩下見 `handle_mouse`）
     fn click_calendar(&mut self, column: u16, row: u16) {
         let date = match self.view {
             View::Compact => compact::date_at(self, column, row),
             View::Month => month::date_at(self, column, row),
         };
-        if let Some(date) = date {
+        let Some(date) = date else {
+            return;
+        };
+        if date == self.selected {
+            self.overlay = Some(Overlay::DayList(DayList::open(date)));
+        } else {
             self.selected = date;
             self.scroll_to_selected();
         }
+        self.last_click = Some(Click {
+            at: Instant::now(),
+            column,
+            row,
+        });
+    }
+
+    /// 這一下是不是「點兩下」的第二下：跟上一次在月曆上點的是同一格、隔不到 `DOUBLE_CLICK`，
+    /// 而且畫面上沒有別的跳窗（只會是沒有跳窗，或第一下打開的清單）
+    fn is_double_click(&self, column: u16, row: u16) -> bool {
+        let same_cell = self.last_click.is_some_and(|last| {
+            last.column == column && last.row == row && last.at.elapsed() < DOUBLE_CLICK
+        });
+        same_cell && matches!(self.overlay, None | Some(Overlay::DayList(_)))
     }
 
     /// 換成 `view`；週數變少時選取的那週可能掉出畫面，所以要重新對齊
@@ -864,6 +910,111 @@ mod tests {
         app.handle_mouse(click(12, 3));
         assert_eq!(app.selected, date(2026, 9, 22));
         assert_eq!(selected_row(&app), Some(1));
+    }
+
+    /// 現在的 view 上，`day` 那一格裡的一個位置（整個畫面掃一遍，用畫面的 `date_at` 找）
+    fn cell_of(app: &App, day: Date) -> (u16, u16) {
+        (0..app.screen.height)
+            .flat_map(|row| (0..app.screen.width).map(move |column| (column, row)))
+            .find(|&(column, row)| {
+                let at = match app.view {
+                    View::Compact => compact::date_at(app, column, row),
+                    View::Month => month::date_at(app, column, row),
+                };
+                at == Some(day)
+            })
+            .expect("day on screen")
+    }
+
+    /// 在 (`column`, `row`) 按一下左鍵
+    fn left_click((column, row): (u16, u16)) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    /// 開著的是哪天的清單（沒開清單是 `None`）
+    fn list_date(app: &App) -> Option<Date> {
+        match app.overlay {
+            Some(Overlay::DayList(list)) => Some(list.date),
+            _ => None,
+        }
+    }
+
+    /// 讓上一下點擊變成 1 秒前的事（下一下就不算點兩下）
+    fn forget_the_last_click(app: &mut App) {
+        app.last_click = app.last_click.map(|last| Click {
+            at: last
+                .at
+                .checked_sub(Duration::from_secs(1))
+                .expect("1 s ago"),
+            ..last
+        });
+    }
+
+    #[test]
+    fn clicking_the_selected_day_or_double_clicking_a_day_opens_its_list() {
+        for view in [View::Compact, View::Month] {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.screen = Rect::new(0, 0, 80, 24);
+            app.set_view(view);
+            let (oct_13, oct_20) = (date(2026, 10, 13), date(2026, 10, 20));
+            // 點 10/13：選它，還沒打開
+            app.handle_mouse(left_click(cell_of(&app, oct_13)));
+            assert_eq!((app.selected, list_date(&app)), (oct_13, None), "{view:?}");
+            // 隔一陣子（不算點兩下）再點已經選到的 10/13：打開那天的清單
+            forget_the_last_click(&mut app);
+            app.handle_mouse(left_click(cell_of(&app, oct_13)));
+            assert_eq!(list_date(&app), Some(oct_13), "{view:?}");
+            // 關掉；很快地在 10/20 上點兩下：第一下選、第二下打開
+            app.handle_key(key(KeyCode::Char('q')));
+            let cell = cell_of(&app, oct_20);
+            app.handle_mouse(left_click(cell));
+            app.handle_mouse(left_click(cell));
+            assert_eq!(list_date(&app), Some(oct_20), "{view:?}");
+            // 在已經選到的 10/20 上點兩下：第一下就打開，第二下吞掉（不會被當成點在清單上或點到框外關掉）
+            app.handle_key(key(KeyCode::Char('q')));
+            let cell = cell_of(&app, oct_20);
+            app.handle_mouse(left_click(cell));
+            app.handle_mouse(left_click(cell));
+            assert_eq!(list_date(&app), Some(oct_20), "{view:?}");
+        }
+    }
+
+    #[test]
+    fn double_click_opens_the_first_day_even_after_the_view_scrolled() {
+        // 大月曆置中（預設）：點最上面那週的星期四，那週捲到中間，同一格底下變成別天
+        // 第二下之前：`slow` = 隔了 1 秒、`key_between` = 中間按了一個沒有作用的鍵（z）
+        let open = |slow: bool, key_between: bool| {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.screen = Rect::new(0, 0, 80, 24);
+            app.set_view(View::Month);
+            let first = app.top.checked_add(3.days()).expect("Thursday");
+            let cell = cell_of(&app, first);
+            app.handle_mouse(left_click(cell));
+            assert_eq!(app.selected, first);
+            let under = month::date_at(&app, cell.0, cell.1).expect("a day");
+            assert_ne!(under, first);
+            if slow {
+                forget_the_last_click(&mut app);
+            }
+            if key_between {
+                app.handle_key(key(KeyCode::Char('z')));
+            }
+            app.handle_mouse(left_click(cell));
+            (first, under, app.selected, list_date(&app))
+        };
+        // 很快點第二下：打開第一下那天（不是現在底下那天）
+        let (first, _, selected, list) = open(false, false);
+        assert_eq!((selected, list), (first, Some(first)));
+        // 慢慢點第二下、或中間按了鍵：只是點了現在底下那天，選它、不打開
+        for (slow, key_between) in [(true, false), (false, true)] {
+            let (_, under, selected, list) = open(slow, key_between);
+            assert_eq!((selected, list), (under, None), "{slow} {key_between}");
+        }
     }
 
     #[test]

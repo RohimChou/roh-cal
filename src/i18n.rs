@@ -170,7 +170,7 @@ impl Texts {
                 left: &[HelpSection {
                     title: "NAVIGATION",
                     keys: &[
-                        ("h j k l", "move (arrow keys too)"),
+                        ("hjkl", "move (arrow keys too)"),
                         ("t", "jump to today"),
                         ("o / Enter", "open detail"),
                         ("V", "next view"),
