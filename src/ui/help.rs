@@ -1,15 +1,18 @@
 //! 說明頁：按 `?` 打開，小月曆時疊在左上角、大月曆時疊在畫面正中間（排法照 tuxedo）；打開時是精簡版，`Tab` 換完整版
 //!
-//! 左右兩欄列按鍵；畫面不夠寬放兩欄時，改成一欄由上往下排。內容在 `Texts::help`
+//! 左右兩欄列按鍵；畫面不夠寬放兩欄時，改成一欄由上往下排；畫面不夠高時可以上下捲，右框線上有捲軸。內容在 `Texts::help`
 
 use crate::app::{App, View};
 use crate::i18n::{HelpPage, HelpSection};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::{Constraint, Margin, Rect},
     text::{Line, Span},
-    widgets::{Block, BorderType, Clear, Padding, Paragraph},
+    widgets::{
+        Block, BorderType, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation,
+        ScrollbarState,
+    },
 };
 
 /// 按鍵和它的說明之間至少空幾格（按鍵那欄的寬度 = 兩欄裡最長的按鍵 + 這麼多格）
@@ -22,10 +25,14 @@ const SHORT_RIGHT_MARGIN: usize = GAP + 2;
 /// 框線和內容之間：上下各空 1 行（左邊靠段落名的縮排留空）
 const PADDING: Padding = Padding::vertical(1);
 
-/// 畫說明頁：大小剛好包住內容，放在哪見 `layout`；terminal 太矮時下面的會被切掉
-pub fn render(frame: &mut Frame, app: &App, full: bool) {
+/// 畫說明頁：大小剛好包住內容，放在哪見 `layout`；terminal 太矮放不下時，從往下捲了 `scroll` 行的地方開始畫，
+/// 右框線上畫捲軸
+pub fn render(frame: &mut Frame, app: &App, full: bool, scroll: u16) {
     let theme = &app.theme;
     let (lines, area) = layout(app, frame.area(), full);
+    // 捲過頭（例：捲到底之後把 terminal 拉高）就停在最後一頁
+    let max = overflow(lines.len(), area);
+    let scroll = scroll.min(max);
     let (title, hint) = border_lines(page(app, full), theme);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -35,12 +42,49 @@ pub fn render(frame: &mut Frame, app: &App, full: bool) {
         .title_bottom(hint);
     // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
     frame.render_widget(Clear, area);
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
+    if max > 0 {
+        render_scrollbar(frame, area, scroll, max, theme);
+    }
+}
+
+/// 放不下時，右框線上畫捲軸：軌道就是原本的框線（不另外畫），粗線那段 = 現在看得到的部分在整頁的哪裡
+fn render_scrollbar(frame: &mut Frame, area: Rect, scroll: u16, max: u16, theme: &Theme) {
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .track_symbol(None)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .thumb_symbol("┃")
+        .thumb_style(theme.title);
+    // 能停的位置有 max + 1 個（0..=max），一次看得到 visible_rows 行
+    let mut state = ScrollbarState::new(usize::from(max) + 1)
+        .position(usize::from(scroll))
+        .viewport_content_length(usize::from(visible_rows(area)));
+    // 上下的圓角不算：捲軸只畫在右框線的直線那段
+    frame.render_stateful_widget(scrollbar, area.inner(Margin::new(0, 1)), &mut state);
 }
 
 /// 說明頁的框（含框線）在畫面上的範圍（點框外 = 關掉）
 pub fn bounds(app: &App, full: bool) -> Rect {
     layout(app, app.screen, full).1
+}
+
+/// 說明頁最多能往下捲幾行（照 terminal 現在的大小算）；放得下 = 0
+pub fn max_scroll(app: &App, full: bool) -> u16 {
+    let (lines, area) = layout(app, app.screen, full);
+    overflow(lines.len(), area)
+}
+
+/// 框裡放得下幾行內容：扣掉上下框線和 padding
+fn visible_rows(area: Rect) -> u16 {
+    area.height.saturating_sub(PADDING.top + PADDING.bottom + 2)
+}
+
+/// `lines` 行的內容放進 `area` 的框，有幾行放不下（= 最多能往下捲幾行）
+fn overflow(lines: usize, area: Rect) -> u16 {
+    u16::try_from(lines)
+        .unwrap_or(u16::MAX)
+        .saturating_sub(visible_rows(area))
 }
 
 /// 現在顯示的那一版：精簡版，或 `full` 時的完整版
@@ -242,7 +286,11 @@ mod tests {
         height: u16,
     ) -> Vec<String> {
         let mut app = App::on_date(date(2026, 10, 10), texts, Vec::new());
-        app.overlay = Some(Overlay::Help { back, full });
+        app.overlay = Some(Overlay::Help {
+            back,
+            full,
+            scroll: 0,
+        });
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &app))
@@ -376,6 +424,7 @@ mod tests {
         app.overlay = Some(Overlay::Help {
             back: None,
             full: false,
+            scroll: 0,
         });
         let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
         terminal
@@ -428,7 +477,11 @@ mod tests {
         let draw_month = |back: Option<DayList>| {
             let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
             app.view = View::Month;
-            app.overlay = Some(Overlay::Help { back, full: false });
+            app.overlay = Some(Overlay::Help {
+                back,
+                full: false,
+                scroll: 0,
+            });
             let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
             terminal
                 .draw(|frame| crate::ui::render(frame, &app))
@@ -465,6 +518,46 @@ mod tests {
         assert_eq!(bounds(&app, false), ratatui::layout::Rect::new(0, 0, 30, 8));
         let rows = draw(Texts::en(), None, false, 30, 8);
         assert!(rows[0].starts_with("╭ roh-cal"));
+    }
+
+    #[test]
+    fn short_screen_scrolls_the_help_and_shows_a_scrollbar() {
+        // 捲了 `scroll` 行的精簡版，畫在 100 × `height` 的畫面上
+        let draw_scrolled = |scroll: u16, height: u16| {
+            let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+            app.overlay = Some(Overlay::Help {
+                back: None,
+                full: false,
+                scroll,
+            });
+            let mut terminal = Terminal::new(TestBackend::new(100, height)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, &app))
+                .unwrap();
+            rows(terminal.backend().buffer())
+        };
+        // 右框線（框 53 格寬，在第 52 格）第 y 行的字
+        let right = |rows: &[String], y: usize| rows[y].chars().nth(52).unwrap();
+
+        // 12 行高：精簡版 10 行內容，框裡放得下 12 - 4 = 8 行，最多捲 2 行
+        // 最上面：看得到 NAVIGATION，看不到最後一行 q quit；
+        // 捲軸的粗線佔軌道（右框線第 1～10 行）的 8/10，在上面那段
+        let top = draw_scrolled(0, 12);
+        let text = top.join("\n");
+        assert!(text.contains("NAVIGATION") && !text.contains("q       quit"));
+        let thumb: Vec<char> = (1..=10).map(|y| right(&top, y)).collect();
+        assert_eq!(thumb, [['┃'; 8].as_slice(), &['│'; 2]].concat());
+        // 捲到底：反過來，粗線在下面那段
+        let bottom = draw_scrolled(2, 12);
+        let text = bottom.join("\n");
+        assert!(!text.contains("NAVIGATION") && text.contains("q       quit"));
+        let thumb: Vec<char> = (1..=10).map(|y| right(&bottom, y)).collect();
+        assert_eq!(thumb, [['│'; 2].as_slice(), &['┃'; 8]].concat());
+        // 捲過頭（例：捲到底之後把 terminal 拉高）：畫面跟捲到底一樣
+        assert_eq!(draw_scrolled(99, 12), bottom);
+        // 放得下：沒有捲軸，捲過的也不算
+        assert!(!draw_scrolled(2, 40).join("\n").contains('┃'));
+        assert_eq!(draw_scrolled(2, 40), draw_scrolled(0, 40));
     }
 
     #[test]

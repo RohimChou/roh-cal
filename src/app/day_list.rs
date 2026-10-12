@@ -80,6 +80,7 @@ impl App {
                     self.overlay = Some(Overlay::Help {
                         back: Some(list),
                         full: false,
+                        scroll: 0,
                     });
                     return;
                 }

@@ -70,8 +70,12 @@ pub enum Overlay {
     /// 當天清單（`Enter` / `o`）
     DayList(DayList),
     /// 說明頁（`?`）；`back` = 關掉之後回到哪裡（從當天清單打開的，就回到那個清單）、
-    /// `full` = 顯示完整版（打開時是精簡版，`Tab` 切換）
-    Help { back: Option<DayList>, full: bool },
+    /// `full` = 顯示完整版（打開時是精簡版，`Tab` 切換）、`scroll` = 往下捲了幾行（畫面放不下時才能捲）
+    Help {
+        back: Option<DayList>,
+        full: bool,
+        scroll: u16,
+    },
     /// 新增 / 編輯表單（月曆或清單按 `a`、清單按 `Enter` / `o` / `e`）；表單比其他幾種大很多（字串、編輯中的項目），
     /// 放在 `Box` 裡（heap），`Overlay` 才不會每一種都佔表單那麼大的空間
     Form(Box<Form>),
@@ -229,7 +233,9 @@ impl App {
         match self.overlay {
             Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
             Some(Overlay::DayList(list)) => self.handle_day_list_key(list, key),
-            Some(Overlay::Help { back, full }) => self.handle_help_key(back, full, key),
+            Some(Overlay::Help { back, full, scroll }) => {
+                self.handle_help_key(back, full, scroll, key)
+            }
             Some(Overlay::Form(_)) => self.handle_form_key(key),
             None => self.handle_calendar_key(key),
         }
@@ -286,11 +292,27 @@ impl App {
         self.overlay = Some(Overlay::Settings(panel));
     }
 
-    /// 說明頁開著時的按鍵：`Tab` 換精簡版 / 完整版；`?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
-    fn handle_help_key(&mut self, back: Option<DayList>, full: bool, key: KeyEvent) {
+    /// 說明頁開著時的按鍵：`j` / `k`（`↓` / `↑`）畫面放不下時上下捲；`Tab` 換精簡版 / 完整版（回到最上面）；
+    /// `?` / `q` / `Esc` 關掉，回到打開前的地方（月曆或當天清單）；其他鍵不理
+    fn handle_help_key(&mut self, back: Option<DayList>, full: bool, scroll: u16, key: KeyEvent) {
+        // 最多能捲幾行：放得下是 0，按了也不動（terminal 拉高之後，原本捲的可能超過，先夾回來）
+        let max = ui::help::max_scroll(self, full);
+        let scroll = scroll.min(max);
         match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                let scroll = scroll.saturating_add(1).min(max);
+                self.overlay = Some(Overlay::Help { back, full, scroll });
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                let scroll = scroll.saturating_sub(1);
+                self.overlay = Some(Overlay::Help { back, full, scroll });
+            }
             KeyCode::Tab | KeyCode::BackTab => {
-                self.overlay = Some(Overlay::Help { back, full: !full });
+                self.overlay = Some(Overlay::Help {
+                    back,
+                    full: !full,
+                    scroll: 0,
+                });
             }
             KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
                 self.overlay = back.map(Overlay::DayList);
@@ -339,6 +361,7 @@ impl App {
                 self.overlay = Some(Overlay::Help {
                     back: None,
                     full: false,
+                    scroll: 0,
                 });
             }
             // `,`：打開設定頁（跟 macOS 的 Cmd+, 一樣）；其他跳窗開著時不會走到這裡，表單裡的 `,` 是打字
@@ -354,12 +377,15 @@ impl App {
 
     /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點一下 = 選，有跳窗就交給跳窗
     fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // 清單、說明頁、表單開著時滾輪不理：清單是那一天的，底下的月曆動了會對不起來
-        let wheel_ignored = matches!(
-            self.overlay,
-            Some(Overlay::DayList(_) | Overlay::Help { .. } | Overlay::Form(_))
-        );
+        // 清單、表單開著時滾輪不理：清單是那一天的，底下的月曆動了會對不起來
+        let wheel_ignored = matches!(self.overlay, Some(Overlay::DayList(_) | Overlay::Form(_)));
+        let help_open = matches!(self.overlay, Some(Overlay::Help { .. }));
         match mouse.kind {
+            // 說明頁開著：滾輪捲說明頁，跟按 ↓ / ↑ 一樣（底下的月曆不動）
+            MouseEventKind::ScrollDown if help_open => {
+                self.handle_key(KeyEvent::from(KeyCode::Down))
+            }
+            MouseEventKind::ScrollUp if help_open => self.handle_key(KeyEvent::from(KeyCode::Up)),
             // 往下滾（看後面的日期）：下一週
             MouseEventKind::ScrollDown if !wheel_ignored => self.move_selected(7),
             // 往上滾：上一週
@@ -1284,14 +1310,16 @@ mod tests {
                 app.overlay,
                 Some(Overlay::Help {
                     back: None,
-                    full: false
+                    full: false,
+                    scroll: 0
                 })
             );
             app.handle_key(key(close));
             assert_eq!(app.overlay, None, "{close:?}");
             assert!(!app.should_quit);
         }
-        // 從清單打開（選了第二個）：說明頁開著時其他鍵、`,` 都不理；關掉回到同一個清單、同一個選取
+        // 從清單打開（選了第二個）：說明頁開著時，月曆、清單的鍵（j 只捲說明頁）、`,`、滾輪都不會動到底下；
+        // 關掉回到同一個清單、同一個選取
         app.handle_key(key(KeyCode::Enter));
         app.handle_key(key(KeyCode::Char('j')));
         app.handle_key(key(KeyCode::Char('?')));
@@ -1314,6 +1342,55 @@ mod tests {
             app.overlay,
             Some(Overlay::DayList(DayList { selected: 1, .. }))
         ));
+    }
+
+    #[test]
+    fn j_k_and_the_wheel_scroll_the_help_only_when_it_does_not_fit() {
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        let scroll = |app: &App| match app.overlay {
+            Some(Overlay::Help { scroll, .. }) => Some(scroll),
+            _ => None,
+        };
+        // 放得下（100 × 40）：j 不會捲
+        app.screen = Rect::new(0, 0, 100, 40);
+        app.handle_key(key(KeyCode::Char('?')));
+        app.handle_key(key(KeyCode::Char('j')));
+        assert_eq!(scroll(&app), Some(0));
+        // 只有 12 行高：精簡版 10 行內容，框裡放得下 12 - 4 = 8 行 → 最多捲 2 行，再按也停在 2
+        app.screen = Rect::new(0, 0, 100, 12);
+        for expected in [1, 2, 2] {
+            app.handle_key(key(KeyCode::Char('j')));
+            assert_eq!(scroll(&app), Some(expected));
+        }
+        // k / ↑ 往回捲，到最上面就停
+        for code in [KeyCode::Up, KeyCode::Char('k'), KeyCode::Char('k')] {
+            app.handle_key(key(code));
+        }
+        assert_eq!(scroll(&app), Some(0));
+        // 滾輪跟 ↓ / ↑ 一樣；底下的月曆不動
+        let wheel = |kind| MouseEvent {
+            kind,
+            column: 5,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        };
+        app.handle_mouse(wheel(MouseEventKind::ScrollDown));
+        assert_eq!(scroll(&app), Some(1));
+        app.handle_mouse(wheel(MouseEventKind::ScrollUp));
+        assert_eq!(scroll(&app), Some(0));
+        assert_eq!(app.selected, date(2026, 10, 10));
+        // Tab 換版：回到最上面
+        app.handle_key(key(KeyCode::Down));
+        app.handle_key(key(KeyCode::Tab));
+        assert_eq!(scroll(&app), Some(0));
+        // 捲到底之後 terminal 拉高到放得下：按一次 k 就在最上面（不用先按掉多捲的行數）
+        app.handle_key(key(KeyCode::Tab));
+        for _ in 0..2 {
+            app.handle_key(key(KeyCode::Char('j')));
+        }
+        app.screen = Rect::new(0, 0, 100, 40);
+        app.handle_key(key(KeyCode::Char('k')));
+        assert_eq!(scroll(&app), Some(0));
     }
 
     #[test]
@@ -1344,7 +1421,8 @@ mod tests {
             app.overlay,
             Some(Overlay::Help {
                 back: Some(_),
-                full: true
+                full: true,
+                ..
             })
         ));
         app.handle_key(key(KeyCode::Char('q')));
