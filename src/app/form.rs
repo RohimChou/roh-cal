@@ -3,7 +3,7 @@
 
 use super::{App, DayList, Notice, Overlay};
 use crate::tasks::{self, Item};
-use crate::ui;
+use crate::ui::{self, form::Target};
 use jiff::{
     ToSpan,
     civil::{Date, Time},
@@ -65,6 +65,11 @@ impl Form {
         let Ok(date) = self.picked.checked_add(days.days()) else {
             return;
         };
+        self.pick(date);
+    }
+
+    /// 小月曆選到 `date`，日期欄換成它（打到一半的字會被蓋掉）
+    fn pick(&mut self, date: Date) {
         self.picked = date;
         self.date = Input::new(date.to_string());
     }
@@ -227,6 +232,20 @@ impl App {
                     form.picked = date;
                 }
             }
+        }
+        self.overlay = Some(Overlay::Form(form));
+    }
+
+    /// 表單開著時點左鍵：點一欄 = 游標跳到那一欄；點小月曆的某一天 = 日期換成那天（跟用 `h/j/k/l` 換一樣）；
+    /// 點在框線、星期列、框外不理
+    pub(super) fn click_form(&mut self, column: u16, row: u16) {
+        let Some(Overlay::Form(mut form)) = self.overlay.take() else {
+            return;
+        };
+        match ui::form::target_at(&form, self, column, row) {
+            Some(Target::Field(field)) => form.focus = field,
+            Some(Target::Day(date)) => form.pick(date),
+            None => {}
         }
         self.overlay = Some(Overlay::Form(form));
     }
@@ -803,6 +822,53 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             MORNING_AND_DONE_AFTERNOON
+        );
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
+    }
+
+    #[test]
+    fn clicking_a_field_moves_the_cursor_and_clicking_a_day_picks_it() {
+        use ratatui::crossterm::event::MouseButton;
+        use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+        let (mut app, path) = app_with_task_file("form-click", "");
+        app.screen = Rect::new(0, 0, 80, 24);
+        app.handle_key(key(KeyCode::Char('a')));
+        type_text(&mut app, "看展");
+        // 畫一次畫面，回傳 `text` 第一個字的位置上的左鍵（表單會變高，所以每次點之前都重畫）
+        let at = |app: &App, text: &str| {
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal.draw(|frame| ui::render(frame, app)).unwrap();
+            let rows = ui::rows(terminal.backend().buffer());
+            let y = rows.iter().position(|row| row.contains(text)).expect(text);
+            let x = rows[y][..rows[y].find(text).unwrap()].chars().count();
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: u16::try_from(x).unwrap(),
+                row: u16::try_from(y).unwrap(),
+                modifiers: KeyModifiers::NONE,
+            }
+        };
+        // 點時間那一行：游標跳到時間欄；點日期那一行：跳到日期欄，小月曆出現
+        app.handle_mouse(at(&app, "time   "));
+        assert_eq!(form(&app).focus, FormField::Time);
+        app.handle_mouse(at(&app, "date   2026-10-10"));
+        assert_eq!(form(&app).focus, FormField::Date);
+        // 小月曆（10/10 那週在中間）：點 10/12 那週的第 4 格 = 10/15
+        let week = at(&app, " 12  13  14  15");
+        app.handle_mouse(MouseEvent {
+            column: week.column + 3 * 4 + 1,
+            ..week
+        });
+        assert_eq!(form(&app).date.value(), "2026-10-15");
+        assert_eq!(form(&app).picked, date(2026, 10, 15));
+        assert_eq!(form(&app).focus, FormField::Date);
+        // 點星期列：不理；Enter 存到點選的那天
+        app.handle_mouse(at(&app, "MON TUE"));
+        assert_eq!(form(&app).date.value(), "2026-10-15");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] 看展 @2026-10-15\n"
         );
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }

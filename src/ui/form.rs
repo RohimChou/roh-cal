@@ -2,11 +2,11 @@
 
 use crate::app::{App, Form, FormField, FormProblem};
 use crate::calendar::monday_of;
-use crate::ui::{WEEKDAYS, notice_line, weekend_style};
+use crate::ui::{WEEKDAYS, calendar_area, notice_line, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, Padding, Paragraph},
 };
@@ -27,12 +27,8 @@ const PICKER_ROWS: u16 = 4;
 /// 下框線：欄位寫錯的原因 > 提示（例：檔案在別處改過）> 操作說明
 pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
     let theme = &app.theme;
-    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
-    // 小月曆只在游標在日期欄時出現，框跟著變高（一樣置中，跟底下的清單對齊）
-    let picker = form.focus == FormField::Date;
-    let picker_rows = if picker { PICKER_ROWS } else { 0 };
-    let height = 2 + PADDING.top + PADDING.bottom + 3 + picker_rows;
-    let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
+    let areas = areas(form, calendar);
+    let area = areas.outer;
 
     let bottom = match form.problem {
         Some(FormProblem::EmptyTitle) => Some(app.texts.form_empty_title),
@@ -55,23 +51,15 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
         .padding(PADDING)
         .title_top(Line::styled(format!(" {heading} "), theme.title))
         .title_bottom(bottom);
-    let inner = block.inner(area);
     // 先清掉底下的畫面，框才不會跟清單的字疊在一起
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
 
-    let [title_row, date_row, picker_area, time_row] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(picker_rows),
-        Constraint::Length(1),
-    ])
-    .areas(inner);
     let [title_label, date_label, time_label] = app.texts.form_labels;
     let fields = [
-        (FormField::Title, title_row, title_label, &form.title),
-        (FormField::Date, date_row, date_label, &form.date),
-        (FormField::Time, time_row, time_label, &form.time),
+        (FormField::Title, areas.title, title_label, &form.title),
+        (FormField::Date, areas.date, date_label, &form.date),
+        (FormField::Time, areas.time, time_label, &form.time),
     ];
     for (field, row, label, input) in fields {
         let focused = form.focus == field;
@@ -96,13 +84,94 @@ pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
         }
         render_input(frame, input, value_area, focused);
     }
-    if picker {
-        // 小月曆跟日期欄打的字對齊（欄位名那欄空著）
-        let [_, picker_area] =
-            Layout::horizontal([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)])
-                .areas(picker_area);
-        frame.render_widget(Paragraph::new(picker_lines(form.picked, app)), picker_area);
+    if form.focus == FormField::Date {
+        frame.render_widget(Paragraph::new(picker_lines(form.picked, app)), areas.picker);
     }
+}
+
+/// 表單各部分在畫面上的位置；游標在日期欄時多了小月曆，框變高、時間欄往下移
+struct Areas {
+    /// 整個框（含框線），疊在月曆框正中間
+    outer: Rect,
+    /// 標題那一行（欄位名 + 打的字）
+    title: Rect,
+    /// 日期那一行
+    date: Rect,
+    /// 小月曆（星期列 + 3 週），跟日期欄打的字對齊；游標不在日期欄時高度是 0
+    picker: Rect,
+    /// 時間那一行
+    time: Rect,
+}
+
+/// 算表單各部分放在哪（`render` 和 `target_at` 共用，滑鼠點的位置才會跟畫面對得上）
+fn areas(form: &Form, calendar: Rect) -> Areas {
+    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
+    // 小月曆只在游標在日期欄時出現，框跟著變高（一樣置中）
+    let picker_rows = if form.focus == FormField::Date {
+        PICKER_ROWS
+    } else {
+        0
+    };
+    let height = 2 + PADDING.top + PADDING.bottom + 3 + picker_rows;
+    let outer = calendar.centered(Constraint::Length(width), Constraint::Length(height));
+    // 內容在框線和 padding 裡面，一欄一行，小月曆夾在日期和時間中間
+    let inner = Block::bordered().padding(PADDING).inner(outer);
+    let [title, date, picker, time] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(picker_rows),
+        Constraint::Length(1),
+    ])
+    .areas(inner);
+    // 小月曆左邊空出欄位名那欄
+    let [_, picker] =
+        Layout::horizontal([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)]).areas(picker);
+    Areas {
+        outer,
+        title,
+        date,
+        picker,
+        time,
+    }
+}
+
+/// 表單上被滑鼠點到的東西
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Target {
+    /// 某一欄（欄位名或打的字那一行都算）
+    Field(FormField),
+    /// 小月曆上的某一天
+    Day(Date),
+}
+
+/// 滑鼠點在 (`column`, `row`) 的是表單的什麼；點在框線、padding、星期列、框外回傳 `None`
+pub fn target_at(form: &Form, app: &App, column: u16, row: u16) -> Option<Target> {
+    let areas = areas(form, calendar_area(app.screen, app));
+    let position = Position::new(column, row);
+    let fields = [
+        (FormField::Title, areas.title),
+        (FormField::Date, areas.date),
+        (FormField::Time, areas.time),
+    ];
+    if let Some(&(field, _)) = fields.iter().find(|(_, area)| area.contains(position)) {
+        return Some(Target::Field(field));
+    }
+    if !areas.picker.contains(position) {
+        return None;
+    }
+    // 小月曆：第 0 行是星期列，第 1～3 行是上一週、選到的那週、下一週；一天 4 格寬（見 `picker_lines`）
+    let line = row - areas.picker.y;
+    if line == 0 {
+        return None;
+    }
+    let weekday = i64::from((column - areas.picker.x) / 4);
+    if weekday >= 7 {
+        return None;
+    }
+    let monday = monday_of(form.picked)
+        .checked_add((i64::from(line) - 2).weeks())
+        .ok()?;
+    monday.checked_add(weekday.days()).ok().map(Target::Day)
 }
 
 /// 小月曆的每一行：星期列 + 3 週（`picked` 那週在中間）；顏色跟月曆一樣：
@@ -428,5 +497,92 @@ mod tests {
             assert!(text.contains(heading), "{heading}");
             assert!(!text.contains(" new item ") && !text.contains(" 新增項目 "));
         }
+    }
+
+    /// 表單（標題 abc、日期 10/12、時間 14:00、游標在 `focus`）畫在 80 × 24 的畫面上，
+    /// 回傳 app（`screen` 設好，給 `target_at` 用）、表單、畫面每一行的文字
+    fn on_screen(focus: FormField) -> (App, Form, Vec<String>) {
+        let form = Form {
+            title: Input::new("abc".to_string()),
+            date: Input::new(OCT_12.to_string()),
+            time: Input::new("14:00".to_string()),
+            picked: OCT_12,
+            focus,
+            back: None,
+            editing: None,
+            problem: None,
+        };
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        app.screen = Rect::new(0, 0, 80, 24);
+        app.overlay = Some(Overlay::Form(Box::new(form.clone())));
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &app))
+            .unwrap();
+        (app, form, rows(terminal.backend().buffer()))
+    }
+
+    #[test]
+    fn target_at_finds_the_field_under_the_mouse() {
+        // 游標在標題：三欄由上到下；點欄位名、點那一行右邊的空白都算那一欄
+        let (app, form, rows) = on_screen(FormField::Title);
+        for (text, field) in [
+            ("title  abc", FormField::Title),
+            ("date   2026-10-12", FormField::Date),
+            ("time   14:00", FormField::Time),
+        ] {
+            let (x, y) = position_of(&rows, text);
+            assert_eq!(
+                target_at(&form, &app, x, y),
+                Some(Target::Field(field)),
+                "{text}"
+            );
+            assert_eq!(
+                target_at(&form, &app, x + 30, y),
+                Some(Target::Field(field)),
+                "{text}"
+            );
+        }
+        // 上框線、上 padding、左框線、框外：都不是
+        let (x, y) = position_of(&rows, "title  abc");
+        for (x, y) in [(x, y - 2), (x, y - 1), (x - 2, y), (0, 0)] {
+            assert_eq!(target_at(&form, &app, x, y), None, "({x}, {y})");
+        }
+        // 游標在日期：小月曆夾在中間，時間欄往下移，點的位置跟著變
+        let (app, form, rows) = on_screen(FormField::Date);
+        let (x, y) = position_of(&rows, "time   14:00");
+        assert_eq!(
+            target_at(&form, &app, x, y),
+            Some(Target::Field(FormField::Time))
+        );
+    }
+
+    #[test]
+    fn target_at_finds_the_day_under_the_mouse_in_the_small_calendar() {
+        let (app, form, rows) = on_screen(FormField::Date);
+        // 10/12 是星期一：小月曆是 10/5 那週、10/12 那週、10/19 那週；點日期的數字或它前後的空白都算那天
+        for (week, first_day) in [("  5   6   7", 5), (" 12  13  14", 12), (" 19  20  21", 19)] {
+            let (x, y) = position_of(&rows, week);
+            for weekday in 0..7 {
+                let expected = Some(Target::Day(date(2026, 10, first_day + weekday)));
+                let cell = x + 4 * u16::try_from(weekday).unwrap();
+                assert_eq!(
+                    target_at(&form, &app, cell, y),
+                    expected,
+                    "{week} +{weekday}"
+                );
+                assert_eq!(
+                    target_at(&form, &app, cell + 3, y),
+                    expected,
+                    "{week} +{weekday}"
+                );
+            }
+            // 星期日右邊、欄位名那欄（小月曆左邊）：不是日期
+            assert_eq!(target_at(&form, &app, x + 28, y), None, "{week}");
+            assert_eq!(target_at(&form, &app, x - 1, y), None, "{week}");
+        }
+        // 星期列：不是日期
+        let (x, y) = position_of(&rows, "MON TUE WED");
+        assert_eq!(target_at(&form, &app, x + 1, y), None);
     }
 }

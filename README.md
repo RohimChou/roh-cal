@@ -53,6 +53,7 @@ In the add / edit form:
 | `h` `j` `k` `l` / arrows (date field) | Previous day / next week / previous week / next day |
 | `Enter` | Save and go back; the day list / calendar selects the new item |
 | `Esc` / `q` | Cancel (in the title field `q` is just a letter) |
+| Mouse click | Move to that field; in the small calendar, pick that day |
 
 The date field shows a small calendar and takes digits and `-` only, e.g. `2026-10-12`. The time field is optional and takes digits and `:` only: `14:00`, `9:00`, `1400` or `930` (saved as `14:00`, `09:00`, `14:00`, `09:30`).
 

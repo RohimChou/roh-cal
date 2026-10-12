@@ -330,7 +330,8 @@ impl App {
                     self.click_settings(panel, mouse.column, mouse.row)
                 }
                 Some(Overlay::DayList(list)) => self.click_day_list(list, mouse.column, mouse.row),
-                Some(Overlay::Help { .. } | Overlay::Form(_)) => {}
+                Some(Overlay::Form(_)) => self.click_form(mouse.column, mouse.row),
+                Some(Overlay::Help { .. }) => {}
                 None => self.click_calendar(mouse.column, mouse.row),
             },
             // 其他（右鍵、拖曳、移動）不理
