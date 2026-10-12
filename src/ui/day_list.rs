@@ -2,10 +2,10 @@
 
 use crate::app::{App, DayList};
 use crate::tasks::Item;
-use crate::ui::{items_on, notice_line};
+use crate::ui::{calendar_area, items_on, notice_line};
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::{Constraint, Position, Rect},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph},
 };
@@ -22,10 +22,7 @@ const PADDING: Padding = Padding::uniform(1);
 pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let theme = &app.theme;
     let items = items_on(&app.items, list.date);
-    // 大小：框線 2 + 上下 padding + 項目（沒有項目時是 1 行說明）；月曆框不夠高就縮（Length 超過月曆框會被縮到月曆框的大小）
-    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
-    let height = 2 + PADDING.top + PADDING.bottom + items.len().max(1) as u16;
-    let area = calendar.centered(Constraint::Length(width), Constraint::Length(height));
+    let area = area(items.len(), calendar);
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
     // 下框線：按了 d 就問要不要刪；有提示就顯示提示（下一個按鍵就恢復）；平常是操作說明
@@ -61,6 +58,32 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
         .block(block)
         .highlight_style(theme.selected_bg);
     frame.render_stateful_widget(widget, area, &mut state);
+}
+
+/// 清單的框（含框線）放在哪：疊在月曆框正中間；`count` = 那天有幾個項目
+fn area(count: usize, calendar: Rect) -> Rect {
+    // 大小：框線 2 + 上下 padding + 項目（沒有項目時是 1 行說明）；月曆框不夠高就縮（Length 超過月曆框會被縮到月曆框的大小）
+    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
+    let height = 2 + PADDING.top + PADDING.bottom + count.max(1) as u16;
+    calendar.centered(Constraint::Length(width), Constraint::Length(height))
+}
+
+/// 滑鼠點在 (`column`, `row`) 的是清單的第幾個項目（`items_on` 的 index）；點在框線、padding、框外，或那天沒有項目，回傳 `None`。
+/// 位置跟 `render` 用同一個 `area` 算。捲動照 ratatui `List` 的規則（ratatui-widgets 0.3 的 `get_items_bounds`）：
+/// 從第一個開始畫，選到的超出框底才往下捲，捲到它剛好在最後一行
+pub fn item_at(list: DayList, app: &App, column: u16, row: u16) -> Option<usize> {
+    let count = items_on(&app.items, list.date).len();
+    let area = area(count, calendar_area(app.screen, app));
+    // 項目畫在框線和 padding 裡面
+    let inner = Block::bordered().padding(PADDING).inner(area);
+    if !inner.contains(Position::new(column, row)) {
+        return None;
+    }
+    let first = list
+        .selected
+        .saturating_sub(usize::from(inner.height).saturating_sub(1));
+    let index = first + usize::from(row - inner.y);
+    (index < count).then_some(index)
 }
 
 /// 一個項目一行：` [ ] 14:00 標題`（沒寫 checkbox 的也顯示 `[ ]`，每個項目都能打勾）；
@@ -232,6 +255,75 @@ mod tests {
             let text = rows(terminal.backend().buffer()).join("\n");
             assert!(text.contains(question), "{question}");
             assert!(!text.contains("d delete") && !text.contains("d 刪除"));
+        }
+    }
+
+    #[test]
+    fn item_at_finds_the_item_under_the_mouse_even_when_scrolled() {
+        // 10/12 有 15 個項目：小月曆的框放不下，選第 13 個（index 12）時清單往下捲
+        let text: String = (1..=15)
+            .map(|n| format!("- [ ] item {n:02} @2026-10-12\n"))
+            .collect();
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), parse(&text).items);
+        app.screen = Rect::new(0, 0, 80, 24);
+        let list = DayList {
+            date: date(2026, 10, 12),
+            selected: 12,
+            confirm_delete: None,
+        };
+        app.overlay = Some(Overlay::DayList(list));
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &app))
+            .unwrap();
+        let screen = rows(terminal.backend().buffer());
+        // 畫面上看得到的每一個項目（從畫面上的字認出是第幾個）：點它、點那一行右邊的空白，都是它
+        let mut seen = Vec::new();
+        for (y, line) in screen.iter().enumerate() {
+            let Some(start) = line.find("[ ] item ") else {
+                continue;
+            };
+            let number: usize = line[start + 9..start + 11].parse().unwrap();
+            let x = u16::try_from(line[..start].chars().count()).unwrap();
+            let y = u16::try_from(y).unwrap();
+            assert_eq!(item_at(list, &app, x, y), Some(number - 1), "item {number}");
+            assert_eq!(
+                item_at(list, &app, x + 30, y),
+                Some(number - 1),
+                "item {number}"
+            );
+            seen.push(number);
+        }
+        // 真的有捲：第一個看不到，選到的第 13 個看得到
+        assert!(!seen.contains(&1) && seen.contains(&13), "{seen:?}");
+        // 上框線（有日期的那行）、上 padding、左框線、左 padding、框外：都不是項目
+        let top = screen
+            .iter()
+            .position(|line| line.contains("2026-10-12 Mon"))
+            .unwrap();
+        let left = u16::try_from(
+            screen[top][..screen[top].find('╭').unwrap()]
+                .chars()
+                .count(),
+        )
+        .unwrap();
+        let (top, first) = (u16::try_from(top).unwrap(), u16::try_from(top + 2).unwrap());
+        for (x, y) in [
+            (left + 4, top),
+            (left + 4, top + 1),
+            (left, first),
+            (left + 1, first),
+            (0, 0),
+        ] {
+            assert_eq!(item_at(list, &app, x, y), None, "({x}, {y})");
+        }
+        // 沒有項目的那天：哪裡都不是項目
+        let empty = DayList {
+            date: date(2026, 10, 11),
+            ..list
+        };
+        for (x, y) in (0..80).flat_map(|x| (0..24).map(move |y| (x, y))) {
+            assert_eq!(item_at(empty, &app, x, y), None);
         }
     }
 }

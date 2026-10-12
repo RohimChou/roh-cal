@@ -312,38 +312,41 @@ impl App {
         }
     }
 
-    /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點日期 = 選取那天
+    /// 處理一個滑鼠事件：滾輪滾一格 = 按一次 j / k；左鍵點一下 = 選，有跳窗就交給跳窗
     fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // 清單、說明頁、表單開著時不理：清單是那一天的，底下的月曆動了會對不起來
-        if matches!(
+        // 清單、說明頁、表單開著時滾輪不理：清單是那一天的，底下的月曆動了會對不起來
+        let wheel_ignored = matches!(
             self.overlay,
             Some(Overlay::DayList(_) | Overlay::Help { .. } | Overlay::Form(_))
-        ) {
-            return;
-        }
+        );
         match mouse.kind {
             // 往下滾（看後面的日期）：下一週
-            MouseEventKind::ScrollDown => self.move_selected(7),
+            MouseEventKind::ScrollDown if !wheel_ignored => self.move_selected(7),
             // 往上滾：上一週
-            MouseEventKind::ScrollUp => self.move_selected(-7),
-            // 左鍵按下：設定頁開著 → 交給設定頁（點到框外不理，免得點到底下的格子）；
-            // 沒有跳窗 → 點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
-            MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(Overlay::Settings(panel)) = self.overlay {
-                    self.click_settings(panel, mouse.column, mouse.row);
-                    return;
+            MouseEventKind::ScrollUp if !wheel_ignored => self.move_selected(-7),
+            // 左鍵按下：有跳窗就交給那個跳窗（點到框外不理，免得點到底下的格子）；沒有跳窗就是點月曆
+            MouseEventKind::Down(MouseButton::Left) => match self.overlay {
+                Some(Overlay::Settings(panel)) => {
+                    self.click_settings(panel, mouse.column, mouse.row)
                 }
-                let date = match self.view {
-                    View::Compact => compact::date_at(self, mouse.column, mouse.row),
-                    View::Month => month::date_at(self, mouse.column, mouse.row),
-                };
-                if let Some(date) = date {
-                    self.selected = date;
-                    self.scroll_to_selected();
-                }
-            }
+                Some(Overlay::DayList(list)) => self.click_day_list(list, mouse.column, mouse.row),
+                Some(Overlay::Help { .. } | Overlay::Form(_)) => {}
+                None => self.click_calendar(mouse.column, mouse.row),
+            },
             // 其他（右鍵、拖曳、移動）不理
             _ => {}
+        }
+    }
+
+    /// 沒有跳窗時點左鍵：點在日期格子上才選取；選完照捲動規則對齊（置中時那一格會移到中間）
+    fn click_calendar(&mut self, column: u16, row: u16) {
+        let date = match self.view {
+            View::Compact => compact::date_at(self, column, row),
+            View::Month => month::date_at(self, column, row),
+        };
+        if let Some(date) = date {
+            self.selected = date;
+            self.scroll_to_selected();
         }
     }
 

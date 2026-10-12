@@ -43,6 +43,7 @@ In the day list:
 | `u` | Undo |
 | `?` | Help |
 | `q` / `Esc` | Close |
+| Mouse click | Pick an item; click the picked item again to open it (like `Enter`) |
 
 In the add / edit form:
 

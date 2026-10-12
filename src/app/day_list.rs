@@ -58,8 +58,8 @@ impl App {
                 }
                 // Enter / o / e：打開選到的項目 = 編輯表單（那天沒有項目就不動）
                 KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('e') => {
-                    if let Some(item) = ui::items_on(&self.items, list.date).get(list.selected) {
-                        self.overlay = Some(Overlay::Form(Box::new(Form::edit(item, list))));
+                    if let Some(form) = self.edit_selected(list) {
+                        self.overlay = Some(form);
                         return;
                     }
                 }
@@ -87,6 +87,30 @@ impl App {
         let count = ui::items_on(&self.items, list.date).len();
         list.selected = list.selected.min(count.saturating_sub(1));
         self.overlay = Some(Overlay::DayList(list));
+    }
+
+    /// 清單開著時點左鍵：點一個項目 = 選它，再點一次（點已經選到的那個）= 打開它，跟按 `Enter` 一樣；
+    /// 點在框線、框外不理。正在問「刪除嗎？」時點一下 = 取消那個問題（跟按其他鍵一樣）
+    pub(super) fn click_day_list(&mut self, mut list: DayList, column: u16, row: u16) {
+        if list.confirm_delete.is_some() {
+            list.confirm_delete = None;
+        } else if let Some(index) = ui::day_list::item_at(list, self, column, row) {
+            if index == list.selected
+                && let Some(form) = self.edit_selected(list)
+            {
+                self.overlay = Some(form);
+                return;
+            }
+            list.selected = index;
+        }
+        self.overlay = Some(Overlay::DayList(list));
+    }
+
+    /// 清單選到的項目打開成編輯表單（`Enter` / `o` / `e`、再點一次）；那天沒有項目回傳 `None`
+    fn edit_selected(&self, list: DayList) -> Option<Overlay> {
+        let items = ui::items_on(&self.items, list.date);
+        let item = items.get(list.selected)?;
+        Some(Overlay::Form(Box::new(Form::edit(item, list))))
     }
 }
 
@@ -166,5 +190,64 @@ mod tests {
                 confirm_delete: None
             }))
         );
+    }
+
+    #[test]
+    fn clicking_an_item_selects_it_and_clicking_it_again_opens_it() {
+        use crate::app::tests::app_with_task_file;
+        use ratatui::crossterm::event::MouseButton;
+        use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+        let text = "- [ ] 早上 @2026-10-10 09:00\n- [ ] 下午 @2026-10-10 14:00\n";
+        let (mut app, path) = app_with_task_file("list-click", text);
+        app.screen = Rect::new(0, 0, 80, 24);
+        // 從畫面上找兩個項目在哪一行（點在 checkbox 上）
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| ui::render(frame, &app)).unwrap();
+        let screen = ui::rows(terminal.backend().buffer());
+        let click = |text: &str| {
+            let y = screen.iter().position(|line| line.contains(text)).unwrap();
+            let line = &screen[y];
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: u16::try_from(line[..line.find(text).unwrap()].chars().count()).unwrap(),
+                row: u16::try_from(y).unwrap(),
+                modifiers: KeyModifiers::NONE,
+            }
+        };
+        let (morning, afternoon) = (click("[ ] 09:00"), click("[ ] 14:00"));
+        let selected = |app: &App| match app.overlay {
+            Some(Overlay::DayList(list)) => Some(list.selected),
+            _ => None,
+        };
+        // 點「下午」：選到它；再點一次：打開它（編輯表單），Esc 回到清單
+        app.handle_mouse(afternoon);
+        assert_eq!(selected(&app), Some(1));
+        app.handle_mouse(afternoon);
+        assert!(matches!(&app.overlay, Some(Overlay::Form(form)) if form.title.value() == "下午"));
+        app.handle_key(key(KeyCode::Esc));
+        assert_eq!(selected(&app), Some(1));
+        // 點框外：不理
+        app.handle_mouse(MouseEvent {
+            column: 0,
+            row: 0,
+            ..morning
+        });
+        assert_eq!(selected(&app), Some(1));
+        // 正在問「刪除嗎？」：點一下只是取消問題，不選、不刪
+        app.handle_key(key(KeyCode::Char('d')));
+        app.handle_mouse(morning);
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::DayList(DayList {
+                selected: 1,
+                confirm_delete: None,
+                ..
+            }))
+        ));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        // 再點「早上」就選到它
+        app.handle_mouse(morning);
+        assert_eq!(selected(&app), Some(0));
+        std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
 }
