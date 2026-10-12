@@ -94,6 +94,11 @@ fn notice_line(app: &App) -> Option<Line<'static>> {
 /// 月曆（大小都是）的下框線：平常是操作說明；有提示、而且沒有跳窗蓋在上面時換成提示
 /// （有跳窗時，提示顯示在跳窗的下框線）
 fn calendar_bottom(app: &App) -> Line<'static> {
+    // 按了 v：列出接下來可以按的鍵（醒目的顏色）
+    if app.view_prefix {
+        return Line::styled(format!(" {} ", app.texts.view_prefix_hint), app.theme.title)
+            .centered();
+    }
     let notice = if app.overlay.is_none() {
         notice_line(app)
     } else {
@@ -223,11 +228,21 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         // 小月曆的寬度是固定的：下框線的操作說明中英文都要整句看得到
         for texts in [Texts::en(), Texts::zh_tw()] {
-            let app = App::on_date(date(2026, 10, 10), texts, Vec::new());
+            let mut app = App::on_date(date(2026, 10, 10), texts, Vec::new());
             let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
             terminal.draw(|frame| render(frame, &app)).unwrap();
             let text = rows(terminal.backend().buffer()).join("\n");
             assert!(text.contains(texts.hint), "{}", texts.hint);
+            // 按了 v：換成可以按的鍵，一樣整句看得到
+            app.view_prefix = true;
+            terminal.draw(|frame| render(frame, &app)).unwrap();
+            let text = rows(terminal.backend().buffer()).join("\n");
+            assert!(
+                text.contains(texts.view_prefix_hint),
+                "{}",
+                texts.view_prefix_hint
+            );
+            assert!(!text.contains(texts.hint), "{}", texts.hint);
         }
     }
 }

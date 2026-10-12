@@ -24,7 +24,8 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `Enter` / `o` | Open the selected day's list |
 | `a` | Add an item on the selected day (opens the add form) |
 | `u` | Undo roh-cal's last change to the task file (up to 50 steps) |
-| `v` | Switch between the compact view and the month view |
+| `V` | Next view (compact → month → compact) |
+| `v` then `c` / `m` | Compact view / month view (after `v` the bottom line lists the keys; any other key cancels) |
 | `,` | Open / close the settings panel |
 | `?` | Help: the main keys on one page (`?` / `q` / `Esc` closes it) |
 | `q` / `Esc` | Quit |

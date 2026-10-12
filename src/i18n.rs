@@ -100,6 +100,8 @@ pub struct Texts {
     pub weekdays: [&'static str; 7],
     /// 下邊線的操作說明
     pub hint: &'static str,
+    /// 按了 `v` 之後，下邊線換成接下來可以按的鍵
+    pub view_prefix_hint: &'static str,
     /// 當天清單的標題，例：`2026-10-12 Mon` / `2026-10-12（一）`
     pub day_title: fn(date: Date) -> String,
     /// 當天清單：那天沒有項目時顯示的字
@@ -149,6 +151,7 @@ impl Texts {
             month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
             hint: "hjkl move · o open · v view · ? help · q quit",
+            view_prefix_hint: "v: c compact · m month · Esc cancel",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
             day_hint: "a add · Space check · d delete · ? help",
@@ -170,7 +173,8 @@ impl Texts {
                         ("h j k l", "move (arrow keys too)"),
                         ("t", "jump to today"),
                         ("o / Enter", "open detail"),
-                        ("v", "switch view"),
+                        ("V", "next view"),
+                        ("v c / v m", "compact / month view"),
                         (",", "open settings"),
                         ("Ctrl+C", "quit from anywhere"),
                     ],
@@ -205,6 +209,7 @@ impl Texts {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_label: |month| format!("{month:>2} 月"),
             hint: "hjkl 移動 · o 開啟 · v 切換 · ? 說明 · q 離開",
+            view_prefix_hint: "v：c 小月曆 · m 大月曆 · Esc 取消",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
             day_hint: "a 新增 · Space 打勾 · d 刪除 · ? 說明",
@@ -225,7 +230,8 @@ impl Texts {
                         ("h j k l", "移動（方向鍵也可以）"),
                         ("t", "跳回今天"),
                         ("o / Enter", "打開當天清單"),
-                        ("v", "切換大小月曆"),
+                        ("V", "輪流切換月曆"),
+                        ("v c / v m", "小月曆 / 大月曆"),
                         (",", "打開設定頁"),
                         ("Ctrl+C", "直接離開（哪裡都可以）"),
                     ],
