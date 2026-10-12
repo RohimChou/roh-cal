@@ -150,7 +150,7 @@ mod tests {
             // 按鍵那欄 12 格："o / Enter" 9 個字 + 3 個空白
             "t           jump to today",
             "o / Enter   open detail",
-            "Option+q    open settings",
+            ",           open settings",
             "Ctrl+C      quit from anywhere",
             "d           delete (with subtasks)",
             "?/q/Esc close",

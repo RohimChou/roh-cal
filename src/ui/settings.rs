@@ -1,4 +1,4 @@
-//! 設定頁：Option+q 打開，疊在畫面右下角的一張清單
+//! 設定頁：`,` 打開，疊在畫面右下角的一張清單
 
 use crate::app::App;
 use crate::settings::{Panel, ROWS};

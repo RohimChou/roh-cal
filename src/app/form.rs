@@ -400,8 +400,9 @@ mod tests {
         app.handle_key(key(KeyCode::Backspace));
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(form(&app).problem, Some(FormProblem::BadDate));
-        // Option+q、滑鼠都不理；Esc：什麼都不存，回到原本的清單
-        app.handle_key(key(KeyCode::Char('œ')));
+        // `,` 不會打開設定頁（日期欄也不收）、滑鼠不理；Esc：什麼都不存，回到原本的清單
+        app.handle_key(key(KeyCode::Char(',')));
+        assert_eq!(form(&app).date.value(), "2026-10-1");
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::ScrollDown,
             column: 0,

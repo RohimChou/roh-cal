@@ -64,7 +64,7 @@ impl View {
 /// 表單裡有打到一半的字（`String`），所以不是 `Copy`；其他幾種的狀態都很小，比對時直接複製一份出來
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Overlay {
-    /// 設定頁（Option+q）
+    /// 設定頁（`,`）
     Settings(Panel),
     /// 當天清單（`Enter` / `o`）
     DayList(DayList),
@@ -206,19 +206,6 @@ impl App {
             self.should_quit = true;
             return;
         }
-        // Option+q：設定頁開 / 關。macOS 的 terminal 預設把 Option+q 送成字元 `œ`；
-        // 有設「Option 當 Alt」（例：Ghostty 的 macos-option-as-alt）就是 `q` + ALT
-        let option_q = key.code == KeyCode::Char('œ')
-            || (key.code == KeyCode::Char('q') && key.modifiers.contains(KeyModifiers::ALT));
-        if option_q {
-            self.overlay = match self.overlay {
-                Some(Overlay::Settings(_)) => None,
-                None => Some(Overlay::Settings(Panel::default())),
-                // 其他跳窗開著時不理：一次只開一個跳窗，要先關掉它（表單裡也不會打進去）
-                Some(Overlay::DayList(_) | Overlay::Help { .. } | Overlay::Form(_)) => return,
-            };
-            return;
-        }
         match self.overlay {
             Some(Overlay::Settings(panel)) => self.handle_settings_key(panel, key),
             Some(Overlay::DayList(list)) => self.handle_day_list_key(list, key),
@@ -241,8 +228,8 @@ impl App {
             return;
         }
         match key.code {
-            // q / Esc：關閉設定頁（q 在這裡不是離開 app）
-            KeyCode::Char('q') | KeyCode::Esc => {
+            // q / Esc / `,`：關閉設定頁（q 在這裡不是離開 app）
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char(',') => {
                 self.overlay = None;
                 return;
             }
@@ -274,7 +261,7 @@ impl App {
         }
     }
 
-    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、新增、復原、說明、離開
+    /// 沒有跳窗時的按鍵：移動、跳回今天、切換畫面、打開當天清單、新增、復原、說明、設定頁、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -298,6 +285,8 @@ impl App {
             KeyCode::Char('u') => self.notice = Some(self.undo()),
             // ?：說明頁
             KeyCode::Char('?') => self.overlay = Some(Overlay::Help { back: None }),
+            // `,`：打開設定頁（跟 macOS 的 Cmd+, 一樣）；其他跳窗開著時不會走到這裡，表單裡的 `,` 是打字
+            KeyCode::Char(',') => self.overlay = Some(Overlay::Settings(Panel::default())),
             // v：小月曆 ↔ 大月曆；週數變少時選取的那週可能掉出畫面，所以要重新對齊
             KeyCode::Char('v') => {
                 self.view = self.view.toggled();
@@ -556,10 +545,10 @@ mod tests {
     }
 
     #[test]
-    fn option_q_opens_the_settings_panel_and_hjkl_edits_it() {
+    fn comma_opens_the_settings_panel_and_hjkl_edits_it() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        // Option+q（送成 œ）打開；第一列是 week_numbers
-        app.handle_key(key(KeyCode::Char('œ')));
+        // `,` 打開；第一列是 week_numbers
+        app.handle_key(key(KeyCode::Char(',')));
         assert_eq!(panel(&app), Some(Panel::default()));
         // l：切換開關；h：再切回來
         app.handle_key(key(KeyCode::Char('l')));
@@ -587,15 +576,15 @@ mod tests {
         app.handle_key(key(KeyCode::Char('r')));
         assert_eq!(app.theme.item, Theme::default().item);
         assert!(!app.settings.calendar.week_numbers);
-        // q / Esc / q + ALT 都能關；關了之後 q 才是離開
+        // q / Esc / `,` 都能關；關了之後 q 才是離開
         app.handle_key(key(KeyCode::Char('q')));
         assert_eq!(app.overlay, None);
         assert!(!app.should_quit);
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Esc));
         assert_eq!(app.overlay, None);
-        app.handle_key(key(KeyCode::Char('œ')));
-        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT));
+        app.handle_key(key(KeyCode::Char(',')));
+        app.handle_key(key(KeyCode::Char(',')));
         assert_eq!(app.overlay, None);
         assert!(!app.should_quit);
     }
@@ -609,7 +598,7 @@ mod tests {
             &[KeyCode::Enter],
             &[KeyCode::Char('a')],
             &[KeyCode::Char('?')],
-            &[KeyCode::Char('œ')],
+            &[KeyCode::Char(',')],
         ];
         for keys in openers {
             let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
@@ -644,7 +633,7 @@ mod tests {
             Some(path.clone()),
         );
         // 設定頁：第一列（週數）關掉，直接 Ctrl+C
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Char('l')));
         app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
         assert!(app.should_quit);
@@ -669,7 +658,7 @@ mod tests {
             Some(ratatui::style::Color::Rgb(243, 139, 168))
         );
         // 設定頁：k 從第一列往上繞到最後一列（sunday），r 還原，關掉 → 存
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Char('k')));
         app.handle_key(key(KeyCode::Char('r')));
         app.handle_key(key(KeyCode::Char('q')));
@@ -689,7 +678,7 @@ mod tests {
         std::fs::write(&path, text).expect("write");
         let settings = config::load(&path).expect("load");
         let mut app = App::new(Texts::en(), Vec::new(), None, settings, Some(path.clone()));
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         // R：先問，還沒還原
         app.handle_key(key(KeyCode::Char('R')));
         assert!(panel(&app).is_some_and(|panel| panel.confirm_reset_all));
@@ -712,7 +701,7 @@ mod tests {
     #[test]
     fn shift_r_is_cancelled_by_any_other_key() {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Char('l')));
         assert!(!app.settings.calendar.week_numbers);
         for other in [
@@ -736,7 +725,7 @@ mod tests {
         let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
         app.config_path = Some(path.clone());
         // 打開設定頁、關掉週數（第一列）：設定頁還開著 → 還不存
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Char('l')));
         app.save_settings().expect("save");
         assert!(!path.exists());
@@ -747,7 +736,7 @@ mod tests {
         assert!(!config::load(&path).expect("load").calendar.week_numbers);
         // 打開又關掉、沒改東西 → 不寫（刪掉檔案來確認沒有被重新建立）
         std::fs::remove_file(&path).expect("remove");
-        app.handle_key(key(KeyCode::Char('œ')));
+        app.handle_key(key(KeyCode::Char(',')));
         app.handle_key(key(KeyCode::Esc));
         app.save_settings().expect("save");
         assert!(!path.exists());
@@ -874,11 +863,11 @@ mod tests {
             assert_eq!(app.overlay, None, "{close:?}");
             assert!(!app.should_quit);
         }
-        // 從清單打開（選了第二個）：說明頁開著時其他鍵、Option+q 都不理；關掉回到同一個清單、同一個選取
+        // 從清單打開（選了第二個）：說明頁開著時其他鍵、`,` 都不理；關掉回到同一個清單、同一個選取
         app.handle_key(key(KeyCode::Enter));
         app.handle_key(key(KeyCode::Char('j')));
         app.handle_key(key(KeyCode::Char('?')));
-        for code in ['j', 'h', 'd', 'œ'].map(KeyCode::Char) {
+        for code in ['j', 'h', 'd', ','].map(KeyCode::Char) {
             app.handle_key(key(code));
         }
         app.handle_mouse(MouseEvent {

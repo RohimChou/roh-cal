@@ -135,8 +135,8 @@ mod tests {
         assert_eq!(selected(&app), Some(0));
         app.handle_key(key(KeyCode::Char('k')));
         assert_eq!(selected(&app), Some(1));
-        // 月曆的鍵、Option+q、滑鼠都不理：日期、畫面、跳窗都不變
-        for code in ['h', 'l', 't', 'v', 'œ'].map(KeyCode::Char) {
+        // 月曆的鍵（含打開設定頁的 `,`）、滑鼠都不理：日期、畫面、跳窗都不變
+        for code in ['h', 'l', 't', 'v', ','].map(KeyCode::Char) {
             app.handle_key(key(code));
         }
         app.handle_mouse(MouseEvent {

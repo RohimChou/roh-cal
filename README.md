@@ -25,7 +25,7 @@ cargo install --path .                    # then run `roh-cal` from anywhere
 | `a` | Add an item on the selected day (opens the add form) |
 | `u` | Undo roh-cal's last change to the task file (up to 50 steps) |
 | `v` | Switch between the compact view and the month view |
-| `Option+q` | Open / close the settings panel |
+| `,` | Open / close the settings panel |
 | `?` | Help: the main keys on one page (`?` / `q` / `Esc` closes it) |
 | `q` / `Esc` | Quit |
 | `Ctrl+C` | Quit from anywhere (a list, a form, the settings panel); unsaved form input is dropped, settings are saved |
@@ -63,7 +63,7 @@ In the settings panel:
 | `h` / `l`, `Space`, `Enter` | Change the value (toggle, or the previous / next color) |
 | `r` | Reset this row to its default |
 | `R` | Reset everything; press `y` to confirm, any other key cancels |
-| `q` / `Esc` / `Option+q` | Close and save |
+| `q` / `Esc` / `,` | Close and save |
 
 ## Settings file
 `~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). Every key is optional; edit it by hand or with the settings panel. Saving from the panel rewrites only the lines whose value changed, so your comments and layout stay. A typo or an unknown key is an error shown before the calendar starts.
