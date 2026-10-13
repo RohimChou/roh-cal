@@ -24,6 +24,7 @@ use ratatui::{
     },
     layout::{Position, Rect},
 };
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use write::UndoStep;
@@ -131,6 +132,8 @@ pub struct App {
     last_click: Option<Click>,
     /// terminal 現在的大小（每次畫畫面前更新）；滑鼠點擊要換算成哪一格時用
     pub screen: Rect,
+    /// 當天清單裡展開的項目（記行號）；關掉清單就全部收起
+    pub expanded: BTreeSet<usize>,
 }
 
 impl App {
@@ -174,6 +177,7 @@ impl App {
             view_prefix: false,
             last_click: None,
             screen: Rect::default(),
+            expanded: BTreeSet::new(),
         };
         // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
         app.scroll_to_selected();

@@ -3,7 +3,6 @@
 use super::{App, DayList};
 use crate::files;
 use crate::tasks::{self, Item, edit};
-use crate::ui;
 use jiff::civil::{Date, Time};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -39,11 +38,7 @@ impl App {
         let Some(path) = self.tasks_path.clone() else {
             return Ok(None);
         };
-        let Some(item) = ui::items_on(&self.items, list.date)
-            .get(list.selected)
-            .copied()
-            .cloned()
-        else {
+        let Some(item) = self.list_item(list) else {
             return Ok(None);
         };
         match std::fs::read_to_string(&path) {

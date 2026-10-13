@@ -3,12 +3,14 @@
 use crate::app::{App, DayList};
 use crate::tasks::Item;
 use crate::ui::{calendar_area, items_on, notice_line};
+use jiff::civil::Date;
 use ratatui::{
     Frame,
     layout::{Constraint, Position, Rect},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph},
 };
+use std::collections::BTreeSet;
 
 /// 框的寬度（含框線）：月曆框左右各留 `MARGIN` 格，但最多 `MAX_WIDTH`（大月曆在很寬的 terminal 上才不會太長）
 const MARGIN: u16 = 2;
@@ -21,8 +23,8 @@ const PADDING: Padding = Padding::uniform(1);
 /// `calendar` = 月曆框的位置（小月曆在左上角、大月曆是整個 terminal），清單疊在它的正中間
 pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     let theme = &app.theme;
-    let items = items_on(&app.items, list.date);
-    let area = area(items.len(), calendar);
+    let rows = list_rows(&app.items, list.date, &app.expanded);
+    let area = area(rows.len(), calendar);
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
     // 下框線：按了 d 就問要不要刪；有提示就顯示提示（下一個按鍵就恢復）；平常是操作說明
@@ -43,14 +45,14 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
         .title_bottom(bottom);
     // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
     frame.render_widget(Clear, area);
-    if items.is_empty() {
+    if rows.is_empty() {
         let empty = Line::styled(format!(" {}", app.texts.day_empty), theme.hint);
         frame.render_widget(Paragraph::new(empty).block(block), area);
         return;
     }
-    let rows: Vec<ListItem> = items
+    let rows: Vec<ListItem> = rows
         .iter()
-        .map(|item| ListItem::new(item_line(item, app)))
+        .map(|row| ListItem::new(item_line(row, list.date, app)))
         .collect();
     // List 會自己捲動（選到的那行一定在框內），選到的那行整行塗上 highlight_style
     let mut state = ListState::default().with_selected(Some(list.selected));
@@ -70,15 +72,15 @@ fn area(count: usize, calendar: Rect) -> Rect {
 
 /// 清單的框（含框線）在畫面上的範圍（點框外 = 關掉）
 pub fn bounds(list: DayList, app: &App) -> Rect {
-    let count = items_on(&app.items, list.date).len();
+    let count = list_rows(&app.items, list.date, &app.expanded).len();
     area(count, calendar_area(app.screen, app))
 }
 
-/// 滑鼠點在 (`column`, `row`) 的是清單的第幾個項目（`items_on` 的 index）；點在框線、padding、框外，或那天沒有項目，回傳 `None`。
+/// 滑鼠點在 (`column`, `row`) 的是清單的第幾行（`list_rows` 的 index）；點在框線、padding、框外，或那天沒有項目，回傳 `None`。
 /// 位置跟 `render` 用同一個 `area` 算。捲動照 ratatui `List` 的規則（ratatui-widgets 0.3 的 `get_items_bounds`）：
 /// 從第一個開始畫，選到的超出框底才往下捲，捲到它剛好在最後一行
 pub fn item_at(list: DayList, app: &App, column: u16, row: u16) -> Option<usize> {
-    let count = items_on(&app.items, list.date).len();
+    let count = list_rows(&app.items, list.date, &app.expanded).len();
     // 項目畫在框線和 padding 裡面
     let inner = Block::bordered().padding(PADDING).inner(bounds(list, app));
     if !inner.contains(Position::new(column, row)) {
@@ -91,21 +93,110 @@ pub fn item_at(list: DayList, app: &App, column: u16, row: u16) -> Option<usize>
     (index < count).then_some(index)
 }
 
-/// 一個項目一行：` [ ] 14:00 標題`（沒寫 checkbox 的也顯示 `[ ]`，每個項目都能打勾）；
+/// 當天清單的一行：哪個項目、往右縮幾層（0 = 那天的項目，1 = 它的子任務…）
+pub struct ListRow<'a> {
+    pub item: &'a Item,
+    pub level: usize,
+}
+
+/// 當天清單一行一行列出來：那天的項目照 `items_on` 的順序；
+/// 展開的（`expanded` 記行號）底下接著列它的子任務，子任務也展開的再往下列
+pub fn list_rows<'a>(
+    items: &'a [Item],
+    date: Date,
+    expanded: &BTreeSet<usize>,
+) -> Vec<ListRow<'a>> {
+    let mut rows = Vec::new();
+    for item in items_on(items, date) {
+        push_tree(&mut rows, items, item, 0, expanded);
+    }
+    rows
+}
+
+/// 把 `item` 放進 `rows`；它展開了就接著放它的子任務（一路往下）
+fn push_tree<'a>(
+    rows: &mut Vec<ListRow<'a>>,
+    items: &'a [Item],
+    item: &'a Item,
+    level: usize,
+    expanded: &BTreeSet<usize>,
+) {
+    rows.push(ListRow { item, level });
+    if expanded.contains(&item.line) {
+        for child in children(items, item) {
+            push_tree(rows, items, child, level + 1, expanded);
+        }
+    }
+}
+
+/// `parent` 底下一層的子任務（不含子任務的子任務），照檔案順序
+pub fn children<'a>(items: &'a [Item], parent: &Item) -> Vec<&'a Item> {
+    // 父項目在 items 的第幾個：行號不會重複，用行號找
+    let Some(index) = items.iter().position(|item| item.line == parent.line) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter(|item| item.parent == Some(index))
+        .collect()
+}
+
+/// 一個項目一行：` ▸ [ ] 14:00 標題 1/4`（沒寫 checkbox 的也顯示 `[ ]`，每個項目都能打勾）；
 /// 完成的用 `item_done`（灰 + 劃線）。顏色掛在 span 上，劃線才不會延伸到行尾的空白
-fn item_line(item: &Item, app: &App) -> Line<'static> {
+///
+/// - 有子任務的前面是 `▸`（收起）/ `▾`（展開），後面淡色的 `1/4` = 子任務完成幾個 / 共幾個；沒有子任務的空一格，checkbox 才對齊
+/// - 子任務單獨出現（它自己有這天的日期、父項目在別天）：標題前面用淡色帶上父項目，例：`實作退款 API › 寫 integration test`
+/// - 展開後的子任務有自己的日期、又不是這天：後面用淡色標日期，例：`10/13`
+fn item_line(row: &ListRow, date: Date, app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let item = row.item;
+    let children = children(&app.items, item);
+    let marker = match (children.is_empty(), app.expanded.contains(&item.line)) {
+        (true, _) => ' ',
+        (false, false) => '▸',
+        (false, true) => '▾',
+    };
+    let style = if item.done {
+        theme.item_done
+    } else {
+        theme.item
+    };
+    // 補充資訊（`1/4`、父項目、別天的日期）用比標題暗的灰，才不會被當成標題的一部分
+    let meta = theme.row_distance;
+    let indent = "  ".repeat(row.level);
     let mark = if item.done { "[x]" } else { "[ ]" };
-    let mut text = format!(" {mark} ");
+    let mut text = format!("{mark} ");
     if let Some(time) = item.time {
         text.push_str(&format!("{:02}:{:02} ", time.hour(), time.minute()));
     }
-    text.push_str(&item.title);
-    let style = if item.done {
-        app.theme.item_done
-    } else {
-        app.theme.item
-    };
-    Line::from(Span::styled(text, style))
+
+    let mut spans = vec![
+        Span::raw(format!(" {indent}")),
+        Span::styled(format!("{marker} "), theme.hint),
+        Span::styled(text, style),
+    ];
+    // 單獨出現的子任務：帶上父項目的標題
+    if row.level == 0
+        && let Some(parent) = item.parent.and_then(|index| app.items.get(index))
+    {
+        spans.push(Span::styled(format!("{} › ", parent.title), meta));
+    }
+    spans.push(Span::styled(item.title.clone(), style));
+    if !children.is_empty() {
+        let done = children.iter().filter(|child| child.done).count();
+        spans.push(Span::styled(format!("  {done}/{}", children.len()), meta));
+    }
+    // 展開的子任務排在別天：標日期
+    if row.level > 0
+        && let Some(day) = item.date
+        && day != date
+    {
+        spans.push(Span::styled(
+            format!("  {}/{}", day.month(), day.day()),
+            meta,
+        ));
+    }
+    Line::from(spans)
 }
 
 #[cfg(test)]

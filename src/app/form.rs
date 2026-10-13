@@ -193,7 +193,7 @@ impl App {
                     && self.notice == Some(Notice::Reloaded)
                     && let Some(mut list) = form.back
                 {
-                    let count = ui::items_on(&self.items, list.date).len();
+                    let count = self.list_len(list);
                     list.selected = list.selected.min(count.saturating_sub(1));
                     self.overlay = Some(Overlay::DayList(list));
                     return;
@@ -284,10 +284,7 @@ impl App {
             // 表單開著時月曆不會動，所以 `self.selected` 還是打開表單的那天
             None => {
                 let list = form.back.unwrap_or_else(|| DayList::open(self.selected));
-                let near = ui::items_on(&self.items, list.date)
-                    .get(list.selected)
-                    .copied()
-                    .cloned();
+                let near = self.list_item(list);
                 self.add_item(title, date, time, near.as_ref())
             }
         };
@@ -298,9 +295,9 @@ impl App {
                 return None;
             }
         };
-        let selected = ui::items_on(&self.items, date)
+        let selected = ui::day_list::list_rows(&self.items, date, &self.expanded)
             .iter()
-            .position(|item| item.line == line)
+            .position(|row| row.item.line == line)
             .unwrap_or(0);
         Some(DayList {
             date,

@@ -1,6 +1,7 @@
 //! 當天清單：哪一天、選到哪個項目，和清單開著時的按鍵（畫面在 `ui::day_list`）
 
 use super::{App, Form, Overlay};
+use crate::tasks::Item;
 use crate::ui;
 use jiff::civil::Date;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -10,7 +11,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 pub struct DayList {
     /// 清單是哪一天的（打開時選取的那天）
     pub date: Date,
-    /// 選到的項目：`ui::items_on(items, date)` 的 index
+    /// 選到的那一行：`ui::day_list::list_rows` 的 index
     pub selected: usize,
     /// 按了 `d`，正在等確認：會刪掉幾筆（含子任務）；下一個鍵是 `y` 才刪，其他鍵都是取消
     pub confirm_delete: Option<usize>,
@@ -35,7 +36,7 @@ impl DayList {
 }
 
 impl App {
-    /// 當天清單開著時的按鍵：j / k 選項目、Enter / o / e 編輯、a 新增、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
+    /// 當天清單開著時的按鍵：j / k 選項目、l / h 展開 / 收起子任務、Enter / o / e 編輯、a 新增、Space / x 打勾、d 刪除、u 復原、q / Esc 關閉，月曆不動
     pub(super) fn handle_day_list_key(&mut self, mut list: DayList, key: KeyEvent) {
         if let Some(count) = list.confirm_delete.take() {
             // 正在問「刪除嗎？」：只有 y 會刪，其他鍵都只是取消（按錯不會有事）
@@ -43,15 +44,20 @@ impl App {
                 self.notice = self.delete_selected(list, count);
             }
         } else {
-            let count = ui::items_on(&self.items, list.date).len();
+            let count = self.list_len(list);
             match key.code {
-                // q / Esc：關閉清單（q 在這裡不是離開 app）
+                // q / Esc：關閉清單（q 在這裡不是離開 app），展開的全部收起
                 KeyCode::Char('q') | KeyCode::Esc => {
                     self.overlay = None;
+                    self.expanded.clear();
                     return;
                 }
                 KeyCode::Char('j') | KeyCode::Down => list.select(1, count),
                 KeyCode::Char('k') | KeyCode::Up => list.select(-1, count),
+                // l / →：展開；已經展開就跳到第一個子任務
+                KeyCode::Char('l') | KeyCode::Right => self.expand_selected(&mut list),
+                // h / ←：收起；已經收起（或沒有子任務）就跳到父項目
+                KeyCode::Char('h') | KeyCode::Left => self.collapse_selected(&mut list),
                 // Space / x：打勾 / 取消，寫回任務檔
                 KeyCode::Char(' ') | KeyCode::Char('x') => {
                     self.notice = self.toggle_selected(list);
@@ -88,7 +94,7 @@ impl App {
             }
         }
         // 重新載入後項目可能變少：選的不能超過最後一個
-        let count = ui::items_on(&self.items, list.date).len();
+        let count = self.list_len(list);
         list.selected = list.selected.min(count.saturating_sub(1));
         self.overlay = Some(Overlay::DayList(list));
     }
@@ -112,9 +118,51 @@ impl App {
 
     /// 清單選到的項目打開成編輯表單（`Enter` / `o` / `e`、再點一次）；那天沒有項目回傳 `None`
     fn edit_selected(&self, list: DayList) -> Option<Overlay> {
-        let items = ui::items_on(&self.items, list.date);
-        let item = items.get(list.selected)?;
-        Some(Overlay::Form(Box::new(Form::edit(item, list))))
+        let item = self.list_item(list)?;
+        Some(Overlay::Form(Box::new(Form::edit(&item, list))))
+    }
+
+    /// 清單現在有幾行（含展開的子任務）
+    pub(super) fn list_len(&self, list: DayList) -> usize {
+        ui::day_list::list_rows(&self.items, list.date, &self.expanded).len()
+    }
+
+    /// 清單選到的那一行是哪個項目；那天沒有項目回傳 `None`
+    pub(super) fn list_item(&self, list: DayList) -> Option<Item> {
+        ui::day_list::list_rows(&self.items, list.date, &self.expanded)
+            .get(list.selected)
+            .map(|row| row.item.clone())
+    }
+
+    /// `l`：選到的項目有子任務、還沒展開就展開；已經展開就選它的第一個子任務（就在下一行）
+    fn expand_selected(&mut self, list: &mut DayList) {
+        let Some(item) = self.list_item(*list) else {
+            return;
+        };
+        if ui::day_list::children(&self.items, &item).is_empty() {
+            return;
+        }
+        if !self.expanded.insert(item.line) {
+            list.selected += 1;
+        }
+    }
+
+    /// `h`：選到的項目展開了就收起；沒展開、又是展開出來的子任務，就選它的父項目那一行
+    fn collapse_selected(&mut self, list: &mut DayList) {
+        let rows = ui::day_list::list_rows(&self.items, list.date, &self.expanded);
+        let Some(row) = rows.get(list.selected) else {
+            return;
+        };
+        let line = row.item.line;
+        // 父項目那一行：往上第一個縮排比較少的
+        let parent_row = rows[..list.selected]
+            .iter()
+            .rposition(|other| other.level < row.level);
+        if !self.expanded.remove(&line)
+            && let Some(index) = parent_row
+        {
+            list.selected = index;
+        }
     }
 }
 
