@@ -41,7 +41,7 @@ impl App {
         if let Some(count) = list.confirm_delete.take() {
             // 正在問「刪除嗎？」：只有 y 會刪，其他鍵都只是取消（按錯不會有事）
             if key.code == KeyCode::Char('y') {
-                self.notice = self.delete_selected(list, count);
+                self.notice = self.delete_item(self.list_item(list), count);
             }
         } else {
             let count = self.list_len(list);
@@ -60,7 +60,7 @@ impl App {
                 KeyCode::Char('h') | KeyCode::Left => self.collapse_selected(&mut list),
                 // Space / x：打勾 / 取消，寫回任務檔
                 KeyCode::Char(' ') | KeyCode::Char('x') => {
-                    self.notice = self.toggle_selected(list);
+                    self.notice = self.toggle_item(self.list_item(list));
                 }
                 // Enter / o / e：打開選到的項目 = 編輯表單（那天沒有項目就不動）
                 KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('e') => {
@@ -75,7 +75,7 @@ impl App {
                     return;
                 }
                 // d：先問一次（顯示會刪掉幾筆），按 y 才刪
-                KeyCode::Char('d') => match self.ask_delete(list) {
+                KeyCode::Char('d') => match self.ask_delete(self.list_item(list)) {
                     Ok(count) => list.confirm_delete = count,
                     Err(notice) => self.notice = Some(notice),
                 },

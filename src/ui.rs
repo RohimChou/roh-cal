@@ -6,6 +6,7 @@ pub mod form;
 pub mod help;
 pub mod month;
 pub mod settings;
+pub mod tasks_view;
 
 use crate::app::{App, Notice, Overlay, View};
 use crate::calendar::week_of_year;
@@ -36,6 +37,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     match app.view {
         View::Compact => compact::render(frame, app),
         View::Month => month::render(frame, app),
+        View::Tasks => tasks_view::render(frame, app),
     }
     match app.overlay {
         Some(Overlay::Settings(panel)) => settings::render(frame, panel, app),
@@ -76,7 +78,7 @@ pub fn overlay_bounds(app: &App) -> Option<Rect> {
 fn calendar_area(screen: Rect, app: &App) -> Rect {
     match app.view {
         View::Compact => compact::area(screen, app),
-        View::Month => screen,
+        View::Month | View::Tasks => screen,
     }
 }
 

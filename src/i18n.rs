@@ -117,6 +117,10 @@ pub struct Texts {
     pub day_empty: &'static str,
     /// 當天清單最下面的操作說明
     pub day_hint: &'static str,
+    /// 任務 view 的標題（上框線）
+    pub tasks_title: &'static str,
+    /// 任務 view 最下面的操作說明
+    pub tasks_hint: &'static str,
     /// 提示：寫檔前發現那一行在別處被改過，沒寫、已重新載入（暫時顯示在操作說明的位置）
     pub file_reloaded: &'static str,
     /// 提示：讀 / 寫任務檔失敗，例：`can't save the task file: permission denied`
@@ -160,10 +164,12 @@ impl Texts {
             month_label: |month| month_name(month)[..3].to_string(),
             weekdays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
             hint: "hjkl move · o open · v view · ? help · q quit",
-            view_prefix_hint: "pick view: c compact · m month",
+            view_prefix_hint: "pick view: c compact · m month · t tasks",
             day_title: |date| date.strftime("%Y-%m-%d %a").to_string(),
             day_empty: "no items",
             day_hint: "a add · Space check · d delete · ? help",
+            tasks_title: "tasks",
+            tasks_hint: "jk move · l/h open/close · Space check · d delete · v view · q quit",
             file_reloaded: "file changed elsewhere, reloaded",
             file_failed: |kind| format!("can't save the task file: {kind}"),
             undone: |title| format!("undone: {title}"),
@@ -298,10 +304,12 @@ impl Texts {
             title: |year, month| format!("{year} 年 {month} 月"),
             month_label: |month| format!("{month:>2} 月"),
             hint: "hjkl 移動 · o 開啟 · v 切換 · ? 說明 · q 離開",
-            view_prefix_hint: "pick view：c 小月曆 · m 大月曆",
+            view_prefix_hint: "pick view：c 小月曆 · m 大月曆 · t 任務",
             day_title: |date| format!("{date}（{}）", zh_weekday(date)),
             day_empty: "這天沒有項目",
             day_hint: "a 新增 · Space 打勾 · d 刪除 · ? 說明",
+            tasks_title: "任務",
+            tasks_hint: "jk 移動 · l/h 展開/收起 · Space 打勾 · d 刪除 · v 切換 · q 離開",
             file_reloaded: "檔案在別處改過，已重新載入",
             file_failed: |kind| format!("任務檔存不了：{kind}"),
             undone: |title| format!("已復原：{title}"),

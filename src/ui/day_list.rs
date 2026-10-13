@@ -52,7 +52,7 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     }
     let rows: Vec<ListItem> = rows
         .iter()
-        .map(|row| ListItem::new(item_line(row, list.date, app)))
+        .map(|row| ListItem::new(item_line(row, Some(list.date), &app.expanded, app)))
         .collect();
     // List 會自己捲動（選到的那行一定在框內），選到的那行整行塗上 highlight_style
     let mut state = ListState::default().with_selected(Some(list.selected));
@@ -114,7 +114,7 @@ pub fn list_rows<'a>(
 }
 
 /// 把 `item` 放進 `rows`；它展開了就接著放它的子任務（一路往下）
-fn push_tree<'a>(
+pub(super) fn push_tree<'a>(
     rows: &mut Vec<ListRow<'a>>,
     items: &'a [Item],
     item: &'a Item,
@@ -146,12 +146,20 @@ pub fn children<'a>(items: &'a [Item], parent: &Item) -> Vec<&'a Item> {
 ///
 /// - 有子任務的前面是 `▸`（收起）/ `▾`（展開），後面淡色的 `1/4` = 子任務完成幾個 / 共幾個；沒有子任務的空一格，checkbox 才對齊
 /// - 子任務單獨出現（它自己有這天的日期、父項目在別天）：標題前面用淡色帶上父項目，例：`實作退款 API › 寫 integration test`
-/// - 展開後的子任務有自己的日期、又不是這天：後面用淡色標日期，例：`10/13`
-fn item_line(row: &ListRow, date: Date, app: &App) -> Line<'static> {
+/// - 項目有日期、又不是這天：後面用淡色標日期，例：`10/13`
+///
+/// `date` = 清單是哪一天的；任務 view 是 `None`：時間不放前面，跟日期一起放在後面，例：`10/14 10:30`。
+/// `expanded` = 哪些項目展開了（當天清單、任務 view 各記各的）
+pub(super) fn item_line(
+    row: &ListRow,
+    date: Option<Date>,
+    expanded: &BTreeSet<usize>,
+    app: &App,
+) -> Line<'static> {
     let theme = &app.theme;
     let item = row.item;
     let children = children(&app.items, item);
-    let marker = match (children.is_empty(), app.expanded.contains(&item.line)) {
+    let marker = match (children.is_empty(), expanded.contains(&item.line)) {
         (true, _) => ' ',
         (false, false) => '▸',
         (false, true) => '▾',
@@ -166,7 +174,9 @@ fn item_line(row: &ListRow, date: Date, app: &App) -> Line<'static> {
     let indent = "  ".repeat(row.level);
     let mark = if item.done { "[x]" } else { "[ ]" };
     let mut text = format!("{mark} ");
-    if let Some(time) = item.time {
+    if let Some(time) = item.time
+        && date.is_some()
+    {
         text.push_str(&format!("{:02}:{:02} ", time.hour(), time.minute()));
     }
 
@@ -186,15 +196,17 @@ fn item_line(row: &ListRow, date: Date, app: &App) -> Line<'static> {
         let done = children.iter().filter(|child| child.done).count();
         spans.push(Span::styled(format!("  {done}/{}", children.len()), meta));
     }
-    // 展開的子任務排在別天：標日期
-    if row.level > 0
-        && let Some(day) = item.date
-        && day != date
+    // 排在別天（任務 view 是每個有日期的）：標日期；任務 view 連時間一起標
+    if let Some(day) = item.date
+        && Some(day) != date
     {
-        spans.push(Span::styled(
-            format!("  {}/{}", day.month(), day.day()),
-            meta,
-        ));
+        let mut when = format!("  {}/{}", day.month(), day.day());
+        if let Some(time) = item.time
+            && date.is_none()
+        {
+            when.push_str(&format!(" {:02}:{:02}", time.hour(), time.minute()));
+        }
+        spans.push(Span::styled(when, meta));
     }
     Line::from(spans)
 }

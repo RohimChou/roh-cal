@@ -1,6 +1,6 @@
 //! 寫任務檔：打勾、刪除、新增、編輯、undo；寫之前一定先重讀，檔案在別處改過就不寫、改成重新載入
 
-use super::{App, DayList};
+use super::App;
 use crate::files;
 use crate::tasks::{self, Item, edit};
 use jiff::civil::{Date, Time};
@@ -32,13 +32,13 @@ pub(super) struct UndoStep {
 }
 
 impl App {
-    /// 清單選到的項目、任務檔的位置和檔案現在的內容（寫之前一定先重讀）。
-    /// 沒有任務檔（test）或那天沒有項目是 `Ok(None)`；讀不到檔案是 `Err(提示)`
-    fn selected_and_file(&self, list: DayList) -> Result<Option<(Item, PathBuf, String)>, Notice> {
+    /// 選到的項目（當天清單或任務 view）、任務檔的位置和檔案現在的內容（寫之前一定先重讀）。
+    /// 沒有任務檔（test）或沒選到項目是 `Ok(None)`；讀不到檔案是 `Err(提示)`
+    fn item_and_file(&self, item: Option<Item>) -> Result<Option<(Item, PathBuf, String)>, Notice> {
         let Some(path) = self.tasks_path.clone() else {
             return Ok(None);
         };
-        let Some(item) = self.list_item(list) else {
+        let Some(item) = item else {
             return Ok(None);
         };
         match std::fs::read_to_string(&path) {
@@ -47,11 +47,11 @@ impl App {
         }
     }
 
-    /// 當天清單選到的項目打勾 / 取消，寫回任務檔；寫成功（或沒事可做）回傳 `None`，沒寫成回傳要顯示的提示
+    /// 選到的項目打勾 / 取消，寫回任務檔；寫成功（或沒事可做）回傳 `None`，沒寫成回傳要顯示的提示
     ///
     /// 那一行在別處被改過（`Changed`）就不寫，改成重新載入
-    pub(super) fn toggle_selected(&mut self, list: DayList) -> Option<Notice> {
-        let (item, path, text) = match self.selected_and_file(list) {
+    pub(super) fn toggle_item(&mut self, item: Option<Item>) -> Option<Notice> {
+        let (item, path, text) = match self.item_and_file(item) {
             Ok(found) => found?,
             Err(notice) => return Some(notice),
         };
@@ -63,8 +63,8 @@ impl App {
 
     /// `d`：先算一次刪掉選到的項目會刪掉幾筆（含子任務），回傳要問的筆數（沒事可做是 `None`）；
     /// 算不出來（檔案在別處改過、讀不到）回傳提示
-    pub(super) fn ask_delete(&mut self, list: DayList) -> Result<Option<usize>, Notice> {
-        let Some((item, _, text)) = self.selected_and_file(list)? else {
+    pub(super) fn ask_delete(&mut self, item: Option<Item>) -> Result<Option<usize>, Notice> {
+        let Some((item, _, text)) = self.item_and_file(item)? else {
             return Ok(None);
         };
         match edit::delete(&text, &item) {
@@ -73,11 +73,11 @@ impl App {
         }
     }
 
-    /// `y`：刪掉選到的項目（連子任務），寫回任務檔；回傳值跟 `toggle_selected` 一樣
+    /// `y`：刪掉選到的項目（連子任務），寫回任務檔；回傳值跟 `toggle_item` 一樣
     ///
     /// `count` = 剛剛問使用者的筆數；現在算出來不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
-    pub(super) fn delete_selected(&mut self, list: DayList, count: usize) -> Option<Notice> {
-        let (item, path, text) = match self.selected_and_file(list) {
+    pub(super) fn delete_item(&mut self, item: Option<Item>, count: usize) -> Option<Notice> {
+        let (item, path, text) = match self.item_and_file(item) {
             Ok(found) => found?,
             Err(notice) => return Some(notice),
         };
@@ -212,8 +212,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::Overlay;
     use crate::app::tests::{app_with_task_file, app_with_two_items, key};
+    use crate::app::{DayList, Overlay};
     use ratatui::crossterm::event::KeyCode;
 
     #[test]

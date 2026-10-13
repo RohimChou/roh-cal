@@ -1,11 +1,13 @@
-//! App 的狀態、按鍵 / 滑鼠處理、捲動規則；當天清單在 `day_list`、表單在 `form`、寫任務檔在 `write`（畫面在 `ui`）
+//! App 的狀態、按鍵 / 滑鼠處理、捲動規則；當天清單在 `day_list`、表單在 `form`、任務 view 在 `tasks_view`、寫任務檔在 `write`（畫面在 `ui`）
 
 mod day_list;
 mod form;
+mod tasks_view;
 mod write;
 
 pub use day_list::DayList;
 pub use form::{Form, FormField, FormProblem};
+pub use tasks_view::TasksView;
 pub use write::Notice;
 
 use crate::calendar::{Scroll, monday_of, month_top, scrolled_top};
@@ -39,6 +41,8 @@ pub enum View {
     Compact,
     /// 填滿 terminal 的大月曆（`ui::month`）
     Month,
+    /// 整份任務檔照分組列出來，含沒日期的（`ui::tasks_view`）
+    Tasks,
 }
 
 impl View {
@@ -49,14 +53,16 @@ impl View {
             Self::Compact => 8,
             // 格子裡要放任務，每週會佔好幾行：只畫 6 週，每格才高一點
             Self::Month => 6,
+            // 沒有月曆：捲動規則跟小月曆一樣（回到小月曆時不用重新捲）
+            Self::Tasks => 8,
         }
     }
 
-    /// 下一種畫面（`v` 輪流切換）：小月曆 → 大月曆 → 小月曆
+    /// 下一種畫面（`v` 輪流切換）：小月曆 → 大月曆 → 小月曆；任務 view 按 `v` 回到小月曆
     fn next(self) -> Self {
         match self {
             Self::Compact => Self::Month,
-            Self::Month => Self::Compact,
+            Self::Month | Self::Tasks => Self::Compact,
         }
     }
 }
@@ -134,6 +140,8 @@ pub struct App {
     pub screen: Rect,
     /// 當天清單裡展開的項目（記行號）；關掉清單就全部收起
     pub expanded: BTreeSet<usize>,
+    /// 任務 view 選到哪個、哪些展開了
+    pub tasks_view: TasksView,
 }
 
 impl App {
@@ -178,6 +186,7 @@ impl App {
             last_click: None,
             screen: Rect::default(),
             expanded: BTreeSet::new(),
+            tasks_view: TasksView::default(),
         };
         // 小月曆上下各保留 1 週：本月一定在第 2～7 行，一開始不會捲；大月曆才會置中
         app.scroll_to_selected();
@@ -327,14 +336,19 @@ impl App {
 
     /// 沒有跳窗時的按鍵：移動、換月、跳回今天、切換畫面、打開當天清單、新增、復原、說明、設定頁、離開
     fn handle_calendar_key(&mut self, key: KeyEvent) {
-        // 按了 V 之後的下一個鍵：c 小月曆、m 大月曆（大寫也算：Shift 還沒放開）；其他鍵（含 Esc、q）只是取消，不做那個鍵原本的事
+        // 按了 V 之後的下一個鍵：c 小月曆、m 大月曆、t 任務（大寫也算：Shift 還沒放開）；其他鍵（含 Esc、q）只是取消，不做那個鍵原本的事
         if self.view_prefix {
             self.view_prefix = false;
             match key.code {
                 KeyCode::Char('c' | 'C') => self.set_view(View::Compact),
                 KeyCode::Char('m' | 'M') => self.set_view(View::Month),
+                KeyCode::Char('t' | 'T') => self.set_view(View::Tasks),
                 _ => {}
             }
+            return;
+        }
+        // 任務 view：自己的鍵先處理，剩下的（u、v、V、?、,、q）才往下走
+        if self.view == View::Tasks && self.handle_tasks_key(key) {
             return;
         }
         match key.code {
@@ -390,6 +404,13 @@ impl App {
                 self.handle_key(KeyEvent::from(KeyCode::Down))
             }
             MouseEventKind::ScrollUp if help_open => self.handle_key(KeyEvent::from(KeyCode::Up)),
+            // 任務 view（沒有跳窗）：滾輪 = 按 j / k
+            MouseEventKind::ScrollDown if self.view == View::Tasks && self.overlay.is_none() => {
+                self.handle_key(KeyEvent::from(KeyCode::Down))
+            }
+            MouseEventKind::ScrollUp if self.view == View::Tasks && self.overlay.is_none() => {
+                self.handle_key(KeyEvent::from(KeyCode::Up))
+            }
             // 往下滾（看後面的日期）：下一週
             MouseEventKind::ScrollDown if !wheel_ignored => self.move_selected(7),
             // 往上滾：上一週
@@ -434,6 +455,8 @@ impl App {
         let date = match self.view {
             View::Compact => compact::date_at(self, column, row),
             View::Month => month::date_at(self, column, row),
+            // 任務 view 還不能用滑鼠點
+            View::Tasks => None,
         };
         let Some(date) = date else {
             return;
@@ -506,6 +529,7 @@ impl App {
             View::Compact => Scroll::Scrolloff(1),
             View::Month if self.settings.month.center_cursor => Scroll::Center,
             View::Month => Scroll::Scrolloff(0),
+            View::Tasks => Scroll::Scrolloff(1),
         }
     }
 
@@ -1040,6 +1064,7 @@ mod tests {
                 let at = match app.view {
                     View::Compact => compact::date_at(app, column, row),
                     View::Month => month::date_at(app, column, row),
+                    View::Tasks => None,
                 };
                 at == Some(day)
             })

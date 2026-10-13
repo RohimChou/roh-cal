@@ -121,7 +121,7 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
             ..screen
         },
         // 大月曆佔滿整個 terminal：放在正中間（說明頁不屬於哪一天，不用對齊格子）
-        View::Month => screen.centered(
+        View::Month | View::Tasks => screen.centered(
             Constraint::Length(box_width),
             Constraint::Length(box_height),
         ),
