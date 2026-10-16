@@ -14,7 +14,7 @@ use crate::theme::Theme;
 use jiff::civil::{Date, Weekday};
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Rect},
     style::Style,
     text::{Line, Span},
 };
@@ -39,23 +39,18 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
     match app.overlay {
         Some(Overlay::Settings(panel)) => settings::render(frame, panel, app),
-        Some(Overlay::DayList(list)) => {
-            let calendar = calendar_area(frame.area(), app);
-            day_list::render(frame, list, app, calendar);
-        }
+        Some(Overlay::DayList(list)) => day_list::render(frame, list, app),
         Some(Overlay::Help { back, full, scroll }) => {
             // 從當天清單打開的：清單照畫，說明頁疊在上面
             if let Some(list) = back {
-                let calendar = calendar_area(frame.area(), app);
-                day_list::render(frame, list, app, calendar);
+                day_list::render(frame, list, app);
             }
             help::render(frame, app, full, scroll);
         }
         Some(Overlay::Form(ref form)) => {
             // 不管從清單還是月曆打開，表單都直接疊在月曆上（置中在月曆框上）；底下不畫清單，
             // 兩個差不多大的框疊在一起，清單的框線會從表單上下露出來
-            let calendar = calendar_area(frame.area(), app);
-            form::render(frame, form, app, calendar);
+            form::render(frame, form, app);
         }
         None => {}
     }
@@ -78,6 +73,32 @@ fn calendar_area(screen: Rect, app: &App) -> Rect {
         View::Compact => compact::area(screen, app),
         View::Month => screen,
     }
+}
+
+/// 跳窗（當天清單、表單）的框最窄幾格（含框線）：刪除的問句 `delete with 2 subtasks? y = yes, other = no` 才放得下
+const OVERLAY_MIN_WIDTH: u16 = 47;
+/// 跳窗的框最寬幾格（含框線）：大月曆在很寬的 terminal 上才不會太長
+const OVERLAY_MAX_WIDTH: u16 = 60;
+/// 跳窗的框和月曆框的左右框線之間，各留幾格
+const OVERLAY_MARGIN: u16 = 2;
+
+/// 跳窗（當天清單、表單）的框（含框線）在 terminal（`screen`）的哪裡：`height` 行高，疊在月曆框正中間。
+/// 寬度 = 月曆框左右各留 `OVERLAY_MARGIN` 格，但至少 `OVERLAY_MIN_WIDTH`、最多 `OVERLAY_MAX_WIDTH`；
+/// 月曆框比跳窗窄時，跳窗貼齊月曆框的左邊、往右凸出去。都不會超出 terminal
+fn overlay_area(screen: Rect, app: &App, height: u16) -> Rect {
+    let calendar = calendar_area(screen, app);
+    let width = calendar
+        .width
+        .saturating_sub(2 * OVERLAY_MARGIN)
+        .clamp(OVERLAY_MIN_WIDTH, OVERLAY_MAX_WIDTH);
+    // 置中的範圍：月曆框；月曆框比跳窗窄，就往右加寬到跟跳窗一樣寬（但不超出 terminal）
+    let base = Rect {
+        width: calendar.width.max(width),
+        ..calendar
+    }
+    .intersection(screen);
+    // 範圍不夠高、不夠寬就縮（Length 超過範圍會被縮到範圍的大小）
+    base.centered(Constraint::Length(width), Constraint::Length(height))
 }
 
 /// 下框線暫時換成的提示（醒目的顏色）；沒有提示回傳 `None`，下框線照常顯示操作說明
@@ -244,5 +265,38 @@ mod tests {
             );
             assert!(!text.contains(texts.hint), "{}", texts.hint);
         }
+    }
+
+    #[test]
+    fn overlays_are_at_least_47_and_at_most_60_wide() {
+        use crate::i18n::Texts;
+        let mut app = App::on_date(date(2026, 10, 10), Texts::en(), Vec::new());
+        let screen = |width, height| Rect::new(0, 0, width, height);
+        // 小月曆（框 51 寬）：左右各留 2 格 → 47 寬，x = 2
+        assert_eq!(
+            overlay_area(screen(80, 24), &app, 5),
+            Rect::new(2, 4, 47, 5)
+        );
+        // 關掉週數（框 47 寬）：不再縮成 43，跟月曆框一樣寬、貼齊左邊
+        app.settings.calendar.week_numbers = false;
+        assert_eq!(
+            overlay_area(screen(80, 24), &app, 5),
+            Rect::new(0, 4, 47, 5)
+        );
+        // terminal 只有 40 寬：縮到 terminal 的寬度
+        assert_eq!(
+            overlay_area(screen(40, 24), &app, 5),
+            Rect::new(0, 4, 40, 5)
+        );
+        // 大月曆（框 = 整個 terminal）：很寬時最多 60、置中；很窄時至少 47
+        app.view = View::Month;
+        assert_eq!(
+            overlay_area(screen(120, 40), &app, 6),
+            Rect::new(30, 17, 60, 6)
+        );
+        assert_eq!(
+            overlay_area(screen(49, 15), &app, 5),
+            Rect::new(1, 5, 47, 5)
+        );
     }
 }

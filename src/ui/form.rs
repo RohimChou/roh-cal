@@ -2,7 +2,7 @@
 
 use crate::app::{App, Form, FormField, FormProblem};
 use crate::calendar::monday_of;
-use crate::ui::{WEEKDAYS, calendar_area, notice_line, weekend_style};
+use crate::ui::{WEEKDAYS, notice_line, overlay_area, weekend_style};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
@@ -12,9 +12,6 @@ use ratatui::{
 };
 use tui_input::Input;
 
-/// 框的寬度（含框線）：跟當天清單一樣，月曆框左右各留 `MARGIN` 格，最多 `MAX_WIDTH`
-const MARGIN: u16 = 2;
-const MAX_WIDTH: u16 = 60;
 /// 框線和內容之間上下左右各空 1 格（跟當天清單一樣）
 const PADDING: Padding = Padding::uniform(1);
 /// 欄位名那欄的寬度（`title` 5 格、`標題` 4 格，後面再空 2 格）
@@ -25,9 +22,9 @@ const PICKER_ROWS: u16 = 4;
 /// 畫新增表單：一欄一行（欄位名 + 打的字），游標那欄的欄位名醒目、terminal 的游標停在打字的位置；
 /// 游標在日期欄時，日期下面出現小月曆（時間欄往下移）。
 /// 下框線：欄位寫錯的原因 > 提示（例：檔案在別處改過）> 操作說明
-pub fn render(frame: &mut Frame, form: &Form, app: &App, calendar: Rect) {
+pub fn render(frame: &mut Frame, form: &Form, app: &App) {
     let theme = &app.theme;
-    let areas = areas(form, calendar);
+    let areas = areas(form, frame.area(), app);
     let area = areas.outer;
 
     let bottom = match form.problem {
@@ -104,8 +101,7 @@ struct Areas {
 }
 
 /// 算表單各部分放在哪（`render` 和 `target_at` 共用，滑鼠點的位置才會跟畫面對得上）
-fn areas(form: &Form, calendar: Rect) -> Areas {
-    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
+fn areas(form: &Form, screen: Rect, app: &App) -> Areas {
     // 小月曆只在游標在日期欄時出現，框跟著變高（一樣置中）
     let picker_rows = if form.focus == FormField::Date {
         PICKER_ROWS
@@ -113,7 +109,8 @@ fn areas(form: &Form, calendar: Rect) -> Areas {
         0
     };
     let height = 2 + PADDING.top + PADDING.bottom + 3 + picker_rows;
-    let outer = calendar.centered(Constraint::Length(width), Constraint::Length(height));
+    // 疊在月曆框正中間，寬度跟當天清單一樣（見 `ui::overlay_area`）
+    let outer = overlay_area(screen, app, height);
     // 內容在框線和 padding 裡面，一欄一行，小月曆夾在日期和時間中間
     let inner = Block::bordered().padding(PADDING).inner(outer);
     let [title, date, picker, time] = Layout::vertical([
@@ -146,12 +143,12 @@ pub enum Target {
 
 /// 表單的框（含框線）在畫面上的範圍（點框外 = 關掉）
 pub fn bounds(form: &Form, app: &App) -> Rect {
-    areas(form, calendar_area(app.screen, app)).outer
+    areas(form, app.screen, app).outer
 }
 
 /// 滑鼠點在 (`column`, `row`) 的是表單的什麼；點在框線、padding、星期列、框外回傳 `None`
 pub fn target_at(form: &Form, app: &App, column: u16, row: u16) -> Option<Target> {
-    let areas = areas(form, calendar_area(app.screen, app));
+    let areas = areas(form, app.screen, app);
     let position = Position::new(column, row);
     let fields = [
         (FormField::Title, areas.title),

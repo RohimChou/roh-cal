@@ -2,27 +2,24 @@
 
 use crate::app::{App, DayList};
 use crate::tasks::Item;
-use crate::ui::{calendar_area, items_on, notice_line};
+use crate::ui::{items_on, notice_line, overlay_area};
 use ratatui::{
     Frame,
-    layout::{Constraint, Position, Rect},
+    layout::{Position, Rect},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph},
 };
 
-/// 框的寬度（含框線）：月曆框左右各留 `MARGIN` 格，但最多 `MAX_WIDTH`（大月曆在很寬的 terminal 上才不會太長）
-const MARGIN: u16 = 2;
-const MAX_WIDTH: u16 = 60;
 /// 框線和內容之間上下左右各空 1 格（選到那行的底色條也跟框線隔開）
 const PADDING: Padding = Padding::uniform(1);
 
 /// 畫當天清單：一個項目一行，選到的那行整行塗底色；日期在上框線、操作說明在下框線
 /// （打勾沒寫成時，下框線暫時換成提示）。
-/// `calendar` = 月曆框的位置（小月曆在左上角、大月曆是整個 terminal），清單疊在它的正中間
-pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
+/// 清單疊在月曆框的正中間（位置見 `ui::overlay_area`）
+pub fn render(frame: &mut Frame, list: DayList, app: &App) {
     let theme = &app.theme;
     let items = items_on(&app.items, list.date);
-    let area = area(items.len(), calendar);
+    let area = area(items.len(), frame.area(), app);
 
     let title = format!(" {} ", (app.texts.day_title)(list.date));
     // 下框線：按了 d 就問要不要刪；有提示就顯示提示（下一個按鍵就恢復）；平常是操作說明
@@ -60,18 +57,17 @@ pub fn render(frame: &mut Frame, list: DayList, app: &App, calendar: Rect) {
     frame.render_stateful_widget(widget, area, &mut state);
 }
 
-/// 清單的框（含框線）放在哪：疊在月曆框正中間；`count` = 那天有幾個項目
-fn area(count: usize, calendar: Rect) -> Rect {
-    // 大小：框線 2 + 上下 padding + 項目（沒有項目時是 1 行說明）；月曆框不夠高就縮（Length 超過月曆框會被縮到月曆框的大小）
-    let width = calendar.width.saturating_sub(2 * MARGIN).min(MAX_WIDTH);
+/// 清單的框（含框線）在 terminal（`screen`）的哪裡：疊在月曆框正中間；`count` = 那天有幾個項目
+fn area(count: usize, screen: Rect, app: &App) -> Rect {
+    // 高度：框線 2 + 上下 padding + 項目（沒有項目時是 1 行說明）；月曆框不夠高就縮
     let height = 2 + PADDING.top + PADDING.bottom + count.max(1) as u16;
-    calendar.centered(Constraint::Length(width), Constraint::Length(height))
+    overlay_area(screen, app, height)
 }
 
 /// 清單的框（含框線）在畫面上的範圍（點框外 = 關掉）
 pub fn bounds(list: DayList, app: &App) -> Rect {
     let count = items_on(&app.items, list.date).len();
-    area(count, calendar_area(app.screen, app))
+    area(count, app.screen, app)
 }
 
 /// 滑鼠點在 (`column`, `row`) 的是清單的第幾個項目（`items_on` 的 index）；點在框線、padding、框外，或那天沒有項目，回傳 `None`。
@@ -242,24 +238,31 @@ mod tests {
 
     #[test]
     fn delete_question_fits_on_the_compact_list() {
-        // 小月曆（80 × 24 的 terminal）裡的清單：整句問題都看得到，操作說明不見
-        for (texts, question) in [
-            (Texts::en(), "delete with 2 subtasks? y = yes, other = no"),
-            (Texts::zh_tw(), "刪除（含 2 個子任務）？y = 是，其他鍵 = 否"),
-        ] {
-            let mut app = App::on_date(date(2026, 10, 10), texts, parse(TASKS).items);
-            app.overlay = Some(Overlay::DayList(DayList {
-                date: date(2026, 10, 12),
-                selected: 0,
-                confirm_delete: Some(3),
-            }));
-            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-            terminal
-                .draw(|frame| crate::ui::render(frame, &app))
-                .unwrap();
-            let text = rows(terminal.backend().buffer()).join("\n");
-            assert!(text.contains(question), "{question}");
-            assert!(!text.contains("d delete") && !text.contains("d 刪除"));
+        // 小月曆（80 × 24 的 terminal）裡的清單：整句問題都看得到，操作說明不見；
+        // 關掉週數（月曆框變窄 4 格）也一樣
+        for week_numbers in [true, false] {
+            for (texts, question) in [
+                (Texts::en(), "delete with 2 subtasks? y = yes, other = no"),
+                (Texts::zh_tw(), "刪除（含 2 個子任務）？y = 是，其他鍵 = 否"),
+            ] {
+                let mut app = App::on_date(date(2026, 10, 10), texts, parse(TASKS).items);
+                app.settings.calendar.week_numbers = week_numbers;
+                app.overlay = Some(Overlay::DayList(DayList {
+                    date: date(2026, 10, 12),
+                    selected: 0,
+                    confirm_delete: Some(3),
+                }));
+                let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+                terminal
+                    .draw(|frame| crate::ui::render(frame, &app))
+                    .unwrap();
+                let text = rows(terminal.backend().buffer()).join("\n");
+                assert!(
+                    text.contains(question),
+                    "{question} (week_numbers = {week_numbers})"
+                );
+                assert!(!text.contains("d delete") && !text.contains("d 刪除"));
+            }
         }
     }
 
