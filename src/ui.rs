@@ -45,10 +45,19 @@ fn areas(screen: Rect) -> Areas {
     }
 }
 
-/// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期上回傳 `None`
-pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
+/// 滑鼠點到的東西
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Click {
+    /// 月曆上的一天
+    Day(Date),
+    /// 右邊的一件事：`App::agenda()` 裡的位置
+    Item(usize),
+}
+
+/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期或事上回傳 `None`
+pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     let areas = areas(app.screen);
-    planner::date_at(areas.calendar, areas.agenda, app, column, row)
+    planner::click_at(areas.calendar, areas.agenda, app, column, row)
 }
 
 /// 畫整個畫面：中間左邊是月曆框、右邊是事項框
@@ -81,6 +90,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::Focus;
     use crate::texts::Lang;
     use crate::theme::Theme;
     use jiff::{
@@ -94,6 +104,14 @@ mod tests {
         let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
         app.selected = selected;
         draw_app(&mut app, width, height)
+    }
+
+    /// 滑鼠點在 (`column`, `row`) 點到哪一天：點到月曆的日期就是那天、點到右邊的事就是那件事那天
+    fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
+        match click_at(app, column, row)? {
+            Click::Day(date) => Some(date),
+            Click::Item(index) => app.agenda()[index].date,
+        }
     }
 
     /// 用現在的 `app` 畫一次 `width` × `height` 的畫面（捲到哪會記在 `app` 裡，下一次接著用）
@@ -153,7 +171,7 @@ mod tests {
                 "│2027年  1 │              1  2  3 │",
                 "│   1月  2 │  4  5  6  7  8  9 10 │",
                 "╰─────────────────────────────────╯",
-                " hjkl 移動  [] 換月  t 今天  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今",
             ]
         );
     }
@@ -175,7 +193,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    │",
                 "│──────────┼──────────────────────│",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q qu",
+                " hjkl move  Tab switch  [] month  t",
             ]
         );
     }
@@ -195,7 +213,7 @@ mod tests {
                 "│       45 │ [2] 3  4  5  6  7  8 │",
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q qu",
+                " hjkl move  Tab switch  [] month  t",
             ]
         );
         // 星期日：`]` 放在最後多留的那格；月曆只有 3 列、要留 1 列，所以往上多捲一列（跨年的粗線）
@@ -211,7 +229,7 @@ mod tests {
                 "│2027年  1 │              1  2 [3]│",
                 "│   1月  2 │  4  5  6  7  8  9 10 │",
                 "╰─────────────────────────────────╯",
-                " hjkl 移動  [] 換月  t 今天  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今",
             ]
         );
     }
@@ -240,7 +258,7 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "│       47 │ 16 17 18 19 20 21 22 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q qu",
+                " hjkl move  Tab switch  [] month  t",
             ]
         );
         // 往回一週：選取的那列離上緣至少留 2 列，往上捲 2 列
@@ -259,7 +277,7 @@ mod tests {
                 "│   Nov 44 │                    1 │",
                 "│       45 │  2  3  4  5  6  7  8 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q qu",
+                " hjkl move  Tab switch  [] month  t",
             ]
         );
     }
@@ -284,7 +302,7 @@ mod tests {
                 "│       43 │ 19 20 21 22 23 24 25 │",
                 "│       44 │ 26 27 28 29 30 31    │",
                 "╰─────────────────────────────────╯",
-                " hjkl 移動  [] 換月  t 今天  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今",
             ]
         );
     }
@@ -414,7 +432,7 @@ mod tests {
                 "│  12月 49 │     1  2  3  4  5  6 ││ 12/31 23:00 跨年倒數            │",
                 "│       50 │  7  8  9 10 11 12 13 ││                                 │",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  [] 換月  t 今天  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
             ]
         );
     }
@@ -441,7 +459,7 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 ││                                                          │",
                 "│       47 │ 16 17 18 19 20 21 22 ││                                                          │",
                 "╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
-                " hjkl move  [] month  t today  q quit",
+                " hjkl move  Tab switch  [] month  t today  q quit",
             ]
         );
     }
@@ -459,6 +477,9 @@ mod tests {
         assert_eq!(date_at(&app, 40, 14), None);
         assert_eq!(date_at(&app, 40, 2), None);
         assert_eq!(date_at(&app, 20, 9), None);
+        // 點到的是右邊的第幾件事（`App::agenda()` 的順序）
+        assert_eq!(click_at(&app, 40, 4), Some(Click::Item(0)));
+        assert_eq!(click_at(&app, 20, 6), Some(Click::Day(date(2026, 10, 14))));
         // 兩欄（畫面見 `agenda_flows_into_columns_when_wide`）：第二欄從 x 36 + 28 + 2 = 66 開始，中間 2 格空白不算
         let mut app = agenda_app(Lang::En);
         app.screen = Rect::new(0, 0, 95, 16);
@@ -550,6 +571,91 @@ mod tests {
     }
 
     #[test]
+    fn agenda_focus_brackets_the_chosen_item() {
+        // 鍵盤在右邊、選到第 6 件（10/17 08:00 早餐會）：日期加括號
+        let mut app = agenda_app(Lang::ZhTw);
+        app.focus = Focus::Agenda;
+        app.agenda_index = 5;
+        let terminal = draw_app(&mut app, 70, 24);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                " roh-cal                                             2026/10/17（六）",
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                        │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││  10/5 繳電話費                  │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                    │",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                    │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報              │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                      │",
+                "│          │                      ││[10/17]08:00 早餐會              │",
+                "│          │                      ││ 10/18 07:00 爬山                │",
+                "│          │                      ││ 10/20 一個很長很長很長很長很長很│",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
+                "│       45 │  2  3  4  5  6  7  8 ││                                 │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                 │",
+                "│       47 │ 16 17 18 19 20 21 22 ││                                 │",
+                "│       48 │ 23 24 25 26 27 28 29 ││                                 │",
+                "│       49 │ 30                   ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  12月 49 │     1  2  3  4  5  6 ││ 12/31 23:00 跨年倒數            │",
+                "│       50 │  7  8  9 10 11 12 13 ││                                 │",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        // 右邊框的框線亮起來、月曆框的變回一般的線
+        assert_eq!(buffer[(35, 1)].fg, theme.focus);
+        assert_eq!(buffer[(0, 1)].fg, theme.line);
+        // 括號是選取的顏色；選到的那件整欄墊底色（x 36～68），上下那件不墊
+        assert_eq!(
+            (buffer[(36, 9)].symbol(), buffer[(36, 9)].fg),
+            ("[", theme.selected)
+        );
+        assert_eq!(
+            (buffer[(42, 9)].symbol(), buffer[(42, 9)].fg),
+            ("]", theme.selected)
+        );
+        // 寬字元（中文）後半那格不會送到 terminal，跳過（真的 terminal 上底色會蓋滿兩格）
+        let mut x = 36;
+        while x <= 68 {
+            assert_eq!(buffer[(x, 9)].bg, theme.cursor_line, "x {x}");
+            x += u16::try_from(Span::raw(buffer[(x, 9)].symbol()).width().max(1)).unwrap();
+        }
+        assert_eq!(buffer[(40, 8)].bg, Color::Reset);
+        assert_eq!(buffer[(40, 10)].bg, Color::Reset);
+    }
+
+    #[test]
+    fn the_chosen_item_is_always_on_screen() {
+        // 範例任務檔：10 月的事比週數多很多，一欄時 10 月那一塊很高；一件一件往下選、再往上選，
+        // 選到的那件（日期有括號）都在畫面上，離上下緣至少 2 列
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
+        );
+        app.focus = Focus::Agenda;
+        let count = app.agenda().len();
+        for index in (0..count).chain((0..count).rev()) {
+            app.agenda_index = index;
+            app.selected = app.agenda()[index].date.unwrap();
+            let rows = text_rows(draw_app(&mut app, 70, 14).backend().buffer());
+            let body = &rows[4..rows.len() - 2];
+            let chosen = format!("[{}/{}]", app.selected.month(), app.selected.day());
+            let y = body
+                .iter()
+                .position(|row| row.contains(&chosen))
+                .unwrap_or_else(|| panic!("第 {index} 件不在畫面上：{body:#?}"));
+            assert!(y >= 2 && y + 2 < body.len(), "第 {index} 件：在第 {y} 列");
+        }
+    }
+
+    #[test]
     fn colors_by_role() {
         let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
@@ -567,7 +673,8 @@ mod tests {
         assert_eq!(cell(1, 0), ("r", theme.label, true));
         assert_eq!(cell(23, 0), ("2", theme.text, false));
         assert_eq!(cell(1, 26), ("h", theme.muted, false));
-        assert_eq!(cell(0, 1), ("╭", theme.line, false));
+        // 鍵盤在月曆：月曆框的框線用 focus 的顏色
+        assert_eq!(cell(0, 1), ("╭", theme.focus, false));
         // 表頭：平日淡色、六日用週末的顏色、直線
         assert_eq!(cell(3, 2), ("年", theme.muted, false));
         assert_eq!(cell(13, 2), ("一", theme.muted, false));

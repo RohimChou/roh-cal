@@ -46,17 +46,9 @@ pub struct Months<'a> {
 
 impl<'a> Months<'a> {
     pub fn new(app: &'a App, columns: usize) -> Self {
-        // 沒有日期的事先不顯示（月曆上沒有位置放）
-        let mut items: Vec<&Item> = app
-            .items
-            .iter()
-            .filter(|item| item.date.is_some())
-            .collect();
-        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
-        items.sort_by_key(|item| (item.date, item.time));
         Self {
             origin: app.today,
-            items,
+            items: app.agenda(),
             columns,
         }
     }
@@ -156,6 +148,18 @@ impl<'a> Months<'a> {
             month = month.saturating_add(1.month());
         }
         rows
+    }
+
+    /// 右邊的 `item` 排在第幾列（鍵盤在右邊時，捲動要讓選到的那件事看得到）
+    pub fn item_row(&self, item: &Item) -> Option<i64> {
+        let month = item.date?.first_of_month();
+        let index = self
+            .month_items(month)
+            .iter()
+            .position(|other| std::ptr::eq(*other, item))?;
+        // 先排滿第一欄再排第二欄：第 index 件在那一塊的第 index % 高度 列
+        let row = index % self.month_height(month);
+        Some(self.block_start(month) + i64::try_from(row).ok()?)
     }
 
     /// 第 `row` 列是什麼（滑鼠點的時候用）

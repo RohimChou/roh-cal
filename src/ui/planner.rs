@@ -2,9 +2,12 @@
 //!
 //! 每個月佔幾列、列的編號、捲動到哪：見 `months.rs`
 
-use super::months::{Label, Months, Row, scrolled_top};
+use super::{
+    Click,
+    months::{Label, Months, Row, scrolled_top},
+};
 use crate::{
-    app::App,
+    app::{App, Focus},
     calendar::{self, WeekRow},
     tasks::Item,
     texts::Texts,
@@ -72,9 +75,14 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         let top = app
             .calendar_top
             .unwrap_or_else(|| months.block_start(app.selected));
+        // 鍵盤在右邊：讓選到的那件事那列看得到；在月曆：讓選取那天那週看得到
+        let selected_row = app
+            .chosen()
+            .and_then(|item| months.item_row(item))
+            .unwrap_or_else(|| months.row_of(app.selected));
         scrolled_top(
             top,
-            months.row_of(app.selected),
+            selected_row,
             i64::from(calendar_body.height),
             SCROLLOFF,
         )
@@ -85,12 +93,19 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     let months = Months::new(app, columns);
     let texts = app.lang.texts();
     let theme = &app.theme;
-    for area in [calendar, agenda] {
+    // 鍵盤在的那個框，框線用 `focus` 的顏色
+    for (area, focus) in [(calendar, Focus::Calendar), (agenda, Focus::Agenda)] {
+        let color = if app.focus == focus {
+            theme.focus
+        } else {
+            theme.line
+        };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .border_style(Style::new().fg(theme.line));
+            .border_style(Style::new().fg(color));
         frame.render_widget(block, area);
     }
+    let chosen = app.chosen();
 
     // 從最上面那列所在的那個月開始排，跳過那個月在畫面上面的列
     let (month, start) = months.block_at(top);
@@ -139,7 +154,14 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                     .zip(split_columns(agenda_row, items.len()).iter())
                 {
                     if let Some(item) = item {
-                        frame.render_widget(item_line(item, app), *area);
+                        // 鍵盤在右邊時選到的那件事：日期加括號、墊底色
+                        let is_chosen = chosen.is_some_and(|chosen| std::ptr::eq(chosen, *item));
+                        frame.render_widget(item_line(item, app, is_chosen), *area);
+                        if is_chosen {
+                            frame
+                                .buffer_mut()
+                                .set_style(*area, Style::new().bg(theme.cursor_line));
+                        }
                     }
                 }
             }
@@ -157,11 +179,11 @@ fn inner_areas(area: Rect) -> [Rect; 3] {
     .areas(Block::bordered().inner(area))
 }
 
-/// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天：左邊月曆框（`calendar`）的日期，或右邊事項框（`agenda`）的一件事那天；
+/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼：左邊月曆框（`calendar`）的一天，或右邊事項框（`agenda`）的一件事；
 /// 沒點在日期或事上回傳 `None`
 ///
 /// 捲動的位置用上一次畫的時候記下的 `app.calendar_top`；月曆一天佔 3 格（日期前面的空白也算那天）
-pub fn date_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Date> {
+pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, calendar_body] = inner_areas(calendar);
     let [_, _, agenda_body] = inner_areas(agenda);
     let months = Months::new(app, agenda_columns(agenda_body.width));
@@ -177,7 +199,7 @@ pub fn date_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -
         // 第幾天：7 天那欄的第幾個 3 格；最後多留的那格是第 8 個，沒有日期
         let [_, _, _, days_area] = Layout::horizontal(COLUMNS).areas(calendar_body);
         let weekday = usize::from(column.checked_sub(days_area.x)? / 3);
-        days.get(weekday).copied().flatten()
+        days.get(weekday).copied().flatten().map(Click::Day)
     } else if agenda_body.contains(position) {
         let Row::Week { items, .. } =
             months.row_at(app.calendar_top? + i64::from(row - agenda_body.y))?
@@ -189,7 +211,12 @@ pub fn date_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -
         let index = split_columns(agenda_row, items.len())
             .iter()
             .position(|area| area.contains(position))?;
-        items.get(index).copied().flatten()?.date
+        let item = items.get(index).copied().flatten()?;
+        // 那件事在 `App::agenda()` 裡的位置
+        app.agenda()
+            .iter()
+            .position(|other| std::ptr::eq(*other, item))
+            .map(Click::Item)
     } else {
         None
     }
@@ -336,8 +363,9 @@ fn day_color(day: Date, app: &App) -> Color {
 
 /// 右邊的一件事：「 10/16 17:30 交週報」（日期 5 格靠右、有時間才寫時間）
 ///
-/// 沒做完的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。做完的：整行變灰、標題劃線
-fn item_line(item: &Item, app: &App) -> Line<'static> {
+/// 沒做完的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。做完的：整行變灰、標題劃線。
+/// `chosen` = 鍵盤在右邊時選到的這件：日期加括號 `[10/17]`、加粗
+fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
     let color = if item.done {
         theme.muted
@@ -348,7 +376,18 @@ fn item_line(item: &Item, app: &App) -> Line<'static> {
         .date
         .map(|date| format!("{}/{}", date.month(), date.day()))
         .unwrap_or_default();
-    let mut spans = vec![Span::styled(format!(" {date:>5} "), Style::new().fg(color))];
+    // 日期那段 7 格寬：「 10/17 」；選到的是「[10/17]」（日期比較短時，括號前面補空白）
+    let mut spans = if chosen {
+        let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
+        vec![
+            Span::raw(" ".repeat(5_usize.saturating_sub(date.len()))),
+            Span::styled("[", bracket),
+            Span::styled(date, Style::new().fg(color).add_modifier(Modifier::BOLD)),
+            Span::styled("]", bracket),
+        ]
+    } else {
+        vec![Span::styled(format!(" {date:>5} "), Style::new().fg(color))]
+    };
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),

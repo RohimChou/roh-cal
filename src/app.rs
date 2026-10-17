@@ -1,6 +1,11 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
-use crate::{tasks::Item, texts::Lang, theme::Theme, ui};
+use crate::{
+    tasks::Item,
+    texts::Lang,
+    theme::Theme,
+    ui::{self, Click},
+};
 use color_eyre::Result;
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
@@ -10,6 +15,15 @@ use ratatui::{
     },
     layout::Rect,
 };
+
+/// 鍵盤在哪個框
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    /// 左邊的月曆：`hjkl` 移動選取的日期
+    Calendar,
+    /// 右邊的事項：`j` / `k` 一件一件選
+    Agenda,
+}
 
 /// 整個程式的狀態
 #[derive(Debug)]
@@ -22,6 +36,10 @@ pub struct App {
     pub selected: Date,
     /// 任務檔裡的所有項目
     pub items: Vec<Item>,
+    /// 鍵盤在哪個框
+    pub focus: Focus,
+    /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
+    pub agenda_index: usize,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
     /// 畫面的顏色
@@ -33,17 +51,41 @@ pub struct App {
 }
 
 impl App {
-    /// 剛打開時的狀態：選取今天、theme 是 Catppuccin Mocha
+    /// 剛打開時的狀態：鍵盤在月曆、選取今天、theme 是 Catppuccin Mocha
     pub fn new(lang: Lang, today: Date, items: Vec<Item>) -> Self {
         Self {
             lang,
             today,
             selected: today,
             items,
+            focus: Focus::Calendar,
+            agenda_index: 0,
             calendar_top: None,
             theme: Theme::catppuccin_mocha(),
             screen: Rect::default(),
             should_quit: false,
+        }
+    }
+
+    /// 右邊列出來的事：有日期的，照日期、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
+    ///
+    /// 沒有日期的事先不列（月曆上沒有位置放）
+    pub fn agenda(&self) -> Vec<&Item> {
+        let mut items: Vec<&Item> = self
+            .items
+            .iter()
+            .filter(|item| item.date.is_some())
+            .collect();
+        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
+        items.sort_by_key(|item| (item.date, item.time));
+        items
+    }
+
+    /// 鍵盤在右邊時選到的那件事；鍵盤在月曆時是 `None`
+    pub fn chosen(&self) -> Option<&Item> {
+        match self.focus {
+            Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
+            Focus::Calendar => None,
         }
     }
 
@@ -65,41 +107,69 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`hjkl` / 方向鍵移動選取的日期、`[` / `]` 換月、`t` 回今天、`q` / `Esc` / `Ctrl+C` 離開
+    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；
+    /// 其他鍵看鍵盤在哪個框
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            // 左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）
-            KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
-            KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
-            KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
+            KeyCode::Esc if self.focus == Focus::Agenda => self.focus = Focus::Calendar,
+            KeyCode::Esc => self.should_quit = true,
+            KeyCode::Tab => self.next_focus(),
             // 回今天，並把今天那個月捲到最上面
             KeyCode::Char('t') => {
                 self.selected = self.today;
                 self.calendar_top = None;
+                self.focus = Focus::Calendar;
             }
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
+            _ => match self.focus {
+                Focus::Calendar => self.handle_calendar_key(key.code),
+                Focus::Agenda => self.handle_agenda_key(key.code),
+            },
+        }
+    }
+
+    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）
+    fn handle_calendar_key(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
+            KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
+            KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
+            KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
             _ => {}
         }
     }
 
-    /// 滑鼠：滾輪上下移一週、左鍵點月曆上的日期 = 選那天
+    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走
+    fn handle_agenda_key(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
+            KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
+            _ => {}
+        }
+    }
+
+    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件
     fn handle_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
-            // 往下滾（看後面的日期）：下一週；往上滾：上一週
-            MouseEventKind::ScrollDown => self.move_by(7),
-            MouseEventKind::ScrollUp => self.move_by(-7),
-            // 點在日期上才選；點在表頭、線、空格上不理
+            // 往下滾（看後面的）、往上滾
+            MouseEventKind::ScrollDown => self.scroll(1),
+            MouseEventKind::ScrollUp => self.scroll(-1),
+            // 點在日期或事上才選；點在表頭、線、空格上不理
             MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(date) = ui::date_at(self, mouse.column, mouse.row) {
-                    self.selected = date;
+                match ui::click_at(self, mouse.column, mouse.row) {
+                    Some(Click::Day(date)) => {
+                        self.selected = date;
+                        self.focus = Focus::Calendar;
+                    }
+                    Some(Click::Item(index)) => self.choose(index),
+                    None => {}
                 }
             }
             // 其他（右鍵、拖曳、移動）不理
@@ -107,13 +177,60 @@ impl App {
         }
     }
 
-    /// 跳到往後（負的 = 往前）第 `months` 個月的 1 號，那個月捲到最上面
+    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊就移一件事
+    fn scroll(&mut self, step: i8) {
+        match self.focus {
+            Focus::Calendar => self.move_by(7 * i64::from(step)),
+            Focus::Agenda => self.choose_next(isize::from(step)),
+        }
+    }
+
+    /// `Tab`：月曆 → 右邊的事項（一件事都沒有就留在月曆）→ 月曆
+    fn next_focus(&mut self) {
+        match self.focus {
+            Focus::Calendar => self.enter_agenda(),
+            Focus::Agenda => self.focus = Focus::Calendar,
+        }
+    }
+
+    /// 鍵盤換到右邊：選「選取那天或之後」的第一件事；之後都沒事就選最後一件；一件事都沒有就不換
+    fn enter_agenda(&mut self) {
+        let index = {
+            let agenda = self.agenda();
+            let Some(last) = agenda.len().checked_sub(1) else {
+                return;
+            };
+            agenda
+                .iter()
+                .position(|item| item.date >= Some(self.selected))
+                .unwrap_or(last)
+        };
+        self.choose(index);
+    }
+
+    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事那天
+    fn choose(&mut self, index: usize) {
+        if let Some(date) = self.agenda().get(index).and_then(|item| item.date) {
+            self.agenda_index = index;
+            self.selected = date;
+            self.focus = Focus::Agenda;
+        }
+    }
+
+    /// 選往後（負的 = 往前）第 `step` 件事；到第一件 / 最後一件就停住
+    fn choose_next(&mut self, step: isize) {
+        let last = self.agenda().len().saturating_sub(1);
+        self.choose(self.agenda_index.saturating_add_signed(step).min(last));
+    }
+
+    /// 跳到往後（負的 = 往前）第 `months` 個月的 1 號，那個月捲到最上面；鍵盤回到月曆
     fn jump_month(&mut self, months: i64) {
         self.selected = self
             .selected
             .first_of_month()
             .saturating_add(months.months());
         self.calendar_top = None;
+        self.focus = Focus::Calendar;
     }
 
     /// 選取的日期往後（負的 = 往前）移幾天
@@ -209,6 +326,115 @@ mod tests {
         app.selected = date(2027, 1, 20);
         press(&mut app, KeyCode::Char('['));
         assert_eq!(app.selected, date(2026, 12, 1));
+    }
+
+    /// 今天 2026/10/17 的 app，任務檔是 `text`
+    fn app_with(text: &str) -> App {
+        App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        )
+    }
+
+    /// 右邊照順序是：10/10 a、10/17 b、10/17 c、10/20 d（沒日期的不算）
+    const ITEMS: &str =
+        "- d @2026-10-20\n- c @2026-10-17 09:00\n- 沒日期\n- b @2026-10-17\n- a @2026-10-10\n";
+
+    #[test]
+    fn tab_moves_into_the_agenda_and_back() {
+        // 選取 10/17 → 換到右邊時選 10/17 當天的第一件（沒時間的 b 在前）
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Agenda);
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("b"));
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Calendar);
+        assert_eq!(app.chosen(), None);
+        // 選取那天之後都沒事：選最後一件，月曆跟著跳到那天
+        app.selected = date(2026, 12, 1);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(app.selected, date(2026, 10, 20));
+    }
+
+    #[test]
+    fn tab_stays_on_the_calendar_without_items() {
+        let mut app = app_with("- 沒日期\n");
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Calendar);
+    }
+
+    #[test]
+    fn jk_in_the_agenda_choose_items_and_the_calendar_follows() {
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::Tab);
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("c"));
+        press(&mut app, KeyCode::Down);
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(app.selected, date(2026, 10, 20));
+        // 最後一件再往下：停住
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        // 往上到第一件、再往上：停住
+        for _ in 0..5 {
+            press(&mut app, KeyCode::Char('k'));
+        }
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+        assert_eq!(app.selected, date(2026, 10, 10));
+        // h / l 在右邊不動
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.selected, date(2026, 10, 10));
+    }
+
+    #[test]
+    fn esc_in_the_agenda_goes_back_to_the_calendar() {
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::Tab);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.focus, Focus::Calendar);
+        assert!(!app.should_quit);
+        // 已經在月曆：Esc 離開
+        press(&mut app, KeyCode::Esc);
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn t_and_brackets_go_back_to_the_calendar() {
+        for code in [KeyCode::Char('t'), KeyCode::Char('['), KeyCode::Char(']')] {
+            let mut app = app_with(ITEMS);
+            press(&mut app, KeyCode::Tab);
+            press(&mut app, code);
+            assert_eq!(app.focus, Focus::Calendar, "{code:?}");
+        }
+    }
+
+    #[test]
+    fn wheel_in_the_agenda_moves_an_item() {
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::Tab);
+        app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("c"));
+        app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+        app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+    }
+
+    #[test]
+    fn clicking_an_item_moves_the_keyboard_there() {
+        // 70 × 24、10 月在最上面：右邊第一列是 10/10 a（右邊框裡面從 x 36、y 4 開始）
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 70, 24);
+        app.calendar_top = Some(0);
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 40, 4));
+        assert_eq!(app.focus, Focus::Agenda);
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+        assert_eq!(app.selected, date(2026, 10, 10));
+        // 再點月曆上的日期：鍵盤回到月曆
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 6));
+        assert_eq!(app.focus, Focus::Calendar);
+        assert_eq!(app.selected, date(2026, 10, 16));
     }
 
     #[test]
