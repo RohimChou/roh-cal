@@ -29,6 +29,11 @@ pub fn month_rows(month: Date) -> Vec<WeekRow> {
     rows
 }
 
+/// `date` 那一週的星期一
+pub fn monday_of(date: Date) -> Date {
+    date.saturating_sub(date.weekday().to_monday_zero_offset().days())
+}
+
 /// `date` 是它那一年的第幾週：1/1 所在的那週是第 1 週（每週從星期一開始）
 ///
 /// 跨年那週看 `date` 落在哪一年，例：2025-12-30 是 2025 年第 53 週、2026-01-02 是 2026 年第 1 週

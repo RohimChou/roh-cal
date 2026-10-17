@@ -3,6 +3,7 @@
 mod app;
 mod calendar;
 mod items;
+mod month;
 mod paths;
 mod planner;
 mod tasks;

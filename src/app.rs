@@ -1,6 +1,6 @@
 //! App 的狀態和按鍵：今天、選取的日期、捲到哪
 
-use crate::{items::Item, planner, texts::Lang, theme::Theme};
+use crate::{calendar, items::Item, planner, texts::Lang, theme::Theme};
 use color_eyre::Result;
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
@@ -26,6 +26,8 @@ pub enum Variant {
     MonthItems,
     /// `2`：從選取那天開始的事，一天一段
     Upcoming,
+    /// `3`：大月曆，格子裡列當天的事（沒有右邊的事項框）
+    Month,
 }
 
 /// side menu 上的一個日曆（= 任務檔的分組）
@@ -62,8 +64,10 @@ pub struct App {
     pub focus: Focus,
     /// 右邊選到第幾件事（有顯示的事裡的 index）；`focus` 是 `Agenda` 時才用
     pub selected_item: usize,
-    /// 右邊那個框的版型，按 `1` / `2` 切換
+    /// 版型，按 `1` / `2` / `3` 切換
     pub variant: Variant,
+    /// 版型 3（大月曆）最上面那週的星期一
+    pub month_top: Date,
     /// side menu 上的日曆
     pub groups: Vec<Group>,
     /// side menu 選到第幾個日曆；`focus` 是 `Side` 時才用
@@ -96,6 +100,7 @@ impl App {
                 .collect(),
             selected_group: 0,
             variant: Variant::MonthItems,
+            month_top: calendar::monday_of(this_month),
             side_hidden: false,
             side_shown: false,
             should_quit: false,
@@ -139,6 +144,10 @@ impl App {
             }
             KeyCode::Char('2') => {
                 self.variant = Variant::Upcoming;
+                self.jump_to_month = true;
+            }
+            KeyCode::Char('3') => {
+                self.variant = Variant::Month;
                 self.jump_to_month = true;
             }
             KeyCode::Char('s') => {
@@ -201,7 +210,7 @@ impl App {
         }
     }
 
-    /// `Tab`：月曆 → 右邊的事項 → side menu（有畫才去）→ 月曆
+    /// `Tab`：月曆 → 右邊的事項（版型 3 沒有）→ side menu（有畫才去）→ 月曆
     fn next_focus(&mut self) {
         match self.focus {
             Focus::Calendar => {
@@ -214,8 +223,11 @@ impl App {
         }
     }
 
-    /// 切到右邊的事項：選「選取那天或之後」的第一件事（都沒有就最後一件）；一件都沒顯示就不切，回傳 `false`
+    /// 切到右邊的事項：選「選取那天或之後」的第一件事（都沒有就最後一件）；一件都沒顯示、或版型 3（沒有右邊的框）就不切，回傳 `false`
     fn focus_agenda(&mut self) -> bool {
+        if self.variant == Variant::Month {
+            return false;
+        }
         let visible = self.visible_items();
         let Some(last) = visible.len().checked_sub(1) else {
             return false;

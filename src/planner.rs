@@ -6,6 +6,7 @@ use crate::{
     app::{App, Focus, Variant, is_shown},
     calendar::{self, WeekRow},
     items::Item,
+    month,
     texts::Texts,
     theme::Theme,
 };
@@ -136,6 +137,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if !app.side_shown && app.focus == Focus::Side {
         app.focus = Focus::Calendar;
     }
+    if app.variant == Variant::Month {
+        month::scroll(app);
+    }
     let theme = &app.theme;
     let texts = app.lang.texts();
     let selected = app.selected;
@@ -162,14 +166,29 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         hints_area,
     );
 
-    // 左右兩個框（夠寬時最左邊再多一個 side menu）：鍵盤在的那個框線用 `focus` 的顏色
+    // 夠寬時最左邊是 side menu
     let side_width = if app.side_shown { SIDE_WIDTH } else { 0 };
-    let [side_area, calendar_area, agenda_area] = Layout::horizontal([
-        Constraint::Length(side_width),
-        Constraint::Length(CALENDAR_WIDTH),
-        Constraint::Fill(1),
-    ])
-    .areas(panes_area);
+    let [side_area, main_area] =
+        Layout::horizontal([Constraint::Length(side_width), Constraint::Fill(1)]).areas(panes_area);
+    if app.side_shown {
+        render_side(frame, side_area, app, texts);
+    }
+    // 只排有勾選的日曆的事
+    let visible: Vec<&Item> = app
+        .items
+        .iter()
+        .filter(|item| is_shown(&app.groups, item))
+        .collect();
+    // 版型 3：side menu 右邊整塊是大月曆
+    if app.variant == Variant::Month {
+        month::render(frame, main_area, app, &visible, texts);
+        return;
+    }
+
+    // 版型 1、2：左右兩個框，鍵盤在的那個框線用 `focus` 的顏色
+    let [calendar_area, agenda_area] =
+        Layout::horizontal([Constraint::Length(CALENDAR_WIDTH), Constraint::Fill(1)])
+            .areas(main_area);
     let pane = |focused: bool| {
         let color = if focused { theme.focus } else { theme.line };
         Block::bordered()
@@ -206,16 +225,6 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         theme,
         texts,
     );
-    if app.side_shown {
-        render_side(frame, side_area, app, texts);
-    }
-
-    // 只排有勾選的日曆的事
-    let visible: Vec<&Item> = app
-        .items
-        .iter()
-        .filter(|item| is_shown(&app.groups, item))
-        .collect();
     // 版型 2 的事不排在月份旁邊，月份只有週數那麼高
     let row_items: &[&Item] = if month_items { &visible } else { &[] };
     let item_columns = agenda_columns(agenda_body.width);
@@ -535,7 +544,7 @@ fn render_upcoming(
 }
 
 /// 一件事的標題樣式：做完的變灰、劃掉；沒做完的用那天的顏色
-fn item_style(item: &Item, color: Color, theme: &Theme) -> Style {
+pub fn item_style(item: &Item, color: Color, theme: &Theme) -> Style {
     if item.done {
         Style::new()
             .fg(theme.muted)
@@ -548,7 +557,7 @@ fn item_style(item: &Item, color: Color, theme: &Theme) -> Style {
 /// 一天的日期顏色：今天 > 假日 > 有沒做完的事 > 週末 > 一般（事都做完了就跟沒事一樣）
 ///
 /// 月曆的日期和右邊事項前面的日期都用這個，兩邊的顏色才對得起來
-fn day_color(day: Date, app: &App) -> Color {
+pub fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     let items: Vec<&Item> = app
         .items

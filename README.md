@@ -23,7 +23,7 @@ The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 | `Tab` | Next pane: calendar → agenda → side menu |
 | `Space` / `Enter` | In the side menu: show or hide a calendar (a group in the task file) |
 | `s` | Hide or show the side menu (only drawn when the terminal is at least 120 columns wide) |
-| `1` / `2` | Layout: the month's items next to each month / the focused day and the days after it |
+| `1` / `2` / `3` | Layout: the month's items next to each month / the focused day and the days after it / a big month grid with the items in the day cells |
 | `t` | Today |
 | `L` | Switch between Chinese and English |
 | `q` / `Esc` | Quit (`Esc` in another pane goes back to the calendar) |

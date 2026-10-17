@@ -57,7 +57,7 @@ pub struct Texts {
 const ZH: Texts = Texts {
     lang: Lang::Zh,
     title: " roh-cal v2 mock：行事曆 ",
-    hints: " hjkl 移動  Tab 切換  Space 勾選  s 側欄  1/2 版型  t 今天  L English  q 離開 ",
+    hints: " hjkl 移動  Tab 切換  Space 勾選  s 側欄  1/2/3 版型  t 今天  L English  q 離開 ",
     header_month: "年月",
     header_week: " 週 ",
     header_items: " 重要事項",
@@ -72,7 +72,7 @@ const ZH: Texts = Texts {
 const EN: Texts = Texts {
     lang: Lang::En,
     title: " roh-cal v2 mock: planner ",
-    hints: " hjkl move  Tab switch  Space toggle  s sidebar  1/2 layout  t today  L 中文  q quit ",
+    hints: " hjkl move  Tab switch  Space toggle  s sidebar  1/2/3 layout  t today  L 中文  q quit ",
     header_month: "",
     header_week: " Wk ",
     header_items: " Agenda",
@@ -131,6 +131,14 @@ impl Texts {
 }
 
 impl Texts {
+    /// 版型 3 上框線的月份，例：`2026年10月` / `Oct 2026`
+    pub fn month_title(&self, date: Date) -> String {
+        match self.lang {
+            Lang::Zh => format!("{}年{}月", date.year(), date.month()),
+            Lang::En => format!("{} {}", EN_MONTHS[month_index(date)], date.year()),
+        }
+    }
+
     /// 版型 2 每一天的標題，例：`10/17（六）` / `Sat Oct 17`
     pub fn day_heading(&self, date: Date) -> String {
         let weekday = date.weekday().to_monday_zero_offset() as usize;
