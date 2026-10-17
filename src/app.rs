@@ -17,6 +17,8 @@ pub struct App {
     pub today: Date,
     /// 選取的日期：月曆上加括號 `[17]` 的那天
     pub selected: Date,
+    /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
+    pub calendar_top: Option<i64>,
     /// 畫面的顏色
     pub theme: Theme,
     /// `true` = 這一輪畫完就結束主迴圈
@@ -30,6 +32,7 @@ impl App {
             lang,
             today,
             selected: today,
+            calendar_top: None,
             theme: Theme::catppuccin_mocha(),
             should_quit: false,
         }
@@ -38,7 +41,7 @@ impl App {
     /// 主迴圈：每一輪畫一次畫面、等一個輸入，直到要離開
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
-            terminal.draw(|frame| ui::render(frame, &self))?;
+            terminal.draw(|frame| ui::render(frame, &mut self))?;
             // event::read() 會 block 到有輸入為止；只處理按下（有的 terminal 放開也會送一次）
             if let Some(key) = event::read()?.as_key_press_event() {
                 self.handle_key(key);
@@ -60,7 +63,11 @@ impl App {
             KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
             KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
             KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
-            KeyCode::Char('t') => self.selected = self.today,
+            // 回今天，並把今天那個月捲到最上面
+            KeyCode::Char('t') => {
+                self.selected = self.today;
+                self.calendar_top = None;
+            }
             _ => {}
         }
     }
@@ -110,8 +117,10 @@ mod tests {
     fn t_goes_back_to_today() {
         let mut app = App::new(Lang::En, date(2026, 10, 17));
         app.selected = date(2027, 3, 1);
+        app.calendar_top = Some(30);
         press(&mut app, KeyCode::Char('t'));
         assert_eq!(app.selected, date(2026, 10, 17));
+        assert_eq!(app.calendar_top, None);
     }
 
     #[test]
