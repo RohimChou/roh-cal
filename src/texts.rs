@@ -52,8 +52,6 @@ pub struct Texts {
     lang: Lang,
     /// 最下面一列的操作說明
     pub hints: &'static str,
-    /// 月曆表頭：年月那欄（最多 6 格寬）
-    pub header_month: &'static str,
     /// 月曆表頭：週數那欄（4 格寬）
     pub header_week: &'static str,
     /// 月曆表頭的星期一到星期日：每個剛好 2 格寬
@@ -65,7 +63,6 @@ pub struct Texts {
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl move  Tab switch  [] month  t today  q quit",
-    header_month: "",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
@@ -74,7 +71,6 @@ const EN: Texts = Texts {
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
-    header_month: "年月",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",

@@ -132,27 +132,17 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     // 畫面上看得到的列
     let visible = months.visible_rows(top, usize::from(calendar_body.height));
 
-    // 表頭：畫面上沒有 1 月寫的年份時，年月欄改寫最上面那週的年份，提醒現在是哪一年
-    let year_on_screen = visible.iter().any(|row| {
-        matches!(
-            row,
-            Row::Week {
-                label: Some(Label::Year),
-                ..
-            }
-        )
-    });
-    let year_hint = if year_on_screen {
-        None
-    } else {
-        visible.iter().find_map(|row| match row {
+    // 表頭左上角一直寫畫面最上面那週的年份（畫面上一週都沒有時，用選取那天的）
+    let year = visible
+        .iter()
+        .find_map(|row| match row {
             Row::Week {
                 days: Some(days), ..
             } => first_day(days),
             _ => None,
         })
-    };
-    render_header(frame, calendar_header, texts, theme, year_hint);
+        .unwrap_or(app.selected);
+    render_header(frame, calendar_header, texts, theme, year);
     // 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面留一格空白）
     // 兩段畫在同一列，日期的顏色放在 `Span` 上：`Line::styled` 的顏色會套到整列，會蓋掉先畫的
     frame.render_widget(
@@ -255,19 +245,12 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     }
 }
 
-/// 表頭：「年月  週 │ 一 二 … 日」；六、日用週末的顏色
+/// 表頭：「2026年  週 │ 一 二 … 日」；六、日用週末的顏色
 ///
-/// `year_hint` 有值（畫面上看不到年份）：「年月」改寫那天的年份，例：「2026年  週」
-fn render_header(
-    frame: &mut Frame,
-    area: Rect,
-    texts: &Texts,
-    theme: &Theme,
-    year_hint: Option<Date>,
-) {
+/// 年月那欄寫 `year` 那天的年份，例：「2026年  週」
+fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, year: Date) {
     let muted = Style::new().fg(theme.muted);
-    let month_header =
-        year_hint.map_or(texts.header_month.to_string(), |day| texts.year_label(day));
+    let month_header = texts.year_label(year);
     let weekdays: Vec<Span> = texts
         .weekdays
         .iter()

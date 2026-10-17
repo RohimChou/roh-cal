@@ -135,7 +135,7 @@ mod tests {
             text_rows(terminal.backend().buffer()),
             [
                 "╭─────────────────────────────────╮",
-                "│  年月 週 │ 一 二 三 四 五 六 日 │",
+                "│2026年 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
                 "│  10月 40 │           1  2  3  4 │",
                 "│       41 │  5  6  7  8  9 10 11 │",
@@ -208,7 +208,7 @@ mod tests {
             text_rows(terminal.backend().buffer()),
             [
                 "╭─────────────────────────────────╮",
-                "│  年月 週 │ 一 二 三 四 五 六 日 │",
+                "│2027年 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
                 "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━│",
                 "│2027年  1 │              1  2 [3]│",
@@ -736,6 +736,18 @@ mod tests {
     }
 
     #[test]
+    fn the_year_in_the_corner_is_the_top_weeks() {
+        // 月曆 6 列：先選 12/28，再往下一週到 2027/1/4，畫面最上面還是 12 月那週 → 左上角寫 2026年
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        app.selected = date(2026, 12, 28);
+        draw_app(&mut app, 35, 11);
+        app.selected = date(2027, 1, 4);
+        let rows = text_rows(draw_app(&mut app, 35, 11).backend().buffer());
+        assert_eq!(rows[1], "│2026年 週 │ 一 二 三 四 五 六 日 │");
+        assert_eq!(rows[3], "│       53 │ 28 29 30 31          │");
+    }
+
+    #[test]
     fn colors_by_role() {
         let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
@@ -754,7 +766,8 @@ mod tests {
         // 鍵盤在月曆：月曆框的框線用 focus 的顏色
         assert_eq!(cell(0, 0), ("╭", theme.focus, false));
         // 表頭：平日淡色、六日用週末的顏色、直線
-        assert_eq!(cell(3, 1), ("年", theme.muted, false));
+        // 左上角的年份（2026年，畫面上有 1 月也一樣寫）
+        assert_eq!(cell(5, 1), ("年", theme.muted, false));
         assert_eq!(cell(13, 1), ("一", theme.muted, false));
         assert_eq!(cell(28, 1), ("六", theme.weekend, false));
         assert_eq!(cell(31, 1), ("日", theme.weekend, false));
