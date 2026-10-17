@@ -63,6 +63,12 @@ impl Item {
     pub fn last_day(&self) -> Option<Date> {
         self.end.or(self.date)
     }
+
+    /// `day` 是不是這件事的日子（跨多天的：頭尾和中間每一天都是）
+    pub fn covers(&self, day: Date) -> bool {
+        self.date.is_some_and(|first| first <= day)
+            && self.last_day().is_some_and(|last| day <= last)
+    }
 }
 
 /// 從項目的文字裡拿出來的日期、時間（第一個 `@日期` 或 `@日期..日期`，和緊接的時間）
@@ -423,6 +429,10 @@ mod tests {
     fn rule3_multi_day_items_from_the_first_day_to_the_last() {
         let item = one("- 東京出差 @2026-10-20..2026-10-25");
         assert_eq!(item.title, "東京出差");
+        // 頭尾和中間每一天都算；前一天、後一天不算
+        assert!(item.covers(date(2026, 10, 20)) && item.covers(date(2026, 10, 25)));
+        assert!(item.covers(date(2026, 10, 22)));
+        assert!(!item.covers(date(2026, 10, 19)) && !item.covers(date(2026, 10, 26)));
         assert_eq!(
             (item.date, item.end, item.last_day()),
             (

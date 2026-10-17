@@ -28,6 +28,7 @@ PLAN = {
     "a_hint_tells_how_many_more_items_a_month_has": [(["zh", "70", "11", "2026-10-17"], True, {"WINDOW": "2"})],
     "side_menu_lists_the_calendars_when_wide": [(["zh", "121", "14", "2026-10-17"], True, {"WINDOW": "1"}), (["zh", "121", "14", "2026-10-17"], True, {"SIDE_HIDDEN": "1"})],
     "unchecked_calendars_hide_their_items": [(["en", "121", "14", "2026-10-17"], True, {"HIDDEN": "1"})],
+    "multi_day_items_are_listed_once_per_month": [(["zh", "70", "30", "2026-10-17"], "ranges.md", {}), (["zh", "70", "30", "2026-11-02", "2026-10", "5"], "ranges.md", {"CHOSEN": "4"})],
     "month_view_fills_the_space_with_six_equal_weeks": [(["zh", "80", "30", "2026-10-17"], False, {"LAYOUT": "3"}), (["en", "80", "28", "2026-10-17"], False, {"LAYOUT": "3"})],
     "month_view_lists_each_days_items_in_its_cell": [(["zh", "80", "30", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "80", "16", "2026-10-17"], "month.md", {"LAYOUT": "3"})],
     "month_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3", "HIDDEN": "1"})],

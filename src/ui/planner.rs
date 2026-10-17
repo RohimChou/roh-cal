@@ -184,9 +184,9 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                     if let Some(entry) = entry {
                         // 鍵盤在右邊時選到的那一行：日期加括號、墊底色
                         let is_chosen = chosen == Some(*entry);
-                        // 鍵盤在月曆時：選取那天的事墊底色（跟月曆上那週一樣）
+                        // 鍵盤在月曆時：選取那天的事墊底色（跟月曆上那週一樣；跨多天的蓋到那天就算）
                         let on_selected_day =
-                            app.focus == Focus::Calendar && entry.date == app.selected;
+                            app.focus == Focus::Calendar && entry.is_on(app.selected);
                         frame.render_widget(item_line(entry.item, app, is_chosen), *area);
                         if is_chosen || on_selected_day {
                             frame
@@ -376,10 +376,13 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             spans.push(Span::styled("[", bracket));
         }
         if let Some(day) = day {
-            // 選取的和今天的日期加粗
+            // 選取的和今天的日期加粗；跨多天的事的日子加底線
             let mut style = Style::new().fg(day_color(*day, app));
             if selected || *day == app.today {
                 style = style.add_modifier(Modifier::BOLD);
+            }
+            if in_multi_day(*day, app) {
+                style = style.add_modifier(Modifier::UNDERLINED);
             }
             spans.push(Span::styled(number, style));
         }
@@ -410,7 +413,29 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
     }
 }
 
-/// 右邊的一件事：「 10/16 17:30 交週報」（日期 5 格靠右、有時間才寫時間）
+/// `day` 在不在跨多天的事裡（日曆有勾選、不是做完的任務）：月曆上那天的日期加底線
+pub(super) fn in_multi_day(day: Date, app: &App) -> bool {
+    app.items
+        .iter()
+        .any(|item| item.end.is_some() && !item.done && app.is_shown(item) && item.covers(day))
+}
+
+/// 右邊的日期：`10/5`；跨多天的寫範圍：`10/20~25`、跨月 `10/28~11/3`、跨年 `12/30~1/2`
+fn date_text(item: &Item) -> String {
+    let Some(first) = item.date else {
+        return String::new();
+    };
+    let start = format!("{}/{}", first.month(), first.day());
+    match item.end {
+        Some(last) if last.first_of_month() == first.first_of_month() => {
+            format!("{start}~{}", last.day())
+        }
+        Some(last) => format!("{start}~{}/{}", last.month(), last.day()),
+        None => start,
+    }
+}
+
+/// 右邊的一件事：「 10/16 17:30 交週報」（日期至少 5 格、靠右；跨多天的日期比較長，標題就往右推；有時間才寫時間）
 ///
 /// 還沒結束的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。結束了的整行變灰：
 /// 做完的任務標題再劃線，過去的行程不劃線。
@@ -422,10 +447,7 @@ fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     } else {
         theme.muted
     };
-    let date = item
-        .date
-        .map(|date| format!("{}/{}", date.month(), date.day()))
-        .unwrap_or_default();
+    let date = date_text(item);
     // 日期那段 7 格寬：「 10/17 」；選到的是「[10/17]」（日期比較短時，括號前面補空白）
     let mut spans = if chosen {
         let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);

@@ -678,13 +678,20 @@ mod tests {
                 "{}：月曆上看不到 {day}：{body:#?}",
                 app.selected
             );
-            let has_items = app.agenda().iter().any(|entry| entry.date == app.selected);
-            let date = format!(" {}/{} ", app.selected.month(), app.selected.day());
-            assert!(
-                !has_items || right.iter().any(|row| row.contains(&date)),
-                "{}：右邊看不到那天的事：{body:#?}",
-                app.selected
-            );
+            // 那天的第一件（跨多天的中間那幾天也算）：右邊寫的是它開始那天，例：` 10/28~11/3`
+            let first = app
+                .agenda()
+                .iter()
+                .find(|entry| entry.is_on(app.selected))
+                .and_then(|entry| entry.item.date);
+            if let Some(first) = first {
+                let date = format!(" {}/{}", first.month(), first.day());
+                assert!(
+                    right.iter().any(|row| row.contains(&date)),
+                    "{}：右邊看不到那天的事：{body:#?}",
+                    app.selected
+                );
+            }
         }
     }
 
@@ -817,9 +824,11 @@ mod tests {
         for index in (0..count).chain((0..count).rev()) {
             app.agenda_index = index;
             app.selected = app.agenda()[index].date;
+            let first = app.agenda()[index].item.date.expect("有日期");
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
-            let chosen = format!("[{}/{}]", app.selected.month(), app.selected.day());
+            // 選到的那件日期加括號；跨多天的括號裡是範圍，例：`[10/28~11/3]`
+            let chosen = format!("[{}/{}", first.month(), first.day());
             assert!(
                 body.iter().any(|row| row.contains(&chosen)),
                 "第 {index} 件不在畫面上：{body:#?}"
@@ -1037,6 +1046,130 @@ mod tests {
             (cell.symbol(), cell.fg),
             ("2", Theme::catppuccin_mocha().muted)
         );
+    }
+
+    /// 跨多天的事 test 用的任務檔（`tools/expected_screen.py` 算預期畫面時也讀這一份）
+    const RANGE_TASKS: &str = include_str!("../testdata/ranges.md");
+
+    #[test]
+    fn multi_day_items_are_listed_once_per_month() {
+        // 右邊在開始那天列一次，日期寫範圍（`10/20~25`、跨月 `10/28~11/3`、跨年 `12/30~1/2`）；
+        // 跨月的在之後每個月最上面再列一次；日期比較長，標題往右推
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(RANGE_TASKS).items,
+        );
+        let terminal = draw_app(&mut app, 70, 30);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 交週報              │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/20~25 東京出差               │",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/22 買伴手禮                  │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/28~11/3 主管出差             │",
+                "│       44 │ 26 27 28 29 30 31    ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││ 10/28~11/3 主管出差             │",
+                "│       45 │  2  3  4  5  6  7  8 ││  11/1 準備月報                  │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                 │",
+                "│       47 │ 16 17 18 19 20 21 22 ││                                 │",
+                "│       48 │ 23 24 25 26 27 28 29 ││                                 │",
+                "│       49 │ 30                   ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  12月 49 │     1  2  3  4  5  6 ││ 12/30~1/2 09:00 跨年旅行        │",
+                "│       50 │  7  8  9 10 11 12 13 ││                                 │",
+                "│       51 │ 14 15 16 17 18 19 20 ││                                 │",
+                "│       52 │ 21 22 23 24 25 26 27 ││                                 │",
+                "│       53 │ 28 29 30 31          ││                                 │",
+                "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━││━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│",
+                "│2027年  1 │              1  2  3 ││ 12/30~1/2 09:00 跨年旅行        │",
+                "│   1月  2 │  4  5  6  7  8  9 10 ││                                 │",
+                "│        3 │ 11 12 13 14 15 16 17 ││                                 │",
+                "│        4 │ 18 19 20 21 22 23 24 ││                                 │",
+                "│        5 │ 25 26 27 28 29 30 31 ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        // 月曆：範圍裡的每一天加底線（10/20～25、10/28～11/3），前後一天不加；顏色不變：開始那天橘色，
+        // 中間沒有自己的事的日子（10/21，x 19～20）是一般的顏色
+        let buffer = terminal.backend().buffer();
+        let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
+        // 10/19（一）x 13～14、10/20（二）x 16～17、10/25（日）x 31～32 在 y 6；10/26（一）、10/28（三）在 y 7
+        assert!(!underlined(14, 6));
+        assert!(underlined(17, 6) && underlined(32, 6));
+        assert!(!underlined(14, 7) && underlined(20, 7));
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(buffer[(17, 6)].fg, theme.has_item);
+        assert_eq!(buffer[(20, 6)].fg, theme.text);
+        // 鍵盤在右邊、選到 11 月那一行的主管出差（從 11/2 按 Tab）：括號裡是範圍；11 月在最上面
+        // （11/2 那週是 11 月第 2 列，要離上緣留 2 列，所以往上多捲一列、露出 10 月下面的線）
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(RANGE_TASKS).items,
+        );
+        app.focus = Focus::Agenda;
+        app.agenda_index = 4;
+        app.selected = date(2026, 11, 2);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項        2026/11/2（一） │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││[10/28~11/3]主管出差             │",
+                "│       45 │ [2] 3  4  5  6  7  8 ││  11/1 準備月報                  │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                 │",
+                "│       47 │ 16 17 18 19 20 21 22 ││                                 │",
+                "│       48 │ 23 24 25 26 27 28 29 ││                                 │",
+                "│       49 │ 30                   ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  12月 49 │     1  2  3  4  5  6 ││ 12/30~1/2 09:00 跨年旅行        │",
+                "│       50 │  7  8  9 10 11 12 13 ││                                 │",
+                "│       51 │ 14 15 16 17 18 19 20 ││                                 │",
+                "│       52 │ 21 22 23 24 25 26 27 ││                                 │",
+                "│       53 │ 28 29 30 31          ││                                 │",
+                "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━││━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│",
+                "│2027年  1 │              1  2  3 ││ 12/30~1/2 09:00 跨年旅行        │",
+                "│   1月  2 │  4  5  6  7  8  9 10 ││                                 │",
+                "│        3 │ 11 12 13 14 15 16 17 ││                                 │",
+                "│        4 │ 18 19 20 21 22 23 24 ││                                 │",
+                "│        5 │ 25 26 27 28 29 30 31 ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│   2月  6 │  1  2  3  4  5  6  7 ││                                 │",
+                "│        7 │  8  9 10 11 12 13 14 ││                                 │",
+                "│        8 │ 15 16 17 18 19 20 21 ││                                 │",
+                "│        9 │ 22 23 24 25 26 27 28 ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_multi_day_item_belongs_to_every_day_it_covers() {
+        // 鍵盤在月曆、選 10/22：東京出差（10/20～25）和買伴手禮（10/22）都墊底色，交週報不墊（畫面見上面）
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(RANGE_TASKS).items,
+        );
+        app.selected = date(2026, 10, 22);
+        let terminal = draw_app(&mut app, 70, 30);
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(buffer[(40, 3)].bg, Color::Reset);
+        assert_eq!(buffer[(40, 4)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 5)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 6)].bg, Color::Reset);
     }
 
     #[test]

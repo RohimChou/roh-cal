@@ -69,8 +69,16 @@ impl Group {
 pub struct Entry<'a> {
     /// 哪件事
     pub item: &'a Item,
-    /// 列在哪天
+    /// 列在哪天：一般是那件事的日子；跨多天又跨月的事，之後的月列在 1 號
     pub date: Date,
+}
+
+impl Entry<'_> {
+    /// 這一行算不算 `day` 那天的事：那件事蓋到 `day`（跨多天的中間每一天都算），而且這一行列在 `day` 那個月
+    /// （跨月的事每個月各一行，只算那個月的那一行）
+    pub fn is_on(&self, day: Date) -> bool {
+        self.item.covers(day) && self.date.first_of_month() == day.first_of_month()
+    }
 }
 
 /// 整個程式的狀態
@@ -143,21 +151,29 @@ impl App {
 
     /// 右邊列出來的事：有日期、日曆有勾選的，照列在哪天、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
     ///
+    /// 跨多天又跨月的事，碰到的每個月都列一次：第一個月列在開始那天，之後的月列在 1 號、排在那個月最上面。
     /// 沒有日期的事先不列（月曆上沒有位置放）
     pub fn agenda(&self) -> Vec<Entry<'_>> {
-        let mut entries: Vec<Entry> = self
-            .items
-            .iter()
-            .filter(|item| self.is_shown(item))
-            .filter_map(|item| {
-                Some(Entry {
-                    item,
-                    date: item.date?,
-                })
-            })
-            .collect();
-        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
-        entries.sort_by_key(|entry| (entry.date, entry.item.time));
+        let mut entries = Vec::new();
+        for item in self.items.iter().filter(|item| self.is_shown(item)) {
+            let (Some(first), Some(last)) = (item.date, item.last_day()) else {
+                continue;
+            };
+            entries.push(Entry { item, date: first });
+            // 之後碰到的每個月（1 號）
+            let months = first
+                .first_of_month()
+                .series(1.month())
+                .skip(1)
+                .take_while(|&month| month <= last);
+            entries.extend(months.map(|date| Entry { item, date }));
+        }
+        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；同一天裡，從上個月接過來的排最前面，
+        // 再來是沒有時間的（`None` 排在 `Some` 前面）
+        entries.sort_by_key(|entry| {
+            let continued = Some(entry.date) != entry.item.date;
+            (entry.date, !continued, entry.item.time)
+        });
         entries
     }
 
@@ -366,7 +382,8 @@ impl App {
         self.group_index = self.group_index.saturating_add_signed(step).min(last);
     }
 
-    /// 鍵盤換到右邊：選「選取那天或之後」的第一件事；之後都沒事就選最後一件；一件事都沒有就不換
+    /// 鍵盤換到右邊：選「選取那天的事」或「之後」的第一件（跨多天、比較早開始但蓋到選取那天的，排在前面所以先選它）；
+    /// 之後都沒事就選最後一件；一件事都沒有就不換
     fn enter_agenda(&mut self) {
         let index = {
             let agenda = self.agenda();
@@ -375,19 +392,27 @@ impl App {
             };
             agenda
                 .iter()
-                .position(|entry| entry.date >= self.selected)
+                .position(|entry| entry.date >= self.selected || entry.is_on(self.selected))
                 .unwrap_or(last)
         };
         self.choose(index);
     }
 
-    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事列在的那天
+    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事列在的那天；
+    /// 選取的日期本來就是那件事的日子（跨多天的中間某天）就不動
     fn choose(&mut self, index: usize) {
-        if let Some(date) = self.agenda().get(index).map(|entry| entry.date) {
-            self.agenda_index = index;
+        let Some((date, on_selected)) = self
+            .agenda()
+            .get(index)
+            .map(|entry| (entry.date, entry.is_on(self.selected)))
+        else {
+            return;
+        };
+        self.agenda_index = index;
+        if !on_selected {
             self.selected = date;
-            self.focus = Focus::Agenda;
         }
+        self.focus = Focus::Agenda;
     }
 
     /// 選往後（負的 = 往前）第 `step` 件事；到第一件 / 最後一件就停住
@@ -805,6 +830,51 @@ mod tests {
         assert!(app.side_hidden);
         press(&mut app, KeyCode::Char('s'));
         assert!(!app.side_hidden);
+    }
+
+    #[test]
+    fn a_multi_day_item_is_listed_in_each_month_and_chosen_from_any_of_its_days() {
+        // 主管出差 10/28～11/3：10 月、11 月各列一行；11 月那行列在 11/1、排在 11/1 的準備月報前面
+        let mut app = app_with(
+            "- [ ] 準備月報 @2026-11-01\n- 主管出差 @2026-10-28..2026-11-03\n- [ ] 交週報 @2026-10-30\n",
+        );
+        let rows: Vec<(&str, Date)> = app
+            .agenda()
+            .iter()
+            .map(|entry| (entry.item.title.as_str(), entry.date))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("主管出差", date(2026, 10, 28)),
+                ("交週報", date(2026, 10, 30)),
+                ("主管出差", date(2026, 11, 1)),
+                ("準備月報", date(2026, 11, 1)),
+            ]
+        );
+        // 選 11/2（出差的中間）按 Tab：選到 11 月那一行，選取的日期不動
+        app.selected = date(2026, 11, 2);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.agenda_index, 2);
+        assert_eq!(app.selected, date(2026, 11, 2));
+        // j：準備月報，月曆跳到 11/1；k：回到出差，11/1 也是它的日子，月曆不動
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.selected, date(2026, 11, 1));
+        press(&mut app, KeyCode::Char('k'));
+        assert_eq!((app.agenda_index, app.selected), (2, date(2026, 11, 1)));
+        // 再往上：交週報（10/30）→ 10 月那一行的出差（10/30 也是它的日子，月曆不動）
+        press(&mut app, KeyCode::Char('k'));
+        press(&mut app, KeyCode::Char('k'));
+        assert_eq!((app.agenda_index, app.selected), (0, date(2026, 10, 30)));
+        // 10/29（出差中間、10 月）按 Tab：選 10 月那一行，比 10/30 的交週報先
+        let mut app = app_with("- [ ] 交週報 @2026-10-30\n- 主管出差 @2026-10-28..2026-11-03\n");
+        app.selected = date(2026, 10, 29);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(
+            app.chosen().map(|entry| entry.date),
+            Some(date(2026, 10, 28))
+        );
+        assert_eq!(app.selected, date(2026, 10, 29));
     }
 
     #[test]

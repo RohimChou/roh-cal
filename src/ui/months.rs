@@ -72,11 +72,11 @@ impl<'a> Months<'a> {
         &self.items[start..end]
     }
 
-    /// `date` 那天的事
+    /// `date` 那天的事（跨多天的：蓋到那天就算，列在那個月的那一行）
     pub fn day_items(&self, date: Date) -> Vec<Entry<'a>> {
         self.month_items(date)
             .iter()
-            .filter(|entry| entry.date == date)
+            .filter(|entry| entry.is_on(date))
             .copied()
             .collect()
     }

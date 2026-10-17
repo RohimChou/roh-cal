@@ -69,20 +69,50 @@ def week_number(d):
 
 
 def read_items(text, hidden_names):
-    """簡單版：`- ` 開頭、有 `@YYYY-MM-DD` 的行，日曆（上面最近的 `#` 標題）沒勾的不算；
-    回傳 (日期, 時間, 標題, 第幾行)，排好"""
+    """簡單版：`- ` 開頭、行尾是 `@YYYY-MM-DD` 或 `@YYYY-MM-DD..YYYY-MM-DD`（可以再接時間）的行，
+    日曆（上面最近的 `#` 標題）沒勾的不算；回傳 (日期, 時間, 標題, 第幾行, 跨多天的最後一天或 None)，排好"""
     items = []
     name = None
     for i, line in enumerate(text.splitlines()):
         heading = re.match(r"#+ (.*)", line)
         if heading:
             name = heading.group(1).strip()
-        m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?$", line)
+        m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and name not in hidden_names:
-            items.append((datetime.date.fromisoformat(m.group(2)), m.group(3), m.group(1), i))
+            end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
+            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), m.group(1), i, end))
     # 日期、時間（沒時間的在前）、檔案順序
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
+
+
+def agenda_entries(items):
+    """右邊的每一行：(列在哪天, 是不是從上個月接過來的, 那件事)。跨月的事碰到的每個月各一行，
+    之後的月列在 1 號、排在那天最前面"""
+    entries = []
+    for it in items:
+        entries.append((it[0], False, it))
+        if it[4]:
+            y, m = it[0].year, it[0].month
+            while True:
+                y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+                first_day = datetime.date(y, m, 1)
+                if first_day > it[4]:
+                    break
+                entries.append((first_day, True, it))
+    entries.sort(key=lambda e: (e[0], not e[1], e[2][1] is not None, e[2][1] or "", e[2][3]))
+    return entries
+
+
+def range_text(it):
+    """右邊的日期：`10/5`、跨多天 `10/20~25`、跨月 `10/28~11/3`"""
+    start, end = it[0], it[4]
+    d = f"{start.month}/{start.day}"
+    if end and (end.year, end.month) == (start.year, start.month):
+        d += f"~{end.day}"
+    elif end:
+        d += f"~{end.month}/{end.day}"
+    return d
 
 
 def read_groups(text):
@@ -128,11 +158,13 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     colw = (iw - 2 * (n - 1)) // n if iw else 0
     assert iw == 0 or colw * n + 2 * (n - 1) == iw, "挑一個整除的寬度"
 
-    def item_text(it):
-        date, time, title, _ = it
-        d = f"{date.month}/{date.day}"
+    entries = agenda_entries(items)
+
+    def item_text(e):
+        _, time, title, _, _ = e[2]
+        d = range_text(e[2])
         rest = (time + " " if time else "") + title
-        if CHOSEN is not None and items.index(it) == CHOSEN:
+        if CHOSEN is not None and entries.index(e) == CHOSEN:
             s = " " * (5 - len(d)) + "[" + d + "]" + rest
         else:
             s = " " + rjust(d, 5) + " " + rest
@@ -154,7 +186,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
                     right = sym * (iw - width(label) - 1) + label + sym
             rows.append((rule(m == 1), right, None, False))
         weeks = calendar.monthcalendar(y, m)
-        month_items = [it for it in items if (it[0].year, it[0].month) == (y, m)]
+        month_items = [e for e in entries if (e[0].year, e[0].month) == (y, m)]
         # 每欄排幾列（不限高）、這一塊實際幾列（最多月曆高度的 2/3，至少是週數）
         layout = max(len(weeks), -(-len(month_items) // n))
         height = min(layout, max(len(weeks), body_h * 2 // 3))
@@ -299,7 +331,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
             else:
                 # 放得下就全列；放不下就少列一件，最後一行 +N
                 shown = len(day_items) if len(day_items) <= wh - 1 else wh - 2
-                cell = [first] + [" ∙ " + (time + " " if time else "") + title for _, time, title, _ in day_items[:shown]]
+                cell = [first] + [" ∙ " + (time + " " if time else "") + title for _, time, title, _, _ in day_items[:shown]]
                 if shown < len(day_items):
                     cell.append(f" +{len(day_items) - shown}")
             week_cells.append(cell)
