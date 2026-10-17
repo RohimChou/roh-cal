@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout},
     style::{Modifier, Style},
-    text::Line,
+    text::{Line, Span},
 };
 
 /// 畫整個畫面：中間左邊是月曆框，右邊先空著
@@ -20,8 +20,15 @@ pub fn render(frame: &mut Frame, app: &App) {
         Constraint::Length(1),
     ])
     .areas(frame.area());
+    // 標題列：左邊 app 的名字、右邊選取的日期（後面留一格空白）
+    // 兩段畫在同一列，顏色要放在 `Span` 上：`Line::styled` 的顏色會套到整列，後畫的會蓋掉先畫的
     let title_style = Style::new().fg(theme.label).add_modifier(Modifier::BOLD);
-    frame.render_widget(Line::styled(texts.title, title_style), title);
+    frame.render_widget(Line::from(Span::styled(texts.title, title_style)), title);
+    let date = format!("{} ", texts.date_title(app.selected));
+    frame.render_widget(
+        Line::from(Span::styled(date, Style::new().fg(theme.text))).right_aligned(),
+        title,
+    );
     let [calendar_area, _] =
         Layout::horizontal([Constraint::Length(calendar::WIDTH), Constraint::Fill(1)]).areas(main);
     calendar::render(frame, calendar_area, app);
@@ -36,13 +43,14 @@ mod tests {
     use super::*;
     use crate::texts::Lang;
     use crate::theme::Theme;
-    use jiff::civil::date;
-    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, text::Span};
+    use jiff::civil::{Date, date};
+    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
-    /// 用 `lang` 畫一次 `width` × `height` 的畫面，今天是 2026/10/17
-    fn draw(lang: Lang, width: u16, height: u16) -> Terminal<TestBackend> {
+    /// 用 `lang` 畫一次 `width` × `height` 的畫面：今天是 2026/10/17、選取 `selected`
+    fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBackend> {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        let app = App::new(lang, date(2026, 10, 17));
+        let mut app = App::new(lang, date(2026, 10, 17));
+        app.selected = selected;
         terminal.draw(|frame| render(frame, &app)).unwrap();
         terminal
     }
@@ -66,18 +74,18 @@ mod tests {
 
     #[test]
     fn calendar_from_this_month_down_with_a_thick_line_between_years() {
-        // 最上面的月和 1 月先寫年、下一列寫月；跨年那條是粗線
-        let terminal = draw(Lang::ZhTw, 40, 27);
+        // 最上面的月和 1 月先寫年、下一列寫月；跨年那條是粗線；選取的今天加括號、標題列右邊寫日期
+        let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal",
+                " roh-cal               2026/10/17（六）",
                 "╭─────────────────────────────────╮",
                 "│  年月 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
                 "│2026年 40 │           1  2  3  4 │",
                 "│  10月 41 │  5  6  7  8  9 10 11 │",
-                "│       42 │ 12 13 14 15 16 17 18 │",
+                "│       42 │ 12 13 14 15 16[17]18 │",
                 "│       43 │ 19 20 21 22 23 24 25 │",
                 "│       44 │ 26 27 28 29 30 31    │",
                 "│──────────┼──────────────────────│",
@@ -97,35 +105,72 @@ mod tests {
                 "│2027年  1 │              1  2  3 │",
                 "│   1月  2 │  4  5  6  7  8  9 10 │",
                 "╰─────────────────────────────────╯",
-                " q 離開",
+                " hjkl 移動  t 今天  q 離開",
             ]
         );
     }
 
     #[test]
     fn calendar_in_english() {
-        let terminal = draw(Lang::En, 40, 12);
+        let terminal = draw(Lang::En, 40, 12, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal",
+                " roh-cal               Sat Oct 17, 2026",
                 "╭─────────────────────────────────╮",
                 "│       Wk │ Mo Tu We Th Fr Sa Su │",
                 "│──────────┼──────────────────────│",
                 "│  2026 40 │           1  2  3  4 │",
                 "│   Oct 41 │  5  6  7  8  9 10 11 │",
-                "│       42 │ 12 13 14 15 16 17 18 │",
+                "│       42 │ 12 13 14 15 16[17]18 │",
                 "│       43 │ 19 20 21 22 23 24 25 │",
                 "│       44 │ 26 27 28 29 30 31    │",
                 "│──────────┼──────────────────────│",
                 "╰─────────────────────────────────╯",
-                " q quit",
+                " hjkl move  t today  q quit",
             ]
         );
     }
+
+    #[test]
+    fn selection_brackets_and_the_month_on_top() {
+        // 選到別的月：那個月排在最上面（寫年份）；一位數的日期括號貼著數字
+        let terminal = draw(Lang::En, 40, 9, date(2026, 11, 2));
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                " roh-cal                Mon Nov 2, 2026",
+                "╭─────────────────────────────────╮",
+                "│       Wk │ Mo Tu We Th Fr Sa Su │",
+                "│──────────┼──────────────────────│",
+                "│  2026 44 │                    1 │",
+                "│   Nov 45 │ [2] 3  4  5  6  7  8 │",
+                "│       46 │  9 10 11 12 13 14 15 │",
+                "╰─────────────────────────────────╯",
+                " hjkl move  t today  q quit",
+            ]
+        );
+        // 星期日：`]` 放在最後多留的那格
+        let terminal = draw(Lang::ZhTw, 40, 9, date(2027, 1, 3));
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                " roh-cal                 2027/1/3（日）",
+                "╭─────────────────────────────────╮",
+                "│  年月 週 │ 一 二 三 四 五 六 日 │",
+                "│──────────┼──────────────────────│",
+                "│2027年  1 │              1  2 [3]│",
+                "│   1月  2 │  4  5  6  7  8  9 10 │",
+                "│        3 │ 11 12 13 14 15 16 17 │",
+                "╰─────────────────────────────────╯",
+                " hjkl 移動  t 今天  q 離開",
+            ]
+        );
+    }
+
     #[test]
     fn colors_by_role() {
-        let terminal = draw(Lang::ZhTw, 40, 27);
+        let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         // (x, y) 那格：字、前景色、是不是粗體
@@ -137,9 +182,10 @@ mod tests {
                 cell.modifier.contains(Modifier::BOLD),
             )
         };
-        // 標題粗體、操作說明淡色、框線
+        // 標題粗體、右邊的日期一般顏色、操作說明淡色、框線
         assert_eq!(cell(1, 0), ("r", theme.label, true));
-        assert_eq!(cell(1, 26), ("q", theme.muted, false));
+        assert_eq!(cell(23, 0), ("2", theme.text, false));
+        assert_eq!(cell(1, 26), ("h", theme.muted, false));
         assert_eq!(cell(0, 1), ("╭", theme.line, false));
         // 表頭：平日淡色、六日用週末的顏色、直線
         assert_eq!(cell(3, 2), ("年", theme.muted, false));
@@ -159,5 +205,28 @@ mod tests {
         assert_eq!(cell(25, 6), ("1", theme.text, false));
         assert_eq!(cell(29, 6), ("7", theme.today, true));
         assert_eq!(cell(32, 6), ("8", theme.weekend, false));
+        // 選取的括號
+        assert_eq!(cell(27, 6), ("[", theme.selected, true));
+        assert_eq!(cell(30, 6), ("]", theme.selected, true));
+    }
+
+    #[test]
+    fn selected_day_is_bold_in_its_own_color() {
+        // 選 10/16（五）：數字是一般的顏色、加粗；今天 10/17 還是今天的顏色
+        let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 16));
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| {
+            let cell = &buffer[(x, y)];
+            (
+                cell.symbol(),
+                cell.fg,
+                cell.modifier.contains(Modifier::BOLD),
+            )
+        };
+        assert_eq!(cell(24, 6), ("[", theme.selected, true));
+        assert_eq!(cell(26, 6), ("6", theme.text, true));
+        assert_eq!(cell(27, 6), ("]", theme.selected, true));
+        assert_eq!(cell(29, 6), ("7", theme.today, true));
     }
 }

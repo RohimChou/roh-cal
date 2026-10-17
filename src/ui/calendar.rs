@@ -64,7 +64,7 @@ fn rows(first: Date, height: usize, texts: &Texts) -> Vec<Row> {
     rows
 }
 
-/// 畫月曆框：最上面是今天那個月
+/// 畫月曆框：最上面是選取那天的那個月
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
@@ -82,7 +82,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     .areas(inner);
     render_header(frame, header, texts, theme);
     render_rule(frame, rule, false, theme);
-    let rows = rows(app.today, usize::from(body.height), texts);
+    let rows = rows(app.selected, usize::from(body.height), texts);
     for (y, row) in (body.y..body.bottom()).zip(&rows) {
         let area = Rect::new(body.x, y, body.width, 1);
         match row {
@@ -131,20 +131,6 @@ fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRo
         .next()
         .map(|day| format!("{:>3} ", calendar::week_of_year(*day)))
         .unwrap_or_default();
-    let days: Vec<Span> = days
-        .iter()
-        .map(|day| match day {
-            Some(day) => {
-                // 今天的日期加粗
-                let mut style = Style::new().fg(day_color(*day, app));
-                if *day == app.today {
-                    style = style.add_modifier(Modifier::BOLD);
-                }
-                Span::styled(format!("{:>3}", day.day()), style)
-            }
-            None => Span::raw("   "),
-        })
-        .collect();
     render_cells(
         frame,
         area,
@@ -152,9 +138,51 @@ fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRo
             Line::styled(label.unwrap_or_default(), Style::new().fg(theme.label)).right_aligned(),
             Line::styled(week, Style::new().fg(theme.week_number)),
             Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
-            Line::from(days),
+            day_cells(days, app),
         ],
     );
+}
+
+/// 7 天的日期，一天 3 格寬、日期靠右；選取的那天前後加括號 `[17]`
+///
+/// 日期最多 2 位數，前面一定有空白：`[` 佔掉自己前面的空白、`]` 佔掉下一天前面的空白（星期日就佔最後多留的那格）
+fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
+    let bracket = Style::new()
+        .fg(app.theme.selected)
+        .add_modifier(Modifier::BOLD);
+    let mut spans = Vec::new();
+    // 上一天是選取的：這一格前面的空白先放 `]`
+    let mut close = false;
+    for day in days {
+        let number = day.map(|day| day.day().to_string()).unwrap_or_default();
+        let selected = *day == Some(app.selected);
+        // 日期前面要補幾格空白，例：`17` 補 1 格、`5` 補 2 格；括號佔掉的格子要扣掉
+        let mut gap = 3 - number.len();
+        if close {
+            spans.push(Span::styled("]", bracket));
+            gap -= 1;
+        }
+        if selected {
+            gap -= 1;
+        }
+        spans.push(Span::raw(" ".repeat(gap)));
+        if selected {
+            spans.push(Span::styled("[", bracket));
+        }
+        if let Some(day) = day {
+            // 選取的和今天的日期加粗
+            let mut style = Style::new().fg(day_color(*day, app));
+            if selected || *day == app.today {
+                style = style.add_modifier(Modifier::BOLD);
+            }
+            spans.push(Span::styled(number, style));
+        }
+        close = selected;
+    }
+    if close {
+        spans.push(Span::styled("]", bracket));
+    }
+    Line::from(spans)
 }
 
 /// 一天的日期顏色：今天 > 週末 > 一般

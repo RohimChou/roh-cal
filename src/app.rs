@@ -2,7 +2,7 @@
 
 use crate::{texts::Lang, theme::Theme, ui};
 use color_eyre::Result;
-use jiff::civil::Date;
+use jiff::{ToSpan, civil::Date};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers},
@@ -15,6 +15,8 @@ pub struct App {
     pub lang: Lang,
     /// 今天（打開程式那天；test 可以指定任何一天）
     pub today: Date,
+    /// 選取的日期：月曆上加括號 `[17]` 的那天
+    pub selected: Date,
     /// 畫面的顏色
     pub theme: Theme,
     /// `true` = 這一輪畫完就結束主迴圈
@@ -22,11 +24,12 @@ pub struct App {
 }
 
 impl App {
-    /// 剛打開時的狀態：theme 是 Catppuccin Mocha
+    /// 剛打開時的狀態：選取今天、theme 是 Catppuccin Mocha
     pub fn new(lang: Lang, today: Date) -> Self {
         Self {
             lang,
             today,
+            selected: today,
             theme: Theme::catppuccin_mocha(),
             should_quit: false,
         }
@@ -44,7 +47,7 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`q` / `Esc` / `Ctrl+C` 離開，其他鍵先不理
+    /// 按鍵：`hjkl` / 方向鍵移動選取的日期、`t` 回今天、`q` / `Esc` / `Ctrl+C` 離開
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -52,8 +55,19 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            // 左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）
+            KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
+            KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
+            KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
+            KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
+            KeyCode::Char('t') => self.selected = self.today,
             _ => {}
         }
+    }
+
+    /// 選取的日期往後（負的 = 往前）移幾天
+    fn move_by(&mut self, days: i64) {
+        self.selected = self.selected.saturating_add(days.days());
     }
 }
 
@@ -61,6 +75,44 @@ impl App {
 mod tests {
     use super::*;
     use jiff::civil::date;
+
+    /// 按一個鍵（沒有 Ctrl 之類的 modifier）
+    fn press(app: &mut App, code: KeyCode) {
+        app.handle_key(KeyEvent::from(code));
+    }
+
+    #[test]
+    fn hjkl_and_arrows_move_by_a_day_or_a_week() {
+        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.selected, date(2026, 10, 24));
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.selected, date(2026, 10, 25));
+        press(&mut app, KeyCode::Char('k'));
+        assert_eq!(app.selected, date(2026, 10, 18));
+        press(&mut app, KeyCode::Char('h'));
+        assert_eq!(app.selected, date(2026, 10, 17));
+        // 方向鍵一樣；跨月、跨年都照常移
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Down);
+        assert_eq!(app.selected, date(2026, 10, 31));
+        press(&mut app, KeyCode::Right);
+        assert_eq!(app.selected, date(2026, 11, 1));
+        press(&mut app, KeyCode::Up);
+        press(&mut app, KeyCode::Left);
+        assert_eq!(app.selected, date(2026, 10, 24));
+        app.selected = date(2026, 12, 29);
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.selected, date(2027, 1, 5));
+    }
+
+    #[test]
+    fn t_goes_back_to_today() {
+        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        app.selected = date(2027, 3, 1);
+        press(&mut app, KeyCode::Char('t'));
+        assert_eq!(app.selected, date(2026, 10, 17));
+    }
 
     #[test]
     fn quit_keys() {

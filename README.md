@@ -17,4 +17,6 @@ cargo run --release
 ## Keys
 | Key | Action |
 | :- | :- |
+| `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
+| `t` | Jump to today |
 | `q` / `Esc` / `Ctrl+C` | Quit |

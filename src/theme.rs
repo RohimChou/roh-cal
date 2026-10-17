@@ -21,6 +21,8 @@ pub struct Theme {
     pub weekend: Color,
     /// 今天的日期
     pub today: Color,
+    /// 選取的日期：前後的括號 `[17]`
+    pub selected: Color,
 }
 
 impl Theme {
@@ -34,6 +36,7 @@ impl Theme {
         let blue = Color::Rgb(137, 180, 250);
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
+        let mauve = Color::Rgb(203, 166, 247);
 
         Self {
             text,
@@ -44,6 +47,7 @@ impl Theme {
             week_number: yellow,
             weekend: blue,
             today: green,
+            selected: mauve,
         }
     }
 }

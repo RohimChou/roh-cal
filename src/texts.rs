@@ -65,7 +65,7 @@ pub struct Texts {
 const EN: Texts = Texts {
     lang: Lang::En,
     title: " roh-cal",
-    hints: " q quit",
+    hints: " hjkl move  t today  q quit",
     header_month: "",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
@@ -74,7 +74,7 @@ const EN: Texts = Texts {
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     title: " roh-cal",
-    hints: " q 離開",
+    hints: " hjkl 移動  t 今天  q 離開",
     header_month: "年月",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
@@ -84,6 +84,8 @@ const ZH_TW: Texts = Texts {
 const EN_MONTHS: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+/// 英文的星期縮寫（標題列用；表頭用 2 個字母的 `weekdays`），`[0]` 是星期一
+const EN_WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 impl Texts {
     /// 月曆左邊欄的年份，例：`2027年` / `2027`
@@ -97,11 +99,37 @@ impl Texts {
     /// 月曆左邊欄的月份，例：`Oct` / `10月`
     pub fn month_label(&self, date: Date) -> String {
         match self.lang {
-            // 月份是 1～12，換成陣列位置 0～11（`month()` 是 i8，轉成 usize 才能當位置）
-            Lang::En => EN_MONTHS[usize::try_from(date.month() - 1).unwrap_or(0)].to_string(),
+            Lang::En => EN_MONTHS[month_index(date)].to_string(),
             Lang::ZhTw => format!("{}月", date.month()),
         }
     }
+
+    /// 標題列右邊的日期，例：`Sat Oct 17, 2026` / `2026/10/17（六）`
+    pub fn date_title(&self, date: Date) -> String {
+        // 星期一 = 0、星期日 = 6
+        let weekday = date.weekday().to_monday_zero_offset() as usize;
+        match self.lang {
+            Lang::En => format!(
+                "{} {} {}, {}",
+                EN_WEEKDAYS[weekday],
+                EN_MONTHS[month_index(date)],
+                date.day(),
+                date.year()
+            ),
+            Lang::ZhTw => format!(
+                "{}/{}/{}（{}）",
+                date.year(),
+                date.month(),
+                date.day(),
+                self.weekdays[weekday]
+            ),
+        }
+    }
+}
+
+/// 月份在陣列裡的位置：月份是 1～12，換成 0～11（`month()` 是 i8，轉成 usize 才能當位置）
+fn month_index(date: Date) -> usize {
+    usize::try_from(date.month() - 1).unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -137,5 +165,15 @@ mod tests {
         let zh = Lang::ZhTw.texts();
         assert_eq!(zh.year_label(date(2027, 1, 1)), "2027年");
         assert_eq!(zh.month_label(date(2026, 10, 17)), "10月");
+    }
+
+    #[test]
+    fn date_title_in_both_languages() {
+        let en = Lang::En.texts();
+        assert_eq!(en.date_title(date(2026, 10, 17)), "Sat Oct 17, 2026");
+        assert_eq!(en.date_title(date(2027, 1, 4)), "Mon Jan 4, 2027");
+        let zh = Lang::ZhTw.texts();
+        assert_eq!(zh.date_title(date(2026, 10, 17)), "2026/10/17（六）");
+        assert_eq!(zh.date_title(date(2026, 10, 18)), "2026/10/18（日）");
     }
 }
