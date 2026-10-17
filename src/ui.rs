@@ -634,7 +634,51 @@ mod tests {
                 .position(|row| row.contains(&chosen))
                 .unwrap_or_else(|| panic!("第 {index} 件不在畫面上：{body:#?}"));
             assert!(y >= 2 && y + 2 < body.len(), "第 {index} 件：在第 {y} 列");
+            // 月曆框（每一列 `││` 左邊那半）上也看得到選取的那天
+            let day = format!("[{}]", app.selected.day());
+            assert!(
+                body.iter().any(|row| row
+                    .split("││")
+                    .next()
+                    .is_some_and(|left| left.contains(&day))),
+                "第 {index} 件：月曆上看不到 {day}：{body:#?}"
+            );
         }
+    }
+
+    #[test]
+    fn weeks_stick_to_the_top_while_the_agenda_scrolls() {
+        // 10 月 8 件事、一欄：那一塊 8 列。月曆只有 8 列，選到第 8 件（10/20）時往下捲 2 列，
+        // 10 月的週黏在最上面，月曆上的 [20] 和右邊的 [10/20] 都看得到
+        let mut app = agenda_app(Lang::ZhTw);
+        app.screen = Rect::new(0, 0, 70, 13);
+        app.focus = Focus::Agenda;
+        app.agenda_index = 7;
+        app.selected = date(2026, 10, 20);
+        let terminal = draw_app(&mut app, 70, 13);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││ 10/15 修 bug                    │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報              │",
+                "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 聚餐                      │",
+                "│       43 │ 19[20]21 22 23 24 25 ││ 10/17 08:00 早餐會              │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/18 07:00 爬山                │",
+                "│          │                      ││[10/20]一個很長很長很長很長很長很│",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        // 點擊跟畫面一樣：黏住的第一週（y 3）的星期五是 10/2；右邊同一列是第 3 件（10/15 修 bug）
+        assert_eq!(click_at(&app, 25, 3), Some(Click::Day(date(2026, 10, 2))));
+        assert_eq!(click_at(&app, 40, 3), Some(Click::Item(2)));
+        // 週下面、只有事的那列，左邊沒有日期
+        assert_eq!(click_at(&app, 25, 8), None);
     }
 
     #[test]

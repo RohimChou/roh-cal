@@ -107,12 +107,8 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     }
     let chosen = app.chosen();
 
-    // 從最上面那列所在的那個月開始排，跳過那個月在畫面上面的列
-    let (month, start) = months.block_at(top);
-    let skip = usize::try_from(top - start).unwrap_or(0);
-    let height = usize::from(calendar_body.height);
-    let rows = months.rows(month, skip + height);
-    let visible = &rows[skip..skip + height];
+    // 畫面上看得到的列（事很多的月份，週會黏在畫面最上面，見 `Months::visible_rows`）
+    let visible = months.visible_rows(top, usize::from(calendar_body.height));
 
     // 表頭：畫面上沒有 1 月寫的年份時，年月欄改寫最上面那週的年份，提醒現在是哪一年
     let year_on_screen = visible.iter().any(|row| {
@@ -149,7 +145,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     render_rule(frame, calendar_rule, agenda_rule, false, theme);
 
     // 一列一列畫，左右兩個框的同一列在同一個高度
-    for (y, row) in (calendar_body.y..calendar_body.bottom()).zip(visible) {
+    for (y, row) in (calendar_body.y..calendar_body.bottom()).zip(&visible) {
         let calendar_row = Rect::new(calendar_body.x, y, calendar_body.width, 1);
         let agenda_row = Rect::new(agenda_body.x, y, agenda_body.width, 1);
         match row {
@@ -195,11 +191,13 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     let [_, _, agenda_body] = inner_areas(agenda);
     let months = Months::new(app, agenda_columns(agenda_body.width));
     let position = Position::new(column, row);
+    // 畫面上的每一列，跟畫畫面時一樣（含黏在上面的週）；左右兩個框同一列對齊
+    let rows = months.visible_rows(app.calendar_top?, usize::from(calendar_body.height));
     if calendar_body.contains(position) {
         // 點的是哪一列（月和月之間的線、只有事的列都沒有日期）
         let Row::Week {
             days: Some(days), ..
-        } = months.row_at(app.calendar_top? + i64::from(row - calendar_body.y))?
+        } = rows.get(usize::from(row - calendar_body.y))?
         else {
             return None;
         };
@@ -208,9 +206,7 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
         let weekday = usize::from(column.checked_sub(days_area.x)? / 3);
         days.get(weekday).copied().flatten().map(Click::Day)
     } else if agenda_body.contains(position) {
-        let Row::Week { items, .. } =
-            months.row_at(app.calendar_top? + i64::from(row - agenda_body.y))?
-        else {
+        let Row::Week { items, .. } = rows.get(usize::from(row - agenda_body.y))? else {
             return None;
         };
         // 點在第幾欄（欄和欄之間的空白不算）

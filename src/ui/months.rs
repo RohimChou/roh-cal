@@ -162,11 +162,41 @@ impl<'a> Months<'a> {
         Some(self.block_start(month) + i64::try_from(row).ok()?)
     }
 
-    /// 第 `row` 列是什麼（滑鼠點的時候用）
-    pub fn row_at(&self, row: i64) -> Option<Row<'a>> {
-        let (month, start) = self.block_at(row);
-        let skip = usize::try_from(row - start).ok()?;
-        self.rows(month, skip + 1).into_iter().nth(skip)
+    /// 畫面上看得到的列：從第 `top` 列開始的 `height` 列（畫畫面和滑鼠換算都用這個）
+    ///
+    /// 一個月的事比週數多、那一塊很高時，往下捲到那個月的第一列跑到畫面上面去，
+    /// 那個月的週（左邊那半）就黏在畫面最上面，右邊的事照樣捲；
+    /// 快捲到那一塊的底時，週跟著被往上推（像手機通訊錄的字母標題）
+    pub fn visible_rows(&self, top: i64, height: usize) -> Vec<Row<'a>> {
+        // 從最上面那列所在的那個月開始排，前 `skip` 列在畫面上面
+        let (month, start) = self.block_at(top);
+        let skip = usize::try_from(top - start).unwrap_or(0);
+        let mut rows = self.rows(month, skip + height);
+        // 這個月的週往下移幾列：最多移到週貼著那一塊的底
+        let month_height = self.month_height(month);
+        let weeks = calendar::month_rows(month).len();
+        let shift = skip.min(month_height - weeks);
+        if shift > 0 {
+            // 先把這一塊每一列左邊那半（年 / 月、這週的日子）記下來，再往下移；右邊的事不動
+            let left: Vec<(Option<Label>, Option<WeekRow>)> = rows[..month_height]
+                .iter()
+                .map(|row| match row {
+                    Row::Week { label, days, .. } => (*label, *days),
+                    Row::Separator { .. } => (None, None),
+                })
+                .collect();
+            for (i, row) in rows[..month_height].iter_mut().enumerate() {
+                if let Row::Week { label, days, .. } = row {
+                    (*label, *days) = i
+                        .checked_sub(shift)
+                        .and_then(|from| left.get(from).copied())
+                        .unwrap_or((None, None));
+                }
+            }
+        }
+        rows.drain(..skip);
+        rows.truncate(height);
+        rows
     }
 }
 
@@ -308,6 +338,34 @@ mod tests {
             shape(&months.rows(date(2026, 10, 1), 22)),
             "wwwww..-wwwwww-wwwww=wwwww"
         );
+    }
+
+    #[test]
+    fn weeks_stick_to_the_top_of_a_tall_month() {
+        // 10 月 20 件事（一欄）：那一塊 20 列，週只有 5 列
+        let text = (1..=20)
+            .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
+            .collect::<String>();
+        let app = app_with(&text);
+        let months = Months::new(&app, 1);
+        // 捲到第 7 列：10 月的 5 週黏在最上面，右邊是第 8 件起
+        let rows = months.visible_rows(7, 8);
+        assert_eq!(shape(&rows), "wwwww...");
+        let Row::Week { label, days, items } = &rows[0] else {
+            panic!("第一列應該是 10 月的第一週");
+        };
+        assert_eq!(*label, Some(Label::Month));
+        assert!(days.is_some_and(|days| days.contains(&Some(date(2026, 10, 1)))));
+        assert_eq!(items[0].map(|item| item.title.as_str()), Some("8"));
+        // 捲到第 17 列：那一塊只剩 3 列，週被往上推，只看得到後 3 週（10/12 那週起）
+        let rows = months.visible_rows(17, 8);
+        assert_eq!(shape(&rows), "www-wwww");
+        let Row::Week { days, .. } = &rows[0] else {
+            panic!("第一列應該是 10 月的第三週");
+        };
+        assert!(days.is_some_and(|days| days.contains(&Some(date(2026, 10, 12)))));
+        // 沒捲：跟平常一樣
+        assert_eq!(shape(&months.visible_rows(0, 8)), "wwwww...");
     }
 
     #[test]
