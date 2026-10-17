@@ -1,0 +1,14 @@
+# roh-cal
+A simple, keyboard-driven terminal calendar for plain-text tasks.
+
+> v2 is a rewrite in progress. The first version lives on the [`v1`](https://github.com/RohimChou/roh-cal/tree/v1) branch.
+
+## Run
+```sh
+cargo run --release
+```
+
+## Keys
+| Key | Action |
+| :- | :- |
+| `q` / `Esc` / `Ctrl+C` | Quit |
