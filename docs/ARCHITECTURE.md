@@ -14,6 +14,9 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/main.rs` | 讀命令列參數、讀任務檔、開 / 關 TUI 和滑鼠 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`3` 版型 3） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
+| `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動那一行，那一行在別處改過就回傳 `Changed` | |
+| `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
+| `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫；在別處改過就重新載入；結果放在 `App::notice`（最下面一列） | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週 | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色 | |

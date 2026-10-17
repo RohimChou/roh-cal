@@ -35,6 +35,8 @@ pub struct Theme {
     pub focus: Color,
     /// side menu 上勾選的日曆的 `☑`
     pub checked: Color,
+    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入）
+    pub notice: Color,
     /// 大月曆（版型 3）格子之間的淡格線
     pub grid: Color,
     /// 大月曆（版型 3）不是選取那個月的日子：日期和事都變灰
@@ -76,6 +78,7 @@ impl Theme {
             cursor_line: surface0,
             focus: mauve,
             checked: mauve,
+            notice: yellow,
             // 格線、其他月份：跟 v1 一樣
             grid: surface0,
             other_month: overlay0,

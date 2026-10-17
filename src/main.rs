@@ -2,6 +2,8 @@
 
 mod app;
 mod calendar;
+mod edit;
+mod files;
 mod paths;
 mod tasks;
 mod texts;
@@ -43,7 +45,10 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
-        App::new(lang, today, items).run(terminal)
+        let mut app = App::new(lang, today, items);
+        // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
+        app.tasks_path = path;
+        app.run(terminal)
     })
 }
 

@@ -216,7 +216,7 @@ fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
 /// `- ` 後面的 checkbox：回傳（完成了沒, checkbox 後面的文字，空白照留）；沒有 checkbox 回傳 `None`
 ///
 /// `[ ]`、`[x]`、`[X]` 後面要接空白或直接結束。例：`[x] 打包` → (true, ` 打包`)；`[ ]打包` 不算 checkbox
-fn checkbox(rest: &str) -> Option<(bool, &str)> {
+pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
     let marks = [("[ ]", false), ("[x]", true), ("[X]", true)];
     for (mark, done) in marks {
         if let Some(after) = rest.strip_prefix(mark)

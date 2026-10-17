@@ -1,5 +1,9 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
+mod write;
+
+pub use write::Notice;
+
 use crate::{
     tasks::Item,
     texts::Lang,
@@ -15,6 +19,7 @@ use ratatui::{
     },
     layout::Rect,
 };
+use std::path::PathBuf;
 
 /// 鍵盤在哪個框
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,6 +119,10 @@ pub struct App {
     pub theme: Theme,
     /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
     pub screen: Rect,
+    /// 任務檔的位置（打勾、編輯要寫回去）；`None` = 沒有任務檔（test），不寫
+    pub tasks_path: Option<PathBuf>,
+    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入）；下一個按鍵、點擊就消失
+    pub notice: Option<Notice>,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -137,6 +146,8 @@ impl App {
             month_top: None,
             theme: Theme::catppuccin_mocha(),
             screen: Rect::default(),
+            tasks_path: None,
+            notice: None,
             should_quit: false,
         }
     }
@@ -240,6 +251,8 @@ impl App {
     /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` 換版型、`s` 收起 / 打開 side menu、
     /// `q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
     fn handle_key(&mut self, key: KeyEvent) {
+        // 上一次的提示看過了：按任何鍵就消失
+        self.notice = None;
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
@@ -286,11 +299,12 @@ impl App {
         }
     }
 
-    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走
+    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾（寫回任務檔）
     fn handle_agenda_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
+            KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             _ => {}
         }
     }
@@ -315,6 +329,10 @@ impl App {
     /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件、
     /// 點 side menu 的日曆 = 選那個（再點一次已經選到的 = 勾選 / 取消勾選）
     fn handle_mouse(&mut self, mouse: MouseEvent) {
+        // 上一次的提示看過了：點擊、滾輪也算
+        if !matches!(mouse.kind, MouseEventKind::Moved) {
+            self.notice = None;
+        }
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
             MouseEventKind::ScrollDown => self.scroll(1),
@@ -325,6 +343,12 @@ impl App {
                     Some(Click::Day(date)) => {
                         self.selected = date;
                         self.focus = Focus::Calendar;
+                    }
+                    // 再點一次已經選到的那件 = 打勾
+                    Some(Click::Item(index))
+                        if self.focus == Focus::Agenda && self.agenda_index == index =>
+                    {
+                        self.toggle_chosen();
                     }
                     Some(Click::Item(index)) => self.choose(index),
                     Some(Click::Group(index)) => self.click_group(index),

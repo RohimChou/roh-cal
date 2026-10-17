@@ -97,13 +97,21 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         agenda: agenda_area,
         hints,
     } = areas(frame.area(), app);
-    // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
-    let hint_text = if side_fits(frame.area()) {
-        texts.hints_side
+    // 有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
+    if let Some(notice) = &app.notice {
+        frame.render_widget(
+            Line::styled(texts.notice(notice), Style::new().fg(theme.notice)),
+            hints,
+        );
     } else {
-        texts.hints
-    };
-    frame.render_widget(Line::styled(hint_text, Style::new().fg(theme.muted)), hints);
+        // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
+        let hint_text = if side_fits(frame.area()) {
+            texts.hints_side
+        } else {
+            texts.hints
+        };
+        frame.render_widget(Line::styled(hint_text, Style::new().fg(theme.muted)), hints);
+    }
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
@@ -991,6 +999,17 @@ mod tests {
             (buffer[(68, 8)].symbol(), buffer[(68, 8)].fg),
             ("─", theme.line)
         );
+    }
+
+    #[test]
+    fn a_notice_replaces_the_key_hints_until_the_next_key() {
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        app.notice = Some(crate::app::Notice::NotATask);
+        let terminal = draw_app(&mut app, 70, 11);
+        let rows = text_rows(terminal.backend().buffer());
+        assert_eq!(rows[10], " 行程沒有框，不能打勾");
+        let cell = &terminal.backend().buffer()[(1, 10)];
+        assert_eq!(cell.fg, Theme::catppuccin_mocha().notice);
     }
 
     #[test]

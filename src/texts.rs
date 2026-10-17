@@ -1,5 +1,6 @@
 //! 畫面上的字：英文、繁體中文各一份；換語言 = 換一組 `Texts`
 
+use crate::app::Notice;
 use jiff::civil::Date;
 
 /// 支援的語言
@@ -120,6 +121,22 @@ impl Texts {
         }
     }
 
+    /// 最下面一列暫時換成的提示（寫檔的結果），例：`寫不進任務檔（permission denied）`
+    pub fn notice(&self, notice: &Notice) -> String {
+        match (self.lang, notice) {
+            (Lang::En, Notice::Reloaded) => {
+                " The task file changed elsewhere: reloaded, nothing written".into()
+            }
+            (Lang::ZhTw, Notice::Reloaded) => {
+                " 任務檔在別的地方改過了：已重新載入，這次沒寫".into()
+            }
+            (Lang::En, Notice::Failed(kind)) => format!(" Could not write the task file ({kind})"),
+            (Lang::ZhTw, Notice::Failed(kind)) => format!(" 寫不進任務檔（{kind}）"),
+            (Lang::En, Notice::NotATask) => " An event has no box to check".into(),
+            (Lang::ZhTw, Notice::NotATask) => " 行程沒有框，不能打勾".into(),
+        }
+    }
+
     /// 選取的日期（右邊事項框表頭的右邊），例：`Sat Oct 17, 2026` / `2026/10/17（六）`
     pub fn date_title(&self, date: Date) -> String {
         // 星期一 = 0、星期日 = 6
@@ -187,6 +204,22 @@ mod tests {
     fn more_items_in_both_languages() {
         assert_eq!(Lang::En.texts().more_items(23), "23 more");
         assert_eq!(Lang::ZhTw.texts().more_items(1), "還有 1 件");
+    }
+
+    #[test]
+    fn notices_in_both_languages() {
+        use std::io::ErrorKind;
+        let en = Lang::En.texts();
+        assert_eq!(
+            en.notice(&Notice::Failed(ErrorKind::NotFound)),
+            " Could not write the task file (entity not found)"
+        );
+        let zh = Lang::ZhTw.texts();
+        assert_eq!(zh.notice(&Notice::NotATask), " 行程沒有框，不能打勾");
+        assert_eq!(
+            zh.notice(&Notice::Failed(ErrorKind::PermissionDenied)),
+            " 寫不進任務檔（permission denied）"
+        );
     }
 
     #[test]

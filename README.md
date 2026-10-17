@@ -25,10 +25,11 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day; in the agenda `j` `k` / ↓ ↑ choose the next / previous item, in the calendar list the next / previous calendar |
 | `Tab` | Switch between the calendar, the agenda and the calendar list (the focused pane's border lights up) |
 | `Space` / `Enter` | In the calendar list: check / uncheck a calendar; an unchecked calendar's items are hidden |
+| `Space` / `x` | In the agenda: check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | `1` / `3` | Layout 1 (calendar + agenda) / layout 3 (a big month grid, six weeks with each day's items in its cell) |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
-| Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it; hold `Shift` to select text in the terminal) |
+| Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it, a chosen task again to check it off; hold `Shift` to select text in the terminal) |
 | `Esc` | Back to the calendar from the agenda or the calendar list; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |
