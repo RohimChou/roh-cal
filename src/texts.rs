@@ -1,5 +1,7 @@
 //! 畫面上的字：英文、繁體中文各一份；換語言 = 換一組 `Texts`
 
+use jiff::civil::Date;
+
 /// 支援的語言
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -46,25 +48,66 @@ impl Lang {
 /// 一種語言的所有字
 #[derive(Debug)]
 pub struct Texts {
+    /// 這組字是哪個語言（年 / 月的寫法要用）
+    lang: Lang,
     /// 最上面一列的標題
     pub title: &'static str,
     /// 最下面一列的操作說明
     pub hints: &'static str,
+    /// 月曆表頭：年月那欄（最多 6 格寬）
+    pub header_month: &'static str,
+    /// 月曆表頭：週數那欄（4 格寬）
+    pub header_week: &'static str,
+    /// 月曆表頭的星期一到星期日：每個剛好 2 格寬
+    pub weekdays: [&'static str; 7],
 }
 
 const EN: Texts = Texts {
+    lang: Lang::En,
     title: " roh-cal",
     hints: " q quit",
+    header_month: "",
+    header_week: " Wk ",
+    weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
 };
 
 const ZH_TW: Texts = Texts {
+    lang: Lang::ZhTw,
     title: " roh-cal",
     hints: " q 離開",
+    header_month: "年月",
+    header_week: " 週 ",
+    weekdays: ["一", "二", "三", "四", "五", "六", "日"],
 };
+
+/// 英文的月份縮寫，`[0]` 是一月
+const EN_MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+impl Texts {
+    /// 月曆左邊欄的年份，例：`2027年` / `2027`
+    pub fn year_label(&self, date: Date) -> String {
+        match self.lang {
+            Lang::En => date.year().to_string(),
+            Lang::ZhTw => format!("{}年", date.year()),
+        }
+    }
+
+    /// 月曆左邊欄的月份，例：`Oct` / `10月`
+    pub fn month_label(&self, date: Date) -> String {
+        match self.lang {
+            // 月份是 1～12，換成陣列位置 0～11（`month()` 是 i8，轉成 usize 才能當位置）
+            Lang::En => EN_MONTHS[usize::try_from(date.month() - 1).unwrap_or(0)].to_string(),
+            Lang::ZhTw => format!("{}月", date.month()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jiff::civil::date;
 
     #[test]
     fn from_code_accepts_common_spellings() {
@@ -82,5 +125,17 @@ mod tests {
         for code in ["zh-CN", "zh-Hans", "ja-JP", "", "eng"] {
             assert_eq!(Lang::from_code(code), None, "{code}");
         }
+    }
+
+    #[test]
+    fn year_and_month_labels_in_both_languages() {
+        let en = Lang::En.texts();
+        assert_eq!(en.year_label(date(2027, 1, 1)), "2027");
+        assert_eq!(en.month_label(date(2027, 1, 1)), "Jan");
+        assert_eq!(en.month_label(date(2026, 10, 17)), "Oct");
+        assert_eq!(en.month_label(date(2026, 12, 31)), "Dec");
+        let zh = Lang::ZhTw.texts();
+        assert_eq!(zh.year_label(date(2027, 1, 1)), "2027年");
+        assert_eq!(zh.month_label(date(2026, 10, 17)), "10月");
     }
 }

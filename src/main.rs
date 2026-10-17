@@ -1,12 +1,14 @@
 //! roh-cal：terminal 月曆，讀純文字的任務檔
 
 mod app;
+mod calendar;
 mod texts;
 mod ui;
 
 use app::App;
 use clap::Parser;
 use color_eyre::Result;
+use jiff::Zoned;
 use texts::Lang;
 
 fn main() -> Result<()> {
@@ -16,8 +18,10 @@ fn main() -> Result<()> {
     let args = Args::parse();
     // 語言：--lang 參數 → 系統語言 → 英文
     let lang = args.lang.unwrap_or_else(Lang::from_system);
+    // 今天：系統時區的日期
+    let today = Zoned::now().date();
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
-    ratatui::run(|terminal| App::new(lang).run(terminal))
+    ratatui::run(|terminal| App::new(lang, today).run(terminal))
 }
 
 /// 命令列參數，例：`roh-cal --lang zh-TW`；`--help` 由 clap 自動產生。

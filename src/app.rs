@@ -2,6 +2,7 @@
 
 use crate::{texts::Lang, ui};
 use color_eyre::Result;
+use jiff::civil::Date;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers},
@@ -12,15 +13,18 @@ use ratatui::{
 pub struct App {
     /// 畫面的語言
     pub lang: Lang,
+    /// 今天（打開程式那天；test 可以指定任何一天）
+    pub today: Date,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
 
 impl App {
     /// 剛打開時的狀態
-    pub fn new(lang: Lang) -> Self {
+    pub fn new(lang: Lang, today: Date) -> Self {
         Self {
             lang,
+            today,
             should_quit: false,
         }
     }
@@ -53,6 +57,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jiff::civil::date;
 
     #[test]
     fn quit_keys() {
@@ -62,7 +67,7 @@ mod tests {
             KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
         ];
         for key in keys {
-            let mut app = App::new(Lang::En);
+            let mut app = App::new(Lang::En, date(2026, 10, 17));
             app.handle_key(key);
             assert!(app.should_quit, "{key:?} 應該要離開");
         }
@@ -77,7 +82,7 @@ mod tests {
             KeyEvent::from(KeyCode::Enter),
         ];
         for key in keys {
-            let mut app = App::new(Lang::En);
+            let mut app = App::new(Lang::En, date(2026, 10, 17));
             app.handle_key(key);
             assert!(!app.should_quit, "{key:?} 不應該離開");
         }

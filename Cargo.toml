@@ -7,5 +7,6 @@ description = "A simple, keyboard-driven terminal calendar for plain-text tasks"
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
 color-eyre = "0.6.5"
+jiff = "0.2.38"
 ratatui = "0.30.2"
 sys-locale = "0.3.2"
