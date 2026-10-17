@@ -20,6 +20,31 @@ pub enum Focus {
     Calendar,
     /// 右邊的事項
     Agenda,
+    /// 最左邊的 side menu（夠寬才有）
+    Side,
+}
+
+/// 右邊那個框顯示什麼（版型）；數字鍵切換
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Variant {
+    /// `1`：這個月的事，跟月曆的月份對齊
+    MonthItems,
+    /// `2`：從選取那天開始的事，一天一段
+    Upcoming,
+}
+
+/// side menu 上的一個日曆（= 任務檔的分組）
+pub struct Group {
+    pub name: &'static str,
+    /// 有沒有勾選：沒勾的日曆，它的事不顯示
+    pub shown: bool,
+}
+
+/// 這件事要不要顯示：它的日曆有勾選才顯示
+pub fn is_shown(groups: &[Group], item: &Item) -> bool {
+    groups
+        .iter()
+        .any(|group| group.name == item.group && group.shown)
 }
 
 pub struct App {
@@ -39,8 +64,18 @@ pub struct App {
     pub lang: Lang,
     /// 鍵盤在操作哪一邊，按 `Tab` 切換
     pub focus: Focus,
-    /// 右邊選到第幾件事（`items` 的 index）；`focus` 是 `Agenda` 時才用
+    /// 右邊選到第幾件事（有顯示的事裡的 index）；`focus` 是 `Agenda` 時才用
     pub selected_item: usize,
+    /// 右邊那個框的版型，按 `1` / `2` 切換
+    pub variant: Variant,
+    /// side menu 上的日曆
+    pub groups: Vec<Group>,
+    /// side menu 選到第幾個日曆；`focus` 是 `Side` 時才用
+    pub selected_group: usize,
+    /// 按 `s` 收起 side menu
+    pub side_hidden: bool,
+    /// 這一次畫面有沒有畫 side menu（夠寬、沒收起）；畫的時候更新
+    pub side_shown: bool,
     should_quit: bool,
 }
 
@@ -59,6 +94,14 @@ impl App {
             lang: Lang::Zh,
             focus: Focus::Calendar,
             selected_item: 0,
+            groups: mock::GROUPS
+                .iter()
+                .map(|&name| Group { name, shown: true })
+                .collect(),
+            selected_group: 0,
+            variant: Variant::MonthItems,
+            side_hidden: false,
+            side_shown: false,
             should_quit: false,
         }
     }
@@ -80,20 +123,36 @@ impl App {
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
-            // Esc：在右邊就回月曆，在月曆就離開
-            KeyCode::Esc if self.focus == Focus::Agenda => self.focus = Focus::Calendar,
+            // Esc：不在月曆就回月曆，在月曆就離開
+            KeyCode::Esc if self.focus != Focus::Calendar => self.focus = Focus::Calendar,
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            KeyCode::Tab => self.toggle_focus(),
+            KeyCode::Tab => self.next_focus(),
             KeyCode::Char('t') => {
                 self.selected = self.today;
                 self.focus = Focus::Calendar;
                 self.jump_to_month = true;
             }
             KeyCode::Char('L') => self.lang = self.lang.toggled(),
+            // 換版型：月份的高度會變，把選取的那個月捲到最上面
+            KeyCode::Char('1') => {
+                self.variant = Variant::MonthItems;
+                self.jump_to_month = true;
+            }
+            KeyCode::Char('2') => {
+                self.variant = Variant::Upcoming;
+                self.jump_to_month = true;
+            }
+            KeyCode::Char('s') => {
+                self.side_hidden = !self.side_hidden;
+                if self.focus == Focus::Side {
+                    self.focus = Focus::Calendar;
+                }
+            }
             _ if self.focus == Focus::Agenda => self.handle_agenda_key(key.code),
+            _ if self.focus == Focus::Side => self.handle_side_key(key.code),
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
             KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
             KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
@@ -102,38 +161,78 @@ impl App {
         }
     }
 
-    /// 右邊的事項：`j` / `k` 上下一件，月曆選取的日期跟著那件事走
-    fn handle_agenda_key(&mut self, code: KeyCode) {
-        let last = self.items.len().saturating_sub(1);
-        match code {
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.selected_item = (self.selected_item + 1).min(last);
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.selected_item = self.selected_item.saturating_sub(1);
-            }
-            _ => return,
-        }
-        self.selected = self.items[self.selected_item].date;
+    /// 有顯示的事（它的日曆有勾選）
+    pub fn visible_items(&self) -> Vec<&Item> {
+        self.items
+            .iter()
+            .filter(|item| is_shown(&self.groups, item))
+            .collect()
     }
 
-    /// `Tab`：月曆 ↔ 右邊的事項；切到右邊時選「選取那天或之後」的第一件事（都沒有就最後一件）
-    fn toggle_focus(&mut self) {
-        match self.focus {
-            Focus::Agenda => self.focus = Focus::Calendar,
-            Focus::Calendar => {
-                let Some(last) = self.items.len().checked_sub(1) else {
-                    return;
-                };
-                self.selected_item = self
-                    .items
-                    .iter()
-                    .position(|item| item.date >= self.selected)
-                    .unwrap_or(last);
-                self.selected = self.items[self.selected_item].date;
-                self.focus = Focus::Agenda;
+    /// 右邊的事項：`j` / `k` 上下一件，月曆選取的日期跟著那件事走
+    fn handle_agenda_key(&mut self, code: KeyCode) {
+        let visible = self.visible_items();
+        let last = visible.len().saturating_sub(1);
+        let index = match code {
+            KeyCode::Char('j') | KeyCode::Down => (self.selected_item + 1).min(last),
+            KeyCode::Char('k') | KeyCode::Up => self.selected_item.saturating_sub(1),
+            _ => return,
+        };
+        let Some(item) = visible.get(index) else {
+            return;
+        };
+        let date = item.date;
+        self.selected_item = index;
+        self.selected = date;
+    }
+
+    /// side menu：`j` / `k` 上下選日曆，`Space` / `Enter` 勾選或取消
+    fn handle_side_key(&mut self, code: KeyCode) {
+        let last = self.groups.len().saturating_sub(1);
+        match code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.selected_group = (self.selected_group + 1).min(last);
             }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.selected_group = self.selected_group.saturating_sub(1);
+            }
+            KeyCode::Char(' ') | KeyCode::Enter => {
+                if let Some(group) = self.groups.get_mut(self.selected_group) {
+                    group.shown = !group.shown;
+                }
+            }
+            _ => {}
         }
+    }
+
+    /// `Tab`：月曆 → 右邊的事項 → side menu（有畫才去）→ 月曆
+    fn next_focus(&mut self) {
+        match self.focus {
+            Focus::Calendar => {
+                if !self.focus_agenda() && self.side_shown {
+                    self.focus = Focus::Side;
+                }
+            }
+            Focus::Agenda if self.side_shown => self.focus = Focus::Side,
+            Focus::Agenda | Focus::Side => self.focus = Focus::Calendar,
+        }
+    }
+
+    /// 切到右邊的事項：選「選取那天或之後」的第一件事（都沒有就最後一件）；一件都沒顯示就不切，回傳 `false`
+    fn focus_agenda(&mut self) -> bool {
+        let visible = self.visible_items();
+        let Some(last) = visible.len().checked_sub(1) else {
+            return false;
+        };
+        let index = visible
+            .iter()
+            .position(|item| item.date >= self.selected)
+            .unwrap_or(last);
+        let date = visible[index].date;
+        self.selected_item = index;
+        self.selected = date;
+        self.focus = Focus::Agenda;
+        true
     }
 
     /// 選取的日期往後（負的 = 往前）移幾天；超出畫面上的月份就停在頭 / 尾那天

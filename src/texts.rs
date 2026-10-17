@@ -40,6 +40,14 @@ pub struct Texts {
     pub header_week: &'static str,
     /// 表頭：右邊事項那欄
     pub header_items: &'static str,
+    /// 表頭：side menu（日曆清單）
+    pub header_side: &'static str,
+    /// 表頭：版型 2 右邊那欄（從選取那天開始）
+    pub header_upcoming: &'static str,
+    /// 版型 2：今天那段標題後面加的字
+    pub today: &'static str,
+    /// 版型 2：選取那天沒有事
+    pub no_items: &'static str,
     /// 表頭的星期一到星期日：一天 3 格寬，名字要剛好 2 格（前面補一個空白）
     pub weekdays: [&'static str; 7],
 }
@@ -47,20 +55,28 @@ pub struct Texts {
 const ZH: Texts = Texts {
     lang: Lang::Zh,
     title: " roh-cal v2 mock：行事曆 ",
-    hints: " hjkl 移動  Tab 切換  t 今天  L English  q 離開 ",
+    hints: " hjkl 移動  Tab 切換  Space 勾選  s 側欄  1/2 版型  t 今天  L English  q 離開 ",
     header_month: "年月",
     header_week: " 週 ",
     header_items: " 重要事項",
+    header_side: " 日曆",
+    header_upcoming: " 當天起",
+    today: " 今天",
+    no_items: "沒有事",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
 };
 
 const EN: Texts = Texts {
     lang: Lang::En,
     title: " roh-cal v2 mock: planner ",
-    hints: " hjkl move  Tab switch  t today  L 中文  q quit ",
+    hints: " hjkl move  Tab switch  Space toggle  s sidebar  1/2 layout  t today  L 中文  q quit ",
     header_month: "",
     header_week: " Wk ",
     header_items: " Agenda",
+    header_side: " Calendars",
+    header_upcoming: " From this day",
+    today: " today",
+    no_items: "Nothing",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
 };
 
@@ -105,6 +121,27 @@ impl Texts {
                 EN_MONTHS[month_index(date)],
                 date.day(),
                 date.year()
+            ),
+        }
+    }
+}
+
+impl Texts {
+    /// 版型 2 每一天的標題，例：`10/17（六）` / `Sat Oct 17`
+    pub fn day_heading(&self, date: Date) -> String {
+        let weekday = date.weekday().to_monday_zero_offset() as usize;
+        match self.lang {
+            Lang::Zh => format!(
+                "{}/{}（{}）",
+                date.month(),
+                date.day(),
+                self.weekdays[weekday]
+            ),
+            Lang::En => format!(
+                "{} {} {}",
+                EN_WEEKDAYS[weekday],
+                EN_MONTHS[month_index(date)],
+                date.day()
             ),
         }
     }
