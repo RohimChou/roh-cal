@@ -3,23 +3,55 @@
 mod calendar;
 
 use crate::app::App;
+use jiff::civil::Date;
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
 };
 
-/// 畫整個畫面：中間左邊是月曆框，右邊先空著
-pub fn render(frame: &mut Frame, app: &mut App) {
-    let texts = app.lang.texts();
-    let theme = &app.theme;
+/// 畫面上每一塊的位置
+struct Areas {
+    /// 最上面一列：標題、選取的日期
+    title: Rect,
+    /// 中間左邊：月曆框（右邊先空著）
+    calendar: Rect,
+    /// 最下面一列：操作說明
+    hints: Rect,
+}
+
+/// 把整個 terminal（`screen`）切成幾塊；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
+fn areas(screen: Rect) -> Areas {
     let [title, main, hints] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Fill(1),
         Constraint::Length(1),
     ])
-    .areas(frame.area());
+    .areas(screen);
+    let [calendar, _] =
+        Layout::horizontal([Constraint::Length(calendar::WIDTH), Constraint::Fill(1)]).areas(main);
+    Areas {
+        title,
+        calendar,
+        hints,
+    }
+}
+
+/// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期上回傳 `None`
+pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
+    calendar::date_at(areas(app.screen).calendar, app, column, row)
+}
+
+/// 畫整個畫面：中間左邊是月曆框，右邊先空著
+pub fn render(frame: &mut Frame, app: &mut App) {
+    let texts = app.lang.texts();
+    let theme = &app.theme;
+    let Areas {
+        title,
+        calendar: calendar_area,
+        hints,
+    } = areas(frame.area());
     // 標題列：左邊 app 的名字、右邊選取的日期（後面留一格空白）
     // 兩段畫在同一列，顏色要放在 `Span` 上：`Line::styled` 的顏色會套到整列，後畫的會蓋掉先畫的
     let title_style = Style::new().fg(theme.label).add_modifier(Modifier::BOLD);
@@ -34,8 +66,6 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         hints,
     );
     // 月曆框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
-    let [calendar_area, _] =
-        Layout::horizontal([Constraint::Length(calendar::WIDTH), Constraint::Fill(1)]).areas(main);
     calendar::render(frame, calendar_area, app);
 }
 
@@ -273,6 +303,53 @@ mod tests {
                 app.selected
             );
         }
+    }
+
+    #[test]
+    fn click_positions_map_to_the_dates_on_screen() {
+        // 40 × 27、10 月在最上面（畫面見 `calendar_from_this_month_down_with_a_thick_line_between_years`）
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17));
+        app.screen = Rect::new(0, 0, 40, 27);
+        draw_app(&mut app, 40, 27);
+        // 一天 3 格，前面的空白也算那天：16 號是 x 24～26
+        assert_eq!(date_at(&app, 24, 6), Some(date(2026, 10, 16)));
+        assert_eq!(date_at(&app, 26, 6), Some(date(2026, 10, 16)));
+        assert_eq!(date_at(&app, 27, 6), Some(date(2026, 10, 17)));
+        assert_eq!(date_at(&app, 32, 6), Some(date(2026, 10, 18)));
+        // 11/1 在 11 月第一列的最後一格；12/31 是星期四
+        assert_eq!(date_at(&app, 31, 10), Some(date(2026, 11, 1)));
+        assert_eq!(date_at(&app, 22, 21), Some(date(2026, 12, 31)));
+        // 沒有日期：最後多留的那格、10/1 前面的空格、月和月之間的線、年月欄、週數欄、表頭、框線、操作說明、右邊空白
+        for (x, y) in [
+            (33, 6),
+            (13, 4),
+            (20, 9),
+            (5, 6),
+            (9, 6),
+            (20, 2),
+            (0, 6),
+            (20, 26),
+            (38, 6),
+        ] {
+            assert_eq!(date_at(&app, x, y), None, "({x}, {y})");
+        }
+    }
+
+    #[test]
+    fn click_positions_follow_the_scroll() {
+        // 捲到 11/7（畫面見 `calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom`）
+        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        app.screen = Rect::new(0, 0, 40, 12);
+        draw_app(&mut app, 40, 12);
+        for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
+            app.selected = day;
+            draw_app(&mut app, 40, 12);
+        }
+        // 最上面那列是 10/26 那週、下一列是線、再來是 11/1、11/2 那週
+        assert_eq!(date_at(&app, 13, 4), Some(date(2026, 10, 26)));
+        assert_eq!(date_at(&app, 13, 5), None);
+        assert_eq!(date_at(&app, 31, 6), Some(date(2026, 11, 1)));
+        assert_eq!(date_at(&app, 13, 7), Some(date(2026, 11, 2)));
     }
 
     #[test]

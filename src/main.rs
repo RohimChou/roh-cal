@@ -10,6 +10,11 @@ use app::App;
 use clap::Parser;
 use color_eyre::Result;
 use jiff::Zoned;
+use ratatui::crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
+    execute,
+};
+use std::io::stdout;
 use texts::Lang;
 
 fn main() -> Result<()> {
@@ -22,7 +27,32 @@ fn main() -> Result<()> {
     // 今天：系統時區的日期
     let today = Zoned::now().date();
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
-    ratatui::run(|terminal| App::new(lang, today).run(terminal))
+    ratatui::run(|terminal| {
+        // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
+        let _mouse = MouseCapture::enable()?;
+        App::new(lang, today).run(terminal)
+    })
+}
+
+/// 開著滑鼠事件的期間；drop 時自動關掉（正常結束、出錯、panic 都一樣）
+///
+/// `ratatui::run` 只會還原 raw mode 和 alternate screen，滑鼠要自己關，
+/// 不然離開後 terminal 還會一直收到滑鼠的控制碼
+struct MouseCapture;
+
+impl MouseCapture {
+    /// 開啟滑鼠事件（滾輪、點擊）
+    fn enable() -> Result<Self> {
+        execute!(stdout(), EnableMouseCapture)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for MouseCapture {
+    fn drop(&mut self) {
+        // drop 不能回傳錯誤；關不掉也沒辦法再做什麼，所以忽略
+        let _ = execute!(stdout(), DisableMouseCapture);
+    }
 }
 
 /// 命令列參數，例：`roh-cal --lang zh-TW`；`--help` 由 clap 自動產生。

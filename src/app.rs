@@ -5,7 +5,10 @@ use color_eyre::Result;
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers},
+    crossterm::event::{
+        self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    },
+    layout::Rect,
 };
 
 /// 整個程式的狀態
@@ -21,6 +24,8 @@ pub struct App {
     pub calendar_top: Option<i64>,
     /// 畫面的顏色
     pub theme: Theme,
+    /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
+    pub screen: Rect,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -34,6 +39,7 @@ impl App {
             selected: today,
             calendar_top: None,
             theme: Theme::catppuccin_mocha(),
+            screen: Rect::default(),
             should_quit: false,
         }
     }
@@ -41,10 +47,16 @@ impl App {
     /// 主迴圈：每一輪畫一次畫面、等一個輸入，直到要離開
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
+            // 先記下 terminal 的大小（視窗拉大縮小也會跟著變），畫面和滑鼠換算位置才一致
+            let size = terminal.size()?;
+            self.screen = Rect::new(0, 0, size.width, size.height);
             terminal.draw(|frame| ui::render(frame, &mut self))?;
-            // event::read() 會 block 到有輸入為止；只處理按下（有的 terminal 放開也會送一次）
-            if let Some(key) = event::read()?.as_key_press_event() {
+            // event::read() 會 block 到有輸入為止；按鍵只處理按下（有的 terminal 放開也會送一次）
+            let event = event::read()?;
+            if let Some(key) = event.as_key_press_event() {
                 self.handle_key(key);
+            } else if let Some(mouse) = event.as_mouse_event() {
+                self.handle_mouse(mouse);
             }
         }
         Ok(())
@@ -68,6 +80,23 @@ impl App {
                 self.selected = self.today;
                 self.calendar_top = None;
             }
+            _ => {}
+        }
+    }
+
+    /// 滑鼠：滾輪上下移一週、左鍵點月曆上的日期 = 選那天
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            // 往下滾（看後面的日期）：下一週；往上滾：上一週
+            MouseEventKind::ScrollDown => self.move_by(7),
+            MouseEventKind::ScrollUp => self.move_by(-7),
+            // 點在日期上才選；點在表頭、線、空格上不理
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(date) = ui::date_at(self, mouse.column, mouse.row) {
+                    self.selected = date;
+                }
+            }
+            // 其他（右鍵、拖曳、移動）不理
             _ => {}
         }
     }
@@ -111,6 +140,40 @@ mod tests {
         app.selected = date(2026, 12, 29);
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.selected, date(2027, 1, 5));
+    }
+
+    /// 滑鼠在 (`column`, `row`) 的一個動作
+    fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    #[test]
+    fn wheel_moves_a_week() {
+        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+        assert_eq!(app.selected, date(2026, 10, 24));
+        app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+        app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+        assert_eq!(app.selected, date(2026, 10, 10));
+    }
+
+    #[test]
+    fn left_click_on_a_date_selects_it() {
+        // 40 × 27 的畫面、10 月在最上面：16 號在 (24～26, 6)，見 ui.rs 的畫面 test
+        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        app.screen = Rect::new(0, 0, 40, 27);
+        app.calendar_top = Some(0);
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 6));
+        assert_eq!(app.selected, date(2026, 10, 16));
+        // 右鍵、點在表頭上：不理
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 6));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 2));
+        assert_eq!(app.selected, date(2026, 10, 16));
     }
 
     #[test]

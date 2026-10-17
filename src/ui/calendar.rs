@@ -12,7 +12,7 @@ use crate::{
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     style::{Color, Modifier, Style},
     symbols::line,
     text::{Line, Span},
@@ -145,15 +145,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(app.theme.line));
-    let inner = block.inner(area);
     frame.render_widget(block, area);
-    // 表頭（一列字 + 一條線）固定在上面，下面一列一列排月份
-    let [header, rule, body] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-    ])
-    .areas(inner);
+    let [header, rule, body] = inner_areas(area);
     // 捲動：還沒捲過（剛打開、按了 `t`）就先把選取那天的那個月放在最上面
     // 要改 `app`，所以放在拿 `&app.theme` 之前（Rust 不准一邊讀一邊改）
     let origin = app.today;
@@ -181,6 +174,36 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             Row::Week { label, days } => render_week(frame, area, label.as_deref(), days, app),
         }
     }
+}
+
+/// 框裡面怎麼切：表頭（一列字 + 一條線）固定在上面，下面一列一列排月份；畫畫面和滑鼠換算位置都用這個
+fn inner_areas(area: Rect) -> [Rect; 3] {
+    Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+    ])
+    .areas(Block::bordered().inner(area))
+}
+
+/// 滑鼠點在 terminal 的 (`column`, `row`)，點到月曆框（畫在 `area`）的哪一天；沒點在日期上回傳 `None`
+///
+/// 捲動的位置用上一次畫的時候記下的 `app.calendar_top`；一天佔 3 格（日期前面的空白也算那天）
+pub fn date_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Date> {
+    let [_, _, body] = inner_areas(area);
+    if !body.contains(Position::new(column, row)) {
+        return None;
+    }
+    // 點的是第幾列 → 哪個月那一塊的第幾列（月和月之間的線那列沒有日期）
+    let row = app.calendar_top? + i64::from(row - body.y);
+    let (month, start) = block_at(app.today, row);
+    let days = calendar::month_rows(month)
+        .get(usize::try_from(row - start).ok()?)
+        .copied()?;
+    // 第幾天：7 天那欄的第幾個 3 格；最後多留的那格是第 8 個，沒有日期
+    let [_, _, _, days_area] = Layout::horizontal(COLUMNS).areas(body);
+    let weekday = usize::from(column.checked_sub(days_area.x)? / 3);
+    days.get(weekday).copied().flatten()
 }
 
 /// 表頭：「年月  週 │ 一 二 … 日」；六、日用週末的顏色

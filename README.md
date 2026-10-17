@@ -19,4 +19,5 @@ cargo run --release
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `t` | Jump to today |
+| Mouse wheel / click | Move one week / select a day (hold `Shift` to select text in the terminal) |
 | `q` / `Esc` / `Ctrl+C` | Quit |
