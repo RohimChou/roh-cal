@@ -162,6 +162,59 @@ impl<'a> Months<'a> {
         Some(self.block_start(month) + i64::try_from(row).ok()?)
     }
 
+    /// 捲動後畫面最上面是第幾列：讓選到的東西看得到（`margin` = 離上下邊緣至少留幾列，見 `scrolled_top`）
+    ///
+    /// - 鍵盤在右邊（`chosen` 有值）：選到的那件事
+    /// - 鍵盤在月曆：先讓選取那週看得到（那週黏在畫面上就不動，免得在沒事的日子之間移動時右邊跳上跳下）；
+    ///   再讓那天的事看得到：最後一件下面留 `margin` 列、第一件在畫面上就好（放不下時先顧第一件）。
+    ///   那個月很高時週會黏在畫面最上面（見 `visible_rows`），所以月曆上那週一樣看得到
+    pub fn scrolled_to(
+        &self,
+        top: i64,
+        selected: Date,
+        chosen: Option<&Item>,
+        height: i64,
+        margin: i64,
+    ) -> i64 {
+        if let Some(row) = chosen.and_then(|item| self.item_row(item)) {
+            return scrolled_top(top, row, height, margin);
+        }
+        let top = if self.week_stuck_on_screen(selected, top, height) {
+            top
+        } else {
+            scrolled_top(top, self.row_of(selected), height, margin)
+        };
+        let day_rows: Vec<i64> = self
+            .month_items(selected)
+            .iter()
+            .filter(|item| item.date == Some(selected))
+            .filter_map(|item| self.item_row(item))
+            .collect();
+        match (day_rows.iter().min(), day_rows.iter().max()) {
+            (Some(&first), Some(&last)) => {
+                scrolled_top(scrolled_top(top, last, height, margin), first, height, 0)
+            }
+            _ => top,
+        }
+    }
+
+    /// 畫面最上面是第 `top` 列、有 `height` 列時，`date` 那週是不是黏在畫面上
+    /// （那個月的第一列捲到畫面上面、週往下移了，而且那週還沒被推出畫面；規則跟 `visible_rows` 一樣）
+    fn week_stuck_on_screen(&self, date: Date, top: i64, height: i64) -> bool {
+        let start = self.block_start(date);
+        let month_height = i64::try_from(self.month_height(date)).unwrap_or(0);
+        let weeks = i64::try_from(calendar::month_rows(date).len()).unwrap_or(0);
+        // 那個月的第一列在畫面上面幾列；不是最上面那一塊、或週沒往下移，就不算黏住
+        let skip = top - start;
+        if skip <= 0 || skip >= month_height {
+            return false;
+        }
+        let shift = skip.min(month_height - weeks);
+        // 那週實際畫在第幾列
+        let row = start + shift + (self.row_of(date) - start);
+        shift > 0 && top <= row && row < top + height
+    }
+
     /// 畫面上看得到的列：從第 `top` 列開始的 `height` 列（畫畫面和滑鼠換算都用這個）
     ///
     /// 一個月的事比週數多、那一塊很高時，往下捲到那個月的第一列跑到畫面上面去，

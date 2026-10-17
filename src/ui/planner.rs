@@ -4,7 +4,7 @@
 
 use super::{
     Click,
-    months::{Label, Months, Row, scrolled_top},
+    months::{Label, Months, Row},
 };
 use crate::{
     app::{App, Focus},
@@ -75,14 +75,10 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         let top = app
             .calendar_top
             .unwrap_or_else(|| months.block_start(app.selected));
-        // 鍵盤在右邊：讓選到的那件事那列看得到；在月曆：讓選取那天那週看得到
-        let selected_row = app
-            .chosen()
-            .and_then(|item| months.item_row(item))
-            .unwrap_or_else(|| months.row_of(app.selected));
-        scrolled_top(
+        months.scrolled_to(
             top,
-            selected_row,
+            app.selected,
+            app.chosen(),
             i64::from(calendar_body.height),
             SCROLLOFF,
         )
@@ -159,8 +155,11 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                     if let Some(item) = item {
                         // 鍵盤在右邊時選到的那件事：日期加括號、墊底色
                         let is_chosen = chosen.is_some_and(|chosen| std::ptr::eq(chosen, *item));
+                        // 鍵盤在月曆時：選取那天的事墊底色（跟月曆上那週一樣）
+                        let on_selected_day =
+                            app.focus == Focus::Calendar && item.date == Some(app.selected);
                         frame.render_widget(item_line(item, app, is_chosen), *area);
-                        if is_chosen {
+                        if is_chosen || on_selected_day {
                             frame
                                 .buffer_mut()
                                 .set_style(*area, Style::new().bg(theme.cursor_line));

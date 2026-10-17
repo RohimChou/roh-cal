@@ -472,26 +472,39 @@ mod tests {
     }
 
     #[test]
-    fn selection_stays_on_screen_with_tall_months() {
-        // 範例任務檔有的月比週數高：一週一週往後 60 週、往前 120 週，括號都在畫面上、離上下緣至少 2 列
+    fn the_selected_day_and_its_items_stay_on_screen_with_tall_months() {
+        // 範例任務檔有的月比週數高（10 月很多事）：鍵盤在月曆，一天一天往後 120 天、往前 240 天，
+        // 每畫一次都檢查：月曆上看得到選取那天的括號；那天有事的話，右邊看得到那天的第一件
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
             crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
         );
-        let steps = std::iter::repeat_n(7, 60).chain(std::iter::repeat_n(-7, 120));
+        app.selected = date(2026, 9, 1);
+        let steps = std::iter::repeat_n(1, 120).chain(std::iter::repeat_n(-1, 240));
         for step in steps {
             app.selected = app.selected.saturating_add(step.days());
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
-            let selected = format!("[{}]", app.selected.day());
-            let y = body
+            // 每一列 `││` 左邊是月曆框、右邊是事項框
+            let (left, right): (Vec<&str>, Vec<&str>) = body
                 .iter()
-                .position(|row| row.contains(&selected))
-                .unwrap_or_else(|| panic!("{} 不在畫面上：{body:#?}", app.selected));
+                .map(|row| row.split_once("││").unwrap_or((row, "")))
+                .unzip();
+            let day = format!("[{}]", app.selected.day());
             assert!(
-                y >= 2 && y + 2 < body.len(),
-                "{}：在第 {y} 列",
+                left.iter().any(|row| row.contains(&day)),
+                "{}：月曆上看不到 {day}：{body:#?}",
+                app.selected
+            );
+            let has_items = app
+                .agenda()
+                .iter()
+                .any(|item| item.date == Some(app.selected));
+            let date = format!(" {}/{} ", app.selected.month(), app.selected.day());
+            assert!(
+                !has_items || right.iter().any(|row| row.contains(&date)),
+                "{}：右邊看不到那天的事：{body:#?}",
                 app.selected
             );
         }
@@ -679,6 +692,41 @@ mod tests {
         assert_eq!(click_at(&app, 40, 3), Some(Click::Item(2)));
         // 週下面、只有事的那列，左邊沒有日期
         assert_eq!(click_at(&app, 25, 8), None);
+    }
+
+    #[test]
+    fn the_agenda_follows_the_calendar() {
+        // 鍵盤在月曆、月曆只有 6 列，選 10/20：右邊捲到 10/20 那件（下面留 2 列），10 月的週黏在最上面
+        let mut app = agenda_app(Lang::ZhTw);
+        draw_app(&mut app, 70, 11);
+        app.selected = date(2026, 10, 20);
+        let terminal = draw_app(&mut app, 70, 11);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/17 聚餐                      │",
+                "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 08:00 早餐會              │",
+                "│       43 │ 19[20]21 22 23 24 25 ││ 10/18 07:00 爬山                │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/20 一個很長很長很長很長很長很│",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        assert_eq!(app.calendar_top, Some(4));
+        // 那天的事墊底色（跟月曆上那週一樣），別天的不墊
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(buffer[(40, 6)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 5)].bg, Color::Reset);
+        // 選沒事的 10/19：那週黏在畫面上，不捲（右邊不會跳上跳下）
+        app.selected = date(2026, 10, 19);
+        draw_app(&mut app, 70, 11);
+        assert_eq!(app.calendar_top, Some(4));
     }
 
     #[test]
