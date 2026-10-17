@@ -31,6 +31,8 @@ pub struct Theme {
     pub cursor_line: Color,
     /// 鍵盤在的那個框的框線
     pub focus: Color,
+    /// side menu 上勾選的日曆的 `☑`
+    pub checked: Color,
 }
 
 impl Theme {
@@ -65,6 +67,7 @@ impl Theme {
             selected: red,
             cursor_line: surface0,
             focus: mauve,
+            checked: mauve,
         }
     }
 }

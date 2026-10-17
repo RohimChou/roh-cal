@@ -17,9 +17,10 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週 | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色 | |
-| `src/ui.rs` | 把畫面切成左（月曆）、右（事項）、下（操作說明）；滑鼠點到什麼；**畫面 test 都在這** | ✓ |
+| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 都在這** | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
+| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 
 ## 一輪怎麼跑

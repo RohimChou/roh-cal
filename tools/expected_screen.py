@@ -1,11 +1,12 @@
-"""另外算出版型 1（左月曆 + 右事項）的畫面，當 `src/ui.rs` 畫面 test 的預期值。
+"""另外算出版型 1（side menu + 左月曆 + 右事項）的畫面，當 `src/ui.rs` 畫面 test 的預期值。
 
 跟 Rust 的程式分開寫（週用 Python 的 `calendar` 算、週數用另一種算法、任務檔用簡單的 regex 讀），
 兩邊算出來一樣才算對；不要看 Rust 畫出來的結果抄回來。
 
 用法（在 repo 最上層）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那塊的月份 YYYY-MM 跳過幾列] < 任務檔
 例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
-環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列
+環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
+SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）
 今天固定是 2026-10-17。
 """
 import calendar
@@ -16,17 +17,23 @@ import sys
 import unicodedata
 
 TEXTS = {
-    "en": dict(hints=" hjkl move  Tab switch  [] month  t today  q quit", hw=" Wk ",
+    "en": dict(hints=" hjkl move  Tab switch  [] month  t today  q quit",
+               hints_side=" hjkl move  Tab switch  [] month  t today  s calendars  q quit",
+               side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
-    "zh": dict(hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開", hw=" 週 ",
+    "zh": dict(hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+               hints_side=" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
+               side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
                date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）"),
 }
 CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
+SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
+SIDE_WIDTH = 22  # side menu 的寬度（含框線）
 
 
 def width(s):
@@ -69,10 +76,37 @@ def read_items(text):
     return items
 
 
-def screen(lang, w, h, selected, first, skip, items):
+def read_groups(text):
+    """分組（side menu 的日曆），照第一次出現的順序；回傳 [(名稱（標題之前的是 None）, 有日期的有幾件)]"""
+    groups = {}  # dict 會照放進去的順序
+    name = None
+    for line in text.splitlines():
+        heading = re.match(r"#+ (.*)", line)
+        if heading:
+            name = heading.group(1).strip()
+        elif re.match(r"\s*- ", line):
+            groups.setdefault(name, 0)
+            groups[name] += bool(re.search(r" @\d{4}-\d{2}-\d{2}", line))
+    return list(groups.items())
+
+
+def side_lines(t, h, groups):
+    """side menu 那一欄的每一列（含上下框線，不含操作說明）：一個日曆一列「 ☑ 名字    件數 」"""
+    iw = SIDE_WIDTH - 2
+    rows = [ljust(t["side"], iw), "─" * iw]
+    for name, count in groups:
+        count = f" {count} "
+        left = " ☑ " + (t["ungrouped"] if name is None else name)
+        rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
+    rows = (rows + [" " * iw] * h)[: h - 3]
+    return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
+
+
+def screen(lang, w, h, selected, first, skip, items, groups):
     t = TEXTS[lang]
     body_h = h - 5  # 框上下、表頭、表頭的線、操作說明
-    aw = w - 35  # 右邊框的寬度（含框線）
+    sw = SIDE_WIDTH if w >= 120 and not SIDE_HIDDEN else 0  # side menu 的寬度
+    aw = w - sw - 35  # 右邊框的寬度（含框線）
     iw = max(aw - 2, 0)  # 右邊框裡面的寬度
     n = min(max((iw + 2) // 30, 1), 4)  # 分幾欄
     colw = (iw - 2 * (n - 1)) // n if iw else 0
@@ -171,7 +205,10 @@ def screen(lang, w, h, selected, first, skip, items):
     lines = ["╭" + "─" * 33 + "╮" + ("╭" + "─" * iw + "╮" if aw else "")]
     lines += [framed(l, r, b) for l, r, b in inner]
     lines.append("╰" + "─" * 33 + "╯" + ("╰" + "─" * iw + "╯" if aw else ""))
-    lines.append(t["hints"])
+    if sw:
+        lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
+    # 夠寬時操作說明多一個 `s`（收起來也一樣）
+    lines.append(t["hints_side"] if w >= 120 else t["hints"])
     # 比畫面寬的（例：窄畫面的操作說明）會被切掉
     return [ljust(cut(line, w), w) for line in lines]
 
@@ -183,7 +220,7 @@ if len(sys.argv) > 6:
     skip = int(sys.argv[6])
 else:
     first, skip = (selected.year, selected.month), 0
-items = read_items(sys.stdin.read())
-for line in screen(lang, w, h, selected, first, skip, items):
+text = sys.stdin.read()
+for line in screen(lang, w, h, selected, first, skip, read_items(text), read_groups(text)):
     assert width(line) == w, (width(line), line)
     print(f'            "{line.rstrip()}",')

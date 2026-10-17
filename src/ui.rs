@@ -1,7 +1,8 @@
-//! 畫整個畫面：左邊月曆框、右邊事項框，最下面一列操作說明
+//! 畫整個畫面：最左邊 side menu（夠寬才有）、月曆框、右邊事項框，最下面一列操作說明
 
 mod months;
 mod planner;
+mod side;
 
 use crate::app::App;
 use jiff::civil::Date;
@@ -12,8 +13,18 @@ use ratatui::{
     text::Line,
 };
 
+/// terminal 至少這麼寬才畫 side menu
+const SIDE_MIN_WIDTH: u16 = 120;
+
+/// terminal（`screen`）夠不夠寬畫 side menu
+pub fn side_fits(screen: Rect) -> bool {
+    screen.width >= SIDE_MIN_WIDTH
+}
+
 /// 畫面上每一塊的位置
 struct Areas {
+    /// 最左邊：side menu（日曆清單）；沒畫的時候寬度是 0
+    side: Rect,
     /// 左邊：月曆框
     calendar: Rect,
     /// 右邊：事項框，跟月曆框同一列對齊；表頭右邊寫選取的日期
@@ -23,15 +34,24 @@ struct Areas {
 }
 
 /// 把整個 terminal（`screen`）切成幾塊；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
-fn areas(screen: Rect) -> Areas {
+///
+/// side menu 只在 terminal 夠寬、沒按 `s` 收起（`side_hidden`）時才有
+fn areas(screen: Rect, side_hidden: bool) -> Areas {
     let [main, hints] =
         Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(screen);
-    let [calendar, agenda] = Layout::horizontal([
+    let side_width = if side_fits(screen) && !side_hidden {
+        side::WIDTH
+    } else {
+        0
+    };
+    let [side, calendar, agenda] = Layout::horizontal([
+        Constraint::Length(side_width),
         Constraint::Length(planner::CALENDAR_WIDTH),
         Constraint::Fill(1),
     ])
     .areas(main);
     Areas {
+        side,
         calendar,
         agenda,
         hints,
@@ -49,23 +69,30 @@ pub enum Click {
 
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期或事上回傳 `None`
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
-    let areas = areas(app.screen);
+    let areas = areas(app.screen, app.side_hidden);
     planner::click_at(areas.calendar, areas.agenda, app, column, row)
 }
 
-/// 畫整個畫面：中間左邊是月曆框、右邊是事項框
+/// 畫整個畫面：中間最左邊是 side menu（夠寬才有）、再來是月曆框、右邊是事項框
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
     let Areas {
+        side: side_area,
         calendar: calendar_area,
         agenda: agenda_area,
         hints,
-    } = areas(frame.area());
-    frame.render_widget(
-        Line::styled(texts.hints, Style::new().fg(theme.muted)),
-        hints,
-    );
+    } = areas(frame.area(), app.side_hidden);
+    // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
+    let hint_text = if side_fits(frame.area()) {
+        texts.hints_side
+    } else {
+        texts.hints
+    };
+    frame.render_widget(Line::styled(hint_text, Style::new().fg(theme.muted)), hints);
+    if side_area.width > 0 {
+        side::render(frame, side_area, app);
+    }
     // 月曆框、事項框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
     planner::render(frame, calendar_area, agenda_area, app);
 }
@@ -371,6 +398,75 @@ mod tests {
             date(2026, 10, 17),
             crate::tasks::parse(AGENDA_TASKS).items,
         )
+    }
+
+    #[test]
+    fn the_side_menu_needs_120_columns() {
+        assert_eq!(areas(Rect::new(0, 0, 119, 20), false).side.width, 0);
+        assert_eq!(
+            areas(Rect::new(0, 0, 120, 20), false).side.width,
+            side::WIDTH
+        );
+        // 按 `s` 收起：月曆貼回最左邊
+        let hidden = areas(Rect::new(0, 0, 120, 20), true);
+        assert_eq!((hidden.side.width, hidden.calendar.x), (0, 0));
+    }
+
+    #[test]
+    fn side_menu_lists_the_calendars_when_wide() {
+        // 121 格寬：最左邊列出日曆（任務檔的分組，照出現的順序；標題之前的是「未分組」），
+        // 數字是有日期的事有幾件（「工作」有一件沒日期）；名字太長切掉；操作說明多一個 `s`
+        let mut app = agenda_app(Lang::ZhTw);
+        let terminal = draw_app(&mut app, 121, 14);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────────╮",
+                "│ 日曆               ││2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                                    2026/10/17（六） │",
+                "│────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
+                "│ ☑ 未分組         2 ││  10月 40 │           1  2  3  4 ││  10/5 繳電話費                  10/17 08:00 早餐會           │",
+                "│ ☑ 生活           5 ││       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                    10/18 07:00 爬山             │",
+                "│ ☑ 工作           1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                    10/20 一個很長很長很長很長很 │",
+                "│ ☑ 2026 年底的大  2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報                                           │",
+                "│                    ││       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                                                   │",
+                "│                    ││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
+                "│                    ││  11月 44 │                    1 ││  11/3 09:30 Release v2.3                                     │",
+                "│                    ││       45 │  2  3  4  5  6  7  8 ││                                                              │",
+                "│                    ││       46 │  9 10 11 12 13 14 15 ││                                                              │",
+                "╰────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
+            ]
+        );
+        // ☑ 用 `checked` 的顏色、名字是一般的字、數字和表頭淡色、框線是一般的線
+        let theme = Theme::catppuccin_mocha();
+        let buffer = terminal.backend().buffer();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(2, 3), ("☑", theme.checked));
+        assert_eq!(cell(4, 4), ("生", theme.text));
+        assert_eq!(cell(19, 4), ("5", theme.muted));
+        assert_eq!(cell(2, 1), ("日", theme.muted));
+        assert_eq!(cell(0, 0), ("╭", theme.line));
+        // 按 `s` 收起：月曆貼回最左邊，操作說明照樣有 `s`（再按一次打開）
+        app.side_hidden = true;
+        assert_eq!(
+            text_rows(draw_app(&mut app, 121, 14).backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                                                          2026/10/17（六） │",
+                "│──────────┼──────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││  10/5 繳電話費                             10/17 08:00 早餐會                      │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                               10/18 07:00 爬山                        │",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                               10/20 一個很長很長很長很長很長很長很長的│",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報                                                                 │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                                                                         │",
+                "│──────────┼──────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
+                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3                                                           │",
+                "│       45 │  2  3  4  5  6  7  8 ││                                                                                    │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                                                                    │",
+                "╰─────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
+            ]
+        );
     }
 
     #[test]

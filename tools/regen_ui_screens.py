@@ -26,12 +26,13 @@ PLAN = {
     "a_capped_month_scrolls_inside_while_choosing_items": [(["zh", "70", "11", "2026-10-20"], True, {"CHOSEN": "7", "WINDOW": "3"})],
     "the_agenda_follows_the_calendar": [(["zh", "70", "11", "2026-10-20"], True, {"WINDOW": "3"})],
     "a_hint_tells_how_many_more_items_a_month_has": [(["zh", "70", "11", "2026-10-17"], True, {"WINDOW": "2"})],
+    "side_menu_lists_the_calendars_when_wide": [(["zh", "121", "14", "2026-10-17"], True, {}), (["zh", "121", "14", "2026-10-17"], True, {"SIDE_HIDDEN": "1"})],
 }
 
 
 def generate(args, with_agenda, extra):
     """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
-    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW")}
+    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN")}
     env.update(extra)
     out = subprocess.run(["python3", str(GENERATOR), *args], input=AGENDA if with_agenda else "",
                          capture_output=True, text=True, check=True, env=env).stdout

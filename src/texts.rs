@@ -52,28 +52,40 @@ pub struct Texts {
     lang: Lang,
     /// 最下面一列的操作說明
     pub hints: &'static str,
+    /// 最下面一列的操作說明：terminal 夠寬、有 side menu 的時候（多一個 `s`）
+    pub hints_side: &'static str,
     /// 月曆表頭：週數那欄（4 格寬）
     pub header_week: &'static str,
     /// 月曆表頭的星期一到星期日：每個剛好 2 格寬
     pub weekdays: [&'static str; 7],
     /// 右邊事項框的表頭
     pub header_items: &'static str,
+    /// side menu（日曆清單）的表頭
+    pub header_side: &'static str,
+    /// side menu：檔案開頭、還沒有標題的項目
+    pub ungrouped: &'static str,
 }
 
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl move  Tab switch  [] month  t today  q quit",
+    hints_side: " hjkl move  Tab switch  [] month  t today  s calendars  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
+    header_side: " Calendars",
+    ungrouped: "Ungrouped",
 };
 
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+    hints_side: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
+    header_side: " 日曆",
+    ungrouped: "未分組",
 };
 
 /// 英文的月份縮寫，`[0]` 是一月

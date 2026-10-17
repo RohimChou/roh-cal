@@ -25,6 +25,34 @@ pub enum Focus {
     Agenda,
 }
 
+/// side menu 上的一個日曆（= 任務檔的一個分組）
+#[derive(Debug)]
+pub struct Group {
+    /// 分組名稱；`None` = 檔案開頭、還沒有標題的項目
+    pub name: Option<String>,
+    /// 有沒有勾選（剛打開時全部勾選）
+    pub shown: bool,
+}
+
+impl Group {
+    /// 任務檔裡的所有分組，照第一次出現的順序；名稱一樣的標題算同一個
+    fn list(items: &[Item]) -> Vec<Self> {
+        let mut groups: Vec<Self> = Vec::new();
+        for item in items {
+            let name = item.group.as_ref().map(|heading| heading.name.clone());
+            if !groups.iter().any(|group| group.name == name) {
+                groups.push(Self { name, shown: true });
+            }
+        }
+        groups
+    }
+
+    /// `item` 是不是這個分組的
+    pub fn includes(&self, item: &Item) -> bool {
+        self.name.as_deref() == item.group.as_ref().map(|heading| heading.name.as_str())
+    }
+}
+
 /// 整個程式的狀態
 #[derive(Debug)]
 pub struct App {
@@ -36,6 +64,10 @@ pub struct App {
     pub selected: Date,
     /// 任務檔裡的所有項目
     pub items: Vec<Item>,
+    /// side menu 上的日曆，照任務檔裡出現的順序
+    pub groups: Vec<Group>,
+    /// 按 `s` 收起 side menu
+    pub side_hidden: bool,
     /// 鍵盤在哪個框
     pub focus: Focus,
     /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
@@ -59,6 +91,8 @@ impl App {
             lang,
             today,
             selected: today,
+            groups: Group::list(&items),
+            side_hidden: false,
             items,
             focus: Focus::Calendar,
             agenda_index: 0,
@@ -110,8 +144,8 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；
-    /// 其他鍵看鍵盤在哪個框
+    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`s` 收起 / 打開 side menu、`q` / `Ctrl+C` 離開、
+    /// `Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
@@ -131,6 +165,10 @@ impl App {
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
+            // terminal 不夠寬時本來就沒有 side menu，按了不算
+            KeyCode::Char('s') if ui::side_fits(self.screen) => {
+                self.side_hidden = !self.side_hidden;
+            }
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
@@ -448,6 +486,37 @@ mod tests {
         press(&mut app, KeyCode::Char('t'));
         assert_eq!(app.selected, date(2026, 10, 17));
         assert_eq!(app.calendar_top, None);
+    }
+
+    #[test]
+    fn groups_keep_file_order() {
+        // 檔案開頭沒有標題的是 `None`；同名的標題算同一個；`##` 也是一個分組
+        let app = app_with("- a\n# 工作\n- b\n## 生活\n- c\n# 工作\n- d\n# 沒有項目\n");
+        let names: Vec<Option<&str>> = app
+            .groups
+            .iter()
+            .map(|group| group.name.as_deref())
+            .collect();
+        assert_eq!(names, [None, Some("工作"), Some("生活")]);
+        assert!(app.groups.iter().all(|group| group.shown));
+        // d 在第二個「# 工作」底下，也算「工作」
+        assert!(app.groups[1].includes(&app.items[3]));
+        assert!(!app.groups[0].includes(&app.items[3]));
+    }
+
+    #[test]
+    fn s_hides_the_side_menu_only_when_it_fits() {
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+        // 不夠寬：按了不算
+        app.screen = Rect::new(0, 0, 119, 30);
+        press(&mut app, KeyCode::Char('s'));
+        assert!(!app.side_hidden);
+        // 夠寬：收起、再按一次打開
+        app.screen = Rect::new(0, 0, 120, 30);
+        press(&mut app, KeyCode::Char('s'));
+        assert!(app.side_hidden);
+        press(&mut app, KeyCode::Char('s'));
+        assert!(!app.side_hidden);
     }
 
     #[test]

@@ -211,7 +211,9 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
 }
 
 /// 框裡面怎麼切：表頭（一列字 + 一條線）固定在上面，下面一列一列排月份；畫畫面和滑鼠換算位置都用這個
-fn inner_areas(area: Rect) -> [Rect; 3] {
+///
+/// side menu 也照這樣切，三個框的表頭才對齊
+pub(super) fn inner_areas(area: Rect) -> [Rect; 3] {
     Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),

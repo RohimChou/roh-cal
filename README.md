@@ -26,6 +26,7 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `Tab` | Switch between the calendar and the agenda (the focused pane's border lights up) |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
+| `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
 | Mouse wheel / click | Move one week (in the agenda: one item) / select a day or an item (hold `Shift` to select text in the terminal) |
 | `Esc` | Back to the calendar from the agenda; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |
