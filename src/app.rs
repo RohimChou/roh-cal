@@ -42,6 +42,8 @@ pub struct App {
     pub agenda_index: usize,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
+    /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；事太多、那個月放不下時才會捲
+    pub agenda_window: Option<(Date, usize)>,
     /// 畫面的顏色
     pub theme: Theme,
     /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
@@ -61,6 +63,7 @@ impl App {
             focus: Focus::Calendar,
             agenda_index: 0,
             calendar_top: None,
+            agenda_window: None,
             theme: Theme::catppuccin_mocha(),
             screen: Rect::default(),
             should_quit: false,

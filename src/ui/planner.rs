@@ -61,32 +61,58 @@ fn first_day(days: &WeekRow) -> Option<Date> {
     days.iter().flatten().next().copied()
 }
 
+/// 一個月最多佔月曆的幾分之一高（至少是那個月的週數），下面的月份才看得到
+const MAX_MONTH_SHARE: u16 = 2;
+
+/// 一個月最多幾列：月曆高度的 `1 / MAX_MONTH_SHARE`
+fn max_month_height(body: Rect) -> usize {
+    usize::from(body.height / MAX_MONTH_SHARE)
+}
+
 /// 畫左邊的月曆框（`calendar`）和右邊的事項框（`agenda`）
 ///
-/// 捲到選取那天離上下邊緣至少留 `SCROLLOFF` 列，捲完的位置記在 `app.calendar_top`
+/// 先在選取的那個月裡面捲右邊（記在 `app.agenda_window`），再捲整個畫面（記在 `app.calendar_top`），
+/// 讓選取那週和要看的事都看得到
 pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     let [calendar_header, calendar_rule, calendar_body] = inner_areas(calendar);
     let [agenda_header, agenda_rule, agenda_body] = inner_areas(agenda);
     let columns = agenda_columns(agenda_body.width);
-    // 捲動：還沒捲過（剛打開、按了 `t`）就先把選取那天的那個月放在最上面
+    let max_height = max_month_height(calendar_body);
     // 要改 `app`，所以先算好（`Months` 借著 `app.items`，Rust 不准一邊借著讀一邊改）
-    let top = {
-        let months = Months::new(app, columns);
+    let (top, window) = {
+        let mut months = Months::new(app, columns, max_height);
+        let month = app.selected.first_of_month();
+        // 右邊要看得到的事：鍵盤在右邊 = 選到的那件；在月曆 = 選取那天的事
+        let targets = match app.chosen() {
+            Some(item) => vec![item],
+            None => months.day_items(app.selected),
+        };
+        // 右邊在那個月裡面捲（換了月就從第一列開始）
+        let previous = app
+            .agenda_window
+            .filter(|(window_month, _)| *window_month == month)
+            .map_or(0, |(_, offset)| offset);
+        let window = (month, months.window_for(month, previous, &targets));
+        months.window = Some(window);
+        // 再捲整個畫面：還沒捲過（剛打開、按了 `t`）就先把選取那天的那個月放在最上面
         let top = app
             .calendar_top
             .unwrap_or_else(|| months.block_start(app.selected));
-        months.scrolled_to(
+        let top = months.scrolled_to(
             top,
             app.selected,
-            app.chosen(),
+            &targets,
             i64::from(calendar_body.height),
             SCROLLOFF,
-        )
+        );
+        (top, window)
     };
     app.calendar_top = Some(top);
+    app.agenda_window = Some(window);
     // 接下來只讀
     let app = &*app;
-    let months = Months::new(app, columns);
+    let mut months = Months::new(app, columns, max_height);
+    months.window = app.agenda_window;
     let texts = app.lang.texts();
     let theme = &app.theme;
     // 鍵盤在的那個框，框線用 `focus` 的顏色
@@ -103,7 +129,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     }
     let chosen = app.chosen();
 
-    // 畫面上看得到的列（事很多的月份，週會黏在畫面最上面，見 `Months::visible_rows`）
+    // 畫面上看得到的列
     let visible = months.visible_rows(top, usize::from(calendar_body.height));
 
     // 表頭：畫面上沒有 1 月寫的年份時，年月欄改寫最上面那週的年份，提醒現在是哪一年
@@ -188,9 +214,14 @@ fn inner_areas(area: Rect) -> [Rect; 3] {
 pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, calendar_body] = inner_areas(calendar);
     let [_, _, agenda_body] = inner_areas(agenda);
-    let months = Months::new(app, agenda_columns(agenda_body.width));
+    let mut months = Months::new(
+        app,
+        agenda_columns(agenda_body.width),
+        max_month_height(calendar_body),
+    );
+    months.window = app.agenda_window;
     let position = Position::new(column, row);
-    // 畫面上的每一列，跟畫畫面時一樣（含黏在上面的週）；左右兩個框同一列對齊
+    // 畫面上的每一列，跟畫畫面時一樣（含右邊捲過的）；左右兩個框同一列對齊
     let rows = months.visible_rows(app.calendar_top?, usize::from(calendar_body.height));
     if calendar_body.contains(position) {
         // 點的是哪一列（月和月之間的線、只有事的列都沒有日期）

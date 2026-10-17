@@ -627,8 +627,8 @@ mod tests {
 
     #[test]
     fn the_chosen_item_is_always_on_screen() {
-        // 範例任務檔：10 月的事比週數多很多，一欄時 10 月那一塊很高；一件一件往下選、再往上選，
-        // 選到的那件（日期有括號）都在畫面上，離上下緣至少 2 列
+        // 範例任務檔：10 月的事比週數多很多（一個月放不下，右邊要在裡面捲）；一件一件往下選、再往上選，
+        // 選到的那件（日期有括號）和月曆上選取的那天都在畫面上
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
@@ -642,11 +642,10 @@ mod tests {
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
             let chosen = format!("[{}/{}]", app.selected.month(), app.selected.day());
-            let y = body
-                .iter()
-                .position(|row| row.contains(&chosen))
-                .unwrap_or_else(|| panic!("第 {index} 件不在畫面上：{body:#?}"));
-            assert!(y >= 2 && y + 2 < body.len(), "第 {index} 件：在第 {y} 列");
+            assert!(
+                body.iter().any(|row| row.contains(&chosen)),
+                "第 {index} 件不在畫面上：{body:#?}"
+            );
             // 月曆框（每一列 `││` 左邊那半）上也看得到選取的那天
             let day = format!("[{}]", app.selected.day());
             assert!(
@@ -660,43 +659,45 @@ mod tests {
     }
 
     #[test]
-    fn weeks_stick_to_the_top_while_the_agenda_scrolls() {
-        // 10 月 8 件事、一欄：那一塊 8 列。月曆只有 8 列，選到第 8 件（10/20）時往下捲 2 列，
-        // 10 月的週黏在最上面，月曆上的 [20] 和右邊的 [10/20] 都看得到
+    fn a_capped_month_scrolls_inside_while_choosing_items() {
+        // 月曆 6 列 → 一個月最多 3 列，但至少是週數（10 月 5 週）：10 月 8 件事只放得下 5 件。
+        // 鍵盤在右邊、選到第 8 件（10/20）：10 月的右邊捲 3 列，月曆不動
         let mut app = agenda_app(Lang::ZhTw);
-        app.screen = Rect::new(0, 0, 70, 13);
+        app.screen = Rect::new(0, 0, 70, 11);
         app.focus = Focus::Agenda;
         app.agenda_index = 7;
         app.selected = date(2026, 10, 20);
-        let terminal = draw_app(&mut app, 70, 13);
+        let terminal = draw_app(&mut app, 70, 11);
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││ 10/15 修 bug                    │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報              │",
-                "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 聚餐                      │",
-                "│       43 │ 19[20]21 22 23 24 25 ││ 10/17 08:00 早餐會              │",
-                "│       44 │ 26 27 28 29 30 31    ││ 10/18 07:00 爬山                │",
-                "│          │                      ││[10/20]一個很長很長很長很長很長很│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 交週報              │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/17 聚餐                      │",
+                "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 08:00 早餐會              │",
+                "│       43 │ 19[20]21 22 23 24 25 ││ 10/18 07:00 爬山                │",
+                "│       44 │ 26 27 28 29 30 31    ││[10/20]一個很長很長很長很長很長很│",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
             ]
         );
-        // 點擊跟畫面一樣：黏住的第一週（y 3）的星期五是 10/2；右邊同一列是第 3 件（10/15 修 bug）
-        assert_eq!(click_at(&app, 25, 3), Some(Click::Day(date(2026, 10, 2))));
-        assert_eq!(click_at(&app, 40, 3), Some(Click::Item(2)));
-        // 週下面、只有事的那列，左邊沒有日期
-        assert_eq!(click_at(&app, 25, 8), None);
+        assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
+        assert_eq!(app.calendar_top, Some(0));
+        // 點擊跟畫面一樣：右邊第一列是第 4 件（10/16 交週報）
+        assert_eq!(click_at(&app, 40, 3), Some(Click::Item(3)));
+        // 選回第 1 件（10/5）：右邊捲回最上面
+        app.agenda_index = 0;
+        app.selected = date(2026, 10, 5);
+        draw_app(&mut app, 70, 11);
+        assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 0)));
     }
 
     #[test]
     fn the_agenda_follows_the_calendar() {
-        // 鍵盤在月曆、月曆只有 6 列，選 10/20：右邊捲到 10/20 那件（下面留 2 列），10 月的週黏在最上面
+        // 鍵盤在月曆、10 月只放得下 5 件：選 10/20，右邊捲到看得到 10/20 那件，月曆不動
         let mut app = agenda_app(Lang::ZhTw);
         draw_app(&mut app, 70, 11);
         app.selected = date(2026, 10, 20);
@@ -707,26 +708,31 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 交週報              │",
                 "│       41 │  5  6  7  8  9 10 11 ││ 10/17 聚餐                      │",
                 "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 08:00 早餐會              │",
                 "│       43 │ 19[20]21 22 23 24 25 ││ 10/18 07:00 爬山                │",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/20 一個很長很長很長很長很長很│",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
             ]
         );
-        assert_eq!(app.calendar_top, Some(4));
+        assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
+        assert_eq!(app.calendar_top, Some(0));
         // 那天的事墊底色（跟月曆上那週一樣），別天的不墊
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(40, 6)].bg, theme.cursor_line);
-        assert_eq!(buffer[(40, 5)].bg, Color::Reset);
-        // 選沒事的 10/19：那週黏在畫面上，不捲（右邊不會跳上跳下）
+        assert_eq!(buffer[(40, 7)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 6)].bg, Color::Reset);
+        // 選沒事的 10/19：右邊不捲（不會跳上跳下）
         app.selected = date(2026, 10, 19);
         draw_app(&mut app, 70, 11);
-        assert_eq!(app.calendar_top, Some(4));
+        assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
+        // 選 10/5：右邊捲回最上面
+        app.selected = date(2026, 10, 5);
+        draw_app(&mut app, 70, 11);
+        assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 0)));
     }
 
     #[test]

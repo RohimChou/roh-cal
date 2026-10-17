@@ -1,6 +1,7 @@
 //! 版型 1 的排版：每個月佔幾列、每一列的編號、捲動到哪（只算數字，不碰畫面）
 //!
-//! 一個月那一塊 = 週數和這個月的事排成幾列（分欄之後）比較多的那個，再加上後面那條線；
+//! 一個月那一塊 = 週數和這個月的事排成幾列（分欄之後）比較多的那個，但最多 `max_height` 列（至少是週數），
+//! 再加上後面那條線；放不下的事在那個月的右邊自己捲（`window`）。
 //! 每一列有一個編號：今天那個月的第一列是第 0 列，往下 1、2、3…，往上 -1、-2…
 
 use crate::{
@@ -34,7 +35,7 @@ pub enum Row<'a> {
     },
 }
 
-/// 排版要用的資料：哪個月是第 0 列、有日期的事（照日期、時間排好）、右邊分幾欄
+/// 排版要用的資料：哪個月是第 0 列、有日期的事（照日期、時間排好）、右邊分幾欄、一個月最多幾列、右邊捲到哪
 pub struct Months<'a> {
     /// 第 0 列所在的月（今天那個月）
     origin: Date,
@@ -42,14 +43,20 @@ pub struct Months<'a> {
     items: Vec<&'a Item>,
     /// 右邊的事分幾欄
     columns: usize,
+    /// 一個月最多幾列（比那個月的週數少時，以週數為準）
+    max_height: usize,
+    /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；其他月從第一列開始
+    pub window: Option<(Date, usize)>,
 }
 
 impl<'a> Months<'a> {
-    pub fn new(app: &'a App, columns: usize) -> Self {
+    pub fn new(app: &'a App, columns: usize, max_height: usize) -> Self {
         Self {
             origin: app.today,
             items: app.agenda(),
             columns,
+            max_height,
+            window: None,
         }
     }
 
@@ -62,10 +69,33 @@ impl<'a> Months<'a> {
         &self.items[start..end]
     }
 
-    /// 一個月那一塊有幾列（不算後面那條線）：週數和事排成幾列，比較多的那個
-    fn month_height(&self, month: Date) -> usize {
+    /// `date` 那天的事
+    pub fn day_items(&self, date: Date) -> Vec<&'a Item> {
+        self.month_items(date)
+            .iter()
+            .filter(|item| item.date == Some(date))
+            .copied()
+            .collect()
+    }
+
+    /// 這個月的事排成幾列（不限高；分欄時是每一欄的高度）：週數和事排成幾列，比較多的那個
+    fn layout_height(&self, month: Date) -> usize {
         let weeks = calendar::month_rows(month).len();
         weeks.max(self.month_items(month).len().div_ceil(self.columns))
+    }
+
+    /// 一個月那一塊有幾列（不算後面那條線）：排成幾列，但最多 `max_height` 列（至少是週數）
+    fn month_height(&self, month: Date) -> usize {
+        let weeks = calendar::month_rows(month).len();
+        self.layout_height(month).min(weeks.max(self.max_height))
+    }
+
+    /// `month` 的右邊捲到第幾列：選取的那個月照 `window`，其他月從 0 開始；最多捲到最後一列貼著那一塊的底
+    fn offset(&self, month: Date) -> usize {
+        let max = self.layout_height(month) - self.month_height(month);
+        self.window
+            .filter(|(window_month, _)| *window_month == month.first_of_month())
+            .map_or(0, |(_, offset)| offset.min(max))
     }
 
     /// 一個月那一塊有幾列，加上後面那條線
@@ -127,10 +157,11 @@ impl<'a> Months<'a> {
             }
             let weeks = calendar::month_rows(month);
             let items = self.month_items(month);
-            let month_height = self.month_height(month);
+            let layout_height = self.layout_height(month);
+            let offset = self.offset(month);
             // 1 月：第一列寫年份、第二列寫月份；其他月只在第一列寫月份
             let january = month.month() == 1;
-            for i in 0..month_height {
+            for i in 0..self.month_height(month) {
                 let label = match (january, i) {
                     (true, 0) => Some(Label::Year),
                     (true, 1) | (false, 0) => Some(Label::Month),
@@ -139,9 +170,10 @@ impl<'a> Months<'a> {
                 rows.push(Row::Week {
                     label,
                     days: weeks.get(i).copied(),
-                    // 先排滿第一欄再排第二欄：第 c 欄的第 i 列 = 這個月的第 c × 高度 + i 件事
+                    // 先排滿第一欄再排第二欄（每欄 `layout_height` 列），右邊捲了 `offset` 列：
+                    // 第 c 欄的第 i 列 = 這個月的第 c × 每欄列數 + offset + i 件事
                     items: (0..self.columns)
-                        .map(|c| items.get(c * month_height + i).copied())
+                        .map(|c| items.get(c * layout_height + offset + i).copied())
                         .collect(),
                 });
             }
@@ -150,103 +182,67 @@ impl<'a> Months<'a> {
         rows
     }
 
-    /// 右邊的 `item` 排在第幾列（鍵盤在右邊時，捲動要讓選到的那件事看得到）
-    pub fn item_row(&self, item: &Item) -> Option<i64> {
+    /// `item` 排在它那個月的哪一列（還沒捲；分欄時是在它那一欄的第幾列）：回傳那個月（1 號）和第幾列
+    fn layout_row(&self, item: &Item) -> Option<(Date, usize)> {
         let month = item.date?.first_of_month();
         let index = self
             .month_items(month)
             .iter()
             .position(|other| std::ptr::eq(*other, item))?;
-        // 先排滿第一欄再排第二欄：第 index 件在那一塊的第 index % 高度 列
-        let row = index % self.month_height(month);
-        Some(self.block_start(month) + i64::try_from(row).ok()?)
+        Some((month, index % self.layout_height(month)))
     }
 
-    /// 捲動後畫面最上面是第幾列：讓選到的東西看得到（`margin` = 離上下邊緣至少留幾列，見 `scrolled_top`）
-    ///
-    /// - 鍵盤在右邊（`chosen` 有值）：選到的那件事
-    /// - 鍵盤在月曆：先讓選取那週看得到（那週黏在畫面上就不動，免得在沒事的日子之間移動時右邊跳上跳下）；
-    ///   再讓那天的事看得到：最後一件下面留 `margin` 列、第一件在畫面上就好（放不下時先顧第一件）。
-    ///   那個月很高時週會黏在畫面最上面（見 `visible_rows`），所以月曆上那週一樣看得到
+    /// `month` 的右邊要捲到第幾列，才看得到 `targets` 那幾件事：從 `previous` 開始，
+    /// 前後盡量多留 1 列（看得到前後還有什麼）；看得到就不捲，免得右邊跳來跳去；放不下時先顧最上面那件
+    pub fn window_for(&self, month: Date, previous: usize, targets: &[&Item]) -> usize {
+        let month = month.first_of_month();
+        let height = i64::try_from(self.month_height(month)).unwrap_or(0);
+        let max = i64::try_from(self.layout_height(month)).unwrap_or(0) - height;
+        let previous = i64::try_from(previous).unwrap_or(0).min(max);
+        let rows: Vec<i64> = targets
+            .iter()
+            .filter_map(|item| self.layout_row(item))
+            .filter(|(item_month, _)| *item_month == month)
+            .filter_map(|(_, row)| i64::try_from(row).ok())
+            .collect();
+        let window = match (rows.iter().min(), rows.iter().max()) {
+            (Some(&first), Some(&last)) => scrolled_to_range(previous, first, last, height, 1),
+            _ => previous,
+        };
+        usize::try_from(window.clamp(0, max)).unwrap_or(0)
+    }
+
+    /// 捲動後畫面最上面是第幾列：選取那週離上下邊緣至少留 `margin` 列（見 `scrolled_top`），
+    /// 再讓 `targets` 那幾件事（照 `window` 捲過之後的位置）也看得到（不用留邊）；放不下時先顧最上面那個
     pub fn scrolled_to(
         &self,
         top: i64,
         selected: Date,
-        chosen: Option<&Item>,
+        targets: &[&Item],
         height: i64,
         margin: i64,
     ) -> i64 {
-        if let Some(row) = chosen.and_then(|item| self.item_row(item)) {
-            return scrolled_top(top, row, height, margin);
-        }
-        let top = if self.week_stuck_on_screen(selected, top, height) {
-            top
-        } else {
-            scrolled_top(top, self.row_of(selected), height, margin)
-        };
-        let day_rows: Vec<i64> = self
-            .month_items(selected)
-            .iter()
-            .filter(|item| item.date == Some(selected))
-            .filter_map(|item| self.item_row(item))
-            .collect();
-        match (day_rows.iter().min(), day_rows.iter().max()) {
-            (Some(&first), Some(&last)) => {
-                scrolled_top(scrolled_top(top, last, height, margin), first, height, 0)
+        let week = self.row_of(selected);
+        let top = scrolled_top(top, week, height, margin);
+        let mut rows = vec![week];
+        for (month, row) in targets.iter().filter_map(|item| self.layout_row(item)) {
+            // 那件事在那一塊裡畫在第幾列（右邊捲走、看不到的就不算）
+            let shown = row.checked_sub(self.offset(month));
+            if let Some(shown) = shown.filter(|&shown| shown < self.month_height(month)) {
+                rows.push(self.block_start(month) + i64::try_from(shown).unwrap_or(0));
             }
-            _ => top,
         }
-    }
-
-    /// 畫面最上面是第 `top` 列、有 `height` 列時，`date` 那週是不是黏在畫面上
-    /// （那個月的第一列捲到畫面上面、週往下移了，而且那週還沒被推出畫面；規則跟 `visible_rows` 一樣）
-    fn week_stuck_on_screen(&self, date: Date, top: i64, height: i64) -> bool {
-        let start = self.block_start(date);
-        let month_height = i64::try_from(self.month_height(date)).unwrap_or(0);
-        let weeks = i64::try_from(calendar::month_rows(date).len()).unwrap_or(0);
-        // 那個月的第一列在畫面上面幾列；不是最上面那一塊、或週沒往下移，就不算黏住
-        let skip = top - start;
-        if skip <= 0 || skip >= month_height {
-            return false;
-        }
-        let shift = skip.min(month_height - weeks);
-        // 那週實際畫在第幾列
-        let row = start + shift + (self.row_of(date) - start);
-        shift > 0 && top <= row && row < top + height
+        let first = rows.iter().copied().min().unwrap_or(week);
+        let last = rows.iter().copied().max().unwrap_or(week);
+        scrolled_to_range(top, first, last, height, 0)
     }
 
     /// 畫面上看得到的列：從第 `top` 列開始的 `height` 列（畫畫面和滑鼠換算都用這個）
-    ///
-    /// 一個月的事比週數多、那一塊很高時，往下捲到那個月的第一列跑到畫面上面去，
-    /// 那個月的週（左邊那半）就黏在畫面最上面，右邊的事照樣捲；
-    /// 快捲到那一塊的底時，週跟著被往上推（像手機通訊錄的字母標題）
     pub fn visible_rows(&self, top: i64, height: usize) -> Vec<Row<'a>> {
         // 從最上面那列所在的那個月開始排，前 `skip` 列在畫面上面
         let (month, start) = self.block_at(top);
         let skip = usize::try_from(top - start).unwrap_or(0);
         let mut rows = self.rows(month, skip + height);
-        // 這個月的週往下移幾列：最多移到週貼著那一塊的底
-        let month_height = self.month_height(month);
-        let weeks = calendar::month_rows(month).len();
-        let shift = skip.min(month_height - weeks);
-        if shift > 0 {
-            // 先把這一塊每一列左邊那半（年 / 月、這週的日子）記下來，再往下移；右邊的事不動
-            let left: Vec<(Option<Label>, Option<WeekRow>)> = rows[..month_height]
-                .iter()
-                .map(|row| match row {
-                    Row::Week { label, days, .. } => (*label, *days),
-                    Row::Separator { .. } => (None, None),
-                })
-                .collect();
-            for (i, row) in rows[..month_height].iter_mut().enumerate() {
-                if let Row::Week { label, days, .. } = row {
-                    (*label, *days) = i
-                        .checked_sub(shift)
-                        .and_then(|from| left.get(from).copied())
-                        .unwrap_or((None, None));
-                }
-            }
-        }
         rows.drain(..skip);
         rows.truncate(height);
         rows
@@ -271,6 +267,18 @@ pub fn scrolled_top(top: i64, selected: i64, height: i64, margin: i64) -> i64 {
     }
 }
 
+/// 捲動後畫面最上面是第幾列：讓第 `first`～`last` 列都看得到，上下盡量各留 `margin` 列
+/// （連邊一起放不下就把邊縮小）；還是放不下就先顧 `first`
+fn scrolled_to_range(top: i64, first: i64, last: i64, height: i64, margin: i64) -> i64 {
+    let margin = margin.min((height - (last - first + 1)) / 2).max(0);
+    scrolled_top(
+        scrolled_top(top, last, height, margin),
+        first,
+        height,
+        margin,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -290,7 +298,7 @@ mod tests {
     fn row_numbers_count_from_this_month() {
         // 今天是 2026/10：10 月第一列是第 0 列；沒有事時，每個月那一塊 = 週數 + 1 條線
         let app = app_with("");
-        let months = Months::new(&app, 1);
+        let months = Months::new(&app, 1, 100);
         assert_eq!(months.block_start(date(2026, 10, 1)), 0);
         assert_eq!(months.block_start(date(2026, 11, 20)), 6);
         assert_eq!(months.block_start(date(2027, 1, 1)), 19);
@@ -317,11 +325,11 @@ mod tests {
             .collect::<String>()
             + "- [ ] 九月 @2026-09-30\n- [ ] 沒日期\n";
         let app = app_with(&text);
-        let one = Months::new(&app, 1);
+        let one = Months::new(&app, 1, 100);
         assert_eq!(one.month_items(date(2026, 10, 1)).len(), 7);
         assert_eq!(one.block_height(date(2026, 10, 1)), 8);
         assert_eq!(one.block_start(date(2026, 11, 1)), 8);
-        let two = Months::new(&app, 2);
+        let two = Months::new(&app, 2, 100);
         assert_eq!(two.block_height(date(2026, 10, 1)), 6);
         // 選取的那週還是在那個月最上面幾列
         assert_eq!(one.row_of(date(2026, 11, 7)), 9);
@@ -334,7 +342,7 @@ mod tests {
             "- b @2026-10-16 17:30\n- a @2026-10-16 09:00\n- c @2026-10-16\n- d @2026-10-15\n\
              - e @2026-10-16 09:00\n",
         );
-        let months = Months::new(&app, 1);
+        let months = Months::new(&app, 1, 100);
         let titles: Vec<&str> = months
             .month_items(date(2026, 10, 1))
             .iter()
@@ -350,7 +358,7 @@ mod tests {
             .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
             .collect::<String>();
         let app = app_with(&text);
-        let months = Months::new(&app, 2);
+        let months = Months::new(&app, 2, 100);
         let rows = months.rows(date(2026, 10, 1), 6);
         let titles: Vec<[&str; 2]> = rows[..5]
             .iter()
@@ -386,7 +394,7 @@ mod tests {
             .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
             .collect::<String>();
         let app = app_with(&text);
-        let months = Months::new(&app, 1);
+        let months = Months::new(&app, 1, 100);
         assert_eq!(
             shape(&months.rows(date(2026, 10, 1), 22)),
             "wwwww..-wwwwww-wwwww=wwwww"
@@ -394,31 +402,33 @@ mod tests {
     }
 
     #[test]
-    fn weeks_stick_to_the_top_of_a_tall_month() {
-        // 10 月 20 件事（一欄）：那一塊 20 列，週只有 5 列
+    fn months_are_capped_and_scroll_inside() {
+        // 10 月 20 件事（一欄）：排起來 20 列；最多 8 列 → 那一塊 8 列，11 月從第 9 列開始
         let text = (1..=20)
             .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
             .collect::<String>();
         let app = app_with(&text);
-        let months = Months::new(&app, 1);
-        // 捲到第 7 列：10 月的 5 週黏在最上面，右邊是第 8 件起
-        let rows = months.visible_rows(7, 8);
-        assert_eq!(shape(&rows), "wwwww...");
-        let Row::Week { label, days, items } = &rows[0] else {
-            panic!("第一列應該是 10 月的第一週");
+        let mut months = Months::new(&app, 1, 8);
+        assert_eq!(months.month_height(date(2026, 10, 1)), 8);
+        assert_eq!(months.block_start(date(2026, 11, 1)), 9);
+        // 上限比週數少：至少是週數（10 月 5 週）
+        assert_eq!(Months::new(&app, 1, 3).month_height(date(2026, 10, 1)), 5);
+        let agenda = app.agenda();
+        let october = date(2026, 10, 1);
+        // 要看第 15 件（排在第 14 列）：右邊捲到第 8 列，下面留 1 列
+        assert_eq!(months.window_for(october, 0, &[agenda[14]]), 8);
+        // 已經看得到就不捲；沒有要看的就照舊；最多捲到最後一件貼著底（20 - 8 = 12）
+        assert_eq!(months.window_for(october, 8, &[agenda[10]]), 8);
+        assert_eq!(months.window_for(october, 8, &[]), 8);
+        assert_eq!(months.window_for(october, 50, &[]), 12);
+        // 捲了 8 列：10 月第一列右邊是第 9 件；別的月不受影響
+        months.window = Some((october, 8));
+        let rows = months.rows(october, 9);
+        let Row::Week { items, .. } = &rows[0] else {
+            panic!("第一列應該是 10 月");
         };
-        assert_eq!(*label, Some(Label::Month));
-        assert!(days.is_some_and(|days| days.contains(&Some(date(2026, 10, 1)))));
-        assert_eq!(items[0].map(|item| item.title.as_str()), Some("8"));
-        // 捲到第 17 列：那一塊只剩 3 列，週被往上推，只看得到後 3 週（10/12 那週起）
-        let rows = months.visible_rows(17, 8);
-        assert_eq!(shape(&rows), "www-wwww");
-        let Row::Week { days, .. } = &rows[0] else {
-            panic!("第一列應該是 10 月的第三週");
-        };
-        assert!(days.is_some_and(|days| days.contains(&Some(date(2026, 10, 12)))));
-        // 沒捲：跟平常一樣
-        assert_eq!(shape(&months.visible_rows(0, 8)), "wwwww...");
+        assert_eq!(items[0].map(|item| item.title.as_str()), Some("9"));
+        assert_eq!(rows[8], Row::Separator { year: false });
     }
 
     #[test]
@@ -426,7 +436,7 @@ mod tests {
         // 用另一個方向核對：每一天的列，找回來都是它自己那個月；前後 5 年（每 3 天一筆，星期幾都會輪到）
         // 用範例任務檔，有些月比週數高
         let app = app_with(include_str!("../../testdata/tasks.md"));
-        let months = Months::new(&app, 1);
+        let months = Months::new(&app, 1, 100);
         let mut day = date(2021, 1, 1);
         while day < date(2032, 1, 1) {
             let (month, start) = months.block_at(months.row_of(day));
