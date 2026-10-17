@@ -38,7 +38,7 @@ impl Theme {
         let blue = Color::Rgb(137, 180, 250);
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
-        let mauve = Color::Rgb(203, 166, 247);
+        let red = Color::Rgb(243, 139, 168);
         let peach = Color::Rgb(250, 179, 135);
 
         Self {
@@ -51,7 +51,7 @@ impl Theme {
             weekend: blue,
             has_item: peach,
             today: green,
-            selected: mauve,
+            selected: red,
         }
     }
 }
