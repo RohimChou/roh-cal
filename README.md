@@ -8,6 +8,12 @@ A simple, keyboard-driven terminal calendar for plain-text tasks.
 cargo run --release
 ```
 
+| Option | Meaning |
+| :- | :- |
+| `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
+| `-h`, `--help` | Print the options |
+| `-v`, `-V`, `--version` | Print the version |
+
 ## Keys
 | Key | Action |
 | :- | :- |
