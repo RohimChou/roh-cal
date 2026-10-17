@@ -5,14 +5,17 @@ A simple, keyboard-driven terminal calendar for plain-text tasks.
 
 ## Run
 ```sh
-cargo run --release
+cargo run --release -- --tasks testdata/tasks.md    # try it with the sample task file
 ```
 
 | Option | Meaning |
 | :- | :- |
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
+| `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
 | `-h`, `--help` | Print the options |
 | `-v`, `-V`, `--version` | Print the version |
+
+The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 
 ## Keys
 | Key | Action |

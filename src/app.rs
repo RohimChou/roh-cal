@@ -1,6 +1,6 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
-use crate::{texts::Lang, theme::Theme, ui};
+use crate::{tasks::Item, texts::Lang, theme::Theme, ui};
 use color_eyre::Result;
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
@@ -20,6 +20,8 @@ pub struct App {
     pub today: Date,
     /// 選取的日期：月曆上加括號 `[17]` 的那天
     pub selected: Date,
+    /// 任務檔裡的所有項目
+    pub items: Vec<Item>,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
     /// 畫面的顏色
@@ -32,11 +34,12 @@ pub struct App {
 
 impl App {
     /// 剛打開時的狀態：選取今天、theme 是 Catppuccin Mocha
-    pub fn new(lang: Lang, today: Date) -> Self {
+    pub fn new(lang: Lang, today: Date, items: Vec<Item>) -> Self {
         Self {
             lang,
             today,
             selected: today,
+            items,
             calendar_top: None,
             theme: Theme::catppuccin_mocha(),
             screen: Rect::default(),
@@ -119,7 +122,7 @@ mod tests {
 
     #[test]
     fn hjkl_and_arrows_move_by_a_day_or_a_week() {
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.selected, date(2026, 10, 24));
         press(&mut app, KeyCode::Char('l'));
@@ -154,7 +157,7 @@ mod tests {
 
     #[test]
     fn wheel_moves_a_week() {
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
         assert_eq!(app.selected, date(2026, 10, 24));
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
@@ -165,7 +168,7 @@ mod tests {
     #[test]
     fn left_click_on_a_date_selects_it() {
         // 40 × 27 的畫面、10 月在最上面：16 號在 (24～26, 6)，見 ui.rs 的畫面 test
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 27);
         app.calendar_top = Some(0);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 6));
@@ -178,7 +181,7 @@ mod tests {
 
     #[test]
     fn t_goes_back_to_today() {
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.selected = date(2027, 3, 1);
         app.calendar_top = Some(30);
         press(&mut app, KeyCode::Char('t'));
@@ -194,7 +197,7 @@ mod tests {
             KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
         ];
         for key in keys {
-            let mut app = App::new(Lang::En, date(2026, 10, 17));
+            let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
             app.handle_key(key);
             assert!(app.should_quit, "{key:?} 應該要離開");
         }
@@ -209,7 +212,7 @@ mod tests {
             KeyEvent::from(KeyCode::Enter),
         ];
         for key in keys {
-            let mut app = App::new(Lang::En, date(2026, 10, 17));
+            let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
             app.handle_key(key);
             assert!(!app.should_quit, "{key:?} 不應該離開");
         }

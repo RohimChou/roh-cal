@@ -82,7 +82,7 @@ mod tests {
 
     /// 用 `lang` 畫一次 `width` × `height` 的畫面：今天是 2026/10/17、選取 `selected`
     fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBackend> {
-        let mut app = App::new(lang, date(2026, 10, 17));
+        let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
         app.selected = selected;
         draw_app(&mut app, width, height)
     }
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
         // 月曆有 6 列：10/17 → 10/24 → 10/31 → 11/7 一路往下，選取的那列離下緣至少留 2 列，不夠才捲
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         draw_app(&mut app, 40, 12);
         for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
             app.selected = day;
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn calendar_scrolls_up_into_earlier_months() {
         // 10/17 往上一週到 10/10：上面只剩 1 列，往上捲 1 列，露出 9 月後面的線
-        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17));
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         draw_app(&mut app, 40, 12);
         app.selected = date(2026, 10, 10);
         assert_eq!(
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn selection_always_stays_two_rows_from_the_edges() {
         // 一天一天往後 40 天、一週一週往後 120 週、再往前 240 週：每畫一次都檢查括號在畫面上、離上下緣至少 2 列
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         let steps = std::iter::repeat_n(1, 40)
             .chain(std::iter::repeat_n(7, 120))
             .chain(std::iter::repeat_n(-7, 240));
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn click_positions_map_to_the_dates_on_screen() {
         // 40 × 27、10 月在最上面（畫面見 `calendar_from_this_month_down_with_a_thick_line_between_years`）
-        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17));
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 27);
         draw_app(&mut app, 40, 27);
         // 一天 3 格，前面的空白也算那天：16 號是 x 24～26
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn click_positions_follow_the_scroll() {
         // 捲到 11/7（畫面見 `calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom`）
-        let mut app = App::new(Lang::En, date(2026, 10, 17));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 12);
         draw_app(&mut app, 40, 12);
         for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
@@ -403,6 +403,28 @@ mod tests {
             (cell.symbol(), cell.fg),
             ("2", Theme::catppuccin_mocha().muted)
         );
+    }
+
+    #[test]
+    fn days_with_open_items_are_orange() {
+        // 16 號有沒做完的事 → 橘；15 號只有做完的 → 跟沒事一樣；17 號（今天）有事 → 還是今天的顏色；
+        // 18 號（日）有事 → 橘蓋過週末；14 號沒事
+        let text = "- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 聚餐 @2026-10-17\n\
+                    - [ ] 爬山 @2026-10-18 07:00\n";
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        let terminal = draw_app(&mut app, 40, 27);
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let fg = |x: u16| (buffer[(x, 6)].symbol(), buffer[(x, 6)].fg);
+        assert_eq!(fg(20), ("4", theme.text));
+        assert_eq!(fg(23), ("5", theme.text));
+        assert_eq!(fg(26), ("6", theme.has_item));
+        assert_eq!(fg(29), ("7", theme.today));
+        assert_eq!(fg(32), ("8", theme.has_item));
     }
 
     #[test]
