@@ -4,13 +4,15 @@ use crate::{
     app::App,
     calendar::{self, WeekRow},
     texts::Texts,
+    theme::Theme,
 };
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
+    style::{Color, Modifier, Style},
     symbols::line,
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, BorderType},
 };
 
@@ -65,7 +67,10 @@ fn rows(first: Date, height: usize, texts: &Texts) -> Vec<Row> {
 /// 畫月曆框：最上面是今天那個月
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let texts = app.lang.texts();
-    let block = Block::bordered().border_type(BorderType::Rounded);
+    let theme = &app.theme;
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::new().fg(theme.line));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     // 表頭（一列字 + 一條線）固定在上面，下面一列一列排月份
@@ -75,39 +80,50 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Constraint::Fill(1),
     ])
     .areas(inner);
-    render_header(frame, header, texts);
-    render_rule(frame, rule, false);
+    render_header(frame, header, texts, theme);
+    render_rule(frame, rule, false, theme);
     let rows = rows(app.today, usize::from(body.height), texts);
     for (y, row) in (body.y..body.bottom()).zip(&rows) {
         let area = Rect::new(body.x, y, body.width, 1);
         match row {
-            Row::Separator { year } => render_rule(frame, area, *year),
-            Row::Week { label, days } => render_week(frame, area, label.as_deref(), days),
+            Row::Separator { year } => render_rule(frame, area, *year, theme),
+            Row::Week { label, days } => render_week(frame, area, label.as_deref(), days, app),
         }
     }
 }
 
-/// 表頭：「年月  週 │ 一 二 … 日」
-fn render_header(frame: &mut Frame, area: Rect, texts: &Texts) {
-    let weekdays: String = texts
+/// 表頭：「年月  週 │ 一 二 … 日」；六、日用週末的顏色
+fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme) {
+    let muted = Style::new().fg(theme.muted);
+    let weekdays: Vec<Span> = texts
         .weekdays
         .iter()
-        .map(|name| format!(" {name}"))
+        .enumerate()
+        .map(|(i, name)| {
+            // 第 6、7 個是星期六、星期日
+            let style = if i >= 5 {
+                Style::new().fg(theme.weekend)
+            } else {
+                muted
+            };
+            Span::styled(format!(" {name}"), style)
+        })
         .collect();
     render_cells(
         frame,
         area,
         [
-            Line::from(texts.header_month).right_aligned(),
-            Line::from(texts.header_week).right_aligned(),
-            Line::from(line::VERTICAL),
+            Line::styled(texts.header_month, muted).right_aligned(),
+            Line::styled(texts.header_week, muted).right_aligned(),
+            Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             Line::from(weekdays),
         ],
     );
 }
 
 /// 一週：左邊的年 / 月、週數、│、7 天（一天 3 格寬、日期靠右）
-fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRow) {
+fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRow, app: &App) {
+    let theme = &app.theme;
     // 週數：這一列任何一天都行（同一列一定是同一週）
     let week = days
         .iter()
@@ -115,37 +131,58 @@ fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRo
         .next()
         .map(|day| format!("{:>3} ", calendar::week_of_year(*day)))
         .unwrap_or_default();
-    let days: String = days
+    let days: Vec<Span> = days
         .iter()
         .map(|day| match day {
-            Some(day) => format!("{:>3}", day.day()),
-            None => "   ".to_string(),
+            Some(day) => {
+                // 今天的日期加粗
+                let mut style = Style::new().fg(day_color(*day, app));
+                if *day == app.today {
+                    style = style.add_modifier(Modifier::BOLD);
+                }
+                Span::styled(format!("{:>3}", day.day()), style)
+            }
+            None => Span::raw("   "),
         })
         .collect();
     render_cells(
         frame,
         area,
         [
-            Line::from(label.unwrap_or_default()).right_aligned(),
-            Line::from(week),
-            Line::from(line::VERTICAL),
+            Line::styled(label.unwrap_or_default(), Style::new().fg(theme.label)).right_aligned(),
+            Line::styled(week, Style::new().fg(theme.week_number)),
+            Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             Line::from(days),
         ],
     );
 }
 
-/// 橫線（`thick` = 跨年的粗線）；跟直線交會的地方畫十字
-fn render_rule(frame: &mut Frame, area: Rect, thick: bool) {
-    let (horizontal, cross) = if thick {
-        (line::THICK_HORIZONTAL, "┿")
+/// 一天的日期顏色：今天 > 週末 > 一般
+fn day_color(day: Date, app: &App) -> Color {
+    let theme = &app.theme;
+    if day == app.today {
+        theme.today
+    } else if day.weekday().to_monday_zero_offset() >= 5 {
+        theme.weekend
     } else {
-        (line::HORIZONTAL, line::CROSS)
+        theme.text
+    }
+}
+
+/// 橫線（`thick` = 跨年的粗線）；跟直線交會的地方畫十字
+fn render_rule(frame: &mut Frame, area: Rect, thick: bool, theme: &Theme) {
+    let (horizontal, cross, color) = if thick {
+        (line::THICK_HORIZONTAL, "┿", theme.year_line)
+    } else {
+        (line::HORIZONTAL, line::CROSS, theme.line)
     };
+    let style = Style::new().fg(color);
     let columns = Layout::horizontal(COLUMNS).areas::<4>(area);
     for (i, column) in columns.into_iter().enumerate() {
         // 第 3 欄是直線那欄
         let symbol = if i == 2 { cross } else { horizontal };
-        frame.render_widget(symbol.repeat(usize::from(column.width)), column);
+        let text = symbol.repeat(usize::from(column.width));
+        frame.render_widget(Line::styled(text, style), column);
     }
 }
 

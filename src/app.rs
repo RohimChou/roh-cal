@@ -1,6 +1,6 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
-use crate::{texts::Lang, ui};
+use crate::{texts::Lang, theme::Theme, ui};
 use color_eyre::Result;
 use jiff::civil::Date;
 use ratatui::{
@@ -15,16 +15,19 @@ pub struct App {
     pub lang: Lang,
     /// 今天（打開程式那天；test 可以指定任何一天）
     pub today: Date,
+    /// 畫面的顏色
+    pub theme: Theme,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
 
 impl App {
-    /// 剛打開時的狀態
+    /// 剛打開時的狀態：theme 是 Catppuccin Mocha
     pub fn new(lang: Lang, today: Date) -> Self {
         Self {
             lang,
             today,
+            theme: Theme::catppuccin_mocha(),
             should_quit: false,
         }
     }

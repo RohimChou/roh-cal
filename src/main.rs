@@ -3,6 +3,7 @@
 mod app;
 mod calendar;
 mod texts;
+mod theme;
 mod ui;
 
 use app::App;
