@@ -23,8 +23,9 @@ pub enum Label {
 /// 畫面上的一列（左右兩個框的同一列）
 #[derive(Debug, PartialEq)]
 pub enum Row<'a> {
-    /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線
-    Separator { year: bool },
+    /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線；
+    /// `hidden` = 上面那個月的右邊，下面還有幾件沒顯示出來（要捲才看得到）
+    Separator { year: bool, hidden: usize },
     /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一件事（可能沒有）、
     /// 右框線的捲軸
     ///
@@ -152,12 +153,16 @@ impl<'a> Months<'a> {
     pub fn rows(&self, first: Date, height: usize) -> Vec<Row<'a>> {
         let mut rows = Vec::new();
         let mut month = first.first_of_month();
+        // 上一個月下面還有幾件沒顯示出來（寫在這個月上面那條線上）
+        let mut hidden = 0;
         while rows.len() < height {
             if !rows.is_empty() {
                 rows.push(Row::Separator {
                     year: month.month() == 1,
+                    hidden,
                 });
             }
+            hidden = self.hidden_below(month);
             let weeks = calendar::month_rows(month);
             let items = self.month_items(month);
             let layout_height = self.layout_height(month);
@@ -185,6 +190,21 @@ impl<'a> Months<'a> {
             month = month.saturating_add(1.month());
         }
         rows
+    }
+
+    /// `month` 的右邊，捲過之後下面還有幾件沒顯示出來（每一欄都算）
+    fn hidden_below(&self, month: Date) -> usize {
+        let count = self.month_items(month).len();
+        let layout_height = self.layout_height(month);
+        // 看得到的最後一列的下一列
+        let end = self.offset(month) + self.month_height(month);
+        (0..self.columns)
+            .map(|c| {
+                // 第 c 欄有幾件（每欄最多 `layout_height` 件）
+                let in_column = count.saturating_sub(c * layout_height).min(layout_height);
+                in_column.saturating_sub(end)
+            })
+            .sum()
     }
 
     /// `item` 排在它那個月的哪一列（還沒捲；分欄時是在它那一欄的第幾列）：回傳那個月（1 號）和第幾列
@@ -388,15 +408,21 @@ mod tests {
             titles,
             [["1", "6"], ["2", "7"], ["3", ""], ["4", ""], ["5", ""]]
         );
-        assert_eq!(rows[5], Row::Separator { year: false });
+        assert_eq!(
+            rows[5],
+            Row::Separator {
+                year: false,
+                hidden: 0
+            }
+        );
     }
 
     /// 每列的種類，方便比對：`-` = 細線、`=` = 粗線、`w` = 有日期的列、`.` = 只有事的列
     fn shape(rows: &[Row]) -> String {
         rows.iter()
             .map(|row| match row {
-                Row::Separator { year: false } => '-',
-                Row::Separator { year: true } => '=',
+                Row::Separator { year: false, .. } => '-',
+                Row::Separator { year: true, .. } => '=',
                 Row::Week { days: Some(_), .. } => 'w',
                 Row::Week { days: None, .. } => '.',
             })
@@ -445,7 +471,14 @@ mod tests {
             panic!("第一列應該是 10 月");
         };
         assert_eq!(items[0].map(|item| item.title.as_str()), Some("9"));
-        assert_eq!(rows[8], Row::Separator { year: false });
+        // 10 月下面那條線：還有 20 - 8 - 8 = 4 件沒顯示出來
+        assert_eq!(
+            rows[8],
+            Row::Separator {
+                year: false,
+                hidden: 4
+            }
+        );
     }
 
     #[test]

@@ -768,6 +768,45 @@ mod tests {
     }
 
     #[test]
+    fn a_hint_tells_how_many_more_items_a_month_has() {
+        // 剛打開（選今天 10/17）、10 月只放得下 5 件：右邊捲 2 列看 10/17 的事，
+        // 10 月下面那條線寫「還有 1 件」（10/20 那件）
+        let mut app = agenda_app(Lang::ZhTw);
+        let terminal = draw_app(&mut app, 70, 11);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││ 10/15 修 bug                    │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報              ┃",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/17 聚餐                      ┃",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/17 08:00 早餐會              ┃",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/18 07:00 爬山                │",
+                "│──────────┼──────────────────────││───────────────────── 還有 1 件 ─│",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        // 提示是淡色；提示左右的線還是線的顏色（「還」在 x 58，線的最後一格在 x 68）
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(
+            (buffer[(58, 8)].symbol(), buffer[(58, 8)].fg),
+            ("還", theme.muted)
+        );
+        assert_eq!(
+            (buffer[(40, 8)].symbol(), buffer[(40, 8)].fg),
+            ("─", theme.line)
+        );
+        assert_eq!(
+            (buffer[(68, 8)].symbol(), buffer[(68, 8)].fg),
+            ("─", theme.line)
+        );
+    }
+
+    #[test]
     fn colors_by_role() {
         let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();

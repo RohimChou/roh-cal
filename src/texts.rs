@@ -100,6 +100,14 @@ impl Texts {
         }
     }
 
+    /// 一個月的事放不下時，那個月下面那條線上的提示，例：`23 more` / `還有 23 件`
+    pub fn more_items(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} more"),
+            Lang::ZhTw => format!("還有 {count} 件"),
+        }
+    }
+
     /// 選取的日期（右邊事項框表頭的右邊），例：`Sat Oct 17, 2026` / `2026/10/17（六）`
     pub fn date_title(&self, date: Date) -> String {
         // 星期一 = 0、星期日 = 6
@@ -161,6 +169,12 @@ mod tests {
         let zh = Lang::ZhTw.texts();
         assert_eq!(zh.year_label(date(2027, 1, 1)), "2027年");
         assert_eq!(zh.month_label(date(2026, 10, 17)), "10月");
+    }
+
+    #[test]
+    fn more_items_in_both_languages() {
+        assert_eq!(Lang::En.texts().more_items(23), "23 more");
+        assert_eq!(Lang::ZhTw.texts().more_items(1), "還有 1 件");
     }
 
     #[test]

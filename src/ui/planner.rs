@@ -158,14 +158,18 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         Line::from(Span::styled(date, Style::new().fg(theme.text))).right_aligned(),
         agenda_header,
     );
-    render_rule(frame, calendar_rule, agenda_rule, false, theme);
+    render_rule(frame, calendar_rule, agenda_rule, false, None, theme);
 
     // 一列一列畫，左右兩個框的同一列在同一個高度
     for (y, row) in (calendar_body.y..calendar_body.bottom()).zip(&visible) {
         let calendar_row = Rect::new(calendar_body.x, y, calendar_body.width, 1);
         let agenda_row = Rect::new(agenda_body.x, y, agenda_body.width, 1);
         match row {
-            Row::Separator { year } => render_rule(frame, calendar_row, agenda_row, *year, theme),
+            Row::Separator { year, hidden } => {
+                // 上面那個月的事放不下：線的右邊寫還有幾件
+                let hint = (*hidden > 0).then(|| texts.more_items(*hidden));
+                render_rule(frame, calendar_row, agenda_row, *year, hint, theme);
+            }
             Row::Week {
                 label,
                 days,
@@ -444,8 +448,16 @@ fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 左右兩個框裡的同一條橫線（`thick` = 跨年的粗線）；月曆框裡跟直線交會的地方畫十字
-fn render_rule(frame: &mut Frame, calendar: Rect, agenda: Rect, thick: bool, theme: &Theme) {
+/// 左右兩個框裡的同一條橫線（`thick` = 跨年的粗線）；月曆框裡跟直線交會的地方畫十字；
+/// `hint` 有值：寫在右邊那段線的右邊（淡色，最後留一格線），例：`───── 還有 23 件 ─`
+fn render_rule(
+    frame: &mut Frame,
+    calendar: Rect,
+    agenda: Rect,
+    thick: bool,
+    hint: Option<String>,
+    theme: &Theme,
+) {
     let (horizontal, cross, color) = if thick {
         (line::THICK_HORIZONTAL, "┿", theme.year_line)
     } else {
@@ -461,6 +473,21 @@ fn render_rule(frame: &mut Frame, calendar: Rect, agenda: Rect, thick: bool, the
     }
     let text = horizontal.repeat(usize::from(agenda.width));
     frame.render_widget(Line::styled(text, style), agenda);
+    if let Some(hint) = hint {
+        // 顏色放在 `Span` 上：`Line::styled` 會把整列（連左邊的線）都換成淡色
+        let hint = Line::from(Span::styled(
+            format!(" {hint} "),
+            Style::new().fg(theme.muted),
+        ));
+        // 放得下才寫（前後至少各留一格線）
+        if hint.width() + 2 <= usize::from(agenda.width) {
+            let area = Rect {
+                width: agenda.width - 1,
+                ..agenda
+            };
+            frame.render_widget(hint.right_aligned(), area);
+        }
+    }
 }
 
 /// 月曆框一列的四欄各畫一段字
