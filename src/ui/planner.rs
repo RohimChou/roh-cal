@@ -61,12 +61,13 @@ fn first_day(days: &WeekRow) -> Option<Date> {
     days.iter().flatten().next().copied()
 }
 
-/// 一個月最多佔月曆的幾分之一高（至少是那個月的週數），下面的月份才看得到
-const MAX_MONTH_SHARE: u16 = 2;
+/// 一個月最多佔月曆的幾分之幾高（至少是那個月的週數），下面的月份才看得到：(分子, 分母) = 2/3
+const MAX_MONTH_SHARE: (u16, u16) = (2, 3);
 
-/// 一個月最多幾列：月曆高度的 `1 / MAX_MONTH_SHARE`
+/// 一個月最多幾列：月曆高度的 `MAX_MONTH_SHARE`
 fn max_month_height(body: Rect) -> usize {
-    usize::from(body.height / MAX_MONTH_SHARE)
+    let (numerator, denominator) = MAX_MONTH_SHARE;
+    usize::from(body.height) * usize::from(numerator) / usize::from(denominator)
 }
 
 /// 畫左邊的月曆框（`calendar`）和右邊的事項框（`agenda`）

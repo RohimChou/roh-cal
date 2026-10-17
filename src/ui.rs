@@ -752,6 +752,22 @@ mod tests {
     }
 
     #[test]
+    fn a_busy_month_takes_at_most_two_thirds() {
+        // 範例任務檔、70 × 24：月曆 19 列，10 月事很多 → 佔 19 × 2 / 3 = 12 列，下面的 11 月看得到幾週
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
+        );
+        let rows = text_rows(draw_app(&mut app, 70, 24).backend().buffer());
+        let body = &rows[3..rows.len() - 2];
+        assert_eq!(body.len(), 19);
+        let separator = body.iter().position(|row| row.contains('┼'));
+        assert_eq!(separator, Some(12));
+        assert!(body[13].contains("11月"));
+    }
+
+    #[test]
     fn colors_by_role() {
         let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
