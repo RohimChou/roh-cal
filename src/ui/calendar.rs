@@ -31,40 +31,40 @@ pub const WIDTH: u16 = 6 + 4 + 1 + 22 + 2;
 /// 選取的那列離畫面上下邊緣至少留幾列，不夠才捲（像 vim 的 scrolloff）
 const SCROLLOFF: i64 = 2;
 
+/// 左邊欄寫什麼
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Label {
+    /// 年份，例：`2027年`
+    Year,
+    /// 月份，例：`10月`
+    Month,
+}
+
 /// 框裡的一列
 #[derive(Debug, PartialEq)]
 enum Row {
     /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線
     Separator { year: bool },
     /// 一個月裡的一週：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子
-    Week {
-        label: Option<String>,
-        days: WeekRow,
-    },
+    Week { label: Option<Label>, days: WeekRow },
 }
 
-/// 從 `first` 那個月開始一個月一個月往下排，排到至少 `skip + height` 列（最後一個月可能超出去）
-///
-/// 前 `skip` 列是捲到畫面上面、看不到的
-fn rows(first: Date, skip: usize, height: usize, texts: &Texts) -> Vec<Row> {
+/// 從 `first` 那個月開始一個月一個月往下排，排到至少 `height` 列（最後一個月可能超出去）
+fn rows(first: Date, height: usize) -> Vec<Row> {
     let mut rows = Vec::new();
     let mut month = first.first_of_month();
-    // 畫面上已經有月份寫了年份
-    let mut year_shown = false;
-    while rows.len() < skip + height {
+    while rows.len() < height {
         if !rows.is_empty() {
             rows.push(Row::Separator {
                 year: month.month() == 1,
             });
         }
-        // 畫面上第一個從頭開始的月份和 1 月：第一列寫年份、第二列寫月份；其他月只在第一列寫月份
-        let on_screen = rows.len() >= skip;
-        let with_year = (on_screen && !year_shown) || month.month() == 1;
-        year_shown |= on_screen;
+        // 1 月：第一列寫年份、第二列寫月份；其他月只在第一列寫月份
+        let january = month.month() == 1;
         for (i, days) in calendar::month_rows(month).into_iter().enumerate() {
-            let label = match (with_year, i) {
-                (true, 0) => Some(texts.year_label(month)),
-                (true, 1) | (false, 0) => Some(texts.month_label(month)),
+            let label = match (january, i) {
+                (true, 0) => Some(Label::Year),
+                (true, 1) | (false, 0) => Some(Label::Month),
                 _ => None,
             };
             rows.push(Row::Week { label, days });
@@ -72,6 +72,11 @@ fn rows(first: Date, skip: usize, height: usize, texts: &Texts) -> Vec<Row> {
         month = month.saturating_add(1.month());
     }
     rows
+}
+
+/// 這一列（一週）裡第一個屬於這個月的日子；週數、年 / 月都用它算
+fn first_day(days: &WeekRow) -> Option<Date> {
+    days.iter().flatten().next().copied()
 }
 
 /// 一個月那一塊有幾列：每週一列，加上後面那條線
@@ -161,17 +166,37 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     );
     app.calendar_top = Some(top);
     let theme = &app.theme;
-    render_header(frame, header, texts, theme);
-    render_rule(frame, rule, false, theme);
     // 從最上面那列所在的那個月開始排，跳過那個月在畫面上面的列
     let (month, start) = block_at(origin, top);
     let skip = usize::try_from(top - start).unwrap_or(0);
-    let rows = rows(month, skip, usize::from(body.height), texts);
-    for (y, row) in (body.y..body.bottom()).zip(rows.iter().skip(skip)) {
+    let height = usize::from(body.height);
+    let rows = rows(month, skip + height);
+    let visible = &rows[skip..skip + height];
+    // 畫面上沒有 1 月寫的年份：表頭的年月欄改寫最上面那週的年份，提醒現在是哪一年
+    let year_on_screen = visible.iter().any(|row| {
+        matches!(
+            row,
+            Row::Week {
+                label: Some(Label::Year),
+                ..
+            }
+        )
+    });
+    let year_hint = if year_on_screen {
+        None
+    } else {
+        visible.iter().find_map(|row| match row {
+            Row::Week { days, .. } => first_day(days),
+            Row::Separator { .. } => None,
+        })
+    };
+    render_header(frame, header, texts, theme, year_hint);
+    render_rule(frame, rule, false, theme);
+    for (y, row) in (body.y..body.bottom()).zip(visible) {
         let area = Rect::new(body.x, y, body.width, 1);
         match row {
             Row::Separator { year } => render_rule(frame, area, *year, theme),
-            Row::Week { label, days } => render_week(frame, area, label.as_deref(), days, app),
+            Row::Week { label, days } => render_week(frame, area, *label, days, app),
         }
     }
 }
@@ -207,8 +232,18 @@ pub fn date_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Date> {
 }
 
 /// 表頭：「年月  週 │ 一 二 … 日」；六、日用週末的顏色
-fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme) {
+///
+/// `year_hint` 有值（畫面上看不到年份）：「年月」改寫那天的年份，例：「2026年  週」
+fn render_header(
+    frame: &mut Frame,
+    area: Rect,
+    texts: &Texts,
+    theme: &Theme,
+    year_hint: Option<Date>,
+) {
     let muted = Style::new().fg(theme.muted);
+    let month_header =
+        year_hint.map_or(texts.header_month.to_string(), |day| texts.year_label(day));
     let weekdays: Vec<Span> = texts
         .weekdays
         .iter()
@@ -227,7 +262,7 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme) {
         frame,
         area,
         [
-            Line::styled(texts.header_month, muted).right_aligned(),
+            Line::styled(month_header, muted).right_aligned(),
             Line::styled(texts.header_week, muted).right_aligned(),
             Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             Line::from(weekdays),
@@ -236,20 +271,24 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme) {
 }
 
 /// 一週：左邊的年 / 月、週數、│、7 天（一天 3 格寬、日期靠右）
-fn render_week(frame: &mut Frame, area: Rect, label: Option<&str>, days: &WeekRow, app: &App) {
+fn render_week(frame: &mut Frame, area: Rect, label: Option<Label>, days: &WeekRow, app: &App) {
     let theme = &app.theme;
+    let texts = app.lang.texts();
+    let day = first_day(days);
+    let label = match (label, day) {
+        (Some(Label::Year), Some(day)) => texts.year_label(day),
+        (Some(Label::Month), Some(day)) => texts.month_label(day),
+        _ => String::new(),
+    };
     // 週數：這一列任何一天都行（同一列一定是同一週）
-    let week = days
-        .iter()
-        .flatten()
-        .next()
-        .map(|day| format!("{:>3} ", calendar::week_of_year(*day)))
+    let week = day
+        .map(|day| format!("{:>3} ", calendar::week_of_year(day)))
         .unwrap_or_default();
     render_cells(
         frame,
         area,
         [
-            Line::styled(label.unwrap_or_default(), Style::new().fg(theme.label)).right_aligned(),
+            Line::styled(label, Style::new().fg(theme.label)).right_aligned(),
             Line::styled(week, Style::new().fg(theme.week_number)),
             Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             day_cells(days, app),
