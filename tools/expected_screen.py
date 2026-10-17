@@ -35,7 +35,7 @@ CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
-SIDE_WIDTH = 22  # side menu 的寬度（含框線）
+SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
 
 
 def width(s):
@@ -97,9 +97,16 @@ def read_groups(text):
     return list(groups.items())
 
 
+def side_width(t, groups):
+    """side menu 的寬度（含框線）：最長的那列「 ☑ 名字 件數 」加框線，在 SIDE_MIN ～ SIDE_MAX 之間"""
+    longest = max((3 + width(t["ungrouped"] if name is None else name) + len(f" {count} ")
+                   for name, count in groups), default=0)
+    return min(max(longest + 2, SIDE_MIN), SIDE_MAX)
+
+
 def side_lines(t, h, groups):
     """side menu 那一欄的每一列（含上下框線，不含操作說明）：一個日曆一列「 ☑ 名字    件數 」"""
-    iw = SIDE_WIDTH - 2
+    iw = side_width(t, groups) - 2
     rows = [ljust(t["side"], iw), "─" * iw]
     for i, (name, count) in enumerate(groups):
         count = f" {count} "
@@ -112,7 +119,7 @@ def side_lines(t, h, groups):
 def screen(lang, w, h, selected, first, skip, items, groups):
     t = TEXTS[lang]
     body_h = h - 5  # 框上下、表頭、表頭的線、操作說明
-    sw = SIDE_WIDTH if w >= 120 and not SIDE_HIDDEN else 0  # side menu 的寬度
+    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0  # side menu 的寬度
     aw = w - sw - 35  # 右邊框的寬度（含框線）
     iw = max(aw - 2, 0)  # 右邊框裡面的寬度
     n = min(max((iw + 2) // 30, 1), 4)  # 分幾欄

@@ -35,12 +35,12 @@ struct Areas {
 
 /// 把整個 terminal（`screen`）切成幾塊；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
 ///
-/// side menu 只在 terminal 夠寬、沒按 `s` 收起（`side_hidden`）時才有
-fn areas(screen: Rect, side_hidden: bool) -> Areas {
+/// side menu 只在 terminal 夠寬、沒按 `s` 收起時才有，寬度跟著日曆的名字
+fn areas(screen: Rect, app: &App) -> Areas {
     let [main, hints] =
         Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(screen);
-    let side_width = if side_fits(screen) && !side_hidden {
-        side::WIDTH
+    let side_width = if side_fits(screen) && !app.side_hidden {
+        side::width(app)
     } else {
         0
     };
@@ -71,7 +71,7 @@ pub enum Click {
 
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期、事、日曆上回傳 `None`
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
-    let areas = areas(app.screen, app.side_hidden);
+    let areas = areas(app.screen, app);
     if areas.side.contains(Position::new(column, row)) {
         return side::click_at(areas.side, app, column, row);
     }
@@ -87,7 +87,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         calendar: calendar_area,
         agenda: agenda_area,
         hints,
-    } = areas(frame.area(), app.side_hidden);
+    } = areas(frame.area(), app);
     // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
     let hint_text = if side_fits(frame.area()) {
         texts.hints_side
@@ -408,38 +408,38 @@ mod tests {
 
     #[test]
     fn the_side_menu_needs_120_columns() {
-        assert_eq!(areas(Rect::new(0, 0, 119, 20), false).side.width, 0);
-        assert_eq!(
-            areas(Rect::new(0, 0, 120, 20), false).side.width,
-            side::WIDTH
-        );
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        assert_eq!(areas(Rect::new(0, 0, 119, 20), &app).side.width, 0);
+        assert_eq!(areas(Rect::new(0, 0, 120, 20), &app).side.width, 22);
         // 按 `s` 收起：月曆貼回最左邊
-        let hidden = areas(Rect::new(0, 0, 120, 20), true);
+        app.side_hidden = true;
+        let hidden = areas(Rect::new(0, 0, 120, 20), &app);
         assert_eq!((hidden.side.width, hidden.calendar.x), (0, 0));
     }
 
     #[test]
     fn side_menu_lists_the_calendars_when_wide() {
         // 121 格寬：最左邊列出日曆（任務檔的分組，照出現的順序；標題之前的是「未分組」），
-        // 數字是有日期的事有幾件（「工作」有一件沒日期）；名字太長切掉；操作說明多一個 `s`
+        // 數字是有日期的事有幾件（「工作」有一件沒日期）；最後一個名字太長，框寬到 30 格還放不下，切掉；
+        // 操作說明多一個 `s`。右邊只剩一欄、10 月的 8 件放不下：捲 1 列，選取那天（10/17）的事後面多留一列
         let mut app = agenda_app(Lang::ZhTw);
         let terminal = draw_app(&mut app, 121, 14);
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                "╭────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────────╮",
-                "│ 日曆               ││2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                                    2026/10/17（六） │",
-                "│────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
-                "│ ☑ 未分組         2 ││  10月 40 │           1  2  3  4 ││  10/5 繳電話費                  10/17 08:00 早餐會           │",
-                "│ ☑ 生活           5 ││       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                    10/18 07:00 爬山             │",
-                "│ ☑ 工作           1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                    10/20 一個很長很長很長很長很 │",
-                "│ ☑ 2026 年底的大  2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報                                           │",
-                "│                    ││       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                                                   │",
-                "│                    ││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
-                "│                    ││  11月 44 │                    1 ││  11/3 09:30 Release v2.3                                     │",
-                "│                    ││       45 │  2  3  4  5  6  7  8 ││                                                              │",
-                "│                    ││       46 │  9 10 11 12 13 14 15 ││                                                              │",
-                "╰────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯",
+                "╭────────────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────╮",
+                "│ 日曆                       ││2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                            2026/10/17（六） │",
+                "│────────────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────│",
+                "│ ☑ 未分組                 2 ││  10月 40 │           1  2  3  4 ││ 10/10 國慶日                                         │",
+                "│ ☑ 生活                   5 ││       41 │  5  6  7  8  9 10 11 ││ 10/15 修 bug                                         ┃",
+                "│ ☑ 工作                   1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/16 17:30 交週報                                   ┃",
+                "│ ☑ 2026 年底的大小事情和  2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/17 聚餐                                           ┃",
+                "│                            ││       44 │ 26 27 28 29 30 31    ││ 10/17 08:00 早餐會                                   ┃",
+                "│                            ││          │                      ││ 10/18 07:00 爬山                                     │",
+                "│                            ││──────────┼──────────────────────││────────────────────────────────────────── 還有 1 件 ─│",
+                "│                            ││  11月 44 │                    1 ││  11/3 09:30 Release v2.3                             │",
+                "│                            ││       45 │  2  3  4  5  6  7  8 ││                                                      │",
+                "╰────────────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
             ]
         );
@@ -449,7 +449,7 @@ mod tests {
         let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
         assert_eq!(cell(2, 3), ("☑", theme.checked));
         assert_eq!(cell(4, 4), ("生", theme.text));
-        assert_eq!(cell(19, 4), ("5", theme.muted));
+        assert_eq!(cell(27, 4), ("5", theme.muted));
         assert_eq!(cell(2, 1), ("日", theme.muted));
         assert_eq!(cell(0, 0), ("╭", theme.line));
         // 按 `s` 收起：月曆貼回最左邊，操作說明照樣有 `s`（再按一次打開）
@@ -484,19 +484,19 @@ mod tests {
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                "╭────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────────╮",
-                "│ Calendars          ││  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                                      Sat Oct 17, 2026 │",
-                "│────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
-                "│ ☑ Ungrouped      2 ││   Oct 40 │           1  2  3  4 ││ 10/15 修 bug                                                 │",
-                "│ ☐ 生活           5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報                                           │",
-                "│ ☑ 工作           1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/20 一個很長很長很長很長很                                 │",
-                "│ ☑ 2026 年底的大  2 ││       43 │ 19 20 21 22 23 24 25 ││                                                              │",
-                "│                    ││       44 │ 26 27 28 29 30 31    ││                                                              │",
-                "│                    ││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
-                "│                    ││   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                                     │",
-                "│                    ││       45 │  2  3  4  5  6  7  8 ││                                                              │",
-                "│                    ││       46 │  9 10 11 12 13 14 15 ││                                                              │",
-                "╰────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯",
+                "╭────────────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────╮",
+                "│ Calendars                  ││  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                              Sat Oct 17, 2026 │",
+                "│────────────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────│",
+                "│ ☑ Ungrouped              2 ││   Oct 40 │           1  2  3  4 ││ 10/15 修 bug                                         │",
+                "│ ☐ 生活                   5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報                                   │",
+                "│ ☑ 工作                   1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/20 一個很長很長很長很長很長很長很長的標題         │",
+                "│ ☑ 2026 年底的大小事情和  2 ││       43 │ 19 20 21 22 23 24 25 ││                                                      │",
+                "│                            ││       44 │ 26 27 28 29 30 31    ││                                                      │",
+                "│                            ││──────────┼──────────────────────││──────────────────────────────────────────────────────│",
+                "│                            ││   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                             │",
+                "│                            ││       45 │  2  3  4  5  6  7  8 ││                                                      │",
+                "│                            ││       46 │  9 10 11 12 13 14 15 ││                                                      │",
+                "╰────────────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────╯",
                 " hjkl move  Tab switch  [] month  t today  s calendars  q quit",
             ]
         );
@@ -507,9 +507,9 @@ mod tests {
         assert_eq!(cell(4, 4), ("生", theme.muted));
         assert_eq!(cell(2, 3), ("☑", theme.checked));
         // 10/5（星期一）、10/10（星期六）回到平常的顏色；10/16 是沒分組的事，照樣橘色
-        assert_eq!(cell(36, 4), ("5", theme.text));
-        assert_eq!(cell(51, 4), ("0", theme.weekend));
-        assert_eq!(cell(48, 5), ("6", theme.has_item));
+        assert_eq!(cell(44, 4), ("5", theme.text));
+        assert_eq!(cell(59, 4), ("0", theme.weekend));
+        assert_eq!(cell(56, 5), ("6", theme.has_item));
     }
 
     #[test]
@@ -522,9 +522,9 @@ mod tests {
         let theme = Theme::catppuccin_mocha();
         let buffer = terminal.backend().buffer();
         assert_eq!(buffer[(0, 0)].fg, theme.focus);
-        assert_eq!(buffer[(22, 0)].fg, theme.line);
+        assert_eq!(buffer[(30, 0)].fg, theme.line);
         // 中文字後半那格（「生」「活」的 x 5、7）TestBackend 拿不到樣式，跳過
-        for x in (1..21).filter(|x| ![5, 7].contains(x)) {
+        for x in (1..29).filter(|x| ![5, 7].contains(x)) {
             assert_eq!(buffer[(x, 4)].bg, theme.cursor_line, "x = {x}");
             assert_ne!(buffer[(x, 3)].bg, theme.cursor_line, "x = {x}");
         }
@@ -544,12 +544,12 @@ mod tests {
         assert_eq!(click_at(&app, 1, 6), Some(Click::Group(3)));
         assert_eq!(click_at(&app, 20, 4), Some(Click::Group(1)));
         // 沒有日曆：下面的空白、表頭、表頭的線、左右框線、操作說明
-        for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (21, 3), (5, 13)] {
+        for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (29, 3), (5, 13)] {
             assert_eq!(click_at(&app, x, y), None, "({x}, {y})");
         }
-        // 月曆往右移了 22 格：16 號在 x 46～48
-        assert_eq!(date_at(&app, 46, 5), Some(date(2026, 10, 16)));
-        assert_eq!(date_at(&app, 49, 5), Some(date(2026, 10, 17)));
+        // 月曆往右移了 30 格：16 號在 x 54～56
+        assert_eq!(date_at(&app, 54, 5), Some(date(2026, 10, 16)));
+        assert_eq!(date_at(&app, 57, 5), Some(date(2026, 10, 17)));
     }
 
     #[test]
