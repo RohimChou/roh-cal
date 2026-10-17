@@ -1,6 +1,7 @@
 //! 畫整個畫面：最上面一列標題、中間的框、最下面一列操作說明
 
-mod calendar;
+mod months;
+mod planner;
 
 use crate::app::App;
 use jiff::civil::Date;
@@ -31,8 +32,11 @@ fn areas(screen: Rect) -> Areas {
         Constraint::Length(1),
     ])
     .areas(screen);
-    let [calendar, agenda] =
-        Layout::horizontal([Constraint::Length(calendar::WIDTH), Constraint::Fill(1)]).areas(main);
+    let [calendar, agenda] = Layout::horizontal([
+        Constraint::Length(planner::CALENDAR_WIDTH),
+        Constraint::Fill(1),
+    ])
+    .areas(main);
     Areas {
         title,
         calendar,
@@ -44,7 +48,7 @@ fn areas(screen: Rect) -> Areas {
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期上回傳 `None`
 pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
     let areas = areas(app.screen);
-    calendar::date_at(areas.calendar, areas.agenda, app, column, row)
+    planner::date_at(areas.calendar, areas.agenda, app, column, row)
 }
 
 /// 畫整個畫面：中間左邊是月曆框、右邊是事項框
@@ -71,7 +75,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         hints,
     );
     // 月曆框、事項框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
-    calendar::render(frame, calendar_area, agenda_area, app);
+    planner::render(frame, calendar_area, agenda_area, app);
 }
 
 #[cfg(test)]
