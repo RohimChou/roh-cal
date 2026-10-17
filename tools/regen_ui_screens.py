@@ -13,7 +13,7 @@ GENERATOR = ROOT / "tools" / "expected_screen.py"
 AGENDA = (ROOT / "testdata" / "agenda.md").read_text()
 UI = ROOT / "src" / "ui.rs"
 
-# test 名字 → [(expected_screen.py 的參數, 用不用 testdata/agenda.md, 環境變數)]
+# test 名字 → [(expected_screen.py 的參數, 任務檔（True = testdata/agenda.md、檔名 = testdata/ 裡的那個檔、False = 沒有）, 環境變數)]
 PLAN = {
     "calendar_from_this_month_down_with_a_thick_line_between_years": [(["zh", "35", "26", "2026-10-17"], False, {})],
     "calendar_in_english": [(["en", "35", "11", "2026-10-17"], False, {})],
@@ -29,15 +29,20 @@ PLAN = {
     "side_menu_lists_the_calendars_when_wide": [(["zh", "121", "14", "2026-10-17"], True, {"WINDOW": "1"}), (["zh", "121", "14", "2026-10-17"], True, {"SIDE_HIDDEN": "1"})],
     "unchecked_calendars_hide_their_items": [(["en", "121", "14", "2026-10-17"], True, {"HIDDEN": "1"})],
     "month_view_fills_the_space_with_six_equal_weeks": [(["zh", "80", "30", "2026-10-17"], False, {"LAYOUT": "3"}), (["en", "80", "28", "2026-10-17"], False, {"LAYOUT": "3"})],
+    "month_view_lists_each_days_items_in_its_cell": [(["zh", "80", "30", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "80", "16", "2026-10-17"], "month.md", {"LAYOUT": "3"})],
     "month_view_scrolls_a_week_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-21"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-09-28"], False, {"LAYOUT": "3"})],
 }
 
 
-def generate(args, with_agenda, extra):
+def generate(args, data, extra):
     """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
     env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN", "LAYOUT")}
     env.update(extra)
-    out = subprocess.run(["python3", str(GENERATOR), *args], input=AGENDA if with_agenda else "",
+    if isinstance(data, str):
+        text = (ROOT / "testdata" / data).read_text()
+    else:
+        text = AGENDA if data else ""
+    out = subprocess.run(["python3", str(GENERATOR), *args], input=text,
                          capture_output=True, text=True, check=True, env=env).stdout
     return [line.strip() for line in out.splitlines()]
 
@@ -62,9 +67,9 @@ def main():
             else:
                 i += 1
         assert len(blocks) == len(screens), f"{name}：test 裡有 {len(blocks)} 個畫面，PLAN 寫了 {len(screens)} 個"
-        for (i, j), (args, with_agenda, extra) in reversed(list(zip(blocks, screens))):
+        for (i, j), (args, data, extra) in reversed(list(zip(blocks, screens))):
             indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
-            lines[i:j] = [indent + line for line in generate(args, with_agenda, extra)]
+            lines[i:j] = [indent + line for line in generate(args, data, extra)]
         src = src[:start] + "\n".join(lines) + src[end:]
     UI.write_text(src)
     print(f"重算了 {sum(len(v) for v in PLAN.values())} 個畫面：{UI.relative_to(ROOT)}")

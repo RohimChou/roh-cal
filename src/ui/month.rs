@@ -1,4 +1,4 @@
-//! 版型 3：大月曆（照 v1 的 month view）：side menu 右邊整塊，6 週等高的格子
+//! 版型 3：大月曆（照 v1 的 month view）：side menu 右邊整塊，6 週等高的格子，格子裡列那天的事
 //!
 //! 一次 6 週；選取的日期移出畫面才一週一週捲。格子的大小每次畫都從現在的空間算（terminal 拉大縮小就跟著變）
 
@@ -6,6 +6,7 @@ use super::{Click, planner::day_color};
 use crate::{
     app::{App, Focus},
     calendar,
+    tasks::Item,
 };
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
@@ -148,6 +149,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // 選取的那個月：其他月份的日子變灰
     let month = app.selected.first_of_month();
+    // 要列的事（日曆有勾選的），已經照日期、時間排好
+    let agenda = app.agenda();
     for week in 0..WEEKS {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
@@ -175,8 +178,117 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         );
         for (column, &day) in (1..).zip(&days) {
             let cell = grid.cell(week, column);
-            frame.render_widget(date_line(day, month, app), Rect { height: 1, ..cell });
+            let lines = cell_lines(day, month, day_items(&agenda, day), cell.height, app);
+            for (line, y) in lines.into_iter().zip(cell.y..cell.bottom()) {
+                frame.render_widget(
+                    line,
+                    Rect {
+                        y,
+                        height: 1,
+                        ..cell
+                    },
+                );
+            }
         }
+    }
+}
+
+/// `day` 那天的事：`agenda` 已經照日期排好，所以是連續的一段（同一天沒有時間的在前，跟版型 1 一樣）
+fn day_items<'a>(agenda: &'a [&'a Item], day: Date) -> &'a [&'a Item] {
+    let start = agenda.partition_point(|item| item.date < Some(day));
+    let end = agenda.partition_point(|item| item.date <= Some(day));
+    &agenda[start..end]
+}
+
+/// 一格的每一行：第一行日期（見 `date_line`），下面一行一件事，例：「 ∙ 14:00 Code review」
+///
+/// - 事放得下就全列；放不下就少列一件，最後一行寫 `+N`（N = 沒列出來的件數）
+/// - 格子只有 1 行（terminal 很矮）：不列事，日期後面畫點點，幾件事就幾個點（最多 4 個）
+///
+/// 每一段字的顏色都放在 `Span` 上（不用 `Line::styled`）：標題太長、往右借隔壁的空格時，才不會把隔壁的格線也染色
+fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> Vec<Line<'static>> {
+    let theme = &app.theme;
+    let other_month = day.first_of_month() != month;
+    let mut first = date_line(day, month, app);
+    let rows = usize::from(rows);
+    if rows <= 1 {
+        // 點點：有沒做完的事用那天的顏色，都做完了淡色；其他月份灰
+        let color = if other_month {
+            theme.other_month
+        } else if items.iter().any(|item| !item.done) {
+            day_color(day, app)
+        } else {
+            theme.muted
+        };
+        first.push_span(Span::styled(dots(items.len()), Style::new().fg(color)));
+        return vec![first];
+    }
+    let available = rows - 1;
+    let shown = if items.len() <= available {
+        items.len()
+    } else {
+        available - 1
+    };
+    let mut lines = vec![first];
+    lines.extend(
+        items[..shown]
+            .iter()
+            .map(|item| item_line(item, other_month, app)),
+    );
+    if shown < items.len() {
+        let color = if other_month {
+            theme.other_month
+        } else {
+            theme.muted
+        };
+        lines.push(Line::from(Span::styled(
+            format!(" +{}", items.len() - shown),
+            Style::new().fg(color),
+        )));
+    }
+    lines
+}
+
+/// 格子裡的一件事：「 ∙ 14:00 標題」（有時間才寫時間）
+///
+/// 跟版型 1 右邊的事一樣：沒做完的用那天在月曆上的顏色、時間淡色；做完的整行灰、標題劃線；其他月份的整行灰
+fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let color = if other_month {
+        theme.other_month
+    } else if item.done {
+        theme.muted
+    } else {
+        item.date.map_or(theme.text, |date| day_color(date, app))
+    };
+    let time_color = if other_month {
+        theme.other_month
+    } else {
+        theme.muted
+    };
+    let mut spans = vec![Span::styled(" ∙ ", Style::new().fg(color))];
+    if let Some(time) = item.time {
+        spans.push(Span::styled(
+            format!("{} ", time.strftime("%H:%M")),
+            Style::new().fg(time_color),
+        ));
+    }
+    let mut title = Style::new().fg(color);
+    if item.done {
+        title = title.add_modifier(Modifier::CROSSED_OUT);
+    }
+    spans.push(Span::styled(item.title.clone(), title));
+    Line::from(spans)
+}
+
+/// 那天有幾件事就畫幾個點（最多 4 個）：`⠂` `⠒` `⠖` `⠶`（點字符號的寬度都是 1 格）
+fn dots(count: usize) -> &'static str {
+    match count {
+        0 => "",
+        1 => "⠂",
+        2 => "⠒",
+        3 => "⠖",
+        _ => "⠶",
     }
 }
 

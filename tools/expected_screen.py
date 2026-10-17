@@ -291,7 +291,18 @@ def month_screen(lang, w, h, selected, top, items, groups):
         for k, d in enumerate(days):
             mark = ("[", "]") if d == selected else (" ", " ")
             first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
-            c.put(xs[k + 1], week_y(i), first, widths[k + 1])
+            day_items = [it for it in items if it[0] == d]  # items 已經照日期、時間排好
+            if wh <= 1:
+                # 格子只有 1 行：日期後面畫點點（幾件就幾個，最多 4 個）
+                cell = [first + ["", "⠂", "⠒", "⠖", "⠶"][min(len(day_items), 4)]]
+            else:
+                # 放得下就全列；放不下就少列一件，最後一行 +N
+                shown = len(day_items) if len(day_items) <= wh - 1 else wh - 2
+                cell = [first] + [" ∙ " + (time + " " if time else "") + title for _, time, title, _ in day_items[:shown]]
+                if shown < len(day_items):
+                    cell.append(f" +{len(day_items) - shown}")
+            for r, text in enumerate(cell):
+                c.put(xs[k + 1], week_y(i) + r, text, widths[k + 1])
     # 外框：上面右邊寫選取的日期（貼著右上角）；直線碰到下框接成 ┴
     title = " " + t["date"](selected) + " "
     top_border = Canvas(iw, 1)
