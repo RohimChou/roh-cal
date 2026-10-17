@@ -116,12 +116,15 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
     // 鍵盤在的那個框，框線用 `focus` 的顏色
-    for (area, focus) in [(calendar, Focus::Calendar), (agenda, Focus::Agenda)] {
-        let color = if app.focus == focus {
+    let border_color = |focus: Focus| {
+        if app.focus == focus {
             theme.focus
         } else {
             theme.line
-        };
+        }
+    };
+    for (area, focus) in [(calendar, Focus::Calendar), (agenda, Focus::Agenda)] {
+        let color = border_color(focus);
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Style::new().fg(color));
@@ -162,7 +165,12 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         let agenda_row = Rect::new(agenda_body.x, y, agenda_body.width, 1);
         match row {
             Row::Separator { year } => render_rule(frame, calendar_row, agenda_row, *year, theme),
-            Row::Week { label, days, items } => {
+            Row::Week {
+                label,
+                days,
+                items,
+                thumb,
+            } => {
                 render_week(frame, calendar_row, *label, days.as_ref(), app);
                 for (item, area) in items
                     .iter()
@@ -181,6 +189,16 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                                 .set_style(*area, Style::new().bg(theme.cursor_line));
                         }
                     }
+                }
+                // 這個月的事放不下：右框線上畫捲軸的亮塊（框線那格換成粗線）
+                if *thumb == Some(true) && agenda.width > 0 {
+                    frame.render_widget(
+                        Line::styled(
+                            line::THICK_VERTICAL,
+                            Style::new().fg(border_color(Focus::Agenda)),
+                        ),
+                        Rect::new(agenda.right() - 1, y, 1, 1),
+                    );
                 }
             }
         }

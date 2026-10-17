@@ -25,13 +25,16 @@ pub enum Label {
 pub enum Row<'a> {
     /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線
     Separator { year: bool },
-    /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一件事（可能沒有）
+    /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一件事（可能沒有）、
+    /// 右框線的捲軸
     ///
-    /// 這個月的事比週數多時，後面幾列只有右邊的事，`days` 是 `None`
+    /// 這個月的事比週數多時，後面幾列只有右邊的事，`days` 是 `None`；
+    /// 這個月的事放不下（右邊要捲）時才有捲軸：`thumb` 是 `Some(true)` = 這一列是捲軸的亮塊
     Week {
         label: Option<Label>,
         days: Option<WeekRow>,
         items: Vec<Option<&'a Item>>,
+        thumb: Option<bool>,
     },
 }
 
@@ -159,6 +162,7 @@ impl<'a> Months<'a> {
             let items = self.month_items(month);
             let layout_height = self.layout_height(month);
             let offset = self.offset(month);
+            let thumb = thumb_rows(layout_height, self.month_height(month), offset);
             // 1 月：第一列寫年份、第二列寫月份；其他月只在第一列寫月份
             let january = month.month() == 1;
             for i in 0..self.month_height(month) {
@@ -175,6 +179,7 @@ impl<'a> Months<'a> {
                     items: (0..self.columns)
                         .map(|c| items.get(c * layout_height + offset + i).copied())
                         .collect(),
+                    thumb: thumb.as_ref().map(|thumb| thumb.contains(&i)),
                 });
             }
             month = month.saturating_add(1.month());
@@ -247,6 +252,18 @@ impl<'a> Months<'a> {
         rows.truncate(height);
         rows
     }
+}
+
+/// 捲軸的亮塊在那一塊的哪幾列：排起來 `layout` 列、看得到 `height` 列、捲了 `offset` 列；全部看得到就沒有捲軸
+///
+/// 亮塊長度 = `height` × 看得到的比例（至少 1 列）；捲到底時亮塊剛好貼底。例：8 件放 5 列、捲了 3 列 → 第 2～4 列
+fn thumb_rows(layout: usize, height: usize, offset: usize) -> Option<std::ops::Range<usize>> {
+    if layout <= height {
+        return None;
+    }
+    let length = (height * height / layout).max(1);
+    let start = offset * (height - length) / (layout - height);
+    Some(start..start + length)
 }
 
 /// 捲動後畫面最上面是第幾列：畫面有 `height` 列、現在最上面是 `top`、選取的是第 `selected` 列
@@ -429,6 +446,37 @@ mod tests {
         };
         assert_eq!(items[0].map(|item| item.title.as_str()), Some("9"));
         assert_eq!(rows[8], Row::Separator { year: false });
+    }
+
+    #[test]
+    fn the_scrollbar_thumb_shows_how_much_and_where() {
+        // 全部看得到：沒有捲軸
+        assert_eq!(thumb_rows(5, 5, 0), None);
+        // 8 件放 5 列：亮塊 5 × 5 / 8 = 3 列；沒捲在最上面、捲到底（3 列）貼底、捲一半在中間
+        assert_eq!(thumb_rows(8, 5, 0), Some(0..3));
+        assert_eq!(thumb_rows(8, 5, 3), Some(2..5));
+        assert_eq!(thumb_rows(20, 8, 6), Some(2..5));
+        // 很多件：亮塊至少 1 列
+        assert_eq!(thumb_rows(100, 5, 95), Some(4..5));
+        // 排出來的列也帶著捲軸：10 月 20 件、最多 8 列、沒捲 → 前 3 列是亮塊；11 月沒有捲軸
+        let text = (1..=20)
+            .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
+            .collect::<String>();
+        let app = app_with(&text);
+        let months = Months::new(&app, 1, 8);
+        let thumbs: Vec<Option<bool>> = months
+            .rows(date(2026, 10, 1), 10)
+            .iter()
+            .filter_map(|row| match row {
+                Row::Week { thumb, .. } => Some(*thumb),
+                Row::Separator { .. } => None,
+            })
+            .collect();
+        assert_eq!(
+            &thumbs[..8],
+            [true, true, true, false, false, false, false, false].map(Some)
+        );
+        assert_eq!(thumbs[8], None);
     }
 
     #[test]
