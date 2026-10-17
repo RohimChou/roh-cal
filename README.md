@@ -17,6 +17,8 @@ cargo run --release -- --tasks testdata/tasks.md    # try it with the sample tas
 
 The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 
+For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chinese) explains the modules, the layout model and how the screen tests work.
+
 ## Keys
 | Key | Action |
 | :- | :- |
