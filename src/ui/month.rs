@@ -149,8 +149,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // 選取的那個月：其他月份的日子變灰
     let month = app.selected.first_of_month();
-    // 要列的事（日曆有勾選的），已經照日期、時間排好
-    let agenda = app.agenda();
     for week in 0..WEEKS {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
@@ -180,7 +178,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         let lines: Vec<Vec<Line>> = days
             .iter()
             .zip(&cells)
-            .map(|(&day, cell)| cell_lines(day, month, day_items(&agenda, day), cell.height, app))
+            .map(|(&day, cell)| cell_lines(day, month, &app.items_on(day), cell.height, app))
             .collect();
         render_week(frame, &cells, &lines);
     }
@@ -205,13 +203,6 @@ fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>]) {
             frame.render_widget(line, Rect::new(cell.x, y, right - cell.x, 1));
         }
     }
-}
-
-/// `day` 那天的事：`agenda` 已經照日期排好，所以是連續的一段（同一天沒有時間的在前，跟版型 1 一樣）
-fn day_items<'a>(agenda: &'a [&'a Item], day: Date) -> &'a [&'a Item] {
-    let start = agenda.partition_point(|item| item.date < Some(day));
-    let end = agenda.partition_point(|item| item.date <= Some(day));
-    &agenda[start..end]
 }
 
 /// 一格的每一行：第一行日期（見 `date_line`），下面一行一件事，例：「 ∙ 14:00 Code review」

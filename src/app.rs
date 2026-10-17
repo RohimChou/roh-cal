@@ -64,6 +64,15 @@ impl Group {
     }
 }
 
+/// 右邊列出來的一行：哪件事、列在哪天（`App::agenda()` 排好的順序就是右邊由上到下的順序）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Entry<'a> {
+    /// 哪件事
+    pub item: &'a Item,
+    /// 列在哪天
+    pub date: Date,
+}
+
 /// 整個程式的狀態
 #[derive(Debug)]
 pub struct App {
@@ -132,22 +141,39 @@ impl App {
             .is_none_or(|group| group.shown)
     }
 
-    /// 右邊列出來的事：有日期、日曆有勾選的，照日期、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
+    /// 右邊列出來的事：有日期、日曆有勾選的，照列在哪天、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
     ///
     /// 沒有日期的事先不列（月曆上沒有位置放）
-    pub fn agenda(&self) -> Vec<&Item> {
+    pub fn agenda(&self) -> Vec<Entry<'_>> {
+        let mut entries: Vec<Entry> = self
+            .items
+            .iter()
+            .filter(|item| self.is_shown(item))
+            .filter_map(|item| {
+                Some(Entry {
+                    item,
+                    date: item.date?,
+                })
+            })
+            .collect();
+        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
+        entries.sort_by_key(|entry| (entry.date, entry.item.time));
+        entries
+    }
+
+    /// `day` 那天的事（日曆有勾選的），照時間排好（沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子用
+    pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
             .iter()
-            .filter(|item| item.date.is_some() && self.is_shown(item))
+            .filter(|item| item.date == Some(day) && self.is_shown(item))
             .collect();
-        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
-        items.sort_by_key(|item| (item.date, item.time));
+        items.sort_by_key(|item| item.time);
         items
     }
 
-    /// 鍵盤在右邊時選到的那件事；鍵盤在月曆時是 `None`
-    pub fn chosen(&self) -> Option<&Item> {
+    /// 鍵盤在右邊時選到的那一行；鍵盤在月曆時是 `None`
+    pub fn chosen(&self) -> Option<Entry<'_>> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
             Focus::Calendar | Focus::Side => None,
@@ -349,15 +375,15 @@ impl App {
             };
             agenda
                 .iter()
-                .position(|item| item.date >= Some(self.selected))
+                .position(|entry| entry.date >= self.selected)
                 .unwrap_or(last)
         };
         self.choose(index);
     }
 
-    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事那天
+    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事列在的那天
     fn choose(&mut self, index: usize) {
-        if let Some(date) = self.agenda().get(index).and_then(|item| item.date) {
+        if let Some(date) = self.agenda().get(index).map(|entry| entry.date) {
             self.agenda_index = index;
             self.selected = date;
             self.focus = Focus::Agenda;
@@ -494,14 +520,20 @@ mod tests {
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Agenda);
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("b"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("b")
+        );
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.chosen(), None);
         // 選取那天之後都沒事：選最後一件，月曆跟著跳到那天
         app.selected = date(2026, 12, 1);
         press(&mut app, KeyCode::Tab);
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("d")
+        );
         assert_eq!(app.selected, date(2026, 10, 20));
     }
 
@@ -517,18 +549,30 @@ mod tests {
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Tab);
         press(&mut app, KeyCode::Char('j'));
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("c"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("c")
+        );
         press(&mut app, KeyCode::Down);
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("d")
+        );
         assert_eq!(app.selected, date(2026, 10, 20));
         // 最後一件再往下：停住
         press(&mut app, KeyCode::Char('j'));
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("d")
+        );
         // 往上到第一件、再往上：停住
         for _ in 0..5 {
             press(&mut app, KeyCode::Char('k'));
         }
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("a")
+        );
         assert_eq!(app.selected, date(2026, 10, 10));
         // h / l 在右邊不動
         press(&mut app, KeyCode::Char('l'));
@@ -562,10 +606,16 @@ mod tests {
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Tab);
         app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("c"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("c")
+        );
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("a")
+        );
     }
 
     #[test]
@@ -576,7 +626,10 @@ mod tests {
         app.calendar_top = Some(0);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 40, 3));
         assert_eq!(app.focus, Focus::Agenda);
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("a")
+        );
         assert_eq!(app.selected, date(2026, 10, 10));
         // 再點月曆上的日期：鍵盤回到月曆
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
@@ -620,12 +673,15 @@ mod tests {
         let titles: Vec<&str> = app
             .agenda()
             .iter()
-            .map(|item| item.title.as_str())
+            .map(|entry| entry.item.title.as_str())
             .collect();
         assert_eq!(titles, ["a", "d"]);
         assert!(!app.is_shown(&app.items[1]));
         press(&mut app, KeyCode::Tab);
-        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("d")
+        );
         // 勾回來：又列出來
         app.groups[1].shown = true;
         assert_eq!(app.agenda().len(), 4);

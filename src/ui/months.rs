@@ -5,9 +5,8 @@
 //! 每一列有一個編號：今天那個月的第一列是第 0 列，往下 1、2、3…，往上 -1、-2…
 
 use crate::{
-    app::App,
+    app::{App, Entry},
     calendar::{self, WeekRow},
-    tasks::Item,
 };
 use jiff::{ToSpan, civil::Date};
 
@@ -26,7 +25,7 @@ pub enum Row<'a> {
     /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線；
     /// `hidden` = 上面那個月的右邊，下面還有幾件沒顯示出來（要捲才看得到）
     Separator { year: bool, hidden: usize },
-    /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一件事（可能沒有）、
+    /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一行（可能沒有）、
     /// 右框線的捲軸
     ///
     /// 這個月的事比週數多時，後面幾列只有右邊的事，`days` 是 `None`；
@@ -34,7 +33,7 @@ pub enum Row<'a> {
     Week {
         label: Option<Label>,
         days: Option<WeekRow>,
-        items: Vec<Option<&'a Item>>,
+        items: Vec<Option<Entry<'a>>>,
         thumb: Option<bool>,
     },
 }
@@ -43,8 +42,8 @@ pub enum Row<'a> {
 pub struct Months<'a> {
     /// 第 0 列所在的月（今天那個月）
     origin: Date,
-    /// 有日期的事，照日期、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
-    items: Vec<&'a Item>,
+    /// 右邊的每一行（`App::agenda()`），照列在哪天、時間排好
+    items: Vec<Entry<'a>>,
     /// 右邊的事分幾欄
     columns: usize,
     /// 一個月最多幾列（比那個月的週數少時，以週數為準）
@@ -64,20 +63,20 @@ impl<'a> Months<'a> {
         }
     }
 
-    /// `month` 那個月的事（`items` 已經照日期排好，所以是連續的一段）
-    fn month_items(&self, month: Date) -> &[&'a Item] {
-        let first = Some(month.first_of_month());
-        let last = Some(month.last_of_month());
-        let start = self.items.partition_point(|item| item.date < first);
-        let end = self.items.partition_point(|item| item.date <= last);
+    /// `month` 那個月列的事（`items` 已經照列在哪天排好，所以是連續的一段）
+    fn month_items(&self, month: Date) -> &[Entry<'a>] {
+        let first = month.first_of_month();
+        let last = month.last_of_month();
+        let start = self.items.partition_point(|entry| entry.date < first);
+        let end = self.items.partition_point(|entry| entry.date <= last);
         &self.items[start..end]
     }
 
     /// `date` 那天的事
-    pub fn day_items(&self, date: Date) -> Vec<&'a Item> {
+    pub fn day_items(&self, date: Date) -> Vec<Entry<'a>> {
         self.month_items(date)
             .iter()
-            .filter(|item| item.date == Some(date))
+            .filter(|entry| entry.date == date)
             .copied()
             .collect()
     }
@@ -207,26 +206,26 @@ impl<'a> Months<'a> {
             .sum()
     }
 
-    /// `item` 排在它那個月的哪一列（還沒捲；分欄時是在它那一欄的第幾列）：回傳那個月（1 號）和第幾列
-    fn layout_row(&self, item: &Item) -> Option<(Date, usize)> {
-        let month = item.date?.first_of_month();
+    /// `entry` 排在它那個月的哪一列（還沒捲；分欄時是在它那一欄的第幾列）：回傳那個月（1 號）和第幾列
+    fn layout_row(&self, entry: Entry) -> Option<(Date, usize)> {
+        let month = entry.date.first_of_month();
         let index = self
             .month_items(month)
             .iter()
-            .position(|other| std::ptr::eq(*other, item))?;
+            .position(|other| *other == entry)?;
         Some((month, index % self.layout_height(month)))
     }
 
     /// `month` 的右邊要捲到第幾列，才看得到 `targets` 那幾件事：從 `previous` 開始，
     /// 前後盡量多留 1 列（看得到前後還有什麼）；看得到就不捲，免得右邊跳來跳去；放不下時先顧最上面那件
-    pub fn window_for(&self, month: Date, previous: usize, targets: &[&Item]) -> usize {
+    pub fn window_for(&self, month: Date, previous: usize, targets: &[Entry]) -> usize {
         let month = month.first_of_month();
         let height = i64::try_from(self.month_height(month)).unwrap_or(0);
         let max = i64::try_from(self.layout_height(month)).unwrap_or(0) - height;
         let previous = i64::try_from(previous).unwrap_or(0).min(max);
         let rows: Vec<i64> = targets
             .iter()
-            .filter_map(|item| self.layout_row(item))
+            .filter_map(|&entry| self.layout_row(entry))
             .filter(|(item_month, _)| *item_month == month)
             .filter_map(|(_, row)| i64::try_from(row).ok())
             .collect();
@@ -243,14 +242,14 @@ impl<'a> Months<'a> {
         &self,
         top: i64,
         selected: Date,
-        targets: &[&Item],
+        targets: &[Entry],
         height: i64,
         margin: i64,
     ) -> i64 {
         let week = self.row_of(selected);
         let top = scrolled_top(top, week, height, margin);
         let mut rows = vec![week];
-        for (month, row) in targets.iter().filter_map(|item| self.layout_row(item)) {
+        for (month, row) in targets.iter().filter_map(|&entry| self.layout_row(entry)) {
             // 那件事在那一塊裡畫在第幾列（右邊捲走、看不到的就不算）
             let shown = row.checked_sub(self.offset(month));
             if let Some(shown) = shown.filter(|&shown| shown < self.month_height(month)) {
@@ -383,7 +382,7 @@ mod tests {
         let titles: Vec<&str> = months
             .month_items(date(2026, 10, 1))
             .iter()
-            .map(|item| item.title.as_str())
+            .map(|entry| entry.item.title.as_str())
             .collect();
         assert_eq!(titles, ["d", "c", "a", "e", "b"]);
     }
@@ -400,7 +399,9 @@ mod tests {
         let titles: Vec<[&str; 2]> = rows[..5]
             .iter()
             .map(|row| match row {
-                Row::Week { items, .. } => [0, 1].map(|c| items[c].map_or("", |item| &item.title)),
+                Row::Week { items, .. } => {
+                    [0, 1].map(|c| items[c].map_or("", |entry| &entry.item.title))
+                }
                 Row::Separator { .. } => panic!("10 月的 5 列裡不該有線"),
             })
             .collect();
@@ -470,7 +471,7 @@ mod tests {
         let Row::Week { items, .. } = &rows[0] else {
             panic!("第一列應該是 10 月");
         };
-        assert_eq!(items[0].map(|item| item.title.as_str()), Some("9"));
+        assert_eq!(items[0].map(|entry| entry.item.title.as_str()), Some("9"));
         // 10 月下面那條線：還有 20 - 8 - 8 = 4 件沒顯示出來
         assert_eq!(
             rows[8],

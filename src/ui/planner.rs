@@ -177,17 +177,17 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                 thumb,
             } => {
                 render_week(frame, calendar_row, *label, days.as_ref(), app);
-                for (item, area) in items
+                for (entry, area) in items
                     .iter()
                     .zip(split_columns(agenda_row, items.len()).iter())
                 {
-                    if let Some(item) = item {
-                        // 鍵盤在右邊時選到的那件事：日期加括號、墊底色
-                        let is_chosen = chosen.is_some_and(|chosen| std::ptr::eq(chosen, *item));
+                    if let Some(entry) = entry {
+                        // 鍵盤在右邊時選到的那一行：日期加括號、墊底色
+                        let is_chosen = chosen == Some(*entry);
                         // 鍵盤在月曆時：選取那天的事墊底色（跟月曆上那週一樣）
                         let on_selected_day =
-                            app.focus == Focus::Calendar && item.date == Some(app.selected);
-                        frame.render_widget(item_line(item, app, is_chosen), *area);
+                            app.focus == Focus::Calendar && entry.date == app.selected;
+                        frame.render_widget(item_line(entry.item, app, is_chosen), *area);
                         if is_chosen || on_selected_day {
                             frame
                                 .buffer_mut()
@@ -259,11 +259,11 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
         let index = split_columns(agenda_row, items.len())
             .iter()
             .position(|area| area.contains(position))?;
-        let item = items.get(index).copied().flatten()?;
-        // 那件事在 `App::agenda()` 裡的位置
+        let entry = items.get(index).copied().flatten()?;
+        // 那一行在 `App::agenda()` 裡的位置
         app.agenda()
             .iter()
-            .position(|other| std::ptr::eq(*other, item))
+            .position(|other| *other == entry)
             .map(Click::Item)
     } else {
         None

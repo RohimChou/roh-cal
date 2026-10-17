@@ -143,7 +143,7 @@ mod tests {
     fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
         match click_at(app, column, row)? {
             Click::Day(date) => Some(date),
-            Click::Item(index) => app.agenda()[index].date,
+            Click::Item(index) => Some(app.agenda()[index].date),
             Click::Group(_) => None,
         }
     }
@@ -678,10 +678,7 @@ mod tests {
                 "{}：月曆上看不到 {day}：{body:#?}",
                 app.selected
             );
-            let has_items = app
-                .agenda()
-                .iter()
-                .any(|item| item.date == Some(app.selected));
+            let has_items = app.agenda().iter().any(|entry| entry.date == app.selected);
             let date = format!(" {}/{} ", app.selected.month(), app.selected.day());
             assert!(
                 !has_items || right.iter().any(|row| row.contains(&date)),
@@ -819,7 +816,7 @@ mod tests {
         let count = app.agenda().len();
         for index in (0..count).chain((0..count).rev()) {
             app.agenda_index = index;
-            app.selected = app.agenda()[index].date.unwrap();
+            app.selected = app.agenda()[index].date;
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
             let chosen = format!("[{}/{}]", app.selected.month(), app.selected.day());
