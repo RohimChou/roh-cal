@@ -176,19 +176,33 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             ),
             number_area,
         );
-        for (column, &day) in (1..).zip(&days) {
-            let cell = grid.cell(week, column);
-            let lines = cell_lines(day, month, day_items(&agenda, day), cell.height, app);
-            for (line, y) in lines.into_iter().zip(cell.y..cell.bottom()) {
-                frame.render_widget(
-                    line,
-                    Rect {
-                        y,
-                        height: 1,
-                        ..cell
-                    },
-                );
+        let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
+        let lines: Vec<Vec<Line>> = days
+            .iter()
+            .zip(&cells)
+            .map(|(&day, cell)| cell_lines(day, month, day_items(&agenda, day), cell.height, app))
+            .collect();
+        render_week(frame, &cells, &lines);
+    }
+}
+
+/// 畫一週的 7 格，一行一行畫
+///
+/// 第一行（日期）以外的字太長時**往右借**隔壁格（像試算表）：隔壁格同一行沒有東西就借它的寬度（中間的格線一起蓋過去），
+/// 一路借到同一行有東西的格子、或星期日為止；再長就切掉
+fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>]) {
+    for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
+        for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
+            let mut right = cell.right();
+            if row > 0 {
+                for (next, next_lines) in cells.iter().zip(lines).skip(column + 1) {
+                    if next_lines.len() > row {
+                        break;
+                    }
+                    right = next.right();
+                }
             }
+            frame.render_widget(line, Rect::new(cell.x, y, right - cell.x, 1));
         }
     }
 }

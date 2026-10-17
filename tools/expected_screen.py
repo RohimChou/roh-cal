@@ -288,6 +288,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
         # 週數：那週裡屬於選取那個月的日子，沒有就用星期一
         numbered = next((d for d in days if (d.year, d.month) == month), monday)
         c.put(0, week_y(i), f" {week_number(numbered):>3} ", 5)
+        week_cells = []  # 這週 7 格各自的每一行
         for k, d in enumerate(days):
             mark = ("[", "]") if d == selected else (" ", " ")
             first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
@@ -301,8 +302,14 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 cell = [first] + [" ∙ " + (time + " " if time else "") + title for _, time, title, _ in day_items[:shown]]
                 if shown < len(day_items):
                     cell.append(f" +{len(day_items) - shown}")
+            week_cells.append(cell)
+        # 第一行以外：字可以往右寫進隔壁格，只要隔壁格那一行是空的（一路到有東西的格子或星期日）
+        for k, cell in enumerate(week_cells):
             for r, text in enumerate(cell):
-                c.put(xs[k + 1], week_y(i) + r, text, widths[k + 1])
+                end = k
+                while r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r:
+                    end += 1
+                c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
     # 外框：上面右邊寫選取的日期（貼著右上角）；直線碰到下框接成 ┴
     title = " " + t["date"](selected) + " "
     top_border = Canvas(iw, 1)
