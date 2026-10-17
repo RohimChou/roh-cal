@@ -510,10 +510,14 @@ fn day_color(day: Date, app: &App) -> Color {
 
 /// 右邊的一件事：「 10/16 17:30 交週報」（日期 5 格靠右、有時間才寫時間）
 ///
-/// 日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色；做完的標題變灰、劃線
+/// 沒做完的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。做完的：整行變灰、標題劃線
 fn item_line(item: &Item, app: &App) -> Line<'static> {
     let theme = &app.theme;
-    let color = item.date.map_or(theme.text, |date| day_color(date, app));
+    let color = if item.done {
+        theme.muted
+    } else {
+        item.date.map_or(theme.text, |date| day_color(date, app))
+    };
     let date = item
         .date
         .map(|date| format!("{}/{}", date.month(), date.day()))
@@ -525,13 +529,10 @@ fn item_line(item: &Item, app: &App) -> Line<'static> {
             Style::new().fg(theme.muted),
         ));
     }
-    let title_style = if item.done {
-        Style::new()
-            .fg(theme.muted)
-            .add_modifier(Modifier::CROSSED_OUT)
-    } else {
-        Style::new().fg(color)
-    };
+    let mut title_style = Style::new().fg(color);
+    if item.done {
+        title_style = title_style.add_modifier(Modifier::CROSSED_OUT);
+    }
     spans.push(Span::styled(item.title.clone(), title_style));
     Line::from(spans)
 }

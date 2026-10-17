@@ -511,8 +511,8 @@ mod tests {
         // 10/5 有沒做完的事：日期、標題都跟月曆上一樣是橘色
         assert_eq!(cell(38, 4), ("1", theme.has_item, false));
         assert_eq!(cell(43, 4), ("繳", theme.has_item, false));
-        // 10/15 只有做完的事：日期跟沒事一樣（平日的顏色）；標題變灰、劃線
-        assert_eq!(cell(37, 6), ("1", theme.text, false));
+        // 10/15 做完的事：整行變灰（日期也是），標題劃線
+        assert_eq!(cell(37, 6), ("1", theme.muted, false));
         assert_eq!(cell(43, 6), ("修", theme.muted, true));
         // 10/17 今天：綠色；時間淡色
         assert_eq!(cell(43, 8), ("聚", theme.today, false));
