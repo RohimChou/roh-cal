@@ -64,7 +64,7 @@ App::run 的迴圈
 - 畫面的字放 `texts.rs`、顏色放 `theme.rs`（畫面只講角色，例：`theme.today`），`ui/` 裡不寫死
 - 錯誤處理用 `color_eyre::Result` + `?`，不用 `unwrap()`（test 例外）
 - commit 前 `cargo fmt`、`cargo clippy --all-targets -- -D warnings`、`cargo test` 都要乾淨；改到邏輯就補 test，寫完故意改壞一兩處，確認 test 抓得到
-- 點點、符號只用 East Asian Width 是 N 的字（`•`、`●` 是 A，開了 CJK 寬字元的 terminal 會變 2 格）；查法：`python3 -c "import unicodedata as u; print(u.east_asian_width('•'))"`
+- 點點、符號只用 East Asian Width 是 N 或 Na 的字（都是 1 格；`•`、`●` 是 A，開了 CJK 寬字元的 terminal 會變 2 格）；查法：`python3 -c "import unicodedata as u; print(u.east_asian_width('•'))"`
 - commit 訊息：`<type>: <scope> | <summary>`，type 是 `feat` / `fix` / `refac` / `doc` / `style` / `test` / `chore` / `perf` / `ci`；改到按鍵、參數時同一個 commit 更新 README
 
 ## 踩過的坑
@@ -73,6 +73,21 @@ App::run 的迴圈
 | `Line::styled(...)` 的顏色會套到**整列** | 同一列畫兩段字時，顏色放在 `Span` 上（例：表頭的日期、線上的「還有 N 件」） |
 | TestBackend 裡，寬字元（中文）後半那格永遠是預設樣式 | 量顏色時跳過那格；`text_rows` 也是這樣把字接起來 |
 | `cargo add ... \| head` | 管線一關，cargo 在寫 `Cargo.toml` 之前就被中斷；不要接 `head` |
+
+## 已經決定、還沒做
+### 跨多天的事（使用者 2026-10-18 定的）
+任務檔寫 `@2026-10-20..2026-10-25`（規格見 [task-file-format.md](task-file-format.md) 的「Planned to revisit」）。
+
+| 地方 | 怎麼顯示 |
+| :- | :- |
+| 月曆 | 範圍內每一天的日期加底線（不改顏色；做完的不加） |
+| 右邊 | 在開始那天列一次，日期寫成範圍：`10/20~25 東京出差`；跨月的寫 `10/28~11/3`，而且碰到的每個月都列一次（下個月排在那個月最上面）；跨年寫 `12/30~1/2` |
+| 選取 | 選到範圍內任何一天，那件事都算那天的事：鍵盤在月曆時墊底色、右邊捲到它 |
+
+做的時候要順便想好的：
+- `Tab` 換到右邊時選「選取那天或之後的第一件」：範圍蓋到選取那天、但更早開始的事，要不要先選它
+- 範圍的字比較長（`10/28~11/3` 有 10 格），右邊日期那段不能再固定 5 格寬
+- 字元：`~` 是 East Asian Width Na（1 格），可以用；`–`（en dash）是 A，不要用
 
 ## 可以改進的地方
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」

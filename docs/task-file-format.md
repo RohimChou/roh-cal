@@ -63,6 +63,7 @@ roh-cal writes the file when you check an item off, delete, add or edit one. Eve
 Recurring items, due vs scheduled dates, priorities, inline `#tags`, time ranges and multi-day events, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.
 
 Planned to revisit:
+- **Multi-day items** (decided 2026-10-18, **not implemented yet**): `@2026-10-20..2026-10-25` = from the first date to the last, both included, e.g. a trip or a training course. An optional time after it is the start time: `@2026-11-02..2026-11-06 09:00`. The end must not be before the start; a range that breaks this stays plain text with a warning, like an invalid date. How it shows on screen: [ARCHITECTURE.md](ARCHITECTURE.md#已經決定還沒做)
 - **Nested groups** by heading level (`#` project → `##` sub-project)
 - **Completion dates** when checking a task off (e.g. `done:2026-10-11`), useful for showing what was finished on each day
 
