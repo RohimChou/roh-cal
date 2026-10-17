@@ -1,10 +1,11 @@
-//! 畫整個畫面：最左邊 side menu（夠寬才有）、月曆框、右邊事項框，最下面一列操作說明
+//! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是版型 1（月曆框 + 事項框）或版型 3（大月曆），最下面一列操作說明
 
+mod month;
 mod months;
 mod planner;
 mod side;
 
-use crate::app::App;
+use crate::app::{App, View};
 use jiff::civil::Date;
 use ratatui::{
     Frame,
@@ -25,9 +26,11 @@ pub fn side_fits(screen: Rect) -> bool {
 struct Areas {
     /// 最左邊：side menu（日曆清單）；沒畫的時候寬度是 0
     side: Rect,
-    /// 左邊：月曆框
+    /// side menu 右邊、操作說明上面的整塊：版型 3 的大月曆畫在這裡
+    main: Rect,
+    /// 版型 1 的左邊：月曆框
     calendar: Rect,
-    /// 右邊：事項框，跟月曆框同一列對齊；表頭右邊寫選取的日期
+    /// 版型 1 的右邊：事項框，跟月曆框同一列對齊；表頭右邊寫選取的日期
     agenda: Rect,
     /// 最下面一列：操作說明
     hints: Rect,
@@ -44,14 +47,16 @@ fn areas(screen: Rect, app: &App) -> Areas {
     } else {
         0
     };
-    let [side, calendar, agenda] = Layout::horizontal([
-        Constraint::Length(side_width),
+    let [side, main] =
+        Layout::horizontal([Constraint::Length(side_width), Constraint::Fill(1)]).areas(main);
+    let [calendar, agenda] = Layout::horizontal([
         Constraint::Length(planner::CALENDAR_WIDTH),
         Constraint::Fill(1),
     ])
     .areas(main);
     Areas {
         side,
+        main,
         calendar,
         agenda,
         hints,
@@ -75,15 +80,19 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     if areas.side.contains(Position::new(column, row)) {
         return side::click_at(areas.side, app, column, row);
     }
-    planner::click_at(areas.calendar, areas.agenda, app, column, row)
+    match app.view {
+        View::Planner => planner::click_at(areas.calendar, areas.agenda, app, column, row),
+        View::Month => month::click_at(areas.main, app, column, row),
+    }
 }
 
-/// 畫整個畫面：中間最左邊是 side menu（夠寬才有）、再來是月曆框、右邊是事項框
+/// 畫整個畫面：中間最左邊是 side menu（夠寬才有），右邊是版型 1 的月曆框 + 事項框，或版型 3 的大月曆
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
     let Areas {
         side: side_area,
+        main: main_area,
         calendar: calendar_area,
         agenda: agenda_area,
         hints,
@@ -98,8 +107,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
-    // 月曆框、事項框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
-    planner::render(frame, calendar_area, agenda_area, app);
+    // 月曆最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
+    match app.view {
+        View::Planner => planner::render(frame, calendar_area, agenda_area, app),
+        View::Month => month::render(frame, main_area, app),
+    }
 }
 
 #[cfg(test)]
@@ -1050,6 +1062,229 @@ mod tests {
         assert_eq!(fg(26), ("6", theme.has_item));
         assert_eq!(fg(29), ("7", theme.today));
         assert_eq!(fg(32), ("8", theme.has_item));
+    }
+
+    /// 版型 3、今天 2026/10/17、選取 `selected`、任務檔是 `text` 的 app
+    fn month_app(lang: Lang, selected: Date, text: &str) -> App {
+        let mut app = App::new(lang, date(2026, 10, 17), crate::tasks::parse(text).items);
+        app.view = View::Month;
+        app.selected = selected;
+        app
+    }
+
+    #[test]
+    fn month_view_fills_the_space_with_six_equal_weeks() {
+        // 80 × 30：框裡面 78 × 27 → 天的寬度 78 − 5 − 7 = 66，一、二、三 10 格、其他 9 格；每週 (27 − 7) ÷ 6 = 3 列，
+        // 零頭 2 列留在最下面（直線照樣畫到下框）。最上面是 10/1 那週的前一週（9/21）；1 號後面寫月份；
+        // 選取的今天加括號；右上角寫選取的日期；跨月那週的週數看選取那個月的日子（9/28 那週寫 10/1 的 40）
+        let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
+        assert_eq!(
+            text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
+            [
+                "╭──────────────────────────────────────────────────────────── 2026/10/17（六） ╮",
+                "│  週   一         二         三         四        五        六        日      │",
+                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+                "│  39 │ 21       │ 22       │ 23       │ 24      │ 25      │ 26      │ 27      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  40 │ 28       │ 29       │ 30       │ 1 10月  │ 2       │ 3       │ 4       │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │[17]     │ 18      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 11月  │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        // 80 × 28：每週 3 列剛好填滿，最後一週貼著下框（外框接成 ┴）
+        let mut app = month_app(Lang::En, date(2026, 10, 17), "");
+        assert_eq!(
+            text_rows(draw_app(&mut app, 80, 28).backend().buffer()),
+            [
+                "╭──────────────────────────────────────────────────────────── Sat Oct 17, 2026 ╮",
+                "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
+                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+                "│  39 │ 21       │ 22       │ 23       │ 24      │ 25      │ 26      │ 27      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  40 │ 28       │ 29       │ 30       │ 1 Oct   │ 2       │ 3       │ 4       │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │[17]     │ 18      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 Nov   │",
+                "│     │          │          │          │         │         │         │         │",
+                "│     │          │          │          │         │         │         │         │",
+                "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+                " hjkl move  Tab switch  [] month  t today  q quit",
+            ]
+        );
+    }
+
+    #[test]
+    fn month_view_scrolls_a_week_at_a_time() {
+        // 80 × 16：每週只有 1 列。剛打開最上面是 9/21；選到 11/2（第 7 週）→ 往下捲一週，最上面變 9/28
+        let mut app = month_app(Lang::En, date(2026, 10, 17), "");
+        draw_app(&mut app, 80, 16);
+        assert_eq!(app.month_top, Some(date(2026, 9, 21)));
+        app.selected = date(2026, 11, 2);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+            [
+                "╭───────────────────────────────────────────────────────────── Mon Nov 2, 2026 ╮",
+                "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
+                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+                "│  40 │ 28       │ 29       │ 30       │ 1 Oct   │ 2       │ 3       │ 4       │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 Nov   │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  45 │[2]       │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
+                "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+                " hjkl move  Tab switch  [] month  t today  q quit",
+            ]
+        );
+        assert_eq!(app.month_top, Some(date(2026, 9, 28)));
+        // 選 9/20（最上面那週的前一週）：那週變成最上面；選取那個月變成 9 月，10 月的日子變灰
+        app.lang = Lang::ZhTw;
+        app.selected = date(2026, 9, 20);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+            [
+                "╭───────────────────────────────────────────────────────────── 2026/9/20（日） ╮",
+                "│  週   一         二         三         四        五        六        日      │",
+                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+                "│  38 │ 14       │ 15       │ 16       │ 17      │ 18      │ 19      │[20]     │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  39 │ 21       │ 22       │ 23       │ 24      │ 25      │ 26      │ 27      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  40 │ 28       │ 29       │ 30       │ 1 10月  │ 2       │ 3       │ 4       │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
+                "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+            ]
+        );
+        assert_eq!(app.month_top, Some(date(2026, 9, 14)));
+        // 6 週裡面移動：不捲
+        app.selected = date(2026, 10, 18);
+        draw_app(&mut app, 80, 16);
+        assert_eq!(app.month_top, Some(date(2026, 9, 14)));
+    }
+
+    #[test]
+    fn month_view_click_positions_map_to_the_cells() {
+        // 80 × 30（畫面見 `month_view_fills_the_space_with_six_equal_weeks`）：一 x 7～16、二 x 18～27，
+        // 第 1 週 y 3～5、第 2 週 y 7～9；最上面那週是 9/21
+        let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
+        app.screen = Rect::new(0, 0, 80, 30);
+        draw_app(&mut app, 80, 30);
+        // 格子裡任何一格都算那天（不只第一行的日期）
+        assert_eq!(date_at(&app, 7, 3), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 16, 5), Some(date(2026, 9, 21)));
+        assert_eq!(date_at(&app, 18, 7), Some(date(2026, 9, 29)));
+        assert_eq!(date_at(&app, 78, 25), Some(date(2026, 11, 1)));
+        // 最後一週下面的零頭也算最後一週
+        assert_eq!(date_at(&app, 10, 27), Some(date(2026, 10, 26)));
+        // 沒有日期：直線、橫線、週數欄、表頭、下框、左框、操作說明
+        for (x, y) in [
+            (17, 3),
+            (10, 6),
+            (3, 3),
+            (10, 1),
+            (10, 28),
+            (0, 3),
+            (10, 29),
+        ] {
+            assert_eq!(date_at(&app, x, y), None, "({x}, {y})");
+        }
+    }
+
+    #[test]
+    fn month_view_colors_by_role() {
+        // 80 × 30（畫面見 `month_view_fills_the_space_with_six_equal_weeks`）：一 x 7、二 x 18、三 x 29、四 x 40、
+        // 五 x 50、六 x 60、日 x 70；第 1～6 週在 y 3、7、11、15、19、23。選 10/16（五），10/15（四）有沒做完的事
+        let mut app = month_app(Lang::ZhTw, date(2026, 10, 16), "- [ ] 交週報 @2026-10-15\n");
+        let terminal = draw_app(&mut app, 80, 30);
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        // (x, y) 那格：字、前景色、是不是粗體
+        let cell = |x: u16, y: u16| {
+            let cell = &buffer[(x, y)];
+            (
+                cell.symbol(),
+                cell.fg,
+                cell.modifier.contains(Modifier::BOLD),
+            )
+        };
+        // 選取的括號紅色；日期本身是那天的顏色（平日一般色），選取那個月的日期加粗
+        assert_eq!(cell(50, 15), ("[", theme.selected, true));
+        assert_eq!(cell(52, 15), ("6", theme.text, true));
+        assert_eq!(cell(53, 15), ("]", theme.selected, true));
+        // 今天綠、有沒做完的事橘、週末藍
+        assert_eq!(cell(62, 15), ("7", theme.today, true));
+        assert_eq!(cell(42, 15), ("5", theme.has_item, true));
+        assert_eq!(cell(72, 15), ("8", theme.weekend, true));
+        // 其他月份的日期灰、不加粗：9/21、11/1（月份也灰）；10/1 的月份是 label 的顏色
+        assert_eq!(cell(9, 3), ("1", theme.other_month, false));
+        assert_eq!(cell(71, 23), ("1", theme.other_month, false));
+        assert_eq!(cell(73, 23), ("1", theme.other_month, false));
+        assert_eq!(cell(43, 7), ("1", theme.label, false));
+        // 週數：選取那週（42）亮、其他週（39）暗
+        assert_eq!(cell(3, 15), ("4", theme.week_number, false));
+        assert_eq!(cell(3, 3), ("3", theme.week_number_dim, false));
+        // 表頭：平日淡色、六日週末色
+        assert_eq!(cell(8, 1), ("一", theme.muted, false));
+        assert_eq!(cell(61, 1), ("六", theme.weekend, false));
+        // 格線淡色；碰到外框的接頭是外框的顏色（鍵盤在月曆：focus 色）
+        assert_eq!(cell(6, 2), ("┬", theme.grid, false));
+        assert_eq!(cell(6, 3), ("│", theme.grid, false));
+        assert_eq!(cell(6, 6), ("┼", theme.grid, false));
+        // 最後一週下面的零頭：直線照樣畫到下框，下框接成 ┴（外框的顏色）
+        assert_eq!(cell(6, 26), ("│", theme.grid, false));
+        assert_eq!(cell(6, 28), ("┴", theme.focus, false));
+        assert_eq!(cell(0, 6), ("├", theme.focus, false));
+        assert_eq!(cell(79, 6), ("┤", theme.focus, false));
+        // 右上角的日期一般色
+        assert_eq!(cell(64, 0), ("2", theme.text, false));
     }
 
     #[test]

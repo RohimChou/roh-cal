@@ -12,7 +12,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
 | `src/main.rs` | 讀命令列參數、讀任務檔、開 / 關 TUI 和滑鼠 | |
-| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠 | |
+| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`3` 版型 3） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週 | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
@@ -21,13 +21,14 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
 | `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`） | ✓ |
+| `src/ui/month.rs` | 版型 3（大月曆）：6 週等高的格子（`Grid`，畫畫面和滑鼠換算都用它）、一週一週捲（`App::month_top`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 
 ## 一輪怎麼跑
 ```text
 App::run 的迴圈
  ├─ 記下 terminal 大小（app.screen）
- ├─ ui::render → planner::render
+ ├─ ui::render → planner::render（版型 1；版型 3 是 month::render，見下面「版型 3」）
  │   ├─ Months::window_for    選取的那個月，右邊在月份裡捲到哪 → app.agenda_window
  │   ├─ Months::scrolled_to   整個畫面捲到哪                 → app.calendar_top
  │   ├─ Months::visible_rows  畫面上每一列是什麼
@@ -54,10 +55,17 @@ App::run 的迴圈
 | 整個畫面捲（`scrolled_to`） | 選取那週離上下邊緣至少留 2 列（像 vim 的 scrolloff），再讓要看的事也看得到 |
 | 要看的事 | 鍵盤在右邊 = 選到的那件；鍵盤在月曆 = 選取那天的事 |
 
+## 版型 3 的排版（`ui/month.rs`）
+| 觀念 | 說明 |
+| :- | :- |
+| 格子 | 週數欄 5 格，7 天平分剩下的寬度（扣掉 7 條直線），除不盡的零頭從星期一開始一欄多 1 格；6 週一樣高，除不盡的列留在最下面 |
+| 捲動 | `App::month_top` = 最上面那週的星期一；剛打開 / `t` / `[` `]` / 換版型 = 選取那個月 1 號的前一週（`None`），選取的那週移出 6 週才一週一週捲 |
+| 選取那個月 | 選取的日期在哪個月：其他月份的日子變灰；跨月那週的週數看這個月的日子 |
+
 ## 改了畫面之後
 1. 改 Rust，跑 `cargo test`：失敗的就是畫面變了的 test
 2. 預期畫面**不要從 Rust 畫出來的結果抄**：照新的規格改 `tools/expected_screen.py`（它是另外寫的一份，兩邊一樣才算對），再跑 `python3 tools/regen_ui_screens.py`，用 `git diff src/ui.rs` 看預期畫面變了哪裡、是不是你要的
-3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆
+3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆；版型 3 的畫面加環境變數 `LAYOUT=3`（參數見 `expected_screen.py` 開頭）
 4. 顏色不在 Python 裡：用 test 量關鍵格子的顏色（例：`colors_by_role`）
 
 ## 寫法規矩

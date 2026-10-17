@@ -29,6 +29,11 @@ pub fn month_rows(month: Date) -> Vec<WeekRow> {
     rows
 }
 
+/// `date` 那一週的星期一
+pub fn monday_of(date: Date) -> Date {
+    date.saturating_sub(i64::from(date.weekday().to_monday_zero_offset()).days())
+}
+
 /// `date` 是它那一年的第幾週：1/1 所在的那週是第 1 週（每週從星期一開始）
 ///
 /// 跨年那週看 `date` 落在哪一年，例：2025-12-30 是 2025 年第 53 週、2026-01-02 是 2026 年第 1 週
@@ -92,6 +97,26 @@ mod tests {
                 assert!(weeks.windows(2).all(|w| w[0] == w[1]), "{month}");
             }
             month = month.saturating_add(1.month());
+        }
+    }
+
+    #[test]
+    fn monday_of_goes_back_to_the_monday() {
+        // 2026/10/17 是星期六 → 10/12；星期一自己就是；跨月、跨年
+        assert_eq!(monday_of(date(2026, 10, 17)), date(2026, 10, 12));
+        assert_eq!(monday_of(date(2026, 10, 12)), date(2026, 10, 12));
+        assert_eq!(monday_of(date(2026, 11, 1)), date(2026, 10, 26));
+        assert_eq!(monday_of(date(2027, 1, 3)), date(2026, 12, 28));
+        // 用另一種方式核對：每天的星期一都是星期一、而且在 6 天以內
+        let mut day = date(2026, 1, 1);
+        while day < date(2028, 1, 1) {
+            let monday = monday_of(day);
+            assert_eq!(monday.weekday(), Weekday::Monday, "{day}");
+            assert!(
+                monday <= day && day <= monday.saturating_add(6.days()),
+                "{day}"
+            );
+            day = day.saturating_add(1.day());
         }
     }
 

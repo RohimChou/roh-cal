@@ -33,6 +33,10 @@ pub struct Theme {
     pub focus: Color,
     /// side menu 上勾選的日曆的 `☑`
     pub checked: Color,
+    /// 大月曆（版型 3）格子之間的淡格線
+    pub grid: Color,
+    /// 大月曆（版型 3）不是選取那個月的日子：日期和事都變灰
+    pub other_month: Color,
 }
 
 impl Theme {
@@ -50,6 +54,7 @@ impl Theme {
         let dim_yellow = Color::Rgb(183, 167, 136);
         let red = Color::Rgb(243, 139, 168);
         let surface0 = Color::Rgb(49, 50, 68);
+        let overlay0 = Color::Rgb(108, 112, 134);
         let mauve = Color::Rgb(203, 166, 247);
         let peach = Color::Rgb(250, 179, 135);
 
@@ -68,6 +73,9 @@ impl Theme {
             cursor_line: surface0,
             focus: mauve,
             checked: mauve,
+            // 格線、其他月份：跟 v1 一樣
+            grid: surface0,
+            other_month: overlay0,
         }
     }
 }

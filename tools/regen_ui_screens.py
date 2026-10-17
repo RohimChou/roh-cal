@@ -28,12 +28,14 @@ PLAN = {
     "a_hint_tells_how_many_more_items_a_month_has": [(["zh", "70", "11", "2026-10-17"], True, {"WINDOW": "2"})],
     "side_menu_lists_the_calendars_when_wide": [(["zh", "121", "14", "2026-10-17"], True, {"WINDOW": "1"}), (["zh", "121", "14", "2026-10-17"], True, {"SIDE_HIDDEN": "1"})],
     "unchecked_calendars_hide_their_items": [(["en", "121", "14", "2026-10-17"], True, {"HIDDEN": "1"})],
+    "month_view_fills_the_space_with_six_equal_weeks": [(["zh", "80", "30", "2026-10-17"], False, {"LAYOUT": "3"}), (["en", "80", "28", "2026-10-17"], False, {"LAYOUT": "3"})],
+    "month_view_scrolls_a_week_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-21"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-09-28"], False, {"LAYOUT": "3"})],
 }
 
 
 def generate(args, with_agenda, extra):
     """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
-    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN")}
+    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN", "LAYOUT")}
     env.update(extra)
     out = subprocess.run(["python3", str(GENERATOR), *args], input=AGENDA if with_agenda else "",
                          capture_output=True, text=True, check=True, env=env).stdout

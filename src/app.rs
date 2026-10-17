@@ -27,6 +27,15 @@ pub enum Focus {
     Side,
 }
 
+/// 用哪個版型（數字鍵切換）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    /// 版型 1（`1`）：左邊月曆、右邊每個月的事跟月份對齊
+    Planner,
+    /// 版型 3（`3`）：大月曆，一次 6 週，格子裡列那天的事
+    Month,
+}
+
 /// side menu 上的一個日曆（= 任務檔的一個分組）
 #[derive(Debug)]
 pub struct Group {
@@ -74,12 +83,16 @@ pub struct App {
     pub group_index: usize,
     /// 鍵盤在哪個框
     pub focus: Focus,
+    /// 用哪個版型
+    pub view: View,
     /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
     pub agenda_index: usize,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
     /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；事太多、那個月放不下時才會捲
     pub agenda_window: Option<(Date, usize)>,
+    /// 版型 3 捲到哪：畫面最上面那週的星期一（`None` = 下一次畫的時候把選取那個月 1 號的前一週放在最上面）
+    pub month_top: Option<Date>,
     /// 畫面的顏色
     pub theme: Theme,
     /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
@@ -100,9 +113,11 @@ impl App {
             group_index: 0,
             items,
             focus: Focus::Calendar,
+            view: View::Planner,
             agenda_index: 0,
             calendar_top: None,
             agenda_window: None,
+            month_top: None,
             theme: Theme::catppuccin_mocha(),
             screen: Rect::default(),
             should_quit: false,
@@ -170,8 +185,8 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`s` 收起 / 打開 side menu、`q` / `Ctrl+C` 離開、
-    /// `Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
+    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` 換版型、`s` 收起 / 打開 side menu、
+    /// `q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
@@ -185,9 +200,11 @@ impl App {
             // 回今天，並把今天那個月捲到最上面
             KeyCode::Char('t') => {
                 self.selected = self.today;
-                self.calendar_top = None;
+                self.scroll_to_month();
                 self.focus = Focus::Calendar;
             }
+            KeyCode::Char('1') => self.set_view(View::Planner),
+            KeyCode::Char('3') => self.set_view(View::Month),
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
@@ -276,11 +293,28 @@ impl App {
         }
     }
 
-    /// `Tab`：月曆 → 右邊的事項（一件事都沒有就跳過）→ side menu（有畫才去）→ 月曆
+    /// 換版型：選取那天的那個月捲到最上面；版型 3 沒有右邊的事項框，鍵盤在那裡的話回到月曆
+    fn set_view(&mut self, view: View) {
+        self.view = view;
+        self.scroll_to_month();
+        if view == View::Month && self.focus == Focus::Agenda {
+            self.focus = Focus::Calendar;
+        }
+    }
+
+    /// 下一次畫的時候，把選取那天的那個月捲到最上面（兩個版型都是）
+    fn scroll_to_month(&mut self) {
+        self.calendar_top = None;
+        self.month_top = None;
+    }
+
+    /// `Tab`：月曆 → 右邊的事項（一件事都沒有、或是版型 3 就跳過）→ side menu（有畫才去）→ 月曆
     fn next_focus(&mut self) {
         match self.focus {
             Focus::Calendar => {
-                self.enter_agenda();
+                if self.view == View::Planner {
+                    self.enter_agenda();
+                }
                 if self.focus == Focus::Calendar && self.side_shown() {
                     self.focus = Focus::Side;
                 }
@@ -342,7 +376,7 @@ impl App {
             .selected
             .first_of_month()
             .saturating_add(months.months());
-        self.calendar_top = None;
+        self.scroll_to_month();
         self.focus = Focus::Calendar;
     }
 
@@ -715,6 +749,69 @@ mod tests {
         assert!(app.side_hidden);
         press(&mut app, KeyCode::Char('s'));
         assert!(!app.side_hidden);
+    }
+
+    #[test]
+    fn number_keys_switch_layouts() {
+        // 3 換到大月曆、1 換回來；換的時候選取那個月捲到最上面
+        let mut app = app_with(ITEMS);
+        app.calendar_top = Some(5);
+        app.month_top = Some(date(2026, 1, 5));
+        press(&mut app, KeyCode::Char('3'));
+        assert_eq!(app.view, View::Month);
+        assert_eq!((app.calendar_top, app.month_top), (None, None));
+        press(&mut app, KeyCode::Char('1'));
+        assert_eq!(app.view, View::Planner);
+        // 鍵盤在右邊的事項框時換到大月曆（沒有事項框）：回到月曆；side menu 不受影響
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Agenda);
+        press(&mut app, KeyCode::Char('3'));
+        assert_eq!(app.focus, Focus::Calendar);
+        let mut app = wide_app_with(GROUPS);
+        app.focus = Focus::Side;
+        press(&mut app, KeyCode::Char('3'));
+        assert_eq!(app.focus, Focus::Side);
+    }
+
+    #[test]
+    fn tab_skips_the_agenda_in_the_month_view() {
+        // 大月曆：月曆 → side menu → 月曆；窄的時候（沒有 side menu）按了不動
+        let mut app = wide_app_with(GROUPS);
+        app.view = View::Month;
+        for focus in [Focus::Side, Focus::Calendar] {
+            press(&mut app, KeyCode::Tab);
+            assert_eq!(app.focus, focus);
+        }
+        let mut app = app_with(ITEMS);
+        app.view = View::Month;
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Calendar);
+    }
+
+    #[test]
+    fn the_mouse_works_in_the_month_view() {
+        // 80 × 30、最上面是 9/21（格子的位置見 ui.rs 的 `month_view_click_positions_map_to_the_cells`）
+        let mut app = app_with(ITEMS);
+        app.view = View::Month;
+        app.screen = Rect::new(0, 0, 80, 30);
+        app.month_top = Some(date(2026, 9, 21));
+        // 點第 2 週星期二的格子（不一定要點在日期上）：選那天
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 20, 9));
+        assert_eq!(app.selected, date(2026, 9, 29));
+        // 滾輪移一週
+        app.handle_mouse(mouse(MouseEventKind::ScrollDown, 20, 9));
+        assert_eq!(app.selected, date(2026, 10, 6));
+    }
+
+    #[test]
+    fn t_and_brackets_put_the_month_on_top_in_the_month_view_too() {
+        for code in [KeyCode::Char('t'), KeyCode::Char('['), KeyCode::Char(']')] {
+            let mut app = app_with(ITEMS);
+            app.view = View::Month;
+            app.month_top = Some(date(2026, 1, 5));
+            press(&mut app, code);
+            assert_eq!(app.month_top, None, "{code:?}");
+        }
     }
 
     #[test]

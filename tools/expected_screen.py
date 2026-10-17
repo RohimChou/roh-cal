@@ -1,13 +1,15 @@
-"""另外算出版型 1（side menu + 左月曆 + 右事項）的畫面，當 `src/ui.rs` 畫面 test 的預期值。
+"""另外算出版型 1（side menu + 左月曆 + 右事項）、版型 3（side menu + 大月曆）的畫面，當 `src/ui.rs` 畫面 test 的預期值。
 
 跟 Rust 的程式分開寫（週用 Python 的 `calendar` 算、週數用另一種算法、任務檔用簡單的 regex 讀），
 兩邊算出來一樣才算對；不要看 Rust 畫出來的結果抄回來。
 
 用法（在 repo 最上層）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那塊的月份 YYYY-MM 跳過幾列] < 任務檔
 例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
+版型 3（環境變數 LAYOUT=3）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那週的星期一 YYYY-MM-DD] < 任務檔
+（沒給最上面那週 = 剛打開：選取那個月 1 號的前一週，選取的那週不在 6 週裡再捲）
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
-HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示
+HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
 今天固定是 2026-10-17。
 """
 import calendar
@@ -227,16 +229,113 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     return [ljust(cut(line, w), w) for line in lines]
 
 
+class Canvas:
+    """一格一格的畫布：寬字元佔 2 格，後面那格放 None（印出來時跳過，跟 Rust test 的 `text_rows` 一樣）"""
+
+    def __init__(self, w, h):
+        self.w = w
+        self.rows = [[" "] * w for _ in range(h)]
+
+    def put(self, x, y, s, limit=None):
+        """從 (x, y) 往右寫 s，最多寫到 x + limit 格（寬字元放不下就整個不寫）"""
+        end = min(self.w, x + (limit if limit is not None else self.w))
+        for c in s:
+            cw = width(c)
+            if x + cw > end:
+                break
+            self.rows[y][x] = c
+            if cw == 2:
+                self.rows[y][x + 1] = None
+            x += cw
+
+    def line(self, y):
+        return "".join(c for c in self.rows[y] if c is not None)
+
+
+def month_screen(lang, w, h, selected, top, items, groups):
+    """版型 3：side menu（夠寬才有）+ 大月曆（6 週）+ 操作說明"""
+    t = TEXTS[lang]
+    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
+    iw, ih = w - sw - 2, h - 3  # 大月曆框裡面的寬、高（扣掉框、操作說明）
+    # 欄：週數欄 5 格；天平分剩下的寬度（扣掉 7 條直線），零頭從星期一開始一欄多 1 格
+    days_w = iw - 5 - 7
+    widths = [5] + [days_w // 7 + (1 if k < days_w % 7 else 0) for k in range(7)]
+    xs = [0]
+    for k in range(1, 8):
+        xs.append(xs[k - 1] + widths[k - 1] + 1)
+    lines_x = [xs[k] + widths[k] for k in range(7)]  # 直線：每一欄的右邊（星期日右邊是外框）
+    wh = (ih - 2 - 5) // 6  # 每週幾列（除不盡的零頭留在最下面，直線照樣畫到下框）
+    week_y = lambda i: 2 + i * (wh + 1)
+    c = Canvas(iw, ih)
+    left, right = ["│"] * ih, ["│"] * ih  # 每一列的左右外框
+    for x in lines_x:
+        for y in range(1, ih):
+            c.rows[y][x] = "│"
+    rules = [(1, "┬")] + [(week_y(i) + wh, "┼") for i in range(5)]
+    for y, cross in rules:
+        c.rows[y] = ["─"] * iw
+        for x in lines_x:
+            c.rows[y][x] = cross
+        left[y], right[y] = "├", "┤"
+    # 表頭：「  週 」，每天的名字放在那欄最左邊
+    c.put(0, 0, " " + t["hw"], 5)
+    for k, name in enumerate(t["wd"]):
+        c.put(xs[k + 1], 0, " " + name, widths[k + 1])
+    month = (selected.year, selected.month)
+    for i in range(6):
+        monday = top + datetime.timedelta(weeks=i)
+        days = [monday + datetime.timedelta(days=k) for k in range(7)]
+        # 週數：那週裡屬於選取那個月的日子，沒有就用星期一
+        numbered = next((d for d in days if (d.year, d.month) == month), monday)
+        c.put(0, week_y(i), f" {week_number(numbered):>3} ", 5)
+        for k, d in enumerate(days):
+            mark = ("[", "]") if d == selected else (" ", " ")
+            first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
+            c.put(xs[k + 1], week_y(i), first, widths[k + 1])
+    # 外框：上面右邊寫選取的日期（貼著右上角）；直線碰到下框接成 ┴
+    title = " " + t["date"](selected) + " "
+    top_border = Canvas(iw, 1)
+    top_border.rows[0] = ["─"] * iw
+    top_border.put(iw - width(title), 0, title)
+    bottom_border = ["─"] * iw
+    for x in lines_x:
+        bottom_border[x] = "┴"
+    lines = ["╭" + top_border.line(0) + "╮"]
+    lines += [left[y] + c.line(y) + right[y] for y in range(ih)]
+    lines.append("╰" + "".join(bottom_border) + "╯")
+    if sw:
+        lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
+    lines.append(t["hints_side"] if w >= 120 else t["hints"])
+    return [ljust(cut(line, w), w) for line in lines]
+
+
+def month_top(selected, given):
+    """最上面那週的星期一：有給就用；沒給 = 選取那個月 1 號那週的前一週。選取的那週不在這 6 週裡就捲到剛好看得到"""
+    monday = lambda x: x - datetime.timedelta(days=x.weekday())
+    top = datetime.date.fromisoformat(given) if given else monday(selected.replace(day=1)) - datetime.timedelta(weeks=1)
+    week = monday(selected)
+    if week < top:
+        top = week
+    elif week > top + datetime.timedelta(weeks=5):
+        top = week - datetime.timedelta(weeks=5)
+    return top
+
+
 lang, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 selected = datetime.date.fromisoformat(sys.argv[4])
-if len(sys.argv) > 6:
-    first = tuple(int(part) for part in sys.argv[5].split("-"))
-    skip = int(sys.argv[6])
-else:
-    first, skip = (selected.year, selected.month), 0
 text = sys.stdin.read()
 groups = read_groups(text)
 items = read_items(text, {groups[i][0] for i in HIDDEN})
-for line in screen(lang, w, h, selected, first, skip, items, groups):
+if os.environ.get("LAYOUT") == "3":
+    top = month_top(selected, sys.argv[5] if len(sys.argv) > 5 else None)
+    out = month_screen(lang, w, h, selected, top, items, groups)
+else:
+    if len(sys.argv) > 6:
+        first = tuple(int(part) for part in sys.argv[5].split("-"))
+        skip = int(sys.argv[6])
+    else:
+        first, skip = (selected.year, selected.month), 0
+    out = screen(lang, w, h, selected, first, skip, items, groups)
+for line in out:
     assert width(line) == w, (width(line), line)
     print(f'            "{line.rstrip()}",')
