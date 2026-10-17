@@ -15,8 +15,10 @@ use ratatui::{
 struct Areas {
     /// 最上面一列：標題、選取的日期
     title: Rect,
-    /// 中間左邊：月曆框（右邊先空著）
+    /// 中間左邊：月曆框
     calendar: Rect,
+    /// 中間右邊：事項框，跟月曆框同一列對齊
+    agenda: Rect,
     /// 最下面一列：操作說明
     hints: Rect,
 }
@@ -29,27 +31,30 @@ fn areas(screen: Rect) -> Areas {
         Constraint::Length(1),
     ])
     .areas(screen);
-    let [calendar, _] =
+    let [calendar, agenda] =
         Layout::horizontal([Constraint::Length(calendar::WIDTH), Constraint::Fill(1)]).areas(main);
     Areas {
         title,
         calendar,
+        agenda,
         hints,
     }
 }
 
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到哪一天；沒點在日期上回傳 `None`
 pub fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
-    calendar::date_at(areas(app.screen).calendar, app, column, row)
+    let areas = areas(app.screen);
+    calendar::date_at(areas.calendar, areas.agenda, app, column, row)
 }
 
-/// 畫整個畫面：中間左邊是月曆框，右邊先空著
+/// 畫整個畫面：中間左邊是月曆框、右邊是事項框
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
     let Areas {
         title,
         calendar: calendar_area,
+        agenda: agenda_area,
         hints,
     } = areas(frame.area());
     // 標題列：左邊 app 的名字、右邊選取的日期（後面留一格空白）
@@ -65,8 +70,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Line::styled(texts.hints, Style::new().fg(theme.muted)),
         hints,
     );
-    // 月曆框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
-    calendar::render(frame, calendar_area, app);
+    // 月曆框、事項框最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
+    calendar::render(frame, calendar_area, agenda_area, app);
 }
 
 #[cfg(test)]
@@ -114,11 +119,11 @@ mod tests {
     #[test]
     fn calendar_from_this_month_down_with_a_thick_line_between_years() {
         // 只有 1 月寫年份（下一列寫月），畫面上有 1 月所以表頭照常寫「年月」；跨年那條是粗線；選取的今天加括號、標題列右邊寫日期
-        let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 17));
+        let terminal = draw(Lang::ZhTw, 35, 27, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal               2026/10/17（六）",
+                " roh-cal          2026/10/17（六）",
                 "╭─────────────────────────────────╮",
                 "│  年月 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
@@ -151,11 +156,11 @@ mod tests {
 
     #[test]
     fn calendar_in_english() {
-        let terminal = draw(Lang::En, 40, 12, date(2026, 10, 17));
+        let terminal = draw(Lang::En, 35, 12, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal               Sat Oct 17, 2026",
+                " roh-cal          Sat Oct 17, 2026",
                 "╭─────────────────────────────────╮",
                 "│  2026 Wk │ Mo Tu We Th Fr Sa Su │",
                 "│──────────┼──────────────────────│",
@@ -166,7 +171,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    │",
                 "│──────────┼──────────────────────│",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q quit",
+                " hjkl move  [] month  t today  q qu",
             ]
         );
     }
@@ -174,11 +179,11 @@ mod tests {
     #[test]
     fn selection_brackets_and_the_month_on_top() {
         // 選到別的月：那個月排在最上面；畫面上沒有 1 月，表頭寫年份；一位數的日期括號貼著數字
-        let terminal = draw(Lang::En, 40, 9, date(2026, 11, 2));
+        let terminal = draw(Lang::En, 35, 9, date(2026, 11, 2));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal                Mon Nov 2, 2026",
+                " roh-cal           Mon Nov 2, 2026",
                 "╭─────────────────────────────────╮",
                 "│  2026 Wk │ Mo Tu We Th Fr Sa Su │",
                 "│──────────┼──────────────────────│",
@@ -186,15 +191,15 @@ mod tests {
                 "│       45 │ [2] 3  4  5  6  7  8 │",
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q quit",
+                " hjkl move  [] month  t today  q qu",
             ]
         );
         // 星期日：`]` 放在最後多留的那格；月曆只有 3 列、要留 1 列，所以往上多捲一列（跨年的粗線）
-        let terminal = draw(Lang::ZhTw, 40, 9, date(2027, 1, 3));
+        let terminal = draw(Lang::ZhTw, 35, 9, date(2027, 1, 3));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
             [
-                " roh-cal                 2027/1/3（日）",
+                " roh-cal            2027/1/3（日）",
                 "╭─────────────────────────────────╮",
                 "│  年月 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
@@ -211,16 +216,16 @@ mod tests {
     fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
         // 月曆有 6 列：10/17 → 10/24 → 10/31 → 11/7 一路往下，選取的那列離下緣至少留 2 列，不夠才捲
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-        draw_app(&mut app, 40, 12);
+        draw_app(&mut app, 35, 12);
         for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
             app.selected = day;
-            draw_app(&mut app, 40, 12);
+            draw_app(&mut app, 35, 12);
         }
         // 10 月的前 4 列捲到上面了；畫面上沒有 1 月，表頭寫年份
         assert_eq!(
-            text_rows(draw_app(&mut app, 40, 12).backend().buffer()),
+            text_rows(draw_app(&mut app, 35, 12).backend().buffer()),
             [
-                " roh-cal                Sat Nov 7, 2026",
+                " roh-cal           Sat Nov 7, 2026",
                 "╭─────────────────────────────────╮",
                 "│  2026 Wk │ Mo Tu We Th Fr Sa Su │",
                 "│──────────┼──────────────────────│",
@@ -231,15 +236,15 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "│       47 │ 16 17 18 19 20 21 22 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q quit",
+                " hjkl move  [] month  t today  q qu",
             ]
         );
         // 往回一週：選取的那列離上緣至少留 2 列，往上捲 2 列
         app.selected = date(2026, 10, 31);
         assert_eq!(
-            text_rows(draw_app(&mut app, 40, 12).backend().buffer()),
+            text_rows(draw_app(&mut app, 35, 12).backend().buffer()),
             [
-                " roh-cal               Sat Oct 31, 2026",
+                " roh-cal          Sat Oct 31, 2026",
                 "╭─────────────────────────────────╮",
                 "│  2026 Wk │ Mo Tu We Th Fr Sa Su │",
                 "│──────────┼──────────────────────│",
@@ -250,7 +255,7 @@ mod tests {
                 "│   Nov 44 │                    1 │",
                 "│       45 │  2  3  4  5  6  7  8 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  [] month  t today  q quit",
+                " hjkl move  [] month  t today  q qu",
             ]
         );
     }
@@ -259,12 +264,12 @@ mod tests {
     fn calendar_scrolls_up_into_earlier_months() {
         // 10/17 往上一週到 10/10：上面只剩 1 列，往上捲 1 列，露出 9 月後面的線
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
-        draw_app(&mut app, 40, 12);
+        draw_app(&mut app, 35, 12);
         app.selected = date(2026, 10, 10);
         assert_eq!(
-            text_rows(draw_app(&mut app, 40, 12).backend().buffer()),
+            text_rows(draw_app(&mut app, 35, 12).backend().buffer()),
             [
-                " roh-cal               2026/10/10（六）",
+                " roh-cal          2026/10/10（六）",
                 "╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 │",
                 "│──────────┼──────────────────────│",
@@ -350,6 +355,141 @@ mod tests {
         assert_eq!(date_at(&app, 13, 5), None);
         assert_eq!(date_at(&app, 31, 6), Some(date(2026, 11, 1)));
         assert_eq!(date_at(&app, 13, 7), Some(date(2026, 11, 2)));
+    }
+
+    /// 事項框 test 用的任務檔（跟產生預期畫面的 Python 程式用同一份）
+    const AGENDA_TASKS: &str = "- [ ] 交週報 @2026-10-16 17:30\n\
+                                - [x] 修 bug @2026-10-15\n\
+                                - 聚餐 @2026-10-17\n\
+                                - [ ] 早餐會 @2026-10-17 08:00\n\
+                                - [ ] 爬山 @2026-10-18 07:00\n\
+                                - [ ] 繳電話費 @2026-10-05\n\
+                                - [ ] 國慶日 @2026-10-10\n\
+                                - [ ] 一個很長很長很長很長很長很長很長的標題 @2026-10-20\n\
+                                - [ ] 沒日期的事\n\
+                                - [ ] 跨年倒數 @2026-12-31 23:00\n\
+                                - [ ] Release v2.3 @2026-11-03 09:30\n";
+
+    /// 今天 2026/10/17、選取今天、任務檔是 `AGENDA_TASKS` 的 app
+    fn agenda_app(lang: Lang) -> App {
+        App::new(
+            lang,
+            date(2026, 10, 17),
+            crate::tasks::parse(AGENDA_TASKS).items,
+        )
+    }
+
+    #[test]
+    fn agenda_lists_each_months_items_next_to_it() {
+        // 右邊一欄：10 月 8 件事比 5 週多，月份往下長 3 列；照日期、時間排（同一天沒時間的在前）；
+        // 沒日期的不列；太長的標題被切掉
+        let mut app = agenda_app(Lang::ZhTw);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 70, 24).backend().buffer()),
+            [
+                " roh-cal                                             2026/10/17（六）",
+                "╭─────────────────────────────────╮╭─────────────────────────────────╮",
+                "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                        │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  10月 40 │           1  2  3  4 ││  10/5 繳電話費                  │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                    │",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                    │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報              │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                      │",
+                "│          │                      ││ 10/17 08:00 早餐會              │",
+                "│          │                      ││ 10/18 07:00 爬山                │",
+                "│          │                      ││ 10/20 一個很長很長很長很長很長很│",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3        │",
+                "│       45 │  2  3  4  5  6  7  8 ││                                 │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                 │",
+                "│       47 │ 16 17 18 19 20 21 22 ││                                 │",
+                "│       48 │ 23 24 25 26 27 28 29 ││                                 │",
+                "│       49 │ 30                   ││                                 │",
+                "│──────────┼──────────────────────││─────────────────────────────────│",
+                "│  12月 49 │     1  2  3  4  5  6 ││ 12/31 23:00 跨年倒數            │",
+                "│       50 │  7  8  9 10 11 12 13 ││                                 │",
+                "╰─────────────────────────────────╯╰─────────────────────────────────╯",
+                " hjkl 移動  [] 換月  t 今天  q 離開",
+            ]
+        );
+    }
+
+    #[test]
+    fn agenda_flows_into_columns_when_wide() {
+        // 右邊 58 格寬：分 2 欄，像報紙一樣先排滿第一欄（10 月 5 列）再排第二欄
+        let mut app = agenda_app(Lang::En);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 95, 16).backend().buffer()),
+            [
+                " roh-cal                                                                      Sat Oct 17, 2026",
+                "╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────╮",
+                "│  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                                                   │",
+                "│──────────┼──────────────────────││──────────────────────────────────────────────────────────│",
+                "│   Oct 40 │           1  2  3  4 ││  10/5 繳電話費                10/17 08:00 早餐會         │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 國慶日                  10/18 07:00 爬山           │",
+                "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 修 bug                  10/20 一個很長很長很長很長 │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 交週報                                       │",
+                "│       44 │ 26 27 28 29 30 31    ││ 10/17 聚餐                                               │",
+                "│──────────┼──────────────────────││──────────────────────────────────────────────────────────│",
+                "│   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                                 │",
+                "│       45 │  2  3  4  5  6  7  8 ││                                                          │",
+                "│       46 │  9 10 11 12 13 14 15 ││                                                          │",
+                "│       47 │ 16 17 18 19 20 21 22 ││                                                          │",
+                "╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
+                " hjkl move  [] month  t today  q quit",
+            ]
+        );
+    }
+
+    #[test]
+    fn clicking_an_item_selects_its_day() {
+        // 一欄（畫面見 `agenda_lists_each_months_items_next_to_it`）：右邊框裡面從 x 36 開始
+        let mut app = agenda_app(Lang::ZhTw);
+        app.screen = Rect::new(0, 0, 70, 24);
+        draw_app(&mut app, 70, 24);
+        assert_eq!(date_at(&app, 40, 4), Some(date(2026, 10, 5)));
+        assert_eq!(date_at(&app, 68, 9), Some(date(2026, 10, 17)));
+        assert_eq!(date_at(&app, 40, 13), Some(date(2026, 11, 3)));
+        // 右邊沒有事的列、表頭；左邊只有事的那幾列沒有日期
+        assert_eq!(date_at(&app, 40, 14), None);
+        assert_eq!(date_at(&app, 40, 2), None);
+        assert_eq!(date_at(&app, 20, 9), None);
+        // 兩欄（畫面見 `agenda_flows_into_columns_when_wide`）：第二欄從 x 36 + 28 + 2 = 66 開始，中間 2 格空白不算
+        let mut app = agenda_app(Lang::En);
+        app.screen = Rect::new(0, 0, 95, 16);
+        draw_app(&mut app, 95, 16);
+        assert_eq!(date_at(&app, 70, 4), Some(date(2026, 10, 17)));
+        assert_eq!(date_at(&app, 63, 4), Some(date(2026, 10, 5)));
+        assert_eq!(date_at(&app, 64, 4), None);
+        assert_eq!(date_at(&app, 65, 4), None);
+        assert_eq!(date_at(&app, 66, 4), Some(date(2026, 10, 17)));
+    }
+
+    #[test]
+    fn selection_stays_on_screen_with_tall_months() {
+        // 範例任務檔有的月比週數高：一週一週往後 60 週、往前 120 週，括號都在畫面上、離上下緣至少 2 列
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
+        );
+        let steps = std::iter::repeat_n(7, 60).chain(std::iter::repeat_n(-7, 120));
+        for step in steps {
+            app.selected = app.selected.saturating_add(step.days());
+            let rows = text_rows(draw_app(&mut app, 70, 14).backend().buffer());
+            let body = &rows[4..rows.len() - 2];
+            let selected = format!("[{}]", app.selected.day());
+            let y = body
+                .iter()
+                .position(|row| row.contains(&selected))
+                .unwrap_or_else(|| panic!("{} 不在畫面上：{body:#?}", app.selected));
+            assert!(
+                y >= 2 && y + 2 < body.len(),
+                "{}：在第 {y} 列",
+                app.selected
+            );
+        }
     }
 
     #[test]

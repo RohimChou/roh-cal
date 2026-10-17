@@ -60,6 +60,8 @@ pub struct Texts {
     pub header_week: &'static str,
     /// 月曆表頭的星期一到星期日：每個剛好 2 格寬
     pub weekdays: [&'static str; 7],
+    /// 右邊事項框的表頭
+    pub header_items: &'static str,
 }
 
 const EN: Texts = Texts {
@@ -69,6 +71,7 @@ const EN: Texts = Texts {
     header_month: "",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+    header_items: " Agenda",
 };
 
 const ZH_TW: Texts = Texts {
@@ -78,6 +81,7 @@ const ZH_TW: Texts = Texts {
     header_month: "年月",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
+    header_items: " 重要事項",
 };
 
 /// 英文的月份縮寫，`[0]` 是一月
