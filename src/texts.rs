@@ -141,6 +141,16 @@ impl Texts {
         }
     }
 
+    /// 改期中（按了 `r`），最下面一列的說明，例：` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
+    pub fn moving(&self, title: &str) -> String {
+        match self.lang {
+            Lang::En => {
+                format!(" Reschedule \"{title}\": move to the new day  Enter done  Esc cancel")
+            }
+            Lang::ZhTw => format!(" 改期「{title}」：移到新的日期  Enter 確定  Esc 取消"),
+        }
+    }
+
     /// 選取的日期（右邊事項框表頭的右邊），例：`Sat Oct 17, 2026` / `2026/10/17（六）`
     pub fn date_title(&self, date: Date) -> String {
         // 星期一 = 0、星期日 = 6

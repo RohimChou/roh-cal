@@ -300,7 +300,7 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
 }
 
 /// 是不是 Obsidian 的 block id：`^` 後面接英文字母、數字、`-`，例：`^csfds-01`
-fn is_block_id(word: &str) -> bool {
+pub(crate) fn is_block_id(word: &str) -> bool {
     word.strip_prefix('^').is_some_and(|id| {
         !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
     })

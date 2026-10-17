@@ -1,7 +1,9 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
+mod moving;
 mod write;
 
+pub use moving::Moving;
 pub use write::Notice;
 
 use crate::{
@@ -125,6 +127,8 @@ pub struct App {
     pub notice: Option<Notice>,
     /// roh-cal 寫過的檔（`u` 復原用），最新的在最後面
     undo: Vec<write::UndoStep>,
+    /// 改期中（按了 `r`）：要搬哪件事；`None` = 沒在改期
+    pub moving: Option<Moving>,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -151,6 +155,7 @@ impl App {
             tasks_path: None,
             notice: None,
             undo: Vec::new(),
+            moving: None,
             should_quit: false,
         }
     }
@@ -253,9 +258,14 @@ impl App {
 
     /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` 換版型、`s` 收起 / 打開 side menu、
     /// `q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
-    fn handle_key(&mut self, key: KeyEvent) {
+    pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
         self.notice = None;
+        // 改期中：只收移動日期、確定、取消
+        if self.moving.is_some() {
+            self.handle_moving_key(key);
+            return;
+        }
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
@@ -310,6 +320,7 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char('r') => self.start_moving(),
             _ => {}
         }
     }
@@ -345,6 +356,11 @@ impl App {
             // 點在日期或事上才選；點在表頭、線、空格上不理
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
+                    // 改期中：點日期 = 選新的日期，其他地方不理
+                    Some(Click::Day(date)) if self.moving.is_some() => {
+                        self.click_while_moving(date);
+                    }
+                    _ if self.moving.is_some() => {}
                     Some(Click::Day(date)) => {
                         self.selected = date;
                         self.focus = Focus::Calendar;

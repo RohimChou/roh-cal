@@ -97,8 +97,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         agenda: agenda_area,
         hints,
     } = areas(frame.area(), app);
-    // 有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
-    if let Some(notice) = &app.notice {
+    // 改期中：說明現在在搬哪件、怎麼確定；有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
+    if let Some(moving) = &app.moving {
+        frame.render_widget(
+            Line::styled(
+                texts.moving(&moving.item.title),
+                Style::new().fg(theme.notice),
+            ),
+            hints,
+        );
+    } else if let Some(notice) = &app.notice {
         frame.render_widget(
             Line::styled(texts.notice(notice), Style::new().fg(theme.notice)),
             hints,
@@ -998,6 +1006,24 @@ mod tests {
         assert_eq!(
             (buffer[(68, 8)].symbol(), buffer[(68, 8)].fg),
             ("─", theme.line)
+        );
+    }
+
+    #[test]
+    fn the_bottom_line_says_what_is_being_moved() {
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse("- [ ] 交週報 @2026-10-16\n").items,
+        );
+        app.focus = Focus::Agenda;
+        app.handle_key(ratatui::crossterm::event::KeyEvent::from(
+            ratatui::crossterm::event::KeyCode::Char('r'),
+        ));
+        let rows = text_rows(draw_app(&mut app, 70, 11).backend().buffer());
+        assert_eq!(
+            rows[10],
+            " 改期「交週報」：移到新的日期  Enter 確定  Esc 取消"
         );
     }
 

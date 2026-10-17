@@ -89,7 +89,7 @@ impl App {
     }
 
     /// 任務檔的位置和現在的內容（寫之前一定先重讀）；沒有任務檔（test）是 `None`，讀不到就記下提示、也是 `None`
-    fn read_tasks(&mut self) -> Option<(PathBuf, String)> {
+    pub(super) fn read_tasks(&mut self) -> Option<(PathBuf, String)> {
         let path = self.tasks_path.clone()?;
         match std::fs::read_to_string(&path) {
             Ok(text) => Some((path, text)),
@@ -102,7 +102,13 @@ impl App {
 
     /// 把 `after` 寫進任務檔，畫面的事跟著更新，記一步 undo（`before` = 寫之前的內容、`title` = 改到的那件事）；
     /// 失敗就記下提示（檔案、畫面都不動）
-    fn write_tasks(&mut self, path: &Path, before: String, after: String, title: String) {
+    pub(super) fn write_tasks(
+        &mut self,
+        path: &Path,
+        before: String,
+        after: String,
+        title: String,
+    ) {
         if let Err(error) = files::write_atomically(path, &after) {
             self.notice = Some(Notice::Failed(error.kind()));
             return;
@@ -120,7 +126,7 @@ impl App {
     }
 
     /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫；之前記的 undo 都對不上了，清掉
-    fn reload(&mut self, text: &str) {
+    pub(super) fn reload(&mut self, text: &str) {
         self.set_items(tasks::parse(text).items);
         self.undo.clear();
         self.notice = Some(Notice::Reloaded);
@@ -159,8 +165,8 @@ pub(crate) mod tests {
         std::fs::write(&path, text).expect("write");
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), tasks::parse(text).items);
         app.tasks_path = Some(path.clone());
-        app.focus = Focus::Agenda;
-        app.agenda_index = 0;
+        // 跟按 Tab 一樣選第一件：鍵盤換到右邊、月曆選取那件事的日子
+        app.choose(0);
         (app, path)
     }
 
