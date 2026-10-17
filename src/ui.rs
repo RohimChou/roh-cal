@@ -493,6 +493,36 @@ mod tests {
     }
 
     #[test]
+    fn item_colors_follow_their_day() {
+        // 畫面見 `agenda_lists_each_months_items_next_to_it`：右邊框裡面從 x 36 開始
+        let mut app = agenda_app(Lang::ZhTw);
+        let terminal = draw_app(&mut app, 70, 24);
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        // (x, y) 那格：字、前景色、有沒有劃線
+        let cell = |x: u16, y: u16| {
+            let cell = &buffer[(x, y)];
+            (
+                cell.symbol(),
+                cell.fg,
+                cell.modifier.contains(Modifier::CROSSED_OUT),
+            )
+        };
+        // 10/5 有沒做完的事：日期、標題都跟月曆上一樣是橘色
+        assert_eq!(cell(38, 4), ("1", theme.has_item, false));
+        assert_eq!(cell(43, 4), ("繳", theme.has_item, false));
+        // 10/15 只有做完的事：日期跟沒事一樣（平日的顏色）；標題變灰、劃線
+        assert_eq!(cell(37, 6), ("1", theme.text, false));
+        assert_eq!(cell(43, 6), ("修", theme.muted, true));
+        // 10/17 今天：綠色；時間淡色
+        assert_eq!(cell(43, 8), ("聚", theme.today, false));
+        assert_eq!(cell(43, 9), ("0", theme.muted, false));
+        assert_eq!(cell(49, 9), ("早", theme.today, false));
+        // 10/18（日）有沒做完的事：橘色蓋過週末
+        assert_eq!(cell(49, 10), ("爬", theme.has_item, false));
+    }
+
+    #[test]
     fn colors_by_role() {
         let terminal = draw(Lang::ZhTw, 40, 27, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
