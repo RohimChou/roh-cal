@@ -149,6 +149,15 @@ impl App {
             .is_none_or(|group| group.shown)
     }
 
+    /// `day` 是不是假日：假日日曆（標題寫了 `type:holiday`）裡有勾選的事蓋到那天
+    pub fn is_holiday(&self, day: Date) -> bool {
+        self.items.iter().any(|item| {
+            item.group.as_ref().is_some_and(|group| group.holiday)
+                && self.is_shown(item)
+                && item.covers(day)
+        })
+    }
+
     /// 右邊列出來的事：有日期、日曆有勾選的，照列在哪天、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
     ///
     /// 跨多天又跨月的事，碰到的每個月都列一次：第一個月列在開始那天，之後的月列在 1 號、排在那個月最上面。

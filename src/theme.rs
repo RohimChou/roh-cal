@@ -21,8 +21,10 @@ pub struct Theme {
     pub week_number_dim: Color,
     /// 六、日的日期和表頭
     pub weekend: Color,
-    /// 有沒做完的事的日期
+    /// 有還沒結束的事的日期
     pub has_item: Color,
+    /// 假日（假日日曆裡的事的日子）的日期
+    pub holiday: Color,
     /// 今天的日期
     pub today: Color,
     /// 選取的日期：前後的括號 `[17]`
@@ -68,6 +70,7 @@ impl Theme {
             week_number_dim: dim_yellow,
             weekend: blue,
             has_item: peach,
+            holiday: red,
             today: green,
             selected: red,
             cursor_line: surface0,

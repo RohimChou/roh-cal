@@ -82,13 +82,15 @@ struct When {
     time: Option<Time>,
 }
 
-/// 分組標題，例：`# 付款 API 改版`
+/// 分組標題，例：`# 付款 API 改版`、`# 國定假日 type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
     /// 幾個 `#`；v0 不分層，但先記下來，之後做多層分組不用改檔案
     pub level: usize,
-    /// 標題文字
+    /// 標題文字（不含 `type:holiday`）
     pub name: String,
+    /// 假日日曆：標題寫了 `type:holiday`，底下的事的日子都是假日
+    pub holiday: bool,
 }
 
 /// 解析時發現、但不影響讀取的問題
@@ -179,12 +181,24 @@ fn parse_heading(line: &str) -> Option<Heading> {
         return None;
     }
     // `#` 都是 1 個 byte，所以可以直接用 level 切字串
-    let name = line[level..].strip_prefix(' ')?;
+    let text = line[level..].strip_prefix(' ')?;
+    // `type:holiday` 不算名字，拿掉之後剩下的字用一個空白接起來
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let holiday = words.contains(&HOLIDAY);
+    let name = words
+        .into_iter()
+        .filter(|&word| word != HOLIDAY)
+        .collect::<Vec<_>>()
+        .join(" ");
     Some(Heading {
         level,
-        name: name.trim().to_string(),
+        name,
+        holiday,
     })
 }
+
+/// 標題裡標示假日日曆的字（規格的 `key:value` 寫法）
+const HOLIDAY: &str = "type:holiday";
 
 /// 看這行是不是項目：回傳（任務還是行程, 完成了沒, 剩下的文字）；不是 `- ` 開頭就回傳 `None`
 ///
@@ -502,12 +516,34 @@ mod tests {
             Some(Heading {
                 level,
                 name: name.into(),
+                holiday: false,
             })
         };
         assert_eq!(groups, vec![None, heading(1, "個人"), heading(2, "搬家")]);
         // `#tag`（沒有空白）、7 個 # 都不是標題
         assert_eq!(parse("#tag\n- a").items[0].group, None);
         assert_eq!(parse("####### x\n- a").items[0].group, None);
+    }
+
+    #[test]
+    fn rule4b_type_holiday_makes_a_holiday_calendar() {
+        // `type:holiday` 放哪裡都可以，不算名字；別的 `key:value` 照樣是名字的一部分
+        let group = |text: &str| parse(text).items[0].group.clone().expect("有標題");
+        let heading = group("# 國定假日 type:holiday\n- 國慶日 @2026-10-10");
+        assert_eq!((heading.name.as_str(), heading.holiday), ("國定假日", true));
+        let heading = group("## type:holiday 2026 連假\n- a");
+        assert_eq!(
+            (heading.name.as_str(), heading.holiday),
+            ("2026 連假", true)
+        );
+        let heading = group("# 工作 type:work\n- a");
+        assert_eq!(
+            (heading.name.as_str(), heading.holiday),
+            ("工作 type:work", false)
+        );
+        // 大寫、少了冒號都不算
+        assert!(!group("# 假日 Type:Holiday\n- a").holiday);
+        assert!(!group("# 假日 holiday\n- a").holiday);
     }
 
     #[test]
@@ -568,8 +604,13 @@ mod tests {
         assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 32);
         assert_eq!(count(|item| item.kind == Kind::Event), 19);
         assert_eq!(count(|item| item.date.is_none()), 11);
-        // 2 件跨多天（主管出差、東京 5 天）
-        assert_eq!(count(|item| item.end.is_some()), 2);
+        // 3 件跨多天（主管出差、東京 5 天、國慶連假）
+        assert_eq!(count(|item| item.end.is_some()), 3);
+        // 1 個假日日曆，2 件
+        assert_eq!(
+            count(|item| item.group.as_ref().is_some_and(|group| group.holiday)),
+            2
+        );
         // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
         // 唯一一個寫錯的日期
         assert_eq!(parsed.warnings.len(), 1);

@@ -1173,6 +1173,39 @@ mod tests {
     }
 
     #[test]
+    fn holidays_are_red() {
+        // 國定假日（type:holiday）：國慶連假 10/9～11、光復節 10/25；10/25 還有一件工作的事，假日的紅蓋過橘
+        let text = "# 國定假日 type:holiday\n- 國慶連假 @2026-10-09..2026-10-11\n- 光復節 @2026-10-25\n\
+                    # 工作\n- [ ] 加班 @2026-10-25\n";
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        let theme = Theme::catppuccin_mocha();
+        let fg = |app: &mut App, x: u16, y: u16| {
+            let terminal = draw_app(app, 70, 23);
+            let cell = &terminal.backend().buffer()[(x, y)];
+            (cell.symbol().to_string(), cell.fg)
+        };
+        // 10/9（五）x 26、10/10（六）x 29、10/11（日）x 32 在 y 4；10/25（日）x 32 在 y 6；10/8（四）x 23 不是假日
+        assert_eq!(fg(&mut app, 26, 4), ("9".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 32, 4), ("1".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 23, 4), ("8".into(), theme.text));
+        // 今天是假日的話，今天的綠色優先
+        app.today = date(2026, 10, 10);
+        assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.today));
+        app.today = date(2026, 10, 17);
+        // side menu 上的名字不含 type:holiday；取消勾選：不是假日了（10/25 回到有事的橘、10/10 回到週末的藍）
+        assert_eq!(app.groups[0].name.as_deref(), Some("國定假日"));
+        app.groups[0].shown = false;
+        assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.has_item));
+        assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.weekend));
+    }
+
+    #[test]
     fn events_gray_out_once_their_day_is_past() {
         // 10/9 過期沒做完的任務（橘）、10/10 過去的行程（灰、不劃線，那天回到週末的藍）、10/18 還沒到的行程（橘）
         let text = "- [ ] 交週報 @2026-10-09\n- 國慶日 @2026-10-10\n- 爬山 @2026-10-18 07:00\n";

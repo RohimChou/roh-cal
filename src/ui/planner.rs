@@ -394,12 +394,14 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 一天的日期顏色：今天 > 有還沒結束的事（沒做完的任務、還沒過的行程）> 週末 > 一般
+/// 一天的日期顏色：今天 > 假日 > 有還沒結束的事（沒做完的任務、還沒過的行程）> 週末 > 一般
 /// （事都結束了、日曆沒勾的事，都跟沒事一樣）
 pub(super) fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
         theme.today
+    } else if app.is_holiday(day) {
+        theme.holiday
     } else if app
         .items
         .iter()

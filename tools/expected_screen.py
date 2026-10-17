@@ -76,7 +76,8 @@ def read_items(text, hidden_names):
     for i, line in enumerate(text.splitlines()):
         heading = re.match(r"#+ (.*)", line)
         if heading:
-            name = heading.group(1).strip()
+            # `type:holiday` 不算名字
+            name = " ".join(w for w in heading.group(1).split() if w != "type:holiday")
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and name not in hidden_names:
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
@@ -122,7 +123,8 @@ def read_groups(text):
     for line in text.splitlines():
         heading = re.match(r"#+ (.*)", line)
         if heading:
-            name = heading.group(1).strip()
+            # `type:holiday` 不算名字
+            name = " ".join(w for w in heading.group(1).split() if w != "type:holiday")
         elif re.match(r"\s*- ", line):
             groups.setdefault(name, 0)
             groups[name] += bool(re.search(r" @\d{4}-\d{2}-\d{2}", line))
