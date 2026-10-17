@@ -25,6 +25,8 @@ pub struct Theme {
     pub today: Color,
     /// 選取的日期：前後的括號 `[17]`
     pub selected: Color,
+    /// 月曆上選取那一週那一列的底色（像 vim 的 cursorline）
+    pub cursor_line: Color,
 }
 
 impl Theme {
@@ -39,6 +41,7 @@ impl Theme {
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
         let red = Color::Rgb(243, 139, 168);
+        let surface0 = Color::Rgb(49, 50, 68);
         let peach = Color::Rgb(250, 179, 135);
 
         Self {
@@ -52,6 +55,7 @@ impl Theme {
             has_item: peach,
             today: green,
             selected: red,
+            cursor_line: surface0,
         }
     }
 }

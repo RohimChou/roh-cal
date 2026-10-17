@@ -409,6 +409,8 @@ fn render_header(
 }
 
 /// 月曆框的一列：左邊的年 / 月、週數、│、7 天（一天 3 格寬、日期靠右）；只有事的列只畫 │
+///
+/// 選取的那天在這一列：整列墊上 `cursor_line` 的底色
 fn render_week(
     frame: &mut Frame,
     area: Rect,
@@ -438,6 +440,12 @@ fn render_week(
             days.map(|days| day_cells(days, app)).unwrap_or_default(),
         ],
     );
+    if days.is_some_and(|days| days.contains(&Some(app.selected))) {
+        // 只換底色，字的顏色不動
+        frame
+            .buffer_mut()
+            .set_style(area, Style::new().bg(theme.cursor_line));
+    }
 }
 
 /// 7 天的日期，一天 3 格寬、日期靠右；選取的那天前後加括號 `[17]`

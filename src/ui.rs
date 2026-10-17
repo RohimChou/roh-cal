@@ -83,7 +83,7 @@ mod tests {
         ToSpan,
         civil::{Date, date},
     };
-    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
     /// 用 `lang` 畫一次 `width` × `height` 的畫面：今天是 2026/10/17、選取 `selected`
     fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBackend> {
@@ -520,6 +520,29 @@ mod tests {
         assert_eq!(cell(49, 9), ("早", theme.today, false));
         // 10/18（日）有沒做完的事：橘色蓋過週末
         assert_eq!(cell(49, 10), ("爬", theme.has_item, false));
+    }
+
+    #[test]
+    fn the_selected_week_row_has_a_background() {
+        // 10/17 那週在 y 6：月曆框裡整列（x 1～33）墊底色；上下列、右邊框的同一列不墊
+        let mut app = agenda_app(Lang::ZhTw);
+        let theme = Theme::catppuccin_mocha();
+        let bg = |terminal: &Terminal<TestBackend>, x: u16, y: u16| {
+            terminal.backend().buffer()[(x, y)].bg
+        };
+        let terminal = draw_app(&mut app, 70, 24);
+        for x in 1..=33 {
+            assert_eq!(bg(&terminal, x, 6), theme.cursor_line, "x {x}");
+        }
+        assert_eq!(bg(&terminal, 0, 6), Color::Reset);
+        assert_eq!(bg(&terminal, 20, 5), Color::Reset);
+        assert_eq!(bg(&terminal, 20, 7), Color::Reset);
+        assert_eq!(bg(&terminal, 40, 6), Color::Reset);
+        // 跨月那週拆成兩列：選 10/31，只有 10 月那一半（y 8）墊底色，11 月那一半（y 13）不墊
+        app.selected = date(2026, 10, 31);
+        let terminal = draw_app(&mut app, 70, 24);
+        assert_eq!(bg(&terminal, 20, 8), theme.cursor_line);
+        assert_eq!(bg(&terminal, 20, 13), Color::Reset);
     }
 
     #[test]
