@@ -104,14 +104,22 @@ impl App {
         }
     }
 
-    /// 右邊列出來的事：有日期的，照日期、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
+    /// 這件事要不要顯示：它的日曆（分組）有勾選才顯示
+    pub fn is_shown(&self, item: &Item) -> bool {
+        self.groups
+            .iter()
+            .find(|group| group.includes(item))
+            .is_none_or(|group| group.shown)
+    }
+
+    /// 右邊列出來的事：有日期、日曆有勾選的，照日期、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
     ///
     /// 沒有日期的事先不列（月曆上沒有位置放）
     pub fn agenda(&self) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
             .iter()
-            .filter(|item| item.date.is_some())
+            .filter(|item| item.date.is_some() && self.is_shown(item))
             .collect();
         // sort_by_key 是 stable sort：key 一樣的保持原本的順序；時間的 None 排在 Some 前面
         items.sort_by_key(|item| (item.date, item.time));
@@ -502,6 +510,27 @@ mod tests {
         // d 在第二個「# 工作」底下，也算「工作」
         assert!(app.groups[1].includes(&app.items[3]));
         assert!(!app.groups[0].includes(&app.items[3]));
+    }
+
+    #[test]
+    fn unchecked_groups_leave_the_agenda() {
+        // 「生活」沒勾：它的 b、c 不列，Tab 換到右邊時也跳過它們
+        let mut app = app_with(
+            "- a @2026-10-10\n# 生活\n- b @2026-10-17\n- c @2026-10-20\n# 工作\n- d @2026-10-25\n",
+        );
+        app.groups[1].shown = false;
+        let titles: Vec<&str> = app
+            .agenda()
+            .iter()
+            .map(|item| item.title.as_str())
+            .collect();
+        assert_eq!(titles, ["a", "d"]);
+        assert!(!app.is_shown(&app.items[1]));
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("d"));
+        // 勾回來：又列出來
+        app.groups[1].shown = true;
+        assert_eq!(app.agenda().len(), 4);
     }
 
     #[test]

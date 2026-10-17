@@ -6,7 +6,8 @@
 用法（在 repo 最上層）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那塊的月份 YYYY-MM 跳過幾列] < 任務檔
 例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
-SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）
+SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
+HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示
 今天固定是 2026-10-17。
 """
 import calendar
@@ -33,6 +34,7 @@ TEXTS = {
 CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
+HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_WIDTH = 22  # side menu 的寬度（含框線）
 
 
@@ -64,12 +66,17 @@ def week_number(d):
     return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
-def read_items(text):
-    """簡單版：`- ` 開頭、有 `@YYYY-MM-DD` 的行；回傳 (日期, 時間, 標題, 第幾行)，排好"""
+def read_items(text, hidden_names):
+    """簡單版：`- ` 開頭、有 `@YYYY-MM-DD` 的行，日曆（上面最近的 `#` 標題）沒勾的不算；
+    回傳 (日期, 時間, 標題, 第幾行)，排好"""
     items = []
+    name = None
     for i, line in enumerate(text.splitlines()):
+        heading = re.match(r"#+ (.*)", line)
+        if heading:
+            name = heading.group(1).strip()
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?$", line)
-        if m:
+        if m and name not in hidden_names:
             items.append((datetime.date.fromisoformat(m.group(2)), m.group(3), m.group(1), i))
     # 日期、時間（沒時間的在前）、檔案順序
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
@@ -94,9 +101,9 @@ def side_lines(t, h, groups):
     """side menu 那一欄的每一列（含上下框線，不含操作說明）：一個日曆一列「 ☑ 名字    件數 」"""
     iw = SIDE_WIDTH - 2
     rows = [ljust(t["side"], iw), "─" * iw]
-    for name, count in groups:
+    for i, (name, count) in enumerate(groups):
         count = f" {count} "
-        left = " ☑ " + (t["ungrouped"] if name is None else name)
+        left = (" ☐ " if i in HIDDEN else " ☑ ") + (t["ungrouped"] if name is None else name)
         rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
     rows = (rows + [" " * iw] * h)[: h - 3]
     return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
@@ -221,6 +228,8 @@ if len(sys.argv) > 6:
 else:
     first, skip = (selected.year, selected.month), 0
 text = sys.stdin.read()
-for line in screen(lang, w, h, selected, first, skip, read_items(text), read_groups(text)):
+groups = read_groups(text)
+items = read_items(text, {groups[i][0] for i in HIDDEN})
+for line in screen(lang, w, h, selected, first, skip, items, groups):
     assert width(line) == w, (width(line), line)
     print(f'            "{line.rstrip()}",')

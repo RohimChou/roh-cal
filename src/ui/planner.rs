@@ -391,7 +391,7 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 一天的日期顏色：今天 > 有沒做完的事 > 週末 > 一般（事都做完了就跟沒事一樣）
+/// 一天的日期顏色：今天 > 有沒做完的事 > 週末 > 一般（事都做完了、日曆沒勾的事，都跟沒事一樣）
 fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
@@ -399,7 +399,7 @@ fn day_color(day: Date, app: &App) -> Color {
     } else if app
         .items
         .iter()
-        .any(|item| item.date == Some(day) && !item.done)
+        .any(|item| item.date == Some(day) && !item.done && app.is_shown(item))
     {
         theme.has_item
     } else if day.weekday().to_monday_zero_offset() >= 5 {

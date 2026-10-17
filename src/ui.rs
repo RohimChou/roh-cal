@@ -470,6 +470,43 @@ mod tests {
     }
 
     #[test]
+    fn unchecked_calendars_hide_their_items() {
+        // 「生活」沒勾：☐ 和名字淡色、數字照算；它的 5 件事不列，10/5、10/10 也不是橘色了
+        let mut app = agenda_app(Lang::En);
+        app.groups[1].shown = false;
+        let terminal = draw_app(&mut app, 121, 14);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭────────────────────╮╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────────╮",
+                "│ Calendars          ││  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                                      Sat Oct 17, 2026 │",
+                "│────────────────────││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
+                "│ ☑ Ungrouped      2 ││   Oct 40 │           1  2  3  4 ││ 10/15 修 bug                                                 │",
+                "│ ☐ 生活           5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 交週報                                           │",
+                "│ ☑ 工作           1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/20 一個很長很長很長很長很                                 │",
+                "│ ☑ 2026 年底的大  2 ││       43 │ 19 20 21 22 23 24 25 ││                                                              │",
+                "│                    ││       44 │ 26 27 28 29 30 31    ││                                                              │",
+                "│                    ││──────────┼──────────────────────││──────────────────────────────────────────────────────────────│",
+                "│                    ││   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                                     │",
+                "│                    ││       45 │  2  3  4  5  6  7  8 ││                                                              │",
+                "│                    ││       46 │  9 10 11 12 13 14 15 ││                                                              │",
+                "╰────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯",
+                " hjkl move  Tab switch  [] month  t today  s calendars  q quit",
+            ]
+        );
+        let theme = Theme::catppuccin_mocha();
+        let buffer = terminal.backend().buffer();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(2, 4), ("☐", theme.muted));
+        assert_eq!(cell(4, 4), ("生", theme.muted));
+        assert_eq!(cell(2, 3), ("☑", theme.checked));
+        // 10/5（星期一）、10/10（星期六）回到平常的顏色；10/16 是沒分組的事，照樣橘色
+        assert_eq!(cell(36, 4), ("5", theme.text));
+        assert_eq!(cell(51, 4), ("0", theme.weekend));
+        assert_eq!(cell(48, 5), ("6", theme.has_item));
+    }
+
+    #[test]
     fn agenda_lists_each_months_items_next_to_it() {
         // 右邊一欄：10 月 8 件事比 5 週多，月份往下長 3 列；照日期、時間排（同一天沒時間的在前）；
         // 沒日期的不列；太長的標題被切掉

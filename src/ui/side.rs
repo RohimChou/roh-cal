@@ -16,7 +16,8 @@ pub const WIDTH: u16 = 22;
 
 /// 畫 side menu：表頭「日曆」，下面一個日曆一列，例：「 ☑ 工作            12 」
 ///
-/// 數字是那個日曆有幾件事在月曆上（有日期的）；勾選的是 `☑`、沒勾的是 `☐`；名字太長就切掉，放不下的日曆不畫
+/// 數字是那個日曆有幾件事有日期（沒勾也照算）；勾選的是 `☑`、沒勾的是 `☐`（它的事不顯示）；
+/// 名字太長就切掉，放不下的日曆不畫
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
