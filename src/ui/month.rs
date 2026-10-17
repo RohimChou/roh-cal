@@ -2,7 +2,10 @@
 //!
 //! 一次 6 週；選取的日期移出畫面才一週一週捲。格子的大小每次畫都從現在的空間算（terminal 拉大縮小就跟著變）
 
-use super::{Click, planner::day_color};
+use super::{
+    Click,
+    planner::{day_color, in_multi_day},
+};
 use crate::{
     app::{App, Focus},
     calendar,
@@ -300,7 +303,8 @@ fn dots(count: usize) -> &'static str {
 
 /// 格子的第一行：日期靠左（選取的加括號 `[17]`），1 號後面寫月份，例：「 1 10月」
 ///
-/// 顏色：今天 > 其他月份（灰）> 跟版型 1 的月曆一樣（有沒做完的事橘、週末藍）；選取那個月的日期加粗
+/// 顏色：今天 > 其他月份（灰）> 跟版型 1 的月曆一樣（有沒做完的事橘、週末藍）；選取那個月的日期加粗、
+/// 跨多天的事的日子加底線
 fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let other_month = day.first_of_month() != month;
@@ -314,6 +318,10 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     let mut number = Style::new().fg(color);
     if !other_month || day == app.today {
         number = number.add_modifier(Modifier::BOLD);
+    }
+    // 跨多天的事的日子加底線（跟版型 1 的月曆一樣）
+    if in_multi_day(day, app) {
+        number = number.add_modifier(Modifier::UNDERLINED);
     }
     let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
     let (open, close) = if day == app.selected {

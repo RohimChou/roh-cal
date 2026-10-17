@@ -177,14 +177,15 @@ impl App {
         entries
     }
 
-    /// `day` 那天的事（日曆有勾選的），照時間排好（沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子用
+    /// `day` 那天的事（日曆有勾選的；跨多天的蓋到那天就算）：比較早開始的在前，同一天開始的照時間
+    /// （沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子用
     pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
             .iter()
-            .filter(|item| item.date == Some(day) && self.is_shown(item))
+            .filter(|item| item.covers(day) && self.is_shown(item))
             .collect();
-        items.sort_by_key(|item| item.time);
+        items.sort_by_key(|item| (item.date, item.time));
         items
     }
 

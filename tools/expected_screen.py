@@ -324,7 +324,8 @@ def month_screen(lang, w, h, selected, top, items, groups):
         for k, d in enumerate(days):
             mark = ("[", "]") if d == selected else (" ", " ")
             first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
-            day_items = [it for it in items if it[0] == d]  # items 已經照日期、時間排好
+            # 蓋到這天的事（跨多天的每一天都列）；items 已經照開始那天、時間排好
+            day_items = [it for it in items if it[0] <= d <= (it[4] or it[0])]
             if wh <= 1:
                 # 格子只有 1 行：日期後面畫點點（幾件就幾個，最多 4 個）
                 cell = [first + ["", "⠂", "⠒", "⠖", "⠶"][min(len(day_items), 4)]]
