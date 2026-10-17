@@ -65,7 +65,7 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`hjkl` / 方向鍵移動選取的日期、`t` 回今天、`q` / `Esc` / `Ctrl+C` 離開
+    /// 按鍵：`hjkl` / 方向鍵移動選取的日期、`[` / `]` 換月、`t` 回今天、`q` / `Esc` / `Ctrl+C` 離開
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -83,6 +83,9 @@ impl App {
                 self.selected = self.today;
                 self.calendar_top = None;
             }
+            // 上個月 / 下個月的 1 號，並把那個月捲到最上面
+            KeyCode::Char('[') => self.jump_month(-1),
+            KeyCode::Char(']') => self.jump_month(1),
             _ => {}
         }
     }
@@ -102,6 +105,15 @@ impl App {
             // 其他（右鍵、拖曳、移動）不理
             _ => {}
         }
+    }
+
+    /// 跳到往後（負的 = 往前）第 `months` 個月的 1 號，那個月捲到最上面
+    fn jump_month(&mut self, months: i64) {
+        self.selected = self
+            .selected
+            .first_of_month()
+            .saturating_add(months.months());
+        self.calendar_top = None;
     }
 
     /// 選取的日期往後（負的 = 往前）移幾天
@@ -177,6 +189,26 @@ mod tests {
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 6));
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 2));
         assert_eq!(app.selected, date(2026, 10, 16));
+    }
+
+    #[test]
+    fn brackets_jump_to_the_first_of_the_previous_or_next_month() {
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+        app.calendar_top = Some(3);
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(app.selected, date(2026, 11, 1));
+        // 跳完要把那個月捲到最上面（下一次畫的時候）
+        assert_eq!(app.calendar_top, None);
+        press(&mut app, KeyCode::Char('['));
+        press(&mut app, KeyCode::Char('['));
+        assert_eq!(app.selected, date(2026, 9, 1));
+        // 跨年
+        app.selected = date(2026, 12, 15);
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(app.selected, date(2027, 1, 1));
+        app.selected = date(2027, 1, 20);
+        press(&mut app, KeyCode::Char('['));
+        assert_eq!(app.selected, date(2026, 12, 1));
     }
 
     #[test]

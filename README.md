@@ -21,6 +21,7 @@ The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 | Key | Action |
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
+| `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | Mouse wheel / click | Move one week / select a day (hold `Shift` to select text in the terminal) |
 | `q` / `Esc` / `Ctrl+C` | Quit |
