@@ -45,6 +45,7 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | Children | Shown on the calendar only if they have their own date; otherwise they belong to the parent |
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
 | Encoding | UTF-8; LF or CRLF, preserved on write |
+| Block id | An Obsidian block id at the very end of an item (`^csfds-01`: `^` + letters, digits, `-`) is not part of the title; it stays in the file so links to the line keep working |
 | Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; v0 defines none, so URLs like `https://...` are just text |
 
 ## Where it is stored
@@ -84,3 +85,4 @@ Planned to revisit:
 - v0.2 (2026-10-18): an item without a checkbox is an event again (rule 2), but without an extra color: an event still to come is shown like an open task, a past one is grayed out
 - v0.2 (same day): multi-day items `@first..last` (rule 3b)
 - v0.2 (same day): holiday calendars, `type:holiday` in a heading (rule 4b)
+- v0.2 (same day): a trailing Obsidian block id is not part of the title

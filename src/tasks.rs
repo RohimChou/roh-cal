@@ -292,7 +292,18 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
             }
         }
     }
+    // 行尾的 Obsidian block id（`^csfds-01`，連結到這一行用的）留在檔案裡，不算標題
+    if words.last().is_some_and(|word| is_block_id(word)) {
+        words.pop();
+    }
     (words.join(" "), when)
+}
+
+/// 是不是 Obsidian 的 block id：`^` 後面接英文字母、數字、`-`，例：`^csfds-01`
+fn is_block_id(word: &str) -> bool {
+    word.strip_prefix('^').is_some_and(|id| {
+        !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    })
 }
 
 /// 是不是 `YYYY-MM-DD` 的樣子（只看格式，不管日期存不存在）
@@ -391,6 +402,22 @@ mod tests {
         let item = one("- [ ] 準備上線清冊 @2026-10-22 @2026-10-23");
         assert_eq!(item.date, Some(date(2026, 10, 22)));
         assert_eq!(item.title, "準備上線清冊 @2026-10-23");
+    }
+
+    #[test]
+    fn a_block_id_at_the_end_is_not_part_of_the_title() {
+        // Obsidian 的 `^id` 在行尾：不算標題（檔案裡照樣留著）；日期在它前面照樣讀得到
+        let item = one("- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01");
+        assert_eq!(item.title, "跟中信確認 LDAP 帳號");
+        assert_eq!(item.date, Some(date(2026, 10, 20)));
+        assert_eq!(
+            item.line_text,
+            "- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01"
+        );
+        // 不在行尾、`^` 後面沒東西、有別的符號：都是一般文字
+        assert_eq!(one("- 讀 ^abc 那段").title, "讀 ^abc 那段");
+        assert_eq!(one("- 指數 2^").title, "指數 2^");
+        assert_eq!(one("- 次方 ^2.5").title, "次方 ^2.5");
     }
 
     #[test]
