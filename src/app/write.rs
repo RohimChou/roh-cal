@@ -1,11 +1,14 @@
-//! 寫任務檔：打勾；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
+//! 寫任務檔：打勾、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
 
 use super::App;
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Item, Kind};
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// undo 最多記幾步
+const UNDO_LEVELS: usize = 50;
 
 /// 最下面一列暫時換成的提示（寫檔的結果）；下一個按鍵、點擊就消失
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +19,18 @@ pub enum Notice {
     Failed(ErrorKind),
     /// 想打勾的是行程（沒有框）：行程不能打勾
     NotATask,
+    /// undo 成功，帶著被復原的那件事的標題，例：`週會`
+    Undone(String),
+    /// 沒有可以 undo 的（還沒寫過檔，或已經退到底）
+    NothingToUndo,
+}
+
+/// 一次寫檔的紀錄（undo 用）：寫之前、寫之後的整個檔案，和改到的那件事的標題（提示用）
+#[derive(Debug)]
+pub(super) struct UndoStep {
+    before: String,
+    after: String,
+    title: String,
 }
 
 impl App {
@@ -34,9 +49,43 @@ impl App {
             return;
         };
         match edit::toggle(&text, &item) {
-            Ok(after) => self.write_tasks(&path, &after),
+            Ok(after) => self.write_tasks(&path, text, after, item.title),
             Err(edit::Changed) => self.reload(&text),
         }
+    }
+
+    /// `u`：復原 roh-cal 最後一次寫檔，結果放在 `notice`
+    ///
+    /// 檔案要跟 roh-cal 最後寫的一模一樣才復原；在別處改過就不動檔案、改成重新載入，別人的改動不會被蓋掉
+    pub(super) fn undo(&mut self) {
+        let Some(path) = self.tasks_path.clone() else {
+            self.notice = Some(Notice::NothingToUndo);
+            return;
+        };
+        let Some(step) = self.undo.pop() else {
+            self.notice = Some(Notice::NothingToUndo);
+            return;
+        };
+        let current = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => {
+                // 沒復原成：這一步放回去，之後還能再試
+                self.undo.push(step);
+                self.notice = Some(Notice::Failed(error.kind()));
+                return;
+            }
+        };
+        if current != step.after {
+            self.reload(&current);
+            return;
+        }
+        if let Err(error) = files::write_atomically(&path, &step.before) {
+            self.undo.push(step);
+            self.notice = Some(Notice::Failed(error.kind()));
+            return;
+        }
+        self.set_items(tasks::parse(&step.before).items);
+        self.notice = Some(Notice::Undone(step.title));
     }
 
     /// 任務檔的位置和現在的內容（寫之前一定先重讀）；沒有任務檔（test）是 `None`，讀不到就記下提示、也是 `None`
@@ -51,17 +100,29 @@ impl App {
         }
     }
 
-    /// 把 `after` 寫進任務檔，畫面的事跟著更新；失敗就記下提示（檔案、畫面都不動）
-    fn write_tasks(&mut self, path: &std::path::Path, after: &str) {
-        match files::write_atomically(path, after) {
-            Ok(()) => self.set_items(tasks::parse(after).items),
-            Err(error) => self.notice = Some(Notice::Failed(error.kind())),
+    /// 把 `after` 寫進任務檔，畫面的事跟著更新，記一步 undo（`before` = 寫之前的內容、`title` = 改到的那件事）；
+    /// 失敗就記下提示（檔案、畫面都不動）
+    fn write_tasks(&mut self, path: &Path, before: String, after: String, title: String) {
+        if let Err(error) = files::write_atomically(path, &after) {
+            self.notice = Some(Notice::Failed(error.kind()));
+            return;
+        }
+        self.set_items(tasks::parse(&after).items);
+        self.undo.push(UndoStep {
+            before,
+            after,
+            title,
+        });
+        // 只留最近的 UNDO_LEVELS 步
+        if self.undo.len() > UNDO_LEVELS {
+            self.undo.remove(0);
         }
     }
 
-    /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫
+    /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫；之前記的 undo 都對不上了，清掉
     fn reload(&mut self, text: &str) {
         self.set_items(tasks::parse(text).items);
+        self.undo.clear();
         self.notice = Some(Notice::Reloaded);
     }
 
@@ -88,7 +149,6 @@ pub(crate) mod tests {
     use ratatui::crossterm::event::{
         KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
-    use std::path::Path;
 
     /// 暫存資料夾裡的任務檔（內容 `text`）和讀它的 app（今天 2026/10/17、鍵盤在右邊、選第一件）；
     /// 回傳 app 和檔案的位置。不會碰到真的任務檔，用完要刪掉 `path` 的資料夾
@@ -210,6 +270,76 @@ pub(crate) mod tests {
         // 再點一次：打勾
         app.handle_mouse(click);
         assert_eq!(read(), "- [x] 早上 @2026-10-10\n");
+        clean_up(&path);
+    }
+
+    #[test]
+    fn u_undoes_the_last_writes_one_at_a_time_then_has_nothing_left() {
+        let text = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n";
+        let (mut app, path) = app_with_task_file("undo", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // 兩件都打勾，再回月曆
+        for code in [' ', 'j', ' '].map(KeyCode::Char) {
+            press(&mut app, code);
+        }
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(
+            read(),
+            "- [x] 早上 @2026-10-17 09:00\n- [x] 下午 @2026-10-17 14:00\n"
+        );
+        // 在月曆上按 u：先復原最後一次（下午），再復原早上；畫面跟著回去
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(
+            read(),
+            "- [x] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n"
+        );
+        assert_eq!(app.notice, Some(Notice::Undone("下午".into())));
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), text);
+        assert!(!app.items[0].done);
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(app.notice, Some(Notice::NothingToUndo));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn u_leaves_the_file_alone_when_it_changed_elsewhere() {
+        let (mut app, path) = app_with_task_file("undo-changed", "- [ ] 早上 @2026-10-17 09:00\n");
+        // 打勾再取消（記了兩步），之後在別處又改了檔案
+        press(&mut app, KeyCode::Char(' '));
+        press(&mut app, KeyCode::Char(' '));
+        let edited = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 新的 @2026-10-17 10:00\n";
+        std::fs::write(&path, edited).expect("edit");
+        press(&mut app, KeyCode::Char('u'));
+        // 別人的改動留著，只重新載入；之前記的兩步都對不上了，全部清掉
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+        assert_eq!(app.items.len(), 2);
+        assert_eq!(app.notice, Some(Notice::Reloaded));
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(app.notice, Some(Notice::NothingToUndo));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn undo_keeps_only_the_last_50_steps() {
+        let (mut app, path) = app_with_task_file("undo-limit", "- [ ] 早上 @2026-10-17 09:00\n");
+        // 打勾 / 取消 51 次（單數次 → 最後是打勾的）
+        for _ in 0..=UNDO_LEVELS {
+            press(&mut app, KeyCode::Char('x'));
+        }
+        // 一直按 u：只復原得了 50 次（多按幾次也不會超過）
+        let undone = (0..UNDO_LEVELS + 5)
+            .filter(|_| {
+                press(&mut app, KeyCode::Char('u'));
+                matches!(app.notice, Some(Notice::Undone(_)))
+            })
+            .count();
+        assert_eq!(undone, UNDO_LEVELS);
+        // 最早的那一步掉了：檔案停在第一次打勾之後
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [x] 早上 @2026-10-17 09:00\n"
+        );
         clean_up(&path);
     }
 

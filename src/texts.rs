@@ -134,6 +134,10 @@ impl Texts {
             (Lang::ZhTw, Notice::Failed(kind)) => format!(" 寫不進任務檔（{kind}）"),
             (Lang::En, Notice::NotATask) => " An event has no box to check".into(),
             (Lang::ZhTw, Notice::NotATask) => " 行程沒有框，不能打勾".into(),
+            (Lang::En, Notice::Undone(title)) => format!(" Undone: {title}"),
+            (Lang::ZhTw, Notice::Undone(title)) => format!(" 已復原：{title}"),
+            (Lang::En, Notice::NothingToUndo) => " Nothing to undo".into(),
+            (Lang::ZhTw, Notice::NothingToUndo) => " 沒有可以復原的".into(),
         }
     }
 

@@ -121,8 +121,10 @@ pub struct App {
     pub screen: Rect,
     /// 任務檔的位置（打勾、編輯要寫回去）；`None` = 沒有任務檔（test），不寫
     pub tasks_path: Option<PathBuf>,
-    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入）；下一個按鍵、點擊就消失
+    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入、undo）；下一個按鍵、點擊就消失
     pub notice: Option<Notice>,
+    /// roh-cal 寫過的檔（`u` 復原用），最新的在最後面
+    undo: Vec<write::UndoStep>,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -148,6 +150,7 @@ impl App {
             screen: Rect::default(),
             tasks_path: None,
             notice: None,
+            undo: Vec::new(),
             should_quit: false,
         }
     }
@@ -268,6 +271,8 @@ impl App {
                 self.scroll_to_month();
                 self.focus = Focus::Calendar;
             }
+            // 復原上一次寫檔（打勾、編輯…）
+            KeyCode::Char('u') => self.undo(),
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('3') => self.set_view(View::Month),
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面
