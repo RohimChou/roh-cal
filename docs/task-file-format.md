@@ -25,6 +25,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 1 | `- [ ] text` / `- [x] text` | **Task**, open / done (`[X]` also counts as done) |
 | 2 | `- text` (no checkbox) | **Event**: an appointment, a holiday, a milestone. It cannot be checked off; once its day has passed it is over (shown grayed out, not crossed out) |
 | 3 | `@YYYY-MM-DD` or `@YYYY-MM-DD HH:MM` anywhere in an item | The day (and 24-hour time) the item appears on the calendar. No date → the item is **unscheduled** |
+| 3b | `@YYYY-MM-DD..YYYY-MM-DD` (optionally followed by `HH:MM`) | A **multi-day** item, from the first date to the last, both included (a trip, a training course). The time is the start time on the first day |
 | 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# SFAP` → `## 11RC`) can be added later without changing files |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
 
@@ -34,8 +35,8 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | Topic | Rule |
 | :- | :- |
 | Item marker | Only `- ` starts an item (not `*` / `+`), so there is one way to write it |
-| Date token | `@` + a valid date, separated by whitespace. The **first** date token is used; it is removed from the displayed title. Convention: put it at the end of the line |
-| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Rukis`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning (not shown on screen yet) |
+| Date token | `@` + a valid date or range, separated by whitespace. The **first** date token is used; it is removed from the displayed title. Convention: put it at the end of the line |
+| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Rukis`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning (not shown on screen yet). So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
 | Items without a date | Unscheduled; not shown on the calendar (later: a list of their own) |
 | Children | Shown on the calendar only if they have their own date; otherwise they belong to the parent |
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
@@ -60,10 +61,9 @@ roh-cal writes the file when you check an item off, delete, add or edit one. Eve
 | Undo | roh-cal keeps the whole file from before each of its writes (the last 50). `u` puts it back only if the file is still exactly what roh-cal wrote; otherwise it reloads and forgets that history |
 
 ## Not in v0
-Recurring items, due vs scheduled dates, priorities, inline `#tags`, time ranges and multi-day events, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.
+Recurring items, due vs scheduled dates, priorities, inline `#tags`, time ranges within a day, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.
 
 Planned to revisit:
-- **Multi-day items** (decided 2026-10-18, **not implemented yet**): `@2026-10-20..2026-10-25` = from the first date to the last, both included, e.g. a trip or a training course. An optional time after it is the start time: `@2026-11-02..2026-11-06 09:00`. The end must not be before the start; a range that breaks this stays plain text with a warning, like an invalid date. How it shows on screen: [ARCHITECTURE.md](ARCHITECTURE.md#已經決定還沒做)
 - **Nested groups** by heading level (`#` project → `##` sub-project)
 - **Completion dates** when checking a task off (e.g. `done:2026-10-11`), useful for showing what was finished on each day
 
@@ -78,3 +78,4 @@ Planned to revisit:
 - v0 (2026-10-11): first version
 - v0.1 (same day): no separate "event" kind; every item can be checked off
 - v0.2 (2026-10-18): an item without a checkbox is an event again (rule 2), but without an extra color: an event still to come is shown like an open task, a past one is grayed out
+- v0.2 (same day): multi-day items `@first..last` (rule 3b)

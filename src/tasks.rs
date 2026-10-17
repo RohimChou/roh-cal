@@ -33,7 +33,9 @@ pub struct Item {
     pub title: String,
     /// 出現在月曆的哪一天；沒寫就是還沒排日期
     pub date: Option<Date>,
-    /// 幾點（只有寫了日期才會有）
+    /// 跨多天的事的最後一天（頭尾都算），例：`@2026-10-20..2026-10-25` 的 10/25；只有一天的是 `None`
+    pub end: Option<Date>,
+    /// 幾點（只有寫了日期才會有；跨多天的是開始那天的時間）
     pub time: Option<Time>,
     /// 屬於哪個分組（上面最近的標題）；檔案開頭還沒有標題時是 `None`
     pub group: Option<Heading>,
@@ -48,14 +50,30 @@ pub struct Item {
 }
 
 impl Item {
-    /// 還沒結束的事：沒做完的任務，或還沒過的行程（今天的也算）。月曆上那天是橘色、右邊用那天的顏色；
-    /// 結束了的（做完的任務、過去的行程）變灰
+    /// 還沒結束的事：沒做完的任務，或還沒過的行程（今天的也算；跨多天的看最後一天）。月曆上那天是橘色、
+    /// 右邊用那天的顏色；結束了的（做完的任務、過去的行程）變灰
     pub fn is_open(&self, today: Date) -> bool {
         match self.kind {
             Kind::Task => !self.done,
-            Kind::Event => self.date.is_some_and(|date| date >= today),
+            Kind::Event => self.last_day().is_some_and(|last| last >= today),
         }
     }
+
+    /// 最後一天：跨多天的是結束那天，其他的就是那一天；沒日期是 `None`
+    pub fn last_day(&self) -> Option<Date> {
+        self.end.or(self.date)
+    }
+}
+
+/// 從項目的文字裡拿出來的日期、時間（第一個 `@日期` 或 `@日期..日期`，和緊接的時間）
+#[derive(Debug, Default)]
+struct When {
+    /// 哪天（跨多天的是第一天）
+    date: Option<Date>,
+    /// 跨多天的最後一天；只有一天是 `None`
+    end: Option<Date>,
+    /// 幾點
+    time: Option<Time>,
 }
 
 /// 分組標題，例：`# 付款 API 改版`
@@ -80,9 +98,11 @@ pub struct Warning {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WarningKind {
     /// 長得像日期但不存在，例：`@2026-13-01`、`@2026-02-30`；當成一般文字
-    InvalidDate(String),
+    NoSuchDate(String),
     /// 長得像時間但不存在，例：`@2026-10-12 25:00` 的 `25:00`；當成一般文字
-    InvalidTime(String),
+    NoSuchTime(String),
+    /// 跨多天的結束在開始之前，例：`@2026-10-25..2026-10-20`；當成一般文字
+    EndBeforeStart(String),
 }
 
 /// 解析整個任務檔
@@ -127,14 +147,15 @@ pub fn parse(text: &str) -> Parsed {
         let parent = ancestors.last().map(|&(_, position)| position);
         let depth = ancestors.len();
 
-        let (title, date, time) = parse_title(rest, line, &mut parsed.warnings);
+        let (title, when) = parse_title(rest, line, &mut parsed.warnings);
         ancestors.push((indent, parsed.items.len()));
         parsed.items.push(Item {
             kind,
             done,
             title,
-            date,
-            time,
+            date: when.date,
+            end: when.end,
+            time: when.time,
             group: group.clone(),
             depth,
             parent,
@@ -195,53 +216,63 @@ fn indent_width(line: &str) -> usize {
         .sum()
 }
 
-/// 從項目的文字裡拿出第一個 `@日期`（和緊接的時間），剩下的就是標題
+/// 從項目的文字裡拿出第一個 `@日期` 或 `@日期..日期`（和緊接的時間），剩下的就是標題
 ///
-/// 例：`實作退款 API @2026-10-14` → (`實作退款 API`, 10/14, 沒有時間)
-fn parse_title(
-    text: &str,
-    line: usize,
-    warnings: &mut Vec<Warning>,
-) -> (String, Option<Date>, Option<Time>) {
+/// 例：`實作退款 API @2026-10-14` → (`實作退款 API`, 10/14, 沒有時間)；
+/// `東京出差 @2026-10-20..2026-10-25 09:00` → (`東京出差`, 10/20 到 10/25, 9 點)
+fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String, When) {
     let mut words = Vec::new();
-    let mut date = None;
-    let mut time = None;
+    let mut when = When::default();
     let mut tokens = text.split_whitespace().peekable();
 
     while let Some(token) = tokens.next() {
-        // 已經有日期了（只認第一個），或不是 `@日期` 的樣子 → 一般文字
-        let candidate = token.strip_prefix('@').filter(|rest| looks_like_date(rest));
-        let Some(candidate) = candidate.filter(|_| date.is_none()) else {
+        // 已經有日期了（只認第一個），或不是 `@日期` / `@日期..日期` 的樣子 → 一般文字
+        let candidate = token
+            .strip_prefix('@')
+            .filter(|rest| looks_like_date(rest) || looks_like_range(rest));
+        let Some(candidate) = candidate.filter(|_| when.date.is_none()) else {
             words.push(token);
             continue;
         };
-        let Ok(parsed_date) = candidate.parse::<Date>() else {
+        // 一天的就當作頭尾同一天
+        let (first, last) = candidate.split_once("..").unwrap_or((candidate, candidate));
+        let (Ok(first), Ok(last)) = (first.parse::<Date>(), last.parse::<Date>()) else {
             warnings.push(Warning {
                 line,
-                kind: WarningKind::InvalidDate(token.to_string()),
+                kind: WarningKind::NoSuchDate(token.to_string()),
             });
             words.push(token);
             continue;
         };
-        date = Some(parsed_date);
+        if last < first {
+            warnings.push(Warning {
+                line,
+                kind: WarningKind::EndBeforeStart(token.to_string()),
+            });
+            words.push(token);
+            continue;
+        }
+        when.date = Some(first);
+        // 頭尾同一天（`@2026-10-20..2026-10-20`）就是一天的事
+        when.end = (last > first).then_some(last);
         // 日期後面緊接 `HH:MM` 就是時間
         if let Some(&next) = tokens.peek()
             && looks_like_time(next)
         {
             tokens.next();
             match next.parse::<Time>() {
-                Ok(parsed_time) => time = Some(parsed_time),
+                Ok(parsed_time) => when.time = Some(parsed_time),
                 Err(_) => {
                     warnings.push(Warning {
                         line,
-                        kind: WarningKind::InvalidTime(next.to_string()),
+                        kind: WarningKind::NoSuchTime(next.to_string()),
                     });
                     words.push(next);
                 }
             }
         }
     }
-    (words.join(" "), date, time)
+    (words.join(" "), when)
 }
 
 /// 是不是 `YYYY-MM-DD` 的樣子（只看格式，不管日期存不存在）
@@ -252,6 +283,12 @@ fn looks_like_date(text: &str) -> bool {
             4 | 7 => b == b'-',
             _ => b.is_ascii_digit(),
         })
+}
+
+/// 是不是 `YYYY-MM-DD..YYYY-MM-DD` 的樣子（跨多天；只看格式，不管日期存不存在）
+fn looks_like_range(text: &str) -> bool {
+    text.split_once("..")
+        .is_some_and(|(first, last)| looks_like_date(first) && looks_like_date(last))
 }
 
 /// 是不是 `HH:MM` 的樣子（只看格式，不管時間存不存在）
@@ -361,11 +398,11 @@ mod tests {
         let expected = vec![
             Warning {
                 line: 1,
-                kind: WarningKind::InvalidDate("@2026-13-01".into()),
+                kind: WarningKind::NoSuchDate("@2026-13-01".into()),
             },
             Warning {
                 line: 2,
-                kind: WarningKind::InvalidDate("@2026-02-30".into()),
+                kind: WarningKind::NoSuchDate("@2026-02-30".into()),
             },
         ];
         assert_eq!(parsed.warnings, expected);
@@ -378,8 +415,73 @@ mod tests {
         );
         assert_eq!(
             parsed.warnings[0].kind,
-            WarningKind::InvalidTime("25:00".into())
+            WarningKind::NoSuchTime("25:00".into())
         );
+    }
+
+    #[test]
+    fn rule3_multi_day_items_from_the_first_day_to_the_last() {
+        let item = one("- 東京出差 @2026-10-20..2026-10-25");
+        assert_eq!(item.title, "東京出差");
+        assert_eq!(
+            (item.date, item.end, item.last_day()),
+            (
+                Some(date(2026, 10, 20)),
+                Some(date(2026, 10, 25)),
+                Some(date(2026, 10, 25))
+            )
+        );
+        // 後面接時間 = 開始那天的時間；跨月、跨年都可以
+        let item = one("- [ ] 受訓 @2026-12-30..2027-01-02 09:00");
+        assert_eq!(item.time, Some(time(9, 0, 0, 0)));
+        assert_eq!(item.end, Some(date(2027, 1, 2)));
+        // 頭尾同一天 = 一天的事
+        let item = one("- 開會 @2026-10-20..2026-10-20");
+        assert_eq!((item.date, item.end), (Some(date(2026, 10, 20)), None));
+        // 一天的事：最後一天就是那天
+        assert_eq!(
+            one("- 週會 @2026-10-12").last_day(),
+            Some(date(2026, 10, 12))
+        );
+    }
+
+    #[test]
+    fn rule3_bad_ranges_stay_text_with_warning() {
+        // 結束在開始之前、有一頭不存在：整段當文字，記一個警告
+        let parsed = parse(
+            "- 出差 @2026-10-25..2026-10-20
+- 出差 @2026-10-20..2026-13-01",
+        );
+        assert_eq!(parsed.items[0].title, "出差 @2026-10-25..2026-10-20");
+        assert_eq!((parsed.items[0].date, parsed.items[0].end), (None, None));
+        assert_eq!(
+            parsed.warnings,
+            [
+                Warning {
+                    line: 1,
+                    kind: WarningKind::EndBeforeStart("@2026-10-25..2026-10-20".into()),
+                },
+                Warning {
+                    line: 2,
+                    kind: WarningKind::NoSuchDate("@2026-10-20..2026-13-01".into()),
+                },
+            ]
+        );
+        // 不像日期範圍的（少了一頭、只寫日）：一般文字，沒有警告
+        let parsed = parse(
+            "- 出差 @2026-10-20..
+- 出差 @2026-10-20..25",
+        );
+        assert_eq!(parsed.items[0].date, None);
+        assert_eq!(parsed.items[1].title, "出差 @2026-10-20..25");
+        assert!(parsed.warnings.is_empty());
+    }
+
+    #[test]
+    fn multi_day_events_stay_open_until_their_last_day() {
+        let today = date(2026, 10, 17);
+        assert!(one("- 出差 @2026-10-15..2026-10-17").is_open(today));
+        assert!(!one("- 出差 @2026-10-14..2026-10-16").is_open(today));
     }
 
     #[test]
@@ -450,18 +552,20 @@ mod tests {
     fn sample_file_parses_like_a_real_one() {
         let parsed = parse(include_str!("../testdata/tasks.md"));
         let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
-        assert_eq!(parsed.items.len(), 56);
-        // 任務：6 個 `[x]` / `[X]`、33 個 `[ ]`；17 個沒框的行程（會議、假日、生日、里程碑）
+        assert_eq!(parsed.items.len(), 57);
+        // 任務：6 個 `[x]` / `[X]`、32 個 `[ ]`；19 個沒框的行程（會議、假日、生日、里程碑、出差）
         assert_eq!(count(|item| item.kind == Kind::Task && item.done), 6);
-        assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 33);
-        assert_eq!(count(|item| item.kind == Kind::Event), 17);
-        assert_eq!(count(|item| item.date.is_none()), 12);
+        assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 32);
+        assert_eq!(count(|item| item.kind == Kind::Event), 19);
+        assert_eq!(count(|item| item.date.is_none()), 11);
+        // 2 件跨多天（主管出差、東京 5 天）
+        assert_eq!(count(|item| item.end.is_some()), 2);
         // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
         // 唯一一個寫錯的日期
         assert_eq!(parsed.warnings.len(), 1);
         assert_eq!(
             parsed.warnings[0].kind,
-            WarningKind::InvalidDate("@2026-13-01".into())
+            WarningKind::NoSuchDate("@2026-13-01".into())
         );
     }
 }

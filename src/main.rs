@@ -185,6 +185,6 @@ mod tests {
         assert!(load_items(missing, false).expect("no tasks").is_empty());
         // 範例檔讀得到
         let items = load_items(Path::new("testdata/tasks.md"), true).expect("sample file");
-        assert_eq!(items.len(), 56);
+        assert_eq!(items.len(), 57);
     }
 }
