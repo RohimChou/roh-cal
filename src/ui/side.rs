@@ -1,7 +1,7 @@
 //! side menu：最左邊的日曆清單（日曆 = 任務檔的分組），terminal 夠寬才畫
 
 use super::planner::inner_areas;
-use crate::app::App;
+use crate::app::{App, Focus};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
@@ -17,13 +17,14 @@ pub const WIDTH: u16 = 22;
 /// 畫 side menu：表頭「日曆」，下面一個日曆一列，例：「 ☑ 工作            12 」
 ///
 /// 數字是那個日曆有幾件事有日期（沒勾也照算）；勾選的是 `☑`、沒勾的是 `☐`（它的事不顯示）；
-/// 名字太長就切掉，放不下的日曆不畫
+/// 名字太長就切掉，放不下的日曆不畫。鍵盤在 side menu 時，框線亮起來、選到的那個日曆墊底色
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
+    let focused = app.focus == Focus::Side;
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::new().fg(theme.line));
+        .border_style(Style::new().fg(if focused { theme.focus } else { theme.line }));
     frame.render_widget(block, area);
     // 表頭跟另外兩個框一樣：一列字 + 一條線
     let [header, rule, body] = inner_areas(area);
@@ -38,7 +39,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         ),
         rule,
     );
-    for (group, y) in app.groups.iter().zip(body.y..body.bottom()) {
+    for ((index, group), y) in app.groups.iter().enumerate().zip(body.y..body.bottom()) {
         let row = Rect::new(body.x, y, body.width, 1);
         let count = app
             .items
@@ -68,5 +69,11 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             Line::styled(count, Style::new().fg(theme.muted)),
             count_area,
         );
+        if focused && index == app.group_index {
+            // 只換底色，字的顏色不動
+            frame
+                .buffer_mut()
+                .set_style(row, Style::new().bg(theme.cursor_line));
+        }
     }
 }

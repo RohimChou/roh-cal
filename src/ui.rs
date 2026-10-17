@@ -507,6 +507,28 @@ mod tests {
     }
 
     #[test]
+    fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
+        // 鍵盤在 side menu、選到第 2 個（生活）：side menu 的框線亮、月曆的不亮；那一列整列墊底色，字的顏色不變
+        let mut app = agenda_app(Lang::ZhTw);
+        app.focus = Focus::Side;
+        app.group_index = 1;
+        let terminal = draw_app(&mut app, 121, 14);
+        let theme = Theme::catppuccin_mocha();
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(0, 0)].fg, theme.focus);
+        assert_eq!(buffer[(22, 0)].fg, theme.line);
+        // 中文字後半那格（「生」「活」的 x 5、7）TestBackend 拿不到樣式，跳過
+        for x in (1..21).filter(|x| ![5, 7].contains(x)) {
+            assert_eq!(buffer[(x, 4)].bg, theme.cursor_line, "x = {x}");
+            assert_ne!(buffer[(x, 3)].bg, theme.cursor_line, "x = {x}");
+        }
+        assert_eq!(
+            (buffer[(2, 4)].symbol(), buffer[(2, 4)].fg),
+            ("☑", theme.checked)
+        );
+    }
+
+    #[test]
     fn agenda_lists_each_months_items_next_to_it() {
         // 右邊一欄：10 月 8 件事比 5 週多，月份往下長 3 列；照日期、時間排（同一天沒時間的在前）；
         // 沒日期的不列；太長的標題被切掉

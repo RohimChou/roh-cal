@@ -23,6 +23,8 @@ pub enum Focus {
     Calendar,
     /// 右邊的事項：`j` / `k` 一件一件選
     Agenda,
+    /// 最左邊的 side menu（夠寬才有）：`j` / `k` 選日曆、`Space` 勾選
+    Side,
 }
 
 /// side menu 上的一個日曆（= 任務檔的一個分組）
@@ -68,6 +70,8 @@ pub struct App {
     pub groups: Vec<Group>,
     /// 按 `s` 收起 side menu
     pub side_hidden: bool,
+    /// side menu 選到第幾個日曆（`groups` 裡的位置）；鍵盤在 side menu 時才用
+    pub group_index: usize,
     /// 鍵盤在哪個框
     pub focus: Focus,
     /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
@@ -93,6 +97,7 @@ impl App {
             selected: today,
             groups: Group::list(&items),
             side_hidden: false,
+            group_index: 0,
             items,
             focus: Focus::Calendar,
             agenda_index: 0,
@@ -130,7 +135,20 @@ impl App {
     pub fn chosen(&self) -> Option<&Item> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
-            Focus::Calendar => None,
+            Focus::Calendar | Focus::Side => None,
+        }
+    }
+
+    /// 這一次有沒有畫 side menu：terminal 夠寬、沒按 `s` 收起
+    fn side_shown(&self) -> bool {
+        ui::side_fits(self.screen) && !self.side_hidden
+    }
+
+    /// 記下 terminal 的大小；terminal 變窄、side menu 不見了，鍵盤在上面的話回到月曆
+    fn resize(&mut self, screen: Rect) {
+        self.screen = screen;
+        if self.focus == Focus::Side && !self.side_shown() {
+            self.focus = Focus::Calendar;
         }
     }
 
@@ -139,7 +157,7 @@ impl App {
         while !self.should_quit {
             // 先記下 terminal 的大小（視窗拉大縮小也會跟著變），畫面和滑鼠換算位置才一致
             let size = terminal.size()?;
-            self.screen = Rect::new(0, 0, size.width, size.height);
+            self.resize(Rect::new(0, 0, size.width, size.height));
             terminal.draw(|frame| ui::render(frame, &mut self))?;
             // event::read() 會 block 到有輸入為止；按鍵只處理按下（有的 terminal 放開也會送一次）
             let event = event::read()?;
@@ -161,7 +179,7 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            KeyCode::Esc if self.focus == Focus::Agenda => self.focus = Focus::Calendar,
+            KeyCode::Esc if self.focus != Focus::Calendar => self.focus = Focus::Calendar,
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
             // 回今天，並把今天那個月捲到最上面
@@ -173,13 +191,17 @@ impl App {
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
-            // terminal 不夠寬時本來就沒有 side menu，按了不算
+            // terminal 不夠寬時本來就沒有 side menu，按了不算；收起時鍵盤在上面的話回到月曆
             KeyCode::Char('s') if ui::side_fits(self.screen) => {
                 self.side_hidden = !self.side_hidden;
+                if self.focus == Focus::Side {
+                    self.focus = Focus::Calendar;
+                }
             }
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
+                Focus::Side => self.handle_side_key(key.code),
             },
         }
     }
@@ -204,7 +226,21 @@ impl App {
         }
     }
 
-    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件
+    /// 鍵盤在 side menu：上下選日曆，`Space` / `Enter` 勾選或取消勾選（沒勾的日曆，它的事不顯示）
+    fn handle_side_key(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
+            KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
+            KeyCode::Char(' ') | KeyCode::Enter => {
+                if let Some(group) = self.groups.get_mut(self.group_index) {
+                    group.shown = !group.shown;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件
     fn handle_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
@@ -226,20 +262,33 @@ impl App {
         }
     }
 
-    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊就移一件事
+    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊就移一件事，在 side menu 就移一個日曆
     fn scroll(&mut self, step: i8) {
         match self.focus {
             Focus::Calendar => self.move_by(7 * i64::from(step)),
             Focus::Agenda => self.choose_next(isize::from(step)),
+            Focus::Side => self.choose_group(isize::from(step)),
         }
     }
 
-    /// `Tab`：月曆 → 右邊的事項（一件事都沒有就留在月曆）→ 月曆
+    /// `Tab`：月曆 → 右邊的事項（一件事都沒有就跳過）→ side menu（有畫才去）→ 月曆
     fn next_focus(&mut self) {
         match self.focus {
-            Focus::Calendar => self.enter_agenda(),
-            Focus::Agenda => self.focus = Focus::Calendar,
+            Focus::Calendar => {
+                self.enter_agenda();
+                if self.focus == Focus::Calendar && self.side_shown() {
+                    self.focus = Focus::Side;
+                }
+            }
+            Focus::Agenda if self.side_shown() => self.focus = Focus::Side,
+            Focus::Agenda | Focus::Side => self.focus = Focus::Calendar,
         }
+    }
+
+    /// side menu 選往後（負的 = 往前）第 `step` 個日曆；到第一個 / 最後一個就停住
+    fn choose_group(&mut self, step: isize) {
+        let last = self.groups.len().saturating_sub(1);
+        self.group_index = self.group_index.saturating_add_signed(step).min(last);
     }
 
     /// 鍵盤換到右邊：選「選取那天或之後」的第一件事；之後都沒事就選最後一件；一件事都沒有就不換
@@ -531,6 +580,84 @@ mod tests {
         // 勾回來：又列出來
         app.groups[1].shown = true;
         assert_eq!(app.agenda().len(), 4);
+    }
+
+    /// 120 格寬（有 side menu）、任務檔是 `text` 的 app
+    fn wide_app_with(text: &str) -> App {
+        let mut app = app_with(text);
+        app.screen = Rect::new(0, 0, 120, 30);
+        app
+    }
+
+    /// 三個分組：未分組（a）、生活（b）、工作（c）
+    const GROUPS: &str = "- a @2026-10-10\n# 生活\n- b @2026-10-17\n# 工作\n- c @2026-10-20\n";
+
+    #[test]
+    fn tab_goes_through_the_side_menu_when_wide() {
+        // 月曆 → 右邊 → side menu → 月曆
+        let mut app = wide_app_with(GROUPS);
+        for focus in [Focus::Agenda, Focus::Side, Focus::Calendar] {
+            press(&mut app, KeyCode::Tab);
+            assert_eq!(app.focus, focus);
+        }
+        // 右邊一件事都沒有：月曆直接到 side menu
+        let mut app = wide_app_with("- 沒日期\n");
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Side);
+        // 收起來了：跟窄的時候一樣，月曆 ⇄ 右邊
+        let mut app = wide_app_with(GROUPS);
+        app.side_hidden = true;
+        press(&mut app, KeyCode::Tab);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.focus, Focus::Calendar);
+    }
+
+    #[test]
+    fn side_menu_keys_choose_and_check_calendars() {
+        let mut app = wide_app_with(GROUPS);
+        app.focus = Focus::Side;
+        // j 到「生活」、Space 取消勾選：b 不列了
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.group_index, 1);
+        press(&mut app, KeyCode::Char(' '));
+        assert!(!app.groups[1].shown);
+        assert_eq!(app.agenda().len(), 2);
+        // Enter 勾回來
+        press(&mut app, KeyCode::Enter);
+        assert!(app.groups[1].shown);
+        // 到最後一個再往下、到第一個再往上：停住；方向鍵、滾輪一樣
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Down);
+        }
+        assert_eq!(app.group_index, 2);
+        app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+        assert_eq!(app.group_index, 1);
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('k'));
+        }
+        assert_eq!(app.group_index, 0);
+        // h / l 不動選取的日期；Esc 回月曆、不離開
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.selected, date(2026, 10, 17));
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.focus, Focus::Calendar);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn the_keyboard_leaves_the_side_menu_when_it_goes_away() {
+        // 按 `s` 收起
+        let mut app = wide_app_with(GROUPS);
+        app.focus = Focus::Side;
+        press(&mut app, KeyCode::Char('s'));
+        assert_eq!(app.focus, Focus::Calendar);
+        // terminal 變窄
+        let mut app = wide_app_with(GROUPS);
+        app.focus = Focus::Side;
+        app.resize(Rect::new(0, 0, 120, 20));
+        assert_eq!(app.focus, Focus::Side);
+        app.resize(Rect::new(0, 0, 119, 20));
+        assert_eq!(app.focus, Focus::Calendar);
     }
 
     #[test]

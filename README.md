@@ -22,11 +22,12 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 ## Keys
 | Key | Action |
 | :- | :- |
-| `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day; in the agenda `j` `k` / ↓ ↑ choose the next / previous item |
-| `Tab` | Switch between the calendar and the agenda (the focused pane's border lights up) |
+| `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day; in the agenda `j` `k` / ↓ ↑ choose the next / previous item, in the calendar list the next / previous calendar |
+| `Tab` | Switch between the calendar, the agenda and the calendar list (the focused pane's border lights up) |
+| `Space` / `Enter` | In the calendar list: check / uncheck a calendar; an unchecked calendar's items are hidden |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
-| Mouse wheel / click | Move one week (in the agenda: one item) / select a day or an item (hold `Shift` to select text in the terminal) |
-| `Esc` | Back to the calendar from the agenda; quit from the calendar |
+| Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day or an item (hold `Shift` to select text in the terminal) |
+| `Esc` | Back to the calendar from the agenda or the calendar list; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |
