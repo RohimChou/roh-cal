@@ -3,6 +3,7 @@
 use crate::{
     mock::{self, Item},
     planner,
+    texts::Lang,
     theme::Theme,
 };
 use color_eyre::Result;
@@ -11,6 +12,15 @@ use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
 };
+
+/// 鍵盤在操作哪一邊
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    /// 左邊的月曆
+    Calendar,
+    /// 右邊的事項
+    Agenda,
+}
 
 pub struct App {
     pub today: Date,
@@ -25,6 +35,12 @@ pub struct App {
     pub jump_to_month: bool,
     pub items: Vec<Item>,
     pub theme: Theme,
+    /// 畫面的語言，按 `L` 切換
+    pub lang: Lang,
+    /// 鍵盤在操作哪一邊，按 `Tab` 切換
+    pub focus: Focus,
+    /// 右邊選到第幾件事（`items` 的 index）；`focus` 是 `Agenda` 時才用
+    pub selected_item: usize,
     should_quit: bool,
 }
 
@@ -40,6 +56,9 @@ impl App {
             jump_to_month: true,
             items: mock::items(),
             theme: Theme::catppuccin_mocha(),
+            lang: Lang::Zh,
+            focus: Focus::Calendar,
+            selected_item: 0,
             should_quit: false,
         }
     }
@@ -60,19 +79,60 @@ impl App {
 
     fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            KeyCode::Char('q') => self.should_quit = true,
+            // Esc：在右邊就回月曆，在月曆就離開
+            KeyCode::Esc if self.focus == Focus::Agenda => self.focus = Focus::Calendar,
+            KeyCode::Esc => self.should_quit = true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            KeyCode::Tab => self.toggle_focus(),
+            KeyCode::Char('t') => {
+                self.selected = self.today;
+                self.focus = Focus::Calendar;
+                self.jump_to_month = true;
+            }
+            KeyCode::Char('L') => self.lang = self.lang.toggled(),
+            _ if self.focus == Focus::Agenda => self.handle_agenda_key(key.code),
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
             KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
             KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
             KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
-            KeyCode::Char('t') => {
-                self.selected = self.today;
-                self.jump_to_month = true;
-            }
             _ => {}
+        }
+    }
+
+    /// 右邊的事項：`j` / `k` 上下一件，月曆選取的日期跟著那件事走
+    fn handle_agenda_key(&mut self, code: KeyCode) {
+        let last = self.items.len().saturating_sub(1);
+        match code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.selected_item = (self.selected_item + 1).min(last);
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.selected_item = self.selected_item.saturating_sub(1);
+            }
+            _ => return,
+        }
+        self.selected = self.items[self.selected_item].date;
+    }
+
+    /// `Tab`：月曆 ↔ 右邊的事項；切到右邊時選「選取那天或之後」的第一件事（都沒有就最後一件）
+    fn toggle_focus(&mut self) {
+        match self.focus {
+            Focus::Agenda => self.focus = Focus::Calendar,
+            Focus::Calendar => {
+                let Some(last) = self.items.len().checked_sub(1) else {
+                    return;
+                };
+                self.selected_item = self
+                    .items
+                    .iter()
+                    .position(|item| item.date >= self.selected)
+                    .unwrap_or(last);
+                self.selected = self.items[self.selected_item].date;
+                self.focus = Focus::Agenda;
+            }
         }
     }
 
@@ -110,6 +170,11 @@ mod tests {
         press(&mut app, KeyCode::Char('t'));
         assert_eq!(app.selected, date(2026, 10, 17));
         assert!(app.jump_to_month);
+        // L 切換語言，再按一次切回來
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(app.lang, Lang::En);
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(app.lang, Lang::Zh);
     }
 
     #[test]

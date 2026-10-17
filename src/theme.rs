@@ -24,10 +24,10 @@ pub struct Theme {
     pub has_item: Color,
     /// 今天的日期
     pub today: Color,
-    /// 選取的日期：字
-    pub selected_fg: Color,
-    /// 選取的日期：底色
-    pub selected_bg: Color,
+    /// 選取的日期：前後的括號 `[17]`
+    pub selected: Color,
+    /// 鍵盤所在那個框的框線
+    pub focus: Color,
     /// 選取那天的事項：底色
     pub selected_item_bg: Color,
 }
@@ -40,7 +40,6 @@ impl Theme {
         let subtext0 = Color::Rgb(166, 173, 200);
         let surface2 = Color::Rgb(88, 91, 112);
         let surface1 = Color::Rgb(69, 71, 90);
-        let base = Color::Rgb(30, 30, 46);
         let lavender = Color::Rgb(180, 190, 254);
         let blue = Color::Rgb(137, 180, 250);
         let green = Color::Rgb(166, 227, 161);
@@ -60,8 +59,8 @@ impl Theme {
             holiday: red,
             has_item: peach,
             today: green,
-            selected_fg: base,
-            selected_bg: mauve,
+            selected: mauve,
+            focus: mauve,
             selected_item_bg: surface1,
         }
     }

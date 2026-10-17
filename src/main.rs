@@ -4,6 +4,7 @@ mod app;
 mod calendar;
 mod mock;
 mod planner;
+mod texts;
 mod theme;
 
 use app::App;
