@@ -5,7 +5,7 @@
 use crate::{
     app::{App, Focus, Variant, is_shown},
     calendar::{self, WeekRow},
-    mock::Item,
+    items::Item,
     texts::Texts,
     theme::Theme,
 };
@@ -409,6 +409,12 @@ fn render_side(frame: &mut Frame, area: Rect, app: &App, texts: &Texts) {
                 .iter()
                 .filter(|item| item.group == group.name)
                 .count();
+            // 檔案開頭還沒有標題的項目：顯示「未分組」
+            let name = if group.name.is_empty() {
+                texts.ungrouped
+            } else {
+                group.name.as_str()
+            };
             // 勾選的：紫色的 ☑、白字；沒勾的：灰色的 ☐、灰字
             let (mark, mark_color, name_color) = if group.shown {
                 ("☑", theme.selected, theme.text)
@@ -417,7 +423,7 @@ fn render_side(frame: &mut Frame, area: Rect, app: &App, texts: &Texts) {
             };
             let line = Line::from(vec![
                 Span::styled(format!(" {mark} "), Style::new().fg(mark_color)),
-                Span::styled(group.name, Style::new().fg(name_color)),
+                Span::styled(name, Style::new().fg(name_color)),
                 Span::styled(format!(" {count}"), Style::new().fg(theme.muted)),
             ]);
             // 鍵盤在 side menu 時，選到的那列換底色
@@ -491,9 +497,12 @@ fn render_upcoming(
         for item in day_items {
             let mut spans = vec![Span::raw("   ")];
             if let Some(time) = item.time {
-                spans.push(Span::styled(format!("{time} "), muted));
+                spans.push(Span::styled(format!("{} ", time.strftime("%H:%M")), muted));
             }
-            spans.push(Span::styled(item.title, item_style(item, color, theme)));
+            spans.push(Span::styled(
+                item.title.as_str(),
+                item_style(item, color, theme),
+            ));
             let line = Line::from(spans);
             // 鍵盤在右邊時，選到的那件事換底色
             let is_chosen = chosen.is_some_and(|chosen| std::ptr::eq(item, chosen));
@@ -626,12 +635,12 @@ fn item_line(item: &Item, app: &App, chosen: Option<&Item>) -> Line<'static> {
     };
     if let Some(time) = item.time {
         spans.push(Span::styled(
-            format!("{time} "),
+            format!("{} ", time.strftime("%H:%M")),
             Style::new().fg(theme.muted),
         ));
     }
     spans.push(Span::styled(
-        item.title,
+        item.title.clone(),
         item_style(item, day_color(item.date, app), theme),
     ));
     let line = Line::from(spans);
@@ -667,8 +676,8 @@ mod tests {
             .map(|day| Item {
                 date: date(2026, 10, day),
                 time: None,
-                group: "工作",
-                title: "x",
+                group: "工作".into(),
+                title: "x".into(),
                 holiday: false,
                 done: false,
             })
@@ -719,7 +728,7 @@ mod tests {
 
     #[test]
     fn selected_day_is_wrapped_in_brackets_without_moving_the_others() {
-        let mut app = App::new(date(2026, 10, 17));
+        let mut app = App::new(date(2026, 10, 17), Vec::new(), Vec::new());
         let week = |day| {
             let rows = calendar::month_rows(day);
             *rows.iter().find(|row| row.contains(&Some(day))).unwrap()

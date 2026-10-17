@@ -1,11 +1,6 @@
 //! App 的狀態和按鍵：今天、選取的日期、捲到哪
 
-use crate::{
-    mock::{self, Item},
-    planner,
-    texts::Lang,
-    theme::Theme,
-};
+use crate::{items::Item, planner, texts::Lang, theme::Theme};
 use color_eyre::Result;
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
@@ -35,7 +30,8 @@ pub enum Variant {
 
 /// side menu 上的一個日曆（= 任務檔的分組）
 pub struct Group {
-    pub name: &'static str,
+    /// 分組名稱；空字串 = 檔案開頭還沒有標題的項目
+    pub name: String,
     /// 有沒有勾選：沒勾的日曆，它的事不顯示
     pub shown: bool,
 }
@@ -80,7 +76,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(today: Date) -> Self {
+    pub fn new(today: Date, items: Vec<Item>, groups: Vec<String>) -> Self {
         let this_month = today.first_of_month();
         Self {
             today,
@@ -89,14 +85,14 @@ impl App {
             last_month: this_month.saturating_add(24.months()),
             scroll: 0,
             jump_to_month: true,
-            items: mock::items(),
+            items,
             theme: Theme::catppuccin_mocha(),
             lang: Lang::Zh,
             focus: Focus::Calendar,
             selected_item: 0,
-            groups: mock::GROUPS
-                .iter()
-                .map(|&name| Group { name, shown: true })
+            groups: groups
+                .into_iter()
+                .map(|name| Group { name, shown: true })
                 .collect(),
             selected_group: 0,
             variant: Variant::MonthItems,
@@ -253,7 +249,7 @@ mod tests {
 
     #[test]
     fn hjkl_move_by_a_day_or_a_week_and_t_jumps_back() {
-        let mut app = App::new(date(2026, 10, 17));
+        let mut app = App::new(date(2026, 10, 17), Vec::new(), Vec::new());
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.selected, date(2026, 10, 24));
         press(&mut app, KeyCode::Char('l'));
@@ -279,7 +275,7 @@ mod tests {
     #[test]
     fn moving_stops_at_the_first_and_last_day_on_screen() {
         // 畫面上是 2025/10 ～ 2028/10
-        let mut app = App::new(date(2026, 10, 17));
+        let mut app = App::new(date(2026, 10, 17), Vec::new(), Vec::new());
         app.selected = date(2025, 10, 3);
         press(&mut app, KeyCode::Char('k'));
         assert_eq!(app.selected, date(2025, 10, 1));

@@ -48,6 +48,8 @@ pub struct Texts {
     pub today: &'static str,
     /// 版型 2：選取那天沒有事
     pub no_items: &'static str,
+    /// side menu：檔案開頭還沒有標題的項目
+    pub ungrouped: &'static str,
     /// 表頭的星期一到星期日：一天 3 格寬，名字要剛好 2 格（前面補一個空白）
     pub weekdays: [&'static str; 7],
 }
@@ -63,6 +65,7 @@ const ZH: Texts = Texts {
     header_upcoming: " 當天起",
     today: " 今天",
     no_items: "沒有事",
+    ungrouped: "未分組",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
 };
 
@@ -77,6 +80,7 @@ const EN: Texts = Texts {
     header_upcoming: " From this day",
     today: " today",
     no_items: "Nothing",
+    ungrouped: "Ungrouped",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
 };
 

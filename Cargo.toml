@@ -2,8 +2,12 @@
 name = "roh-cal"
 version = "0.1.0"
 edition = "2024"
+description = "A simple, keyboard-driven terminal calendar for plain-text tasks"
+license = "MIT"
+repository = "https://github.com/RohimChou/roh-cal"
 
 [dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
 color-eyre = "0.6.5"
 jiff = "0.2.38"
 ratatui = "0.30.2"
