@@ -50,8 +50,6 @@ impl Lang {
 pub struct Texts {
     /// 這組字是哪個語言（年 / 月的寫法要用）
     lang: Lang,
-    /// 最上面一列的標題
-    pub title: &'static str,
     /// 最下面一列的操作說明
     pub hints: &'static str,
     /// 月曆表頭：年月那欄（最多 6 格寬）
@@ -66,7 +64,6 @@ pub struct Texts {
 
 const EN: Texts = Texts {
     lang: Lang::En,
-    title: " roh-cal",
     hints: " hjkl move  Tab switch  [] month  t today  q quit",
     header_month: "",
     header_week: " Wk ",
@@ -76,7 +73,6 @@ const EN: Texts = Texts {
 
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    title: " roh-cal",
     hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
     header_month: "年月",
     header_week: " 週 ",
@@ -108,7 +104,7 @@ impl Texts {
         }
     }
 
-    /// 標題列右邊的日期，例：`Sat Oct 17, 2026` / `2026/10/17（六）`
+    /// 選取的日期（右邊事項框表頭的右邊），例：`Sat Oct 17, 2026` / `2026/10/17（六）`
     pub fn date_title(&self, date: Date) -> String {
         // 星期一 = 0、星期日 = 6
         let weekday = date.weekday().to_monday_zero_offset() as usize;

@@ -296,15 +296,15 @@ mod tests {
 
     #[test]
     fn left_click_on_a_date_selects_it() {
-        // 40 × 27 的畫面、10 月在最上面：16 號在 (24～26, 6)，見 ui.rs 的畫面 test
+        // 40 × 26 的畫面、10 月在最上面：16 號在 (24～26, 5)，見 ui.rs 的畫面 test
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-        app.screen = Rect::new(0, 0, 40, 27);
+        app.screen = Rect::new(0, 0, 40, 26);
         app.calendar_top = Some(0);
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 6));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
         assert_eq!(app.selected, date(2026, 10, 16));
         // 右鍵、點在表頭上：不理
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 6));
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 2));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 5));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 1));
         assert_eq!(app.selected, date(2026, 10, 16));
     }
 
@@ -423,16 +423,16 @@ mod tests {
 
     #[test]
     fn clicking_an_item_moves_the_keyboard_there() {
-        // 70 × 24、10 月在最上面：右邊第一列是 10/10 a（右邊框裡面從 x 36、y 4 開始）
+        // 70 × 23、10 月在最上面：右邊第一列是 10/10 a（右邊框裡面從 x 36、y 3 開始）
         let mut app = app_with(ITEMS);
-        app.screen = Rect::new(0, 0, 70, 24);
+        app.screen = Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 40, 4));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 40, 3));
         assert_eq!(app.focus, Focus::Agenda);
         assert_eq!(app.chosen().map(|item| item.title.as_str()), Some("a"));
         assert_eq!(app.selected, date(2026, 10, 10));
         // 再點月曆上的日期：鍵盤回到月曆
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 6));
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.selected, date(2026, 10, 16));
     }

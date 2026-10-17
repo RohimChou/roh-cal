@@ -135,8 +135,15 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         })
     };
     render_header(frame, calendar_header, texts, theme, year_hint);
+    // 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面留一格空白）
+    // 兩段畫在同一列，日期的顏色放在 `Span` 上：`Line::styled` 的顏色會套到整列，會蓋掉先畫的
     frame.render_widget(
         Line::styled(texts.header_items, Style::new().fg(theme.muted)),
+        agenda_header,
+    );
+    let date = format!("{} ", texts.date_title(app.selected));
+    frame.render_widget(
+        Line::from(Span::styled(date, Style::new().fg(theme.text))).right_aligned(),
         agenda_header,
     );
     render_rule(frame, calendar_rule, agenda_rule, false, theme);
