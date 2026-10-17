@@ -668,7 +668,9 @@ mod tests {
         // 月（10月）、1 月的年（2027年）、週數
         assert_eq!(cell(3, 3), ("1", theme.label, false));
         assert_eq!(cell(1, 22), ("2", theme.label, false));
+        // 週數：選取那週（42）亮、其他週（41）暗
         assert_eq!(cell(8, 5), ("4", theme.week_number, false));
+        assert_eq!(cell(8, 4), ("4", theme.week_number_dim, false));
         // 10/16（五）一般；10/17（六）是今天：今天的顏色蓋過週末，而且粗體；10/18（日）週末
         assert_eq!(cell(25, 5), ("1", theme.text, false));
         assert_eq!(cell(29, 5), ("7", theme.today, true));

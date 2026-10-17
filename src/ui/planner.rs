@@ -270,7 +270,7 @@ fn render_header(
 
 /// 月曆框的一列：左邊的年 / 月、週數、│、7 天（一天 3 格寬、日期靠右）；只有事的列只畫 │
 ///
-/// 選取的那天在這一列：整列墊上 `cursor_line` 的底色
+/// 選取的那天在這一列：週數用亮的顏色、整列墊上 `cursor_line` 的底色；其他列的週數比較暗
 fn render_week(
     frame: &mut Frame,
     area: Rect,
@@ -286,21 +286,28 @@ fn render_week(
         (Some(Label::Month), Some(day)) => texts.month_label(day),
         _ => String::new(),
     };
+    // 選取的那天在這一列：週數亮一點、整列墊底色
+    let selected_week = days.is_some_and(|days| days.contains(&Some(app.selected)));
     // 週數：這一列任何一天都行（同一列一定是同一週）
     let week = day
         .map(|day| format!("{:>3} ", calendar::week_of_year(day)))
         .unwrap_or_default();
+    let week_color = if selected_week {
+        theme.week_number
+    } else {
+        theme.week_number_dim
+    };
     render_cells(
         frame,
         area,
         [
             Line::styled(label, Style::new().fg(theme.label)).right_aligned(),
-            Line::styled(week, Style::new().fg(theme.week_number)),
+            Line::styled(week, Style::new().fg(week_color)),
             Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             days.map(|days| day_cells(days, app)).unwrap_or_default(),
         ],
     );
-    if days.is_some_and(|days| days.contains(&Some(app.selected))) {
+    if selected_week {
         // 只換底色，字的顏色不動
         frame
             .buffer_mut()

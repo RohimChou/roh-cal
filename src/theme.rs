@@ -15,8 +15,10 @@ pub struct Theme {
     pub year_line: Color,
     /// 標題、左邊的年 / 月
     pub label: Color,
-    /// 週數
+    /// 選取那一週的週數
     pub week_number: Color,
+    /// 其他週的週數（比較暗）
+    pub week_number_dim: Color,
     /// 六、日的日期和表頭
     pub weekend: Color,
     /// 有沒做完的事的日期
@@ -42,6 +44,8 @@ impl Theme {
         let blue = Color::Rgb(137, 180, 250);
         let green = Color::Rgb(166, 227, 161);
         let yellow = Color::Rgb(249, 226, 175);
+        // 黃色和底色（base 30, 30, 46）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+        let dim_yellow = Color::Rgb(183, 167, 136);
         let red = Color::Rgb(243, 139, 168);
         let surface0 = Color::Rgb(49, 50, 68);
         let mauve = Color::Rgb(203, 166, 247);
@@ -54,6 +58,7 @@ impl Theme {
             year_line: lavender,
             label: lavender,
             week_number: yellow,
+            week_number_dim: dim_yellow,
             weekend: blue,
             has_item: peach,
             today: green,
