@@ -30,6 +30,7 @@ PLAN = {
     "unchecked_calendars_hide_their_items": [(["en", "121", "14", "2026-10-17"], True, {"HIDDEN": "1"})],
     "month_view_fills_the_space_with_six_equal_weeks": [(["zh", "80", "30", "2026-10-17"], False, {"LAYOUT": "3"}), (["en", "80", "28", "2026-10-17"], False, {"LAYOUT": "3"})],
     "month_view_lists_each_days_items_in_its_cell": [(["zh", "80", "30", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "80", "16", "2026-10-17"], "month.md", {"LAYOUT": "3"})],
+    "month_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3", "HIDDEN": "1"})],
     "month_view_scrolls_a_week_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-21"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-09-28"], False, {"LAYOUT": "3"})],
 }
 
