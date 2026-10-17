@@ -231,16 +231,20 @@ impl App {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
-            KeyCode::Char(' ') | KeyCode::Enter => {
-                if let Some(group) = self.groups.get_mut(self.group_index) {
-                    group.shown = !group.shown;
-                }
-            }
+            KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             _ => {}
         }
     }
 
-    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件
+    /// side menu 選到的那個日曆：勾選 ⇄ 取消勾選
+    fn toggle_group(&mut self) {
+        if let Some(group) = self.groups.get_mut(self.group_index) {
+            group.shown = !group.shown;
+        }
+    }
+
+    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件、
+    /// 點 side menu 的日曆 = 選那個（再點一次已經選到的 = 勾選 / 取消勾選）
     fn handle_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
@@ -254,6 +258,7 @@ impl App {
                         self.focus = Focus::Calendar;
                     }
                     Some(Click::Item(index)) => self.choose(index),
+                    Some(Click::Group(index)) => self.click_group(index),
                     None => {}
                 }
             }
@@ -282,6 +287,16 @@ impl App {
             }
             Focus::Agenda if self.side_shown() => self.focus = Focus::Side,
             Focus::Agenda | Focus::Side => self.focus = Focus::Calendar,
+        }
+    }
+
+    /// 點 side menu 上第 `index` 個日曆：點一下選它（鍵盤換到 side menu），再點一次已經選到的 = 勾選 / 取消勾選
+    fn click_group(&mut self, index: usize) {
+        if self.focus == Focus::Side && self.group_index == index {
+            self.toggle_group();
+        } else {
+            self.focus = Focus::Side;
+            self.group_index = index;
         }
     }
 
@@ -658,6 +673,33 @@ mod tests {
         assert_eq!(app.focus, Focus::Side);
         app.resize(Rect::new(0, 0, 119, 20));
         assert_eq!(app.focus, Focus::Calendar);
+    }
+
+    #[test]
+    fn clicking_a_calendar_selects_it_then_toggles_it() {
+        // 120 × 30：side menu 裡面從 y 3 開始一個日曆一列（畫面見 ui.rs 的 `side_menu_lists_the_calendars_when_wide`）
+        let mut app = wide_app_with(GROUPS);
+        let click = |app: &mut App, row| {
+            app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, row));
+        };
+        // 第一下：選「生活」、鍵盤換到 side menu，還沒勾
+        click(&mut app, 4);
+        assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+        assert!(app.groups[1].shown);
+        // 再點一次：取消勾選；再一次：勾回來
+        click(&mut app, 4);
+        assert!(!app.groups[1].shown);
+        click(&mut app, 4);
+        assert!(app.groups[1].shown);
+        // 點別的日曆：只選、不勾
+        click(&mut app, 5);
+        assert_eq!(app.group_index, 2);
+        assert!(app.groups[2].shown);
+        // 鍵盤不在 side menu 時，點已經選到的那個也只是選（回到 side menu）
+        app.focus = Focus::Calendar;
+        click(&mut app, 5);
+        assert_eq!(app.focus, Focus::Side);
+        assert!(app.groups[2].shown);
     }
 
     #[test]

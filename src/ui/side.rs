@@ -1,10 +1,10 @@
 //! side menu：最左邊的日曆清單（日曆 = 任務檔的分組），terminal 夠寬才畫
 
-use super::planner::inner_areas;
+use super::{Click, planner::inner_areas};
 use crate::app::{App, Focus};
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     style::Style,
     symbols::line,
     text::{Line, Span},
@@ -76,4 +76,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 .set_style(row, Style::new().bg(theme.cursor_line));
         }
     }
+}
+
+/// 滑鼠點在 side menu（`area`）的 (`column`, `row`) 點到哪個日曆；點在表頭、框線、下面的空白回傳 `None`
+pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
+    let [_, _, body] = inner_areas(area);
+    // 一個日曆一列，從 `body` 的第一列開始
+    if !body.contains(Position::new(column, row)) {
+        return None;
+    }
+    let index = usize::from(row - body.y);
+    (index < app.groups.len()).then_some(Click::Group(index))
 }

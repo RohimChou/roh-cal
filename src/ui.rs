@@ -8,7 +8,7 @@ use crate::app::App;
 use jiff::civil::Date;
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     style::Style,
     text::Line,
 };
@@ -65,11 +65,16 @@ pub enum Click {
     Day(Date),
     /// 右邊的一件事：`App::agenda()` 裡的位置
     Item(usize),
+    /// side menu 上的一個日曆：`App::groups` 裡的位置
+    Group(usize),
 }
 
-/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期或事上回傳 `None`
+/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期、事、日曆上回傳 `None`
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     let areas = areas(app.screen, app.side_hidden);
+    if areas.side.contains(Position::new(column, row)) {
+        return side::click_at(areas.side, app, column, row);
+    }
     planner::click_at(areas.calendar, areas.agenda, app, column, row)
 }
 
@@ -127,6 +132,7 @@ mod tests {
         match click_at(app, column, row)? {
             Click::Day(date) => Some(date),
             Click::Item(index) => app.agenda()[index].date,
+            Click::Group(_) => None,
         }
     }
 
@@ -526,6 +532,24 @@ mod tests {
             (buffer[(2, 4)].symbol(), buffer[(2, 4)].fg),
             ("☑", theme.checked)
         );
+    }
+
+    #[test]
+    fn click_positions_in_the_side_menu() {
+        // 121 × 14（畫面見 `side_menu_lists_the_calendars_when_wide`）：日曆從 y 3 開始，一個一列
+        let mut app = agenda_app(Lang::ZhTw);
+        app.screen = Rect::new(0, 0, 121, 14);
+        draw_app(&mut app, 121, 14);
+        assert_eq!(click_at(&app, 5, 3), Some(Click::Group(0)));
+        assert_eq!(click_at(&app, 1, 6), Some(Click::Group(3)));
+        assert_eq!(click_at(&app, 20, 4), Some(Click::Group(1)));
+        // 沒有日曆：下面的空白、表頭、表頭的線、左右框線、操作說明
+        for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (21, 3), (5, 13)] {
+            assert_eq!(click_at(&app, x, y), None, "({x}, {y})");
+        }
+        // 月曆往右移了 22 格：16 號在 x 46～48
+        assert_eq!(date_at(&app, 46, 5), Some(date(2026, 10, 16)));
+        assert_eq!(date_at(&app, 49, 5), Some(date(2026, 10, 17)));
     }
 
     #[test]
