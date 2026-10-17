@@ -1043,6 +1043,37 @@ mod tests {
     }
 
     #[test]
+    fn events_gray_out_once_their_day_is_past() {
+        // 10/9 過期沒做完的任務（橘）、10/10 過去的行程（灰、不劃線，那天回到週末的藍）、10/18 還沒到的行程（橘）
+        let text = "- [ ] 交週報 @2026-10-09\n- 國慶日 @2026-10-10\n- 爬山 @2026-10-18 07:00\n";
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        let terminal = draw_app(&mut app, 70, 23);
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| {
+            let cell = &buffer[(x, y)];
+            (
+                cell.symbol(),
+                cell.fg,
+                cell.modifier.contains(Modifier::CROSSED_OUT),
+            )
+        };
+        // 月曆：10/9（五）x 26、10/10（六）x 29 在 y 4；10/18（日）x 32 在 y 5
+        assert_eq!(cell(26, 4), ("9", theme.has_item, false));
+        assert_eq!(cell(29, 4), ("0", theme.weekend, false));
+        assert_eq!(cell(32, 5), ("8", theme.has_item, false));
+        // 右邊（從 x 36 開始，一件一列）：標題在 x 43；爬山前面有時間，在 x 49
+        assert_eq!(cell(43, 3), ("交", theme.has_item, false));
+        assert_eq!(cell(43, 4), ("國", theme.muted, false));
+        assert_eq!(cell(38, 4), ("0", theme.muted, false));
+        assert_eq!(cell(49, 5), ("爬", theme.has_item, false));
+    }
+
+    #[test]
     fn days_with_open_items_are_orange() {
         // 16 號有沒做完的事 → 橘；15 號只有做完的 → 跟沒事一樣；17 號（今天）有事 → 還是今天的顏色；
         // 18 號（日）有事 → 橘蓋過週末；14 號沒事

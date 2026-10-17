@@ -1,5 +1,5 @@
-# Task file format (spec v0.1)
-One plain-text file, **one item per line**, written with Markdown list syntax. Every item can be checked off. The file is meant to be hand-edited in any editor, diffed in git and searched with `grep`; roh-cal reads it and writes it back (see [Writing](#writing)).
+# Task file format (spec v0.2)
+One plain-text file, **one item per line**, written with Markdown list syntax. An item with a checkbox is a **task** you check off; one without is an **event** (a meeting, a holiday, a release date) that is simply over once its day has passed. The file is meant to be hand-edited in any editor, diffed in git and searched with `grep`; roh-cal reads it and writes it back (see [Writing](#writing)).
 
 ```markdown
 # SFAP
@@ -22,8 +22,8 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 ## Rules
 | # | Line | Meaning |
 | :- | :- | :- |
-| 1 | `- [ ] text` / `- [x] text` | **Item**, open / done (`[X]` also counts as done) |
-| 2 | `- text` (no checkbox) | Also an **open item**, just written without the box (an appointment, a release date…). Checking it off writes `- [x] text` |
+| 1 | `- [ ] text` / `- [x] text` | **Task**, open / done (`[X]` also counts as done) |
+| 2 | `- text` (no checkbox) | **Event**: an appointment, a holiday, a milestone. It cannot be checked off; once its day has passed it is over (shown grayed out, not crossed out) |
 | 3 | `@YYYY-MM-DD` or `@YYYY-MM-DD HH:MM` anywhere in an item | The day (and 24-hour time) the item appears on the calendar. No date → the item is **unscheduled** |
 | 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# SFAP` → `## 11RC`) can be added later without changing files |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
@@ -52,7 +52,7 @@ roh-cal writes the file when you check an item off, delete, add or edit one. Eve
 
 | Topic | Rule |
 | :- | :- |
-| What it writes | Toggle `[ ]` ↔ `[x]` (a plain `- text` becomes `- [x] text`). Delete an item together with the lines indented deeper below it (subtasks, notes, blank lines between them; not the blank lines after them). Add `- [ ] title @YYYY-MM-DD HH:MM` (no time = no `HH:MM`) after the last item (and its subtasks) of the selected item's group, or at the end of the file when the day has no items; a missing file is created. Edit an item: its line is rewritten as `- [ ] title @YYYY-MM-DD HH:MM` (indentation and checkbox kept, the date at the end, no time = no `HH:MM`); an edit that changes nothing leaves the line as it was |
+| What it writes | Toggle a task `[ ]` ↔ `[x]` (events have no box and are never toggled). Delete an item together with the lines indented deeper below it (subtasks, notes, blank lines between them; not the blank lines after them). Add `- [ ] title @YYYY-MM-DD HH:MM` (no time = no `HH:MM`) after the last item (and its subtasks) of the selected item's group, or at the end of the file when the day has no items; a missing file is created. Edit an item: its line is rewritten as `- [ ] title @YYYY-MM-DD HH:MM` (indentation and checkbox kept, the date at the end, no time = no `HH:MM`); an edit that changes nothing leaves the line as it was |
 | Titles | A title roh-cal writes (add / edit) never contains an `@YYYY-MM-DD`: only the first one in a line counts, so it would take over the item's date. The form refuses such a title |
 | Identity | No IDs. roh-cal remembers each item's line number and original text; before writing it re-reads the file, and if that line changed it reloads instead of overwriting |
 | Only those lines | Only the changed line (or the deleted block) is touched; every other byte stays the same |
@@ -77,3 +77,4 @@ Planned to revisit:
 ## History
 - v0 (2026-10-11): first version
 - v0.1 (same day): no separate "event" kind; every item can be checked off
+- v0.2 (2026-10-18): an item without a checkbox is an event again (rule 2), but without an extra color: an event still to come is shown like an open task, a past one is grayed out

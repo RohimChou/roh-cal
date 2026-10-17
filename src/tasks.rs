@@ -13,10 +13,21 @@ pub struct Parsed {
     pub warnings: Vec<Warning>,
 }
 
+/// 項目的種類：有沒有框（規格的規則 1、2）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// `- [ ] 文字` / `- [x] 文字`：任務，要自己打勾
+    Task,
+    /// `- 文字`（沒有框）：行程（會議、假日、里程碑），不能打勾；那天過了就算過去了
+    Event,
+}
+
 /// 任務檔裡的一個項目（`- ` 開頭的那一行）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
-    /// 完成了沒：`[x]` / `[X]` 是完成；`[ ]` 或沒寫 checkbox 都是未完成（每一行都可以打勾）
+    /// 任務（有框）還是行程（沒有框）
+    pub kind: Kind,
+    /// 任務完成了沒：`[x]` / `[X]` 是完成；`[ ]` 是還沒；行程一定是 `false`（行程不能打勾）
     pub done: bool,
     /// 去掉 `- [ ] ` 和日期之後的文字，例：`實作退款 API`
     pub title: String,
@@ -34,6 +45,17 @@ pub struct Item {
     pub line: usize,
     /// 那一行原本的文字（整行，含縮排，不含換行），例：`  - [ ] 寫 integration test @2026-10-13`
     pub line_text: String,
+}
+
+impl Item {
+    /// 還沒結束的事：沒做完的任務，或還沒過的行程（今天的也算）。月曆上那天是橘色、右邊用那天的顏色；
+    /// 結束了的（做完的任務、過去的行程）變灰
+    pub fn is_open(&self, today: Date) -> bool {
+        match self.kind {
+            Kind::Task => !self.done,
+            Kind::Event => self.date.is_some_and(|date| date >= today),
+        }
+    }
 }
 
 /// 分組標題，例：`# 付款 API 改版`
@@ -93,7 +115,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         }
 
-        let Some((done, rest)) = parse_item_start(trimmed) else {
+        let Some((kind, done, rest)) = parse_item_start(trimmed) else {
             continue;
         };
 
@@ -108,6 +130,7 @@ pub fn parse(text: &str) -> Parsed {
         let (title, date, time) = parse_title(rest, line, &mut parsed.warnings);
         ancestors.push((indent, parsed.items.len()));
         parsed.items.push(Item {
+            kind,
             done,
             title,
             date,
@@ -136,16 +159,16 @@ fn parse_heading(line: &str) -> Option<Heading> {
     })
 }
 
-/// 看這行是不是項目：回傳（完成了沒, 剩下的文字）；不是 `- ` 開頭就回傳 `None`
+/// 看這行是不是項目：回傳（任務還是行程, 完成了沒, 剩下的文字）；不是 `- ` 開頭就回傳 `None`
 ///
-/// 例：`- [x] 打包` → (true, `打包`)；`- [ ] 打包` 和 `- 搬家` → (false, ...)
-fn parse_item_start(trimmed: &str) -> Option<(bool, &str)> {
+/// 例：`- [x] 打包` → (任務, true, `打包`)；`- [ ] 打包` → (任務, false, ...)；`- 看牙醫` → (行程, false, ...)
+fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
     // 要「- 」加空白；`-這樣` 不算
     let rest = trimmed.strip_prefix("- ")?;
     match checkbox(rest) {
-        Some((done, after)) => Some((done, after.trim_start())),
-        // 沒有 checkbox：也是未完成的項目
-        None => Some((false, rest)),
+        Some((done, after)) => Some((Kind::Task, done, after.trim_start())),
+        // 沒有框：行程
+        None => Some((Kind::Event, false, rest)),
     }
 }
 
@@ -263,14 +286,31 @@ mod tests {
     }
 
     #[test]
-    fn rule2_item_without_checkbox_is_an_open_item() {
+    fn rule2_item_without_checkbox_is_an_event() {
         let item = one("- 看牙醫 @2026-10-14");
-        assert!(!item.done);
+        assert_eq!((item.kind, item.done), (Kind::Event, false));
         assert_eq!(item.title, "看牙醫");
-        // `[ ]` 後面沒有空白就不是 checkbox：整段當文字，一樣是未完成
+        assert_eq!(one("- [ ] 打包").kind, Kind::Task);
+        assert_eq!(one("- [x] 打包").kind, Kind::Task);
+        // `[ ]` 後面沒有空白就不是 checkbox：整段當文字，是行程
         let item = one("- [ ]打包");
-        assert!(!item.done);
+        assert_eq!(item.kind, Kind::Event);
         assert_eq!(item.title, "[ ]打包");
+    }
+
+    #[test]
+    fn open_means_an_unfinished_task_or_an_event_not_yet_past() {
+        let today = date(2026, 10, 17);
+        // 任務：沒做完的才算（日期過了也算，那是過期沒做完）
+        assert!(one("- [ ] 交週報 @2026-10-16").is_open(today));
+        assert!(!one("- [x] 交週報 @2026-10-16").is_open(today));
+        assert!(one("- [ ] 整理書櫃").is_open(today));
+        // 行程：今天和以後的才算；過了就結束了
+        assert!(one("- 聚餐 @2026-10-17").is_open(today));
+        assert!(one("- 爬山 @2026-10-18").is_open(today));
+        assert!(!one("- 國慶日 @2026-10-10").is_open(today));
+        // 沒日期的行程：沒有「哪天」可以比，不算
+        assert!(!one("- 想去的餐廳").is_open(today));
     }
 
     #[test]
@@ -411,9 +451,10 @@ mod tests {
         let parsed = parse(include_str!("../testdata/tasks.md"));
         let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
         assert_eq!(parsed.items.len(), 56);
-        // 7 個 `[x]`；31 個 `[ ]` + 18 個沒 checkbox 的 = 49 個未完成
-        assert_eq!(count(|item| item.done), 7);
-        assert_eq!(count(|item| !item.done), 49);
+        // 任務：6 個 `[x]` / `[X]`、33 個 `[ ]`；17 個沒框的行程（會議、假日、生日、里程碑）
+        assert_eq!(count(|item| item.kind == Kind::Task && item.done), 6);
+        assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 33);
+        assert_eq!(count(|item| item.kind == Kind::Event), 17);
         assert_eq!(count(|item| item.date.is_none()), 12);
         // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
         // 唯一一個寫錯的日期

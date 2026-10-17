@@ -391,7 +391,8 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 一天的日期顏色：今天 > 有沒做完的事 > 週末 > 一般（事都做完了、日曆沒勾的事，都跟沒事一樣）
+/// 一天的日期顏色：今天 > 有還沒結束的事（沒做完的任務、還沒過的行程）> 週末 > 一般
+/// （事都結束了、日曆沒勾的事，都跟沒事一樣）
 pub(super) fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
@@ -399,7 +400,7 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
     } else if app
         .items
         .iter()
-        .any(|item| item.date == Some(day) && !item.done && app.is_shown(item))
+        .any(|item| item.date == Some(day) && item.is_open(app.today) && app.is_shown(item))
     {
         theme.has_item
     } else if day.weekday().to_monday_zero_offset() >= 5 {
@@ -411,14 +412,15 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
 
 /// 右邊的一件事：「 10/16 17:30 交週報」（日期 5 格靠右、有時間才寫時間）
 ///
-/// 沒做完的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。做完的：整行變灰、標題劃線。
+/// 還沒結束的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。結束了的整行變灰：
+/// 做完的任務標題再劃線，過去的行程不劃線。
 /// `chosen` = 鍵盤在右邊時選到的這件：日期加括號 `[10/17]`、加粗
 fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
-    let color = if item.done {
-        theme.muted
-    } else {
+    let color = if item.is_open(app.today) {
         item.date.map_or(theme.text, |date| day_color(date, app))
+    } else {
+        theme.muted
     };
     let date = item
         .date

@@ -226,10 +226,10 @@ fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> 
     let mut first = date_line(day, month, app);
     let rows = usize::from(rows);
     if rows <= 1 {
-        // 點點：有沒做完的事用那天的顏色，都做完了淡色；其他月份灰
+        // 點點：有還沒結束的事用那天的顏色，都結束了淡色；其他月份灰
         let color = if other_month {
             theme.other_month
-        } else if items.iter().any(|item| !item.done) {
+        } else if items.iter().any(|item| item.is_open(app.today)) {
             day_color(day, app)
         } else {
             theme.muted
@@ -265,15 +265,16 @@ fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> 
 
 /// 格子裡的一件事：「 ∙ 14:00 標題」（有時間才寫時間）
 ///
-/// 跟版型 1 右邊的事一樣：沒做完的用那天在月曆上的顏色、時間淡色；做完的整行灰、標題劃線；其他月份的整行灰
+/// 跟版型 1 右邊的事一樣：還沒結束的用那天在月曆上的顏色、時間淡色；結束了的整行灰（做完的任務標題再劃線）；
+/// 其他月份的整行灰
 fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let color = if other_month {
         theme.other_month
-    } else if item.done {
-        theme.muted
-    } else {
+    } else if item.is_open(app.today) {
         item.date.map_or(theme.text, |date| day_color(date, app))
+    } else {
+        theme.muted
     };
     let time_color = if other_month {
         theme.other_month
