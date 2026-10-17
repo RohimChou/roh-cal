@@ -361,18 +361,8 @@ mod tests {
         assert_eq!(date_at(&app, 13, 6), Some(date(2026, 11, 2)));
     }
 
-    /// 事項框 test 用的任務檔（跟產生預期畫面的 Python 程式用同一份）
-    const AGENDA_TASKS: &str = "- [ ] 交週報 @2026-10-16 17:30\n\
-                                - [x] 修 bug @2026-10-15\n\
-                                - 聚餐 @2026-10-17\n\
-                                - [ ] 早餐會 @2026-10-17 08:00\n\
-                                - [ ] 爬山 @2026-10-18 07:00\n\
-                                - [ ] 繳電話費 @2026-10-05\n\
-                                - [ ] 國慶日 @2026-10-10\n\
-                                - [ ] 一個很長很長很長很長很長很長很長的標題 @2026-10-20\n\
-                                - [ ] 沒日期的事\n\
-                                - [ ] 跨年倒數 @2026-12-31 23:00\n\
-                                - [ ] Release v2.3 @2026-11-03 09:30\n";
+    /// 事項框 test 用的任務檔（`tools/expected_screen.py` 算預期畫面時也讀這一份）
+    const AGENDA_TASKS: &str = include_str!("../testdata/agenda.md");
 
     /// 今天 2026/10/17、選取今天、任務檔是 `AGENDA_TASKS` 的 app
     fn agenda_app(lang: Lang) -> App {
