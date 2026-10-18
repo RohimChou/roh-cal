@@ -321,7 +321,8 @@ impl App {
         }
     }
 
-    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）；`a` 在選取那天新增一件
+    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）；`a` 在選取那天新增一件、
+    /// `Enter` 進到那天的事
     fn handle_calendar_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
@@ -329,8 +330,21 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
             KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
             KeyCode::Char('a') => self.start_adding(),
+            KeyCode::Enter => self.open_day(),
             _ => {}
         }
+    }
+
+    /// 月曆上 `Enter`（或再點一次選取的那天）：進到那天的事，鍵盤換到右邊、選那天的第一件；
+    /// 版型 3 沒有右邊，換到版型 1；那天沒事就不動
+    fn open_day(&mut self) {
+        if !self.agenda().iter().any(|entry| entry.is_on(self.selected)) {
+            return;
+        }
+        if self.view == View::Month {
+            self.set_view(View::Planner);
+        }
+        self.enter_agenda();
     }
 
     /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾、`r` 改期、`e` / `Enter` 編輯（寫回任務檔）
@@ -393,6 +407,12 @@ impl App {
                         self.click_while_moving(date);
                     }
                     _ if self.moving.is_some() => {}
+                    // 再點一次已經選取的那天（鍵盤在月曆）= 進到那天的事（跟 Enter 一樣）
+                    Some(Click::Day(date))
+                        if date == self.selected && self.focus == Focus::Calendar =>
+                    {
+                        self.open_day();
+                    }
                     Some(Click::Day(date)) => {
                         self.selected = date;
                         self.focus = Focus::Calendar;
@@ -982,6 +1002,34 @@ mod tests {
             Some(date(2026, 10, 28))
         );
         assert_eq!(app.selected, date(2026, 10, 29));
+    }
+
+    #[test]
+    fn enter_on_the_calendar_goes_into_that_days_items() {
+        // 10/17 有 b、c：Enter → 鍵盤換到右邊、選 b
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.focus, Focus::Agenda);
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("b")
+        );
+        // 那天沒事（10/18）：不動
+        let mut app = app_with(ITEMS);
+        app.selected = date(2026, 10, 18);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.focus, Focus::Calendar);
+        // 版型 3：換到版型 1 再進去
+        let mut app = app_with(ITEMS);
+        app.view = View::Month;
+        press(&mut app, KeyCode::Enter);
+        assert_eq!((app.view, app.focus), (View::Planner, Focus::Agenda));
+        // 再點一次選取的那天也一樣（70 × 23、10 月在最上面：10/17 在 x 27～29、y 5）
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 70, 23);
+        app.calendar_top = Some(0);
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
+        assert_eq!(app.focus, Focus::Agenda);
     }
 
     #[test]

@@ -29,6 +29,7 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | `r` | In the agenda: reschedule the chosen item. The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
+| `Enter` | On the calendar: go into the selected day's items (the agenda's first item that day; layout 3 switches to layout 1). Clicking the selected day again does the same |
 | `e` / `Enter` | In the agenda: edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears |
 | `a` / `A` | Add an item in the same one-line editor, the selected day already filled in: in the agenda to the chosen item's calendar, on the calendar to the selected day / add a subtask under the chosen item |
 | `d` | In the agenda: delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
