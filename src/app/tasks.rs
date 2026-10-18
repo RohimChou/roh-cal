@@ -36,10 +36,12 @@ impl App {
                 });
                 previous = Some(&item.group);
             }
+            let children = self.items.iter().any(|other| other.parent == Some(index));
             rows.push(TaskRow::Item {
                 index,
-                children: self.items.iter().any(|other| other.parent == Some(index)),
-                expanded: self.expanded.contains(&item.line),
+                children,
+                // 子任務都刪光了的，就算還記著展開也不算
+                expanded: children && self.expanded.contains(&item.line),
             });
         }
         rows
@@ -119,19 +121,23 @@ impl App {
         self.tasks_line = Some(lines[current.saturating_add_signed(step).min(last)]);
     }
 
+    /// 檔案第 `line` 行的那件事有沒有子任務
+    fn has_children(&self, line: usize) -> bool {
+        self.items
+            .iter()
+            .position(|item| item.line == line)
+            .is_some_and(|index| self.items.iter().any(|other| other.parent == Some(index)))
+    }
+
     /// `l`：選到的那件有子任務、還收著就展開；已經展開就跳到第一個子任務
     fn expand_task(&mut self) {
-        let Some(item) = self.tasks_chosen().cloned() else {
+        let Some(line) = self.tasks_chosen().map(|item| item.line) else {
             return;
         };
-        let has_children = self
-            .items
-            .iter()
-            .any(|other| other.parent.and_then(|index| self.items.get(index)) == Some(&item));
-        if !has_children {
+        if !self.has_children(line) {
             return;
         }
-        if self.expanded.insert(item.line) {
+        if self.expanded.insert(line) {
             return;
         }
         self.choose_task(1);
@@ -139,13 +145,14 @@ impl App {
 
     /// `h`：選到的那件展開著就收起來；不然跳到它的父項目（像 VS Code 的檔案樹）
     fn collapse_task(&mut self) {
-        let Some(item) = self.tasks_chosen().cloned() else {
+        let Some((line, parent)) = self.tasks_chosen().map(|item| (item.line, item.parent)) else {
             return;
         };
-        if self.expanded.remove(&item.line) {
+        // 沒有子任務卻記著展開（子任務都刪光了）是舊的記錄：清掉，照樣跳到父項目
+        if self.expanded.remove(&line) && self.has_children(line) {
             return;
         }
-        if let Some(parent) = item.parent.and_then(|index| self.items.get(index)) {
+        if let Some(parent) = parent.and_then(|index| self.items.get(index)) {
             self.tasks_line = Some(parent.line);
         }
     }
@@ -429,6 +436,31 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert!(read().contains("- [ ] 開會 @2026-10-20 10:00\n"));
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn deleting_every_subtask_does_not_leave_the_parent_expanded() {
+        use super::super::write::tests::clean_up;
+        // 寫報告（第 3 行）、找資料（第 4 行）都展開；刪掉找資料唯一的子任務查文獻（第 5 行）
+        let (mut app, path) = tasks_app_with_file("tasks-stale-expanded", TREE);
+        app.expanded.extend([3, 4]);
+        app.tasks_line = Some(5);
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        // 找資料沒有子任務了：不算展開；按一次 h 就跳到父項目寫報告（不用按兩次）
+        app.tasks_line = Some(4);
+        let row = app.tasks_cursor(&app.tasks_rows()).expect("chosen");
+        assert!(matches!(
+            app.tasks_rows()[row],
+            TaskRow::Item {
+                children: false,
+                expanded: false,
+                ..
+            }
+        ));
+        press(&mut app, KeyCode::Char('h'));
+        assert_eq!(app.tasks_line, Some(3));
         clean_up(&path);
     }
 
