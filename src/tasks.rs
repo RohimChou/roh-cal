@@ -12,6 +12,19 @@ pub struct Parsed {
     pub items: Vec<Item>,
     /// Mistakes that do not stop the file from being read, e.g. `@2026-13-01`
     pub warnings: Vec<Warning>,
+    /// Every heading, in file order (also ones with nothing under them yet: an empty calendar)
+    pub headings: Vec<HeadingLine>,
+}
+
+/// One heading line of the file, e.g. line 3 `# Payments API v2`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadingLine {
+    /// Line number (from 1)
+    pub line: usize,
+    /// The line exactly as it is in the file (to check it was not changed elsewhere before rewriting it)
+    pub text: String,
+    /// What it reads as
+    pub heading: Heading,
 }
 
 /// The kind of item: with or without a box (rules 1 and 2 of the spec)
@@ -175,6 +188,11 @@ pub fn parse(text: &str) -> Parsed {
 
         // A heading: switch group; in the new group, items start again from the outermost level
         if let Some(heading) = parse_heading(raw) {
+            parsed.headings.push(HeadingLine {
+                line,
+                text: raw.to_string(),
+                heading: heading.clone(),
+            });
             group = Some(heading);
             section += 1;
             ancestors.clear();
@@ -593,6 +611,27 @@ mod tests {
         let today = date(2026, 10, 17);
         assert!(one("- Trip @2026-10-15..2026-10-17").is_open(today));
         assert!(!one("- Trip @2026-10-14..2026-10-16").is_open(today));
+    }
+
+    #[test]
+    fn every_heading_is_listed_with_its_line_and_text() {
+        // Also a heading with nothing under it; not one inside a code block
+        let parsed = parse(
+            "- a\n# Work\n\n## Empty\n```\n# Not a heading\n```\n# Days off type:holiday\n- b\n",
+        );
+        let headings: Vec<(usize, &str, &str)> = parsed
+            .headings
+            .iter()
+            .map(|line| (line.line, line.text.as_str(), line.heading.name.as_str()))
+            .collect();
+        assert_eq!(
+            headings,
+            [
+                (2, "# Work", "Work"),
+                (4, "## Empty", "Empty"),
+                (8, "# Days off type:holiday", "Days off"),
+            ]
+        );
     }
 
     #[test]

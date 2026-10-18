@@ -17,7 +17,7 @@ pub use write::Notice;
 
 use crate::{
     config::Settings,
-    tasks::{Item, Warning},
+    tasks::{HeadingLine, Item, Warning},
     texts::Lang,
     theme::Theme,
     ui::{self, Click},
@@ -75,11 +75,25 @@ pub struct Group {
 }
 
 impl Group {
-    /// All groups in the task file, in order of first appearance; headings with the same name count as one
-    fn list(items: &[Item]) -> Vec<Self> {
+    /// All groups in the task file, in order of first appearance: the groups of `items` and every heading
+    /// in `headings` (so a heading with no items under it yet is a calendar too); headings with the same
+    /// name count as one
+    fn list(items: &[Item], headings: &[HeadingLine]) -> Vec<Self> {
+        let mut names: Vec<(usize, Option<String>)> = items
+            .iter()
+            .map(|item| {
+                let name = item.group.as_ref().map(|heading| heading.name.clone());
+                (item.line, name)
+            })
+            .chain(
+                headings
+                    .iter()
+                    .map(|heading| (heading.line, Some(heading.heading.name.clone()))),
+            )
+            .collect();
+        names.sort_by_key(|&(line, _)| line);
         let mut groups: Vec<Self> = Vec::new();
-        for item in items {
-            let name = item.group.as_ref().map(|heading| heading.name.clone());
+        for (_, name) in names {
             if !groups.iter().any(|group| group.name == name) {
                 groups.push(Self { name, shown: true });
             }
@@ -151,6 +165,8 @@ pub struct App {
     pub items: Vec<Item>,
     /// Mistakes in the task file (e.g. `@2026-13-01`), marked on the tasks page
     pub warnings: Vec<Warning>,
+    /// Every heading in the task file (the calendars' lines, for renaming and deleting a calendar)
+    pub headings: Vec<HeadingLine>,
     /// Calendars in the side menu, in task file order
     pub groups: Vec<Group>,
     /// The side menu was hidden with `s`
@@ -225,13 +241,14 @@ impl App {
             lang,
             today,
             selected: today,
-            groups: Group::list(&items),
+            groups: Group::list(&items, &[]),
             side_hidden: false,
             group_index: 0,
             side_top: 0,
             side_back: Focus::Calendar,
             items,
             warnings: Vec::new(),
+            headings: Vec::new(),
             focus: Focus::Calendar,
             view: View::Planner,
             agenda_index: 0,
@@ -1180,14 +1197,21 @@ mod tests {
 
     #[test]
     fn groups_keep_file_order() {
-        // Items before any heading are `None`; headings with the same name are one group; `##` is a group too
-        let app = app_with("- a\n# Work\n- b\n## Personal\n- c\n# Work\n- d\n# No items\n");
+        // Items before any heading are `None`; headings with the same name are one group; `##` is a group
+        // too; a heading with no items under it yet is a calendar too (e.g. one just added)
+        let mut app = app_with("");
+        app.set_items(crate::tasks::parse(
+            "- a\n# Work\n- b\n# No items\n## Personal\n- c\n# Work\n- d\n",
+        ));
         let names: Vec<Option<&str>> = app
             .groups
             .iter()
             .map(|group| group.name.as_deref())
             .collect();
-        assert_eq!(names, [None, Some("Work"), Some("Personal")]);
+        assert_eq!(
+            names,
+            [None, Some("Work"), Some("No items"), Some("Personal")]
+        );
         assert!(app.groups.iter().all(|group| group.shown));
         // d is under the second "# Work" and also counts as "Work"
         assert!(app.groups[1].includes(&app.items[3]));

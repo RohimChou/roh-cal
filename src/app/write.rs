@@ -274,14 +274,21 @@ impl App {
         self.tasks_line = self.tasks_line.and_then(&map);
     }
 
-    /// Swaps in a new set of items (after a write, a reload or an undo); the side menu re-lists the
-    /// calendars from the new file, and calendars that existed before keep their checked state.
+    /// Swaps in a new set of items (at start, after a write, a reload or an undo); the side menu re-lists
+    /// the calendars from the new file, and calendars that existed before keep their checked state.
     /// If the agenda has fewer items (e.g. the item just added was undone), the keyboard
     /// is in the agenda and the chosen position is out of range: choose the last item;
     /// if no items are left, go back to the calendar;
     /// layout 3's popup works the same way (see `keep_day_choice`)
-    fn set_items(&mut self, Parsed { items, warnings }: Parsed) {
-        let mut groups = super::Group::list(&items);
+    pub(crate) fn set_items(
+        &mut self,
+        Parsed {
+            items,
+            warnings,
+            headings,
+        }: Parsed,
+    ) {
+        let mut groups = super::Group::list(&items, &headings);
         for group in &mut groups {
             if let Some(old) = self.groups.iter().find(|old| old.name == group.name) {
                 group.shown = old.shown;
@@ -291,6 +298,7 @@ impl App {
         self.group_index = self.group_index.min(self.groups.len().saturating_sub(1));
         self.items = items;
         self.warnings = warnings;
+        self.headings = headings;
         if self.focus == Focus::Day {
             self.keep_day_choice();
         }
@@ -321,7 +329,8 @@ pub(crate) mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("tasks.md");
         std::fs::write(&path, text).expect("write");
-        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), tasks::parse(text).items);
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        app.set_items(tasks::parse(text));
         app.tasks_path = Some(path.clone());
         // Choose the first item, like pressing Tab: the keyboard moves
         // to the agenda, and the calendar selects that item's day

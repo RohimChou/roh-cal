@@ -151,14 +151,26 @@ def range_text(it):
 
 
 def read_groups(text):
-    """Groups (the side menu's calendars) in order of first appearance;
-    returns [(name (None for items before any heading), number of items with a date)]
-    (read with read_tree: items in code blocks do not count, and a day that does not exist is not a date)"""
+    """Groups (the side menu's calendars) in order of first appearance, a heading with no items under it
+    included; returns [(name (None for items before any heading), number of items with a date)]
+    (items read with read_tree: items in code blocks do not count, and a day that does not exist is not
+    a date)"""
     groups = {}  # dict keeps insertion order
-    for it in read_tree(text)[0]:
-        name = it["group"][0] if it["group"] else None
-        groups.setdefault(name, 0)
-        groups[name] += it["date"] is not None
+    items = {it["line"]: it for it in read_tree(text)[0]}
+    in_code = False
+    for n, raw in enumerate(text.splitlines(), start=1):
+        stripped = raw.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code = not in_code
+            continue
+        heading = None if in_code else re.match(r"(#{1,6}) (.*)", raw)
+        if heading:
+            groups.setdefault(" ".join(w for w in heading.group(2).split() if w != "type:holiday"), 0)
+        if n in items:
+            it = items[n]
+            name = it["group"][0] if it["group"] else None
+            groups.setdefault(name, 0)
+            groups[name] += it["date"] is not None
     return list(groups.items())
 
 

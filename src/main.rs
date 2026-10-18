@@ -60,7 +60,9 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| {
         // The mouse is on meanwhile: _mouse is dropped when the closure ends, which turns the mouse off
         let _mouse = MouseCapture::enable()?;
-        let mut app = App::new(lang, today, parsed.items);
+        let mut app = App::new(lang, today, Vec::new());
+        // Items, mistakes and calendars from the task file
+        app.set_items(parsed);
         app.settings = settings;
         app.apply_theme();
         // Changes made on the settings page are saved back to this same file
@@ -70,7 +72,6 @@ fn main() -> Result<()> {
         // yet; adding an item creates it)
         app.tasks_path = path;
         // Mistakes in the task file: say so on the bottom row right away (the tasks page shows which lines)
-        app.warnings = parsed.warnings;
         if !app.warnings.is_empty() {
             app.notice = Some(Notice::Mistakes(app.warnings.len()));
         }

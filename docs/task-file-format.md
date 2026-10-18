@@ -29,7 +29,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 2 | `- text` (no checkbox) | **Event**: an appointment, a holiday, a milestone. It cannot be checked off; once its day has passed it is over (shown grayed out, not crossed out) |
 | 3 | `@YYYY-MM-DD` or `@YYYY-MM-DD HH:MM` anywhere in an item | The day (and 24-hour time) the item appears on the calendar. No date → the item is **unscheduled** |
 | 3b | `@YYYY-MM-DD..YYYY-MM-DD` (optionally followed by `HH:MM`) | A **multi-day** item, from the first date to the last, both included (a trip, a training course). The time is the start time on the first day |
-| 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# Payments API` → `## Refunds`) can be added later without changing files |
+| 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. A heading with no items under it is still a group (an empty calendar). Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# Payments API` → `## Refunds`) can be added later without changing files |
 | 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn in the holiday color. The token is not part of the group's name. Write holidays as events (no box), e.g. `- Thanksgiving break @2026-11-26..2026-11-29` |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
 
