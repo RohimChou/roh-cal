@@ -13,6 +13,7 @@ week_number_dim = "dark-gray"
 weekend = "blue"
 today = "green"
 selected = "red"
+# Selection background: the 16 colors have no light purple (magenta would hide the text), so dark-gray
 cursor_line = "dark-gray"
 focus = "magenta"
 checked = "magenta"

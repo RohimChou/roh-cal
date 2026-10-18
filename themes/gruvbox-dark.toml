@@ -19,6 +19,9 @@ red = "#fb4934"
 purple = "#d3869b"
 # Multi-day bars: blue and the background (dark0 #282828) mixed 3:7. A tinted band, dark enough for text on it
 dim_blue = "#434e4a"
+# Selection background: purple and the background (dark0 #282828) mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+dim_purple = "#5b444b"
 
 [roles]
 text = "light1"
@@ -31,7 +34,7 @@ week_number_dim = "dim_yellow"
 weekend = "blue"
 today = "green"
 selected = "red"
-cursor_line = "dark1"
+cursor_line = "dim_purple"
 focus = "purple"
 checked = "purple"
 notice = "yellow"

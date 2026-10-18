@@ -19,6 +19,9 @@ nord14 = "#a3be8c"
 nord15 = "#b48ead"
 # Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
 nord8_dim = "#495e6b"
+# Selection background: nord15 and the background (nord0 #2e3440) mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+nord15_dim = "#564f61"
 
 [roles]
 text = "nord4"
@@ -31,7 +34,7 @@ week_number_dim = "nord13_dim"
 weekend = "nord9"
 today = "nord14"
 selected = "nord11"
-cursor_line = "nord1"
+cursor_line = "nord15_dim"
 focus = "nord15"
 checked = "nord15"
 notice = "nord13"

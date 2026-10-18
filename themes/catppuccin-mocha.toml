@@ -24,6 +24,9 @@ red = "#f38ba8"
 mauve = "#cba6f7"
 # Multi-day bars: sapphire (#74c7ec) and the background (base #1e1e2e) mixed 3:7. A tinted band, dark enough for text on it
 dim_sapphire = "#385167"
+# Selection background: mauve (#cba6f7) and the background (base #1e1e2e) mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+dim_mauve = "#52476a"
 
 [roles]
 text = "text"
@@ -36,7 +39,7 @@ week_number_dim = "dim_yellow"
 weekend = "blue"
 today = "green"
 selected = "red"
-cursor_line = "surface0"
+cursor_line = "dim_mauve"
 focus = "mauve"
 checked = "mauve"
 notice = "yellow"

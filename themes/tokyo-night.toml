@@ -19,6 +19,9 @@ red = "#f7768e"
 magenta = "#bb9af7"
 # Multi-day bars: cyan and the background (bg #1a1b26) mixed 3:7. A tinted band, dark enough for text on it
 dim_cyan = "#385167"
+# Selection background: magenta and the background (bg #1a1b26) mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+dim_magenta = "#4a4165"
 
 [roles]
 text = "fg"
@@ -31,7 +34,7 @@ week_number_dim = "dim_yellow"
 weekend = "cyan"
 today = "green"
 selected = "red"
-cursor_line = "bg_highlight"
+cursor_line = "dim_magenta"
 focus = "magenta"
 checked = "magenta"
 notice = "yellow"

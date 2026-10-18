@@ -391,9 +391,9 @@ mod tests {
     fn choices_are_the_palette_in_file_order_or_the_16_colors() {
         assert!(choices("no-such-theme").is_empty());
         let mocha = choices("catppuccin-mocha");
-        assert_eq!(mocha.len(), 14);
+        assert_eq!(mocha.len(), 15);
         assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
-        assert_eq!(mocha[13].0, "dim_sapphire");
+        assert_eq!(mocha[14].0, "dim_mauve");
         let terminal = choices("terminal");
         assert_eq!(terminal.len(), 16);
         assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
@@ -436,6 +436,11 @@ mod tests {
             Theme::catppuccin_mocha().range,
             Color::Rgb(0x38, 0x51, 0x67)
         );
+        // The selection background: mauve and the background mixed 3:7
+        assert_eq!(
+            Theme::catppuccin_mocha().cursor_line,
+            Color::Rgb(0x52, 0x47, 0x6a)
+        );
         // Every palette color is used by some role (no leftovers from roles that are gone)
         for (name, text) in BUILTIN {
             let doc: DocumentMut = text.parse().expect("toml");
@@ -460,7 +465,7 @@ mod tests {
             Some(Color::Rgb(0xbb, 0x9a, 0xf7))
         );
         assert_eq!(
-            Theme::builtin("dracula").map(|theme| theme.cursor_line),
+            Theme::builtin("dracula").map(|theme| theme.grid),
             Some(Color::Rgb(0x44, 0x47, 0x5a))
         );
         assert_eq!(
