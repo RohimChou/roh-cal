@@ -1,6 +1,6 @@
 //! On-screen text: one set in English, one in Traditional Chinese; switching language = switching `Texts`
 
-use crate::app::{Notice, Row, View};
+use crate::app::{Focus, Notice, Row, View};
 use crate::edit::Problem;
 use crate::tasks::{Heading, Item, Kind, WarningKind};
 use jiff::civil::Date;
@@ -80,10 +80,9 @@ pub struct Texts {
     pub rename_calendar_title: &'static str,
     /// Side menu: items at the top of the file, before any heading
     pub ungrouped: &'static str,
-    /// The short version of the help page (`?`): the most used keys
-    pub help_short: HelpPage,
-    /// The full version of the help page (`Tab`): every key, including the editor, rescheduling and the mouse
-    pub help_full: HelpPage,
+    /// The help page (`?`): the short version lists the keys that work where the keyboard is, the full
+    /// version (`Tab`) every key, including the editor, rescheduling and the mouse
+    pub help: HelpPage,
     /// The `設定` in `roh-cal ∙ 設定` on the settings page's top border
     pub settings_title: &'static str,
     /// The key hints on the settings page's bottom border
@@ -92,21 +91,29 @@ pub struct Texts {
     pub settings_reset_all: &'static str,
 }
 
-/// One version of the help page: the text on the top and bottom borders, and the sections in the two columns
+/// The help page: the short version (what `?` opens: the sections of `short` that work where the keyboard
+/// is), the full version (`Tab`: every key, in the two columns `left` and `right`) and the text on the borders
 #[derive(Debug, Clone, Copy)]
 pub struct HelpPage {
-    /// The `按鍵` in `roh-cal ∙ 按鍵` on the top border (differs between the two versions, so you can tell
-    /// which one is showing)
-    pub title: &'static str,
-    /// The key hints on the bottom border
-    pub hint: &'static str,
-    /// Sections in the left column
+    /// The short version's `按鍵` in `roh-cal ∙ 按鍵 ∙ 月曆` on the top border (followed by where the
+    /// keyboard is, `Texts::help_place`)
+    pub short_title: &'static str,
+    /// The short version's key hints on the bottom border
+    pub short_hint: &'static str,
+    /// The full version's top border, after `roh-cal ∙ `; it also says what the grayed-out sections mean
+    pub full_title: &'static str,
+    /// The full version's key hints on the bottom border
+    pub full_hint: &'static str,
+    /// The short version's sections, each with the few keys used most where it works; the ones for one
+    /// place go on the left, the ones that work anywhere on the right
+    pub short: &'static [HelpSection],
+    /// The full version's sections in the left column
     pub left: &'static [HelpSection],
-    /// Sections in the right column
+    /// The full version's sections in the right column
     pub right: &'static [HelpSection],
 }
 
-/// One help page section: its name + what each key does
+/// One help page section: its name + what each key does, and where it works
 #[derive(Debug, Clone, Copy)]
 pub struct HelpSection {
     /// The section name, e.g. `Calendar` / `月曆`
@@ -114,6 +121,16 @@ pub struct HelpSection {
     /// (key, what it does), e.g. `("t", "today")`; the key column is the same in every language
     /// (pinned by a test)
     pub keys: &'static [(&'static str, &'static str)],
+    /// Where the keyboard has to be for these keys to work; empty = anywhere (pinned to be the same in
+    /// every language by a test)
+    pub places: &'static [Focus],
+}
+
+impl HelpSection {
+    /// Whether these keys work with the keyboard in `focus`
+    pub fn works_in(&self, focus: Focus) -> bool {
+        self.places.is_empty() || self.places.contains(&focus)
+    }
 }
 
 /// English text
@@ -132,18 +149,61 @@ const EN: Texts = Texts {
     default_calendar: "Default",
     rename_calendar_title: " Rename calendar ",
     ungrouped: "Ungrouped",
-    help_short: HelpPage {
-        title: "keys",
-        hint: "Tab all keys  ?/q/Esc close",
-        left: &[
+    help: HelpPage {
+        short_title: "keys",
+        short_hint: "Tab all keys  ?/q/Esc close",
+        full_title: "all keys, gray: not here",
+        full_hint: "Tab keys for here  ?/q/Esc close",
+        short: &[
             HelpSection {
-                title: "Move",
+                title: "Calendar",
                 keys: &[
                     ("hjkl", "move"),
                     ("[ / ]", "previous / next month"),
                     ("t", "today"),
-                    ("Tab", "next pane"),
+                    ("Enter", "the day's items"),
+                    ("a", "add on that day"),
                 ],
+                places: &[Focus::Calendar],
+            },
+            HelpSection {
+                title: "Items",
+                keys: &[
+                    ("j / k", "choose"),
+                    ("Space", "check off"),
+                    ("e", "edit"),
+                    ("a / A", "add / add a subtask"),
+                    ("r", "reschedule"),
+                    ("d", "delete"),
+                    ("u", "undo"),
+                ],
+                places: &[Focus::Agenda, Focus::Day],
+            },
+            HelpSection {
+                title: "Tasks page",
+                keys: &[
+                    ("j / k", "choose"),
+                    ("l / h", "expand / collapse"),
+                    ("Space", "check off"),
+                    ("e", "edit"),
+                    ("a / A", "add / add a subtask"),
+                    ("r", "reschedule"),
+                    ("d", "delete"),
+                    ("u", "undo"),
+                ],
+                places: &[Focus::Tasks],
+            },
+            HelpSection {
+                title: "Calendar list",
+                keys: &[
+                    ("j / k", "choose"),
+                    ("Space", "show / hide"),
+                    ("a", "add a calendar"),
+                    ("e", "rename"),
+                    ("d", "delete"),
+                    ("L / H", "one level in / out"),
+                ],
+                places: &[Focus::Side],
             },
             HelpSection {
                 title: "Views",
@@ -152,30 +212,16 @@ const EN: Texts = Texts {
                     ("2", "month grid"),
                     ("3", "tasks page"),
                     ("s", "calendar list"),
+                    ("Tab", "next pane"),
                 ],
-            },
-        ],
-        right: &[
-            HelpSection {
-                title: "Edit",
-                keys: &[
-                    ("Space", "check off"),
-                    ("a", "add"),
-                    ("e", "edit"),
-                    ("r", "reschedule"),
-                    ("d", "delete"),
-                    ("u", "undo"),
-                ],
+                places: &[],
             },
             HelpSection {
                 title: "System",
                 keys: &[("?", "help"), (",", "settings"), ("q", "quit")],
+                places: &[],
             },
         ],
-    },
-    help_full: HelpPage {
-        title: "all keys",
-        hint: "Tab fewer keys  ?/q/Esc close",
         left: &[
             HelpSection {
                 title: "Calendar",
@@ -186,6 +232,7 @@ const EN: Texts = Texts {
                     ("Enter", "go into the day's items"),
                     ("a", "add on that day"),
                 ],
+                places: &[Focus::Calendar],
             },
             HelpSection {
                 title: "Views",
@@ -197,6 +244,7 @@ const EN: Texts = Texts {
                     ("s", "hide / show calendars"),
                     ("Esc", "back to the calendar"),
                 ],
+                places: &[],
             },
             HelpSection {
                 title: "Tasks page",
@@ -207,6 +255,7 @@ const EN: Texts = Texts {
                     ("J / K", "move down / up"),
                     ("[ / ]", "previous / next calendar"),
                 ],
+                places: &[Focus::Tasks],
             },
             HelpSection {
                 title: "Mouse",
@@ -216,10 +265,12 @@ const EN: Texts = Texts {
                     ("double-click", "open a day"),
                     ("click outside", "close the box"),
                 ],
+                places: &[],
             },
             HelpSection {
                 title: "System",
                 keys: &[("?", "help"), (",", "settings"), ("q / Ctrl+C", "quit")],
+                places: &[],
             },
         ],
         right: &[
@@ -234,10 +285,12 @@ const EN: Texts = Texts {
                     ("d", "delete with subtasks"),
                     ("u", "undo"),
                 ],
+                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
             },
             HelpSection {
                 title: "Editor",
                 keys: &[("Enter", "save"), ("Esc", "cancel"), ("Ctrl+U", "clear")],
+                places: &[],
             },
             HelpSection {
                 title: "Reschedule",
@@ -246,6 +299,7 @@ const EN: Texts = Texts {
                     ("Enter", "move it there"),
                     ("Esc", "cancel"),
                 ],
+                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
             },
             HelpSection {
                 title: "Calendar list",
@@ -257,6 +311,7 @@ const EN: Texts = Texts {
                     ("d", "delete it, items too"),
                     ("L / H", "one level in / out"),
                 ],
+                places: &[Focus::Side],
             },
             HelpSection {
                 title: "Settings",
@@ -265,6 +320,7 @@ const EN: Texts = Texts {
                     ("h / l", "change it"),
                     ("r / R", "reset it / all"),
                 ],
+                places: &[],
             },
         ],
     },
@@ -289,18 +345,61 @@ const ZH_TW: Texts = Texts {
     default_calendar: "預設",
     rename_calendar_title: " 日曆改名 ",
     ungrouped: "未分組",
-    help_short: HelpPage {
-        title: "按鍵",
-        hint: "Tab 全部按鍵  ?/q/Esc 關閉",
-        left: &[
+    help: HelpPage {
+        short_title: "按鍵",
+        short_hint: "Tab 全部按鍵  ?/q/Esc 關閉",
+        full_title: "全部按鍵，灰的這裡用不到",
+        full_hint: "Tab 這裡的按鍵  ?/q/Esc 關閉",
+        short: &[
             HelpSection {
-                title: "移動",
+                title: "月曆",
                 keys: &[
                     ("hjkl", "移動"),
                     ("[ / ]", "上個月 / 下個月"),
                     ("t", "今天"),
-                    ("Tab", "換框"),
+                    ("Enter", "那天的事"),
+                    ("a", "在那天新增"),
                 ],
+                places: &[Focus::Calendar],
+            },
+            HelpSection {
+                title: "事項",
+                keys: &[
+                    ("j / k", "選"),
+                    ("Space", "打勾"),
+                    ("e", "編輯"),
+                    ("a / A", "新增 / 新增子任務"),
+                    ("r", "改期"),
+                    ("d", "刪除"),
+                    ("u", "復原"),
+                ],
+                places: &[Focus::Agenda, Focus::Day],
+            },
+            HelpSection {
+                title: "任務頁",
+                keys: &[
+                    ("j / k", "選"),
+                    ("l / h", "展開 / 收起"),
+                    ("Space", "打勾"),
+                    ("e", "編輯"),
+                    ("a / A", "新增 / 新增子任務"),
+                    ("r", "改期"),
+                    ("d", "刪除"),
+                    ("u", "復原"),
+                ],
+                places: &[Focus::Tasks],
+            },
+            HelpSection {
+                title: "日曆清單",
+                keys: &[
+                    ("j / k", "選"),
+                    ("Space", "勾選"),
+                    ("a", "新增日曆"),
+                    ("e", "改名"),
+                    ("d", "刪除"),
+                    ("L / H", "往內 / 往外一層"),
+                ],
+                places: &[Focus::Side],
             },
             HelpSection {
                 title: "畫面",
@@ -309,30 +408,16 @@ const ZH_TW: Texts = Texts {
                     ("2", "大月曆"),
                     ("3", "任務頁"),
                     ("s", "日曆清單"),
+                    ("Tab", "換框"),
                 ],
-            },
-        ],
-        right: &[
-            HelpSection {
-                title: "編輯",
-                keys: &[
-                    ("Space", "打勾"),
-                    ("a", "新增"),
-                    ("e", "編輯"),
-                    ("r", "改期"),
-                    ("d", "刪除"),
-                    ("u", "復原"),
-                ],
+                places: &[],
             },
             HelpSection {
                 title: "系統",
                 keys: &[("?", "說明"), (",", "設定"), ("q", "離開")],
+                places: &[],
             },
         ],
-    },
-    help_full: HelpPage {
-        title: "全部按鍵",
-        hint: "Tab 精簡  ?/q/Esc 關閉",
         left: &[
             HelpSection {
                 title: "月曆",
@@ -343,6 +428,7 @@ const ZH_TW: Texts = Texts {
                     ("Enter", "進到那天的事"),
                     ("a", "在那天新增"),
                 ],
+                places: &[Focus::Calendar],
             },
             HelpSection {
                 title: "畫面",
@@ -354,6 +440,7 @@ const ZH_TW: Texts = Texts {
                     ("s", "收起 / 打開日曆清單"),
                     ("Esc", "回到月曆"),
                 ],
+                places: &[],
             },
             HelpSection {
                 title: "任務頁",
@@ -364,6 +451,7 @@ const ZH_TW: Texts = Texts {
                     ("J / K", "往下 / 往上搬"),
                     ("[ / ]", "上一個 / 下一個日曆"),
                 ],
+                places: &[Focus::Tasks],
             },
             HelpSection {
                 title: "滑鼠",
@@ -373,10 +461,12 @@ const ZH_TW: Texts = Texts {
                     ("double-click", "打開那天的事"),
                     ("click outside", "關掉跳窗"),
                 ],
+                places: &[],
             },
             HelpSection {
                 title: "系統",
                 keys: &[("?", "說明"), (",", "設定"), ("q / Ctrl+C", "離開")],
+                places: &[],
             },
         ],
         right: &[
@@ -391,10 +481,12 @@ const ZH_TW: Texts = Texts {
                     ("d", "刪除（連子任務）"),
                     ("u", "復原"),
                 ],
+                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
             },
             HelpSection {
                 title: "編輯框",
                 keys: &[("Enter", "存檔"), ("Esc", "取消"), ("Ctrl+U", "清掉")],
+                places: &[],
             },
             HelpSection {
                 title: "改期",
@@ -403,6 +495,7 @@ const ZH_TW: Texts = Texts {
                     ("Enter", "搬過去"),
                     ("Esc", "取消"),
                 ],
+                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
             },
             HelpSection {
                 title: "日曆清單",
@@ -414,6 +507,7 @@ const ZH_TW: Texts = Texts {
                     ("d", "刪除（連裡面的事）"),
                     ("L / H", "往內 / 往外一層"),
                 ],
+                places: &[Focus::Side],
             },
             HelpSection {
                 title: "設定頁",
@@ -422,6 +516,7 @@ const ZH_TW: Texts = Texts {
                     ("h / l", "改值"),
                     ("r / R", "還原一列 / 全部"),
                 ],
+                places: &[],
             },
         ],
     },
@@ -689,6 +784,22 @@ impl Texts {
         }
     }
 
+    /// Where the keyboard is, after the short help page's title: `roh-cal ∙ 按鍵 ∙ 任務頁`
+    pub fn help_place(&self, focus: Focus) -> &'static str {
+        match (self.lang, focus) {
+            (Lang::En, Focus::Calendar) => "calendar",
+            (Lang::En, Focus::Agenda) => "agenda",
+            (Lang::En, Focus::Day) => "day popup",
+            (Lang::En, Focus::Side) => "calendar list",
+            (Lang::En, Focus::Tasks) => "tasks page",
+            (Lang::ZhTw, Focus::Calendar) => "月曆",
+            (Lang::ZhTw, Focus::Agenda) => "事項",
+            (Lang::ZhTw, Focus::Day) => "那天的事",
+            (Lang::ZhTw, Focus::Side) => "日曆清單",
+            (Lang::ZhTw, Focus::Tasks) => "任務頁",
+        }
+    }
+
     /// Bottom of the settings page: what the chosen row does
     pub fn setting_description(&self, row: Row) -> &'static str {
         match (self.lang, row) {
@@ -871,16 +982,26 @@ mod tests {
         // The key column is the same in every language (only the descriptions are translated): a key missing
         // from or extra in either language is caught
         let keys = |page: HelpPage| -> Vec<Vec<&str>> {
-            page.left
+            page.short
                 .iter()
+                .chain(page.left)
                 .chain(page.right)
                 .map(|section| section.keys.iter().map(|&(key, _)| key).collect())
                 .collect()
         };
         let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
-        assert_eq!(keys(en.help_short), keys(zh.help_short));
-        assert_eq!(keys(en.help_full), keys(zh.help_full));
-        assert_eq!(en.help_full.left.len(), zh.help_full.left.len());
+        assert_eq!(keys(en.help), keys(zh.help));
+        assert_eq!(en.help.left.len(), zh.help.left.len());
+        // Where each section works is the same too
+        let places = |page: HelpPage| -> Vec<&[Focus]> {
+            page.short
+                .iter()
+                .chain(page.left)
+                .chain(page.right)
+                .map(|section| section.places)
+                .collect()
+        };
+        assert_eq!(places(en.help), places(zh.help));
     }
 
     #[test]
