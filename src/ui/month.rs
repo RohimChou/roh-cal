@@ -122,7 +122,7 @@ fn month_top(date: Date) -> Date {
 }
 
 /// Draws the month grid: a rounded box (the border lights up when the keyboard is on the calendar) with
-/// the selected day in the top-right corner; inside are the header (weekday names) + 6 weeks of cells
+/// the selected day in the middle of the top border; inside are the header (weekday names) + 6 weeks of cells
 ///
 /// First scroll so the selected week is visible (stored in `app.month_top`), then draw
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -145,7 +145,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(border)
-        .title_top(Line::styled(date, Style::new().fg(theme.text)).right_aligned());
+        .title_top(Line::styled(date, Style::new().fg(theme.text)).centered());
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let grid = Grid::new(inner, app.settings.month.grid_lines);

@@ -391,12 +391,12 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 while r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r:
                     end += 1
                 c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
-    # Outer border: the selected day at the right end of the top border (against the corner);
+    # Outer border: the selected day in the middle of the top border (an odd leftover cell goes to the right);
     # vertical lines meet the bottom border as ┴
     title = " " + t["date"](selected) + " "
     top_border = Canvas(iw, 1)
     top_border.rows[0] = ["─"] * iw
-    top_border.put(iw - width(title), 0, title)
+    top_border.put((iw - width(title)) // 2, 0, title)
     bottom_border = ["─"] * iw
     for x in lines_x:
         bottom_border[x] = "┴"
