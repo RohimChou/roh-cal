@@ -181,12 +181,16 @@ mod tests {
 
     #[test]
     fn r_then_hjkl_and_enter_moves_the_chosen_item() {
-        let text = "- [ ] 交週報 @2026-10-16 17:30\n- [ ] 早餐會 @2026-10-17 08:00\n";
+        let text = "- [ ] Weekly update @2026-10-16 17:30\n- [ ] Coffee chat @2026-10-17 08:00\n";
         let (mut app, path) = app_with_task_file("move", text);
-        // Choose 交週報 and press r: the keyboard moves to the calendar, and the hint says which item is moving
+        // Choose "Weekly update" and press r: the keyboard moves to the calendar, and the hint says
+        // which item is moving
         press(&mut app, KeyCode::Char('r'));
         assert_eq!(app.focus, Focus::Calendar);
-        assert_eq!(app.moving().map(|m| m.item.title.as_str()), Some("交週報"));
+        assert_eq!(
+            app.moving().map(|m| m.item.title.as_str()),
+            Some("Weekly update")
+        );
         // One week and one day later (10/24), Enter: only the date changes, the time stays;
         // back in the agenda with the moved item chosen
         press(&mut app, KeyCode::Char('j'));
@@ -194,14 +198,14 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 交週報 @2026-10-24 17:30\n- [ ] 早餐會 @2026-10-17 08:00\n"
+            "- [ ] Weekly update @2026-10-24 17:30\n- [ ] Coffee chat @2026-10-17 08:00\n"
         );
         assert!(app.moving().is_none());
         assert_eq!(app.focus, Focus::Agenda);
         assert_eq!(
             app.chosen()
                 .map(|entry| (entry.item.title.as_str(), entry.date)),
-            Some(("交週報", date(2026, 10, 24)))
+            Some(("Weekly update", date(2026, 10, 24)))
         );
         // u undoes it
         press(&mut app, KeyCode::Char('u'));
@@ -211,7 +215,7 @@ mod tests {
 
     #[test]
     fn esc_cancels_the_move() {
-        let text = "- [ ] 交週報 @2026-10-16 17:30\n";
+        let text = "- [ ] Weekly update @2026-10-16 17:30\n";
         let (mut app, path) = app_with_task_file("move-cancel", text);
         press(&mut app, KeyCode::Char('r'));
         press(&mut app, KeyCode::Char(']'));
@@ -232,7 +236,7 @@ mod tests {
 
     #[test]
     fn other_keys_do_nothing_while_moving() {
-        let text = "- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("move-keys", text);
         press(&mut app, KeyCode::Char('r'));
         // q, Tab, Space, u are all ignored (no quitting, no pane switch, no checking)
@@ -254,7 +258,7 @@ mod tests {
     #[test]
     fn clicking_a_day_picks_it_and_clicking_it_again_moves_there() {
         // 70 × 23, October at the top: 10/20 (Tue) is at x 15-17, y 6
-        let text = "- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("move-click", text);
         app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
@@ -271,7 +275,7 @@ mod tests {
         app.handle_mouse(click);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 交週報 @2026-10-20\n"
+            "- [ ] Weekly update @2026-10-20\n"
         );
         assert!(app.moving().is_none());
         clean_up(&path);
@@ -279,9 +283,9 @@ mod tests {
 
     #[test]
     fn moving_a_multi_day_item_keeps_its_length() {
-        // 主管出差 10/28-11/3: press r on the November row (11/2 selected), one week later → the whole span
-        // moves a week later, same number of days
-        let text = "- 主管出差 @2026-10-28..2026-11-03\n";
+        // "Manager OOO" 10/28-11/3: press r on the November row (11/2 selected), one week later → the whole
+        // span moves a week later, same number of days
+        let text = "- Manager OOO @2026-10-28..2026-11-03\n";
         let (mut app, path) = app_with_task_file("move-range", text);
         app.agenda_index = 1;
         app.selected = date(2026, 11, 2);
@@ -290,7 +294,7 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- 主管出差 @2026-11-04..2026-11-10\n"
+            "- Manager OOO @2026-11-04..2026-11-10\n"
         );
         // Back in the agenda: the November row of the moved item is chosen (11/9 is also one of its days)
         assert_eq!(app.selected, date(2026, 11, 9));

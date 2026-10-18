@@ -411,7 +411,7 @@ mod tests {
         app.handle_key(KeyEvent::from(code));
     }
 
-    /// What each row looks like: heading `#名字`, item `標題` (two spaces per level
+    /// What each row looks like: heading `#name`, item `title` (two spaces per level
     /// in front; an item with subtasks gets `+` when collapsed, `-` when expanded)
     fn shape(app: &App) -> Vec<String> {
         app.tasks_rows()
@@ -435,8 +435,11 @@ mod tests {
             .collect()
     }
 
-    /// The tasks page tests' file: one ungrouped item, 「工作」 with three levels of subtasks, and 「生活」
-    const TREE: &str = "- 沒分組\n# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n    - [ ] 查文獻\n  - [x] 列大綱\n- [ ] 整理書櫃\n# 生活\n- 爬山 @2026-10-18\n";
+    /// The tasks page tests' file: one ungrouped item, "Work" with three levels of subtasks,
+    /// and "Personal"
+    const TREE: &str = "- Renew passport\n# Work\n\
+                        - [ ] Design doc @2026-10-16\n  - [ ] Research\n    - [ ] Read RFCs\n  - [x] Outline\n\
+                        - [ ] Triage bugs\n# Personal\n- Go hiking @2026-10-18\n";
 
     #[test]
     fn rows_list_the_whole_file_by_calendar_with_subtasks_collapsed() {
@@ -447,12 +450,12 @@ mod tests {
             shape(&app),
             [
                 "#",
-                "沒分組",
-                "#工作",
-                "+寫報告",
-                "整理書櫃",
-                "#生活",
-                "爬山"
+                "Renew passport",
+                "#Work",
+                "+Design doc",
+                "Triage bugs",
+                "#Personal",
+                "Go hiking"
             ]
         );
     }
@@ -460,99 +463,99 @@ mod tests {
     #[test]
     fn l_and_h_expand_and_collapse_like_a_file_tree() {
         let mut app = tasks_app(TREE);
-        // The first item is 「沒分組」; move down to 「寫報告」 and press l to expand
+        // The first item is "Renew passport"; move down to "Design doc" and press l to expand
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("寫報告")
+            Some("Design doc")
         );
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(
             shape(&app),
             [
                 "#",
-                "沒分組",
-                "#工作",
-                "-寫報告",
-                "  +找資料",
-                "  列大綱",
-                "整理書櫃",
-                "#生活",
-                "爬山"
+                "Renew passport",
+                "#Work",
+                "-Design doc",
+                "  +Research",
+                "  Outline",
+                "Triage bugs",
+                "#Personal",
+                "Go hiking"
             ]
         );
         // Press l when already expanded: jump to the first subtask; l again expands it
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("找資料")
+            Some("Research")
         );
         press(&mut app, KeyCode::Right);
-        assert!(shape(&app).contains(&"    查文獻".to_string()));
+        assert!(shape(&app).contains(&"    Read RFCs".to_string()));
         // h: an expanded item collapses first; h again jumps
         // back to the parent; h once more collapses the parent
         press(&mut app, KeyCode::Char('h'));
-        assert!(!shape(&app).contains(&"    查文獻".to_string()));
+        assert!(!shape(&app).contains(&"    Read RFCs".to_string()));
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("寫報告")
+            Some("Design doc")
         );
         press(&mut app, KeyCode::Left);
-        assert_eq!(shape(&app)[3], "+寫報告");
+        assert_eq!(shape(&app)[3], "+Design doc");
         // l on an item without subtasks: nothing happens
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("整理書櫃")
+            Some("Triage bugs")
         );
     }
 
     #[test]
     fn plus_and_minus_expand_and_collapse_everything() {
         let mut app = tasks_app(TREE);
-        // +: every level expands, and the same item (「沒分組」) stays chosen
+        // +: every level expands, and the same item ("Renew passport") stays chosen
         press(&mut app, KeyCode::Char('+'));
         assert_eq!(
             shape(&app),
             [
                 "#",
-                "沒分組",
-                "#工作",
-                "-寫報告",
-                "  -找資料",
-                "    查文獻",
-                "  列大綱",
-                "整理書櫃",
-                "#生活",
-                "爬山"
+                "Renew passport",
+                "#Work",
+                "-Design doc",
+                "  -Research",
+                "    Read RFCs",
+                "  Outline",
+                "Triage bugs",
+                "#Personal",
+                "Go hiking"
             ]
         );
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("沒分組")
+            Some("Renew passport")
         );
-        // Move down to the deepest item, 「查文獻」; -: everything
-        // collapses and its top-level item 「寫報告」 is chosen instead
+        // Move down to the deepest item, "Read RFCs"; -: everything
+        // collapses and its top-level item "Design doc" is chosen instead
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('j'));
         }
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("查文獻")
+            Some("Read RFCs")
         );
         press(&mut app, KeyCode::Char('-'));
         assert_eq!(
             shape(&app),
             [
                 "#",
-                "沒分組",
-                "#工作",
-                "+寫報告",
-                "整理書櫃",
-                "#生活",
-                "爬山"
+                "Renew passport",
+                "#Work",
+                "+Design doc",
+                "Triage bugs",
+                "#Personal",
+                "Go hiking"
             ]
         );
         assert_eq!(app.tasks_line, Some(3));
@@ -566,19 +569,19 @@ mod tests {
         }
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("爬山")
+            Some("Go hiking")
         );
         press(&mut app, KeyCode::Up);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("整理書櫃")
+            Some("Triage bugs")
         );
         for _ in 0..10 {
             press(&mut app, KeyCode::Char('k'));
         }
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("沒分組")
+            Some("Renew passport")
         );
     }
 
@@ -586,7 +589,10 @@ mod tests {
     fn unchecked_calendars_leave_the_tasks_page() {
         let mut app = tasks_app(TREE);
         app.groups[1].shown = false;
-        assert_eq!(shape(&app), ["#", "沒分組", "#生活", "爬山"]);
+        assert_eq!(
+            shape(&app),
+            ["#", "Renew passport", "#Personal", "Go hiking"]
+        );
     }
 
     /// A task file in a temp folder (content `text`) and an
@@ -607,60 +613,63 @@ mod tests {
     #[test]
     fn the_writing_keys_work_on_the_tasks_page() {
         use super::super::write::tests::clean_up;
-        let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n- [ ] 交週報 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n";
+        let text = "# Work\n- [ ] Design doc\n  - [ ] Research\n- [ ] Weekly update @2026-10-16\n\
+                    # Personal\n- Go hiking @2026-10-18\n";
         let (mut app, path) = tasks_app_with_file("tasks-keys", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         // Space: undated items can be checked off too; the same item stays chosen
         press(&mut app, KeyCode::Char(' '));
-        assert!(read().contains("- [x] 寫報告\n"));
+        assert!(read().contains("- [x] Design doc\n"));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("寫報告")
+            Some("Design doc")
         );
         // A: the subtask goes below its existing subtasks; the parent expands and the new item is chosen
         press(&mut app, KeyCode::Char('A'));
-        type_text(&mut app, "列大綱");
+        type_text(&mut app, "Outline");
         press(&mut app, KeyCode::Enter);
-        assert!(read().contains("  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報"));
+        assert!(read().contains("  - [ ] Research\n  - [ ] Outline\n- [ ] Weekly update"));
         assert!(app.expanded.contains(&2));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("列大綱")
+            Some("Outline")
         );
-        // d, y: deleted; the next item (「交週報」, now on line 4) is chosen
+        // d, y: deleted; the next item ("Weekly update", now on line 4) is chosen
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
-        assert!(!read().contains("列大綱"));
+        assert!(!read().contains("Outline"));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("交週報")
+            Some("Weekly update")
         );
-        // u: 「列大綱」 comes back; 「交週報」 moves down one line along with it and is still chosen
+        // u: "Outline" comes back; "Weekly update" moves down one line along with it and is still chosen
         press(&mut app, KeyCode::Char('u'));
-        assert!(read().contains("列大綱"));
+        assert!(read().contains("Outline"));
         assert_eq!(app.tasks_line, Some(5));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("交週報")
+            Some("Weekly update")
         );
-        // a: no date on the tasks page; added at the end of 「工作」, and the new item is chosen
+        // a: no date on the tasks page; added at the end of "Work", and the new item is chosen
         press(&mut app, KeyCode::Char('a'));
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
             Some("- [ ] ")
         );
-        type_text(&mut app, "開會 @2026-10-20");
+        type_text(&mut app, "Sprint planning @2026-10-20");
         press(&mut app, KeyCode::Enter);
-        assert!(read().contains("- [ ] 交週報 @2026-10-16\n- [ ] 開會 @2026-10-20\n# 生活"));
+        assert!(read().contains(
+            "- [ ] Weekly update @2026-10-16\n- [ ] Sprint planning @2026-10-20\n# Personal"
+        ));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("開會")
+            Some("Sprint planning")
         );
         // e: edits the chosen item
         press(&mut app, KeyCode::Char('e'));
         type_text(&mut app, " 10:00");
         press(&mut app, KeyCode::Enter);
-        assert!(read().contains("- [ ] 開會 @2026-10-20 10:00\n"));
+        assert!(read().contains("- [ ] Sprint planning @2026-10-20 10:00\n"));
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
         clean_up(&path);
     }
@@ -668,65 +677,68 @@ mod tests {
     #[test]
     fn shift_l_and_h_indent_and_outdent_with_the_subtasks() {
         use super::super::write::tests::clean_up;
-        let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n  - [ ] 填表\n# 生活\n- 爬山\n";
+        let text = "# Work\n- [ ] Design doc\n  - [ ] Research\n  - [ ] Outline\n\
+                    - [ ] Weekly update\n  - [ ] Metrics\n# Personal\n- Go hiking\n";
         let (mut app, path) = tasks_app_with_file("tasks-indent", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-        // 「寫報告」 is the first item, with nothing above it at the same level: L does nothing
+        // "Design doc" is the first item, with nothing above it at the same level: L does nothing
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(read(), text);
-        // L on 「交週報」: indented together with 「填表」, becoming a subtask
-        // of 「寫報告」; 「寫報告」 expands and 「交週報」 stays chosen
+        // L on "Weekly update": indented together with "Metrics", becoming a subtask
+        // of "Design doc"; "Design doc" expands and "Weekly update" stays chosen
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(
             read(),
-            "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n  - [ ] 交週報\n    - [ ] 填表\n# 生活\n- 爬山\n"
+            "# Work\n- [ ] Design doc\n  - [ ] Research\n  - [ ] Outline\n  - [ ] Weekly update\n    - [ ] Metrics\n\
+             # Personal\n- Go hiking\n"
         );
         assert_eq!(
             shape(&app),
             [
-                "#工作",
-                "-寫報告",
-                "  找資料",
-                "  列大綱",
-                "  +交週報",
-                "#生活",
-                "爬山"
+                "#Work",
+                "-Design doc",
+                "  Research",
+                "  Outline",
+                "  +Weekly update",
+                "#Personal",
+                "Go hiking"
             ]
         );
-        assert_eq!(chosen(&app).as_deref(), Some("交週報"));
-        // u undoes; move up to 「找資料」, H: aligned with 「寫報告」,
-        // 「列大綱」 below becomes its subtask, and it expands
+        assert_eq!(chosen(&app).as_deref(), Some("Weekly update"));
+        // u undoes; move up to "Research", H: aligned with "Design doc",
+        // "Outline" below becomes its subtask, and it expands
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), text);
         press(&mut app, KeyCode::Char('k'));
         press(&mut app, KeyCode::Char('k'));
-        assert_eq!(chosen(&app).as_deref(), Some("找資料"));
+        assert_eq!(chosen(&app).as_deref(), Some("Research"));
         press(&mut app, KeyCode::Char('H'));
         assert_eq!(
             read(),
-            "# 工作\n- [ ] 寫報告\n- [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n  - [ ] 填表\n# 生活\n- 爬山\n"
+            "# Work\n- [ ] Design doc\n- [ ] Research\n  - [ ] Outline\n\
+             - [ ] Weekly update\n  - [ ] Metrics\n# Personal\n- Go hiking\n"
         );
         assert_eq!(
             shape(&app),
             [
-                "#工作",
-                "寫報告",
-                "-找資料",
-                "  列大綱",
-                "+交週報",
-                "#生活",
-                "爬山"
+                "#Work",
+                "Design doc",
+                "-Research",
+                "  Outline",
+                "+Weekly update",
+                "#Personal",
+                "Go hiking"
             ]
         );
-        // 「爬山」: top level (H does nothing) and the first item of
-        // 「生活」 (「交週報」 above is in another group, so L does nothing)
+        // "Go hiking": top level (H does nothing) and the first item of
+        // "Personal" ("Weekly update" above is in another group, so L does nothing)
         let before = read();
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('j'));
         }
-        assert_eq!(chosen(&app).as_deref(), Some("爬山"));
+        assert_eq!(chosen(&app).as_deref(), Some("Go hiking"));
         press(&mut app, KeyCode::Char('H'));
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(read(), before);
@@ -736,62 +748,62 @@ mod tests {
     #[test]
     fn shift_j_and_k_move_the_item_with_its_subtasks() {
         use super::super::write::tests::clean_up;
-        let text =
-            "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n# 生活\n- 爬山\n";
+        let text = "# Work\n- [ ] Design doc\n  - [ ] Research\n  - [ ] Outline\n\
+                    - [ ] Weekly update\n# Personal\n- Go hiking\n";
         let (mut app, path) = tasks_app_with_file("tasks-swap", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-        // J on 「寫報告」 (line 2, expanded): moves with its subtasks
-        // below 「交週報」; still chosen and still expanded (now line 3)
+        // J on "Design doc" (line 2, expanded): moves with its subtasks
+        // below "Weekly update"; still chosen and still expanded (now line 3)
         app.expanded.insert(2);
         press(&mut app, KeyCode::Char('J'));
-        let moved =
-            "# 工作\n- [ ] 交週報\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n# 生活\n- 爬山\n";
+        let moved = "# Work\n- [ ] Weekly update\n- [ ] Design doc\n  - [ ] Research\n  - [ ] Outline\n\
+                     # Personal\n- Go hiking\n";
         assert_eq!(read(), moved);
-        assert_eq!(chosen(&app).as_deref(), Some("寫報告"));
+        assert_eq!(chosen(&app).as_deref(), Some("Design doc"));
         assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [3]);
         assert_eq!(
             shape(&app),
             [
-                "#工作",
-                "交週報",
-                "-寫報告",
-                "  找資料",
-                "  列大綱",
-                "#生活",
-                "爬山"
+                "#Work",
+                "Weekly update",
+                "-Design doc",
+                "  Research",
+                "  Outline",
+                "#Personal",
+                "Go hiking"
             ]
         );
-        // Already the last item of 「工作」 (「爬山」 below is in another group): J does nothing
+        // Already the last item of "Work" ("Go hiking" below is in another group): J does nothing
         press(&mut app, KeyCode::Char('J'));
         assert_eq!(read(), moved);
-        // K on 「列大綱」: swaps with 「找資料」; K again: already the first subtask, nothing happens
+        // K on "Outline": swaps with "Research"; K again: already the first subtask, nothing happens
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('K'));
-        let swapped =
-            "# 工作\n- [ ] 交週報\n- [ ] 寫報告\n  - [ ] 列大綱\n  - [ ] 找資料\n# 生活\n- 爬山\n";
+        let swapped = "# Work\n- [ ] Weekly update\n- [ ] Design doc\n  - [ ] Outline\n  - [ ] Research\n\
+                       # Personal\n- Go hiking\n";
         assert_eq!(read(), swapped);
         assert_eq!(app.tasks_line, Some(4));
         press(&mut app, KeyCode::Char('K'));
         assert_eq!(read(), swapped);
-        // u: swapped back, 「列大綱」 still chosen (back on line 5)
+        // u: swapped back, "Outline" still chosen (back on line 5)
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(5));
-        assert_eq!(chosen(&app).as_deref(), Some("列大綱"));
+        assert_eq!(chosen(&app).as_deref(), Some("Outline"));
         clean_up(&path);
     }
 
     #[test]
     fn l_reloads_when_the_item_above_changed_elsewhere() {
         use super::super::write::{Notice, tests::clean_up};
-        // After choosing 「交週報」, 「寫報告」 above was changed
+        // After choosing "Weekly update", "Design doc" above was changed
         // elsewhere (same line count): L does not write and reloads
-        let text = "- [ ] 寫報告\n- [ ] 交週報\n";
+        let text = "- [ ] Design doc\n- [ ] Weekly update\n";
         let (mut app, path) = tasks_app_with_file("tasks-indent-changed", text);
         app.tasks_line = Some(2);
-        let elsewhere = "- [ ] 寫報告（改過）\n- [ ] 交週報\n";
+        let elsewhere = "- [ ] Design doc (edited)\n- [ ] Weekly update\n";
         std::fs::write(&path, elsewhere).expect("write");
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), elsewhere);
@@ -802,9 +814,10 @@ mod tests {
     #[test]
     fn indent_and_move_stay_inside_their_heading_section() {
         use super::super::write::tests::clean_up;
-        // Two 「工作」 sections with the same name, with an empty 「生活」 between them: 「交週報」 in the
-        // second section has no item above it in the same section, so L and K do nothing (no pointless write)
-        let text = "# 工作\n- [ ] 寫報告\n# 生活\n# 工作\n- [ ] 交週報\n";
+        // Two "Work" sections with the same name, with an empty "Personal" between them:
+        // "Weekly update" in the second section has no item above it in the same section,
+        // so L and K do nothing (no pointless write)
+        let text = "# Work\n- [ ] Design doc\n# Personal\n# Work\n- [ ] Weekly update\n";
         let (mut app, path) = tasks_app_with_file("tasks-sections", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         app.tasks_line = Some(5);
@@ -813,7 +826,7 @@ mod tests {
             assert_eq!(read(), text, "{key}");
         }
         assert!(app.expanded.is_empty());
-        // 「寫報告」 in the first section: no item below it in the same section either, so J does nothing
+        // "Design doc" in the first section: no item below it in the same section either, so J does nothing
         app.tasks_line = Some(2);
         press(&mut app, KeyCode::Char('J'));
         assert_eq!(read(), text);
@@ -823,14 +836,14 @@ mod tests {
     #[test]
     fn moving_one_of_two_same_named_items_keeps_the_choice_on_it() {
         use super::super::write::tests::clean_up;
-        // Both items are called 「運動」: J on the first one (line 1, expanded)
+        // Both items are called "Gym": J on the first one (line 1, expanded)
         // → moves to line 3, and the choice and the expanded state follow it
-        let text = "- [ ] 運動\n  - [ ] 跑步\n- [ ] 運動\n  - [ ] 游泳\n";
+        let text = "- [ ] Gym\n  - [ ] Run 3 miles\n- [ ] Gym\n  - [ ] Swim laps\n";
         let (mut app, path) = tasks_app_with_file("tasks-same-name", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         app.expanded.insert(1);
         press(&mut app, KeyCode::Char('J'));
-        let moved = "- [ ] 運動\n  - [ ] 游泳\n- [ ] 運動\n  - [ ] 跑步\n";
+        let moved = "- [ ] Gym\n  - [ ] Swim laps\n- [ ] Gym\n  - [ ] Run 3 miles\n";
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(3));
         assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [3]);
@@ -848,15 +861,15 @@ mod tests {
     #[test]
     fn deleting_every_subtask_does_not_leave_the_parent_expanded() {
         use super::super::write::tests::clean_up;
-        // 「寫報告」 (line 3) and 「找資料」 (line 4) are both expanded;
-        // delete 「查文獻」 (line 5), 「找資料」's only subtask
+        // "Design doc" (line 3) and "Research" (line 4) are both expanded;
+        // delete "Read RFCs" (line 5), "Research"'s only subtask
         let (mut app, path) = tasks_app_with_file("tasks-stale-expanded", TREE);
         app.expanded.extend([3, 4]);
         app.tasks_line = Some(5);
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
-        // 「找資料」 has no subtasks now: it does not count as expanded;
-        // one h jumps to its parent 「寫報告」 (no need to press twice)
+        // "Research" has no subtasks now: it does not count as expanded;
+        // one h jumps to its parent "Design doc" (no need to press twice)
         app.tasks_line = Some(4);
         let row = app.tasks_cursor(&app.tasks_rows()).expect("chosen");
         assert!(matches!(
@@ -877,12 +890,12 @@ mod tests {
         use super::super::write::{Notice, tests::clean_up};
         // The file was changed elsewhere (a line added at the top) while editing, adding or deleting:
         // reload, and the keyboard stays on the tasks page instead of going to the hidden calendar
-        let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Triage bugs\n- [ ] Weekly update @2026-10-16\n";
         let (mut app, path) = tasks_app_with_file("tasks-conflict", text);
         // Add a different line at the top each time: the chosen item (line 1) never matches
         let mut extra = String::new();
         let mut change_elsewhere = || {
-            extra = format!("- 別處加的 {}\n{extra}", extra.lines().count() + 1);
+            extra = format!("- Added elsewhere {}\n{extra}", extra.lines().count() + 1);
             std::fs::write(&path, format!("{extra}{text}")).expect("write");
         };
         for keys in [&['e', '!'][..], &['a', 'x'], &['d']] {
@@ -909,9 +922,9 @@ mod tests {
     #[test]
     fn r_on_the_tasks_page_borrows_the_calendar() {
         use super::super::write::tests::clean_up;
-        // 「整理書櫃」 has no date yet: r switches to layout 1's calendar, starting
+        // "Triage bugs" has no date yet: r switches to layout 1's calendar, starting
         // from today; one day later, Enter → scheduled on 10/18, back to the tasks page
-        let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Triage bugs\n- [ ] Weekly update @2026-10-16\n";
         let (mut app, path) = tasks_app_with_file("tasks-move", text);
         press(&mut app, KeyCode::Char('r'));
         assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
@@ -920,12 +933,12 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 整理書櫃 @2026-10-18\n- [ ] 交週報 @2026-10-16\n"
+            "- [ ] Triage bugs @2026-10-18\n- [ ] Weekly update @2026-10-16\n"
         );
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("整理書櫃")
+            Some("Triage bugs")
         );
         // Esc cancels: also back to the tasks page
         press(&mut app, KeyCode::Char('r'));
