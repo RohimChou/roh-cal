@@ -152,21 +152,12 @@ impl Row {
                 }
             }
             _ => {
-                // 換 theme 之前，蓋掉的顏色先寫成顏色本身（例：色票名字 `surface0` → `#313244`）：
-                // 新的 theme 不一定有那個色票名字，換過去還是同一個顏色
-                if let Ok(current) = Theme::build(&settings.theme, &settings.colors) {
-                    for (role, color) in &mut settings.colors {
-                        if let Some(resolved) = current.color(role) {
-                            *color = theme::color_text(resolved);
-                        }
-                    }
-                }
                 let names = theme::names();
                 let index = names
                     .iter()
                     .position(|&name| name == settings.theme)
                     .unwrap_or(0);
-                settings.theme = names[wrap(index, step, names.len())].to_string();
+                settings.set_theme(names[wrap(index, step, names.len())]);
             }
         }
     }
@@ -180,7 +171,7 @@ impl Row {
         }
         match self.switch(settings) {
             Some(switch) => *switch = self.value(&defaults) == "on",
-            None => settings.theme = defaults.theme,
+            None => settings.set_theme(&defaults.theme),
         }
     }
 }
@@ -417,6 +408,41 @@ mod tests {
         assert_eq!(app.theme.text, ratatui::style::Color::Reset);
         // terminal 沒有色票：顏色在 16 色裡換
         assert_eq!(Row::Color("today").value(&app.settings), "#313244");
+    }
+
+    #[test]
+    fn r_on_the_theme_row_keeps_the_overridden_colors_too() {
+        // 設定檔寫了 gruvbox 色票的名字：r 回到預設的 mocha，蓋掉的顏色先寫成顏色本身，組得出 theme（存回去下次也打得開）
+        let mut app = app_with_settings();
+        app.settings.theme = "gruvbox-dark".to_string();
+        app.settings
+            .colors
+            .insert("today".to_string(), "light1".to_string());
+        app.apply_theme();
+        press(&mut app, KeyCode::Char('r'));
+        assert_eq!(app.settings.theme, "catppuccin-mocha");
+        assert_eq!(
+            app.settings.colors.get("today").map(String::as_str),
+            Some("#ebdbb2")
+        );
+        assert_eq!(
+            app.theme.today,
+            ratatui::style::Color::Rgb(0xeb, 0xdb, 0xb2)
+        );
+    }
+
+    #[test]
+    fn a_terminal_color_stays_itself_in_a_theme_with_the_same_palette_name() {
+        // terminal 的 cyan 換到 tokyo-night（色票也有 cyan = #7dcfff）：還是 terminal 的 cyan，不會被色票的同名顏色換掉
+        let mut app = app_with_settings();
+        app.settings.theme = "terminal".to_string();
+        app.settings
+            .colors
+            .insert("weekend".to_string(), "cyan".to_string());
+        app.settings.set_theme("tokyo-night");
+        app.apply_theme();
+        assert_eq!(app.settings.theme, "tokyo-night");
+        assert_eq!(app.theme.weekend, ratatui::style::Color::Cyan);
     }
 
     #[test]

@@ -49,7 +49,7 @@ fn main() -> Result<()> {
     };
     // --theme 比設定檔優先（這次打開用；之後在設定頁改了東西、關掉時會一起存進設定檔）
     if let Some(theme) = args.theme {
-        settings.theme = theme;
+        settings.set_theme(&theme);
     }
     // 今天：系統時區的日期
     let today = Zoned::now().date();

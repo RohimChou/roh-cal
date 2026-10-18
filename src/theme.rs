@@ -152,22 +152,12 @@ pub fn choices(name: &str) -> Vec<(String, Color)> {
     }
 }
 
-/// 顏色寫成設定檔、theme 檔裡的樣子：`#cdd6f4`、`light-blue`、`236`（256 色的編號）
+/// 顏色寫成設定檔裡的樣子：`#cdd6f4`、`236`（256 色的編號）；terminal 的顏色照 ratatui 的寫法 `LightBlue`
+/// （大寫開頭：色票的名字都是小寫，theme 的色票就算也有 `cyan`，讀回來還是 terminal 的 cyan）
 pub fn color_text(color: Color) -> String {
     match color {
         Color::Rgb(red, green, blue) => format!("#{red:02x}{green:02x}{blue:02x}"),
-        Color::Indexed(index) => index.to_string(),
-        // 其他是有名字的顏色：ratatui 寫成 `LightBlue`，換成 `light-blue`
-        named => {
-            let mut text = String::new();
-            for (index, letter) in named.to_string().chars().enumerate() {
-                if letter.is_uppercase() && index > 0 {
-                    text.push('-');
-                }
-                text.push(letter.to_ascii_lowercase());
-            }
-            text
-        }
+        named => named.to_string(),
     }
 }
 
@@ -293,7 +283,7 @@ mod tests {
         assert_eq!(mocha[12].0, "mauve");
         let terminal = choices("terminal");
         assert_eq!(terminal.len(), 16);
-        assert_eq!(terminal[12], ("light-blue".to_string(), Color::LightBlue));
+        assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
     }
 
     #[test]
@@ -307,7 +297,7 @@ mod tests {
             assert_eq!(color_text(color).parse::<Color>(), Ok(color), "{color:?}");
         }
         assert_eq!(color_text(Color::Rgb(0xcd, 0xd6, 0xf4)), "#cdd6f4");
-        assert_eq!(color_text(Color::DarkGray), "dark-gray");
+        assert_eq!(color_text(Color::DarkGray), "DarkGray");
     }
 
     #[test]

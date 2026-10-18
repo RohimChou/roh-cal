@@ -35,6 +35,21 @@ pub struct Settings {
     pub colors: BTreeMap<String, String>,
 }
 
+impl Settings {
+    /// 換成叫 `name` 的 theme。`[colors]` 蓋掉的顏色先照現在的 theme 寫成顏色本身（例：色票名字 `surface0` →
+    /// `#313244`、terminal 的 `cyan` → `Cyan`）：新的 theme 不一定有那個色票名字、或同名的是別的顏色，換過去還是同一個顏色
+    pub fn set_theme(&mut self, name: &str) {
+        if let Ok(current) = Theme::build(&self.theme, &self.colors) {
+            for (role, color) in &mut self.colors {
+                if let Some(resolved) = current.color(role) {
+                    *color = theme::color_text(resolved);
+                }
+            }
+        }
+        self.theme = name.to_string();
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
