@@ -1,6 +1,6 @@
 """Compute the screens of layout 1 (side menu + calendar on the left + agenda on the right),
 layout 2 (side menu + month grid) and the tasks page on their own, as the expected values
-of the screen tests in `src/ui.rs`.
+of the screen tests in `src/ui/tests.rs`.
 
 Written apart from the Rust code (weeks come from Python's `calendar`, week numbers use a different formula,
 the task file is read with a simple regex); a result only counts as right when both sides agree. Do not copy

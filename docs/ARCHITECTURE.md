@@ -37,7 +37,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色 | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
-| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 大多在這**（說明頁、設定頁的在各自的檔案） | ✓ |
+| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼 | ✓ |
+| `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在各自的檔案）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
 | `src/ui/side.rs` | 畫 side menu（最下面一條線 + 「隱藏做完的」開關：`App::group_index` = 日曆數量時選到它，`Space` / 點一下切換 `[calendar_list] hide_done` 並馬上存進設定檔）：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`；底下還沒有事的標題也算；`#` 越少越上層，日曆 = 整條路徑 `Heading::parents` + 名字，清單照樹排、裡面的縮排 2 格；父層沒勾 = 裡面的也藏，`App::is_shown` 看 `Group::holds`）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 36，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
@@ -91,7 +92,7 @@ App::run 的迴圈
 
 ## 改了畫面之後
 1. 改 Rust，跑 `cargo test`：失敗的就是畫面變了的 test
-2. 預期畫面**不要從 Rust 畫出來的結果抄**：照新的規格改 `tools/expected_screen.py`（它是另外寫的一份，兩邊一樣才算對），再跑 `python3 tools/regen_ui_screens.py`，用 `git diff src/ui.rs` 看預期畫面變了哪裡、是不是你要的
+2. 預期畫面**不要從 Rust 畫出來的結果抄**：照新的規格改 `tools/expected_screen.py`（它是另外寫的一份，兩邊一樣才算對），再跑 `python3 tools/regen_ui_screens.py`，用 `git diff src/ui/tests.rs` 看預期畫面變了哪裡、是不是你要的
 3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆；版型 2 的畫面加環境變數 `LAYOUT=2`、任務頁 `LAYOUT=3`（參數見 `expected_screen.py` 開頭）
 4. 顏色不在 Python 裡：用 test 量關鍵格子的顏色（例：`colors_by_role`）
 

@@ -1160,7 +1160,7 @@ mod tests {
 
     #[test]
     fn left_click_on_a_date_selects_it() {
-        // 40 × 26 screen, October at the top: the 16th is at (24-26, 5); see the screen tests in ui.rs
+        // 40 × 26 screen, October at the top: the 16th is at (24-26, 5); see the screen tests in ui/tests.rs
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 26);
         app.calendar_top = Some(0);
@@ -1684,7 +1684,7 @@ mod tests {
 
     #[test]
     fn clicking_a_calendar_selects_it_then_toggles_it() {
-        // 120 × 30: inside the side menu, one calendar per row from y 3 (screen in ui.rs's
+        // 120 × 30: inside the side menu, one calendar per row from y 3 (screen in ui/tests.rs's
         // `side_menu_lists_the_calendars_when_wide`)
         let mut app = wide_app_with(GROUPS);
         let click = |app: &mut App, row| {
@@ -1976,7 +1976,7 @@ mod tests {
 
     #[test]
     fn the_mouse_works_in_the_month_view() {
-        // 80 × 30, 9/21 at the top (for cell positions see ui.rs's
+        // 80 × 30, 9/21 at the top (for cell positions see ui/tests.rs's
         // `month_view_click_positions_map_to_the_cells`)
         let mut app = app_with(ITEMS);
         app.view = View::Month;

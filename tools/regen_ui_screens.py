@@ -1,8 +1,8 @@
-"""Recompute the expected screens of every screen test in `src/ui.rs` with `tools/expected_screen.py`,
-and rewrite `src/ui.rs` in place
+"""Recompute the expected screens of every screen test in `src/ui/tests.rs` with `tools/expected_screen.py`,
+and rewrite `src/ui/tests.rs` in place
 
 Usage (from the repo root): python3 tools/regen_ui_screens.py
-Run it once after changing the screen, then use `git diff src/ui.rs` to see what changed in the expected
+Run it once after changing the screen, then use `git diff src/ui/tests.rs` to see what changed in the expected
 screens and whether that is what you want.
 When you add a screen test, add an entry to `PLAN` below (test name → arguments of each expected screen,
 in the order they appear in the test).
@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GENERATOR = ROOT / "tools" / "expected_screen.py"
 AGENDA = (ROOT / "testdata" / "agenda.md").read_text()
-UI = ROOT / "src" / "ui.rs"
+UI = ROOT / "src" / "ui" / "tests.rs"
 
 # test name → [(expected_screen.py arguments,
 #   task file (True = testdata/agenda.md, a file name = that file in testdata/, False = none), env vars)]
@@ -67,8 +67,8 @@ def generate(args, data, extra):
 def main():
     src = UI.read_text()
     for name, screens in PLAN.items():
-        start = src.index(f"    fn {name}() {{")
-        end = src.find("\n    #[test]", start)
+        start = src.index(f"\nfn {name}() {{")
+        end = src.find("\n#[test]", start)
         end = len(src) if end < 0 else end
         lines = src[start:end].split("\n")
         # A run of string lines (`"...",`) = one expected screen

@@ -24,7 +24,7 @@ cargo test
 ## Conventions
 - Small commits, one idea each. Message: `<type>: <scope> | <summary>`, where type is one of `feat`, `fix`, `refac`, `doc`, `style`, `test`, `chore`, `perf`, `ci`
 - A change to keys, command-line options, config names or the task file format updates `README.md` and `docs/` in the same commit
-- Logic changes come with tests. Screen tests compare against screens computed separately by `tools/expected_screen.py`; after changing what is drawn, update that script, run `python3 tools/regen_ui_screens.py` and review `git diff src/ui.rs`
+- Logic changes come with tests. Screen tests compare against screens computed separately by `tools/expected_screen.py`; after changing what is drawn, update that script, run `python3 tools/regen_ui_screens.py` and review `git diff src/ui/tests.rs`
 - Characters drawn on screen must have an East Asian Width of N or Na: ambiguous-width characters (A) take two cells in CJK terminals and break the alignment
 - Errors go through `color_eyre::Result` and `?`; no `unwrap()` outside tests
 - Code comments are in plain English; a function's purpose goes in a `///` doc comment. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chinese) maps the modules, the layout model and the screen tests
