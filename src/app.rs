@@ -341,7 +341,7 @@ impl App {
         }
         // 正在問要不要刪：`y` 刪，其他鍵只是取消
         if self.confirm_delete.is_some() {
-            self.answer_delete(key.code);
+            self.answer_delete(key);
             return;
         }
         // 編輯框開著：按鍵都是打字（Enter 存、Esc 取消）
@@ -474,6 +474,16 @@ impl App {
         // 設定頁開著：滾輪選列、點列、點框外關掉
         if self.settings_page.is_some() {
             self.handle_settings_mouse(mouse);
+            return;
+        }
+        // 正在問要不要刪：點擊、滾輪只是取消（跟按 `y` 以外的鍵一樣），那一下不做別的事
+        if self.confirm_delete.is_some() {
+            if matches!(
+                mouse.kind,
+                MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+            ) {
+                self.confirm_delete = None;
+            }
             return;
         }
         // 編輯框開著：點框外 = 取消（Esc），其他不理

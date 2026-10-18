@@ -4,7 +4,7 @@ use super::{App, Focus};
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Kind, Parsed};
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -73,14 +73,18 @@ impl App {
         }
     }
 
-    /// 問「要刪嗎」的時候按的鍵：`y` 刪掉（連子任務），其他鍵都只是取消
+    /// 問「要刪嗎」的時候按的鍵：`y` 刪掉（連子任務），`Ctrl+C` 離開，其他鍵都只是取消
     ///
     /// 問的時候算的件數跟現在算的不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
-    pub(super) fn answer_delete(&mut self, code: KeyCode) {
+    pub(super) fn answer_delete(&mut self, key: KeyEvent) {
         let Some((item, count)) = self.confirm_delete.take() else {
             return;
         };
-        if code != KeyCode::Char('y') {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.should_quit = true;
+            return;
+        }
+        if key.code != KeyCode::Char('y') {
             return;
         }
         // 任務頁：刪之前選到的是第幾列（刪完選那個位置）
@@ -506,6 +510,53 @@ pub(crate) mod tests {
                 "{other:?}"
             );
         }
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
+        clean_up(&path);
+    }
+
+    #[test]
+    fn ctrl_c_quits_from_the_delete_question() {
+        let (mut app, path) = app_with_task_file("delete-quit", WITH_SUBTASK);
+        press(&mut app, KeyCode::Char('d'));
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert!(app.should_quit);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
+        clean_up(&path);
+    }
+
+    #[test]
+    fn a_click_or_the_wheel_cancels_the_delete_question() {
+        // 問「要刪嗎」的時候點滑鼠、滾輪：只是取消（跟按別的鍵一樣），點的那一下不做事（不會選到、打勾底下的東西）
+        let (mut app, path) = app_with_task_file("delete-click", WITH_SUBTASK);
+        app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+        let selected = app.selected;
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::ScrollDown,
+        ] {
+            press(&mut app, KeyCode::Char('d'));
+            app.handle_mouse(MouseEvent {
+                kind,
+                column: 5,
+                row: 5,
+                modifiers: KeyModifiers::NONE,
+            });
+            assert_eq!(app.confirm_delete, None, "{kind:?}");
+            assert_eq!(
+                (app.focus, app.selected),
+                (Focus::Agenda, selected),
+                "{kind:?}"
+            );
+        }
+        // 移動滑鼠不算：還在問
+        press(&mut app, KeyCode::Char('d'));
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Moved,
+            column: 5,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert!(app.confirm_delete.is_some());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
         clean_up(&path);
     }
