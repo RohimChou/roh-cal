@@ -4,7 +4,7 @@
 use super::{App, Focus, Mode, View};
 use crate::edit;
 use crate::files;
-use crate::tasks::{self, Kind, Parsed};
+use crate::tasks::{self, HeadingLine, Kind, Parsed};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -143,6 +143,74 @@ impl App {
                 self.reload(&text);
                 self.focus = self.home_focus();
             }
+        }
+    }
+
+    /// `d` in the calendar list: first counts how many items deleting the chosen calendar would remove, then
+    /// asks in the bottom row (only `y` deletes); 「Ungrouped」 has no heading, so nothing happens
+    pub(super) fn ask_delete_calendar(&mut self) {
+        let Some(name) = self
+            .groups
+            .get(self.group_index)
+            .and_then(|group| group.name.clone())
+        else {
+            return;
+        };
+        let headings: Vec<HeadingLine> = self
+            .headings
+            .iter()
+            .filter(|line| line.heading.name == name)
+            .cloned()
+            .collect();
+        if headings.is_empty() {
+            return;
+        }
+        let Some((_, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::delete_calendar(&text, &headings) {
+            Ok((_, count)) => {
+                self.mode = Mode::ConfirmDeleteCalendar {
+                    name,
+                    headings,
+                    count,
+                };
+            }
+            Err(edit::Changed) => self.reload(&text),
+        }
+    }
+
+    /// Keys while asking "delete this calendar?": `y` deletes it (its headings and everything under them),
+    /// `Ctrl+C` quits, any other key just cancels. If the count from when it asked differs from the count
+    /// now (e.g. an item was just added to it elsewhere), it does not delete and reloads instead
+    pub(super) fn answer_delete_calendar(&mut self, key: KeyEvent) {
+        let (name, headings, count) = match std::mem::take(&mut self.mode) {
+            Mode::ConfirmDeleteCalendar {
+                name,
+                headings,
+                count,
+            } => (name, headings, count),
+            // Not asking: do nothing (put it back)
+            other => {
+                self.mode = other;
+                return;
+            }
+        };
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.should_quit = true;
+            return;
+        }
+        if key.code != KeyCode::Char('y') {
+            return;
+        }
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::delete_calendar(&text, &headings) {
+            Ok((after, deleted)) if deleted == count => {
+                self.write_tasks(&path, text, after, name);
+            }
+            _ => self.reload(&text),
         }
     }
 
@@ -585,6 +653,52 @@ pub(crate) mod tests {
     /// 10/17's "Review PRs" has one subtask (no date, not in the agenda), "Deploy to staging" has none
     /// (for the delete tests)
     const WITH_SUBTASK: &str = "- [ ] Review PRs @2026-10-17 09:00\n  - [ ] Amy's PR\n- [ ] Deploy to staging @2026-10-17 14:00\n";
+
+    #[test]
+    fn d_in_the_calendar_list_asks_then_deletes_the_calendar_and_u_brings_it_back() {
+        let text = "# Work\n- [ ] Review PRs @2026-10-10\n  - [ ] Read the diff\n\n# Personal\n- Gym @2026-10-12\n";
+        let (mut app, path) = app_with_task_file("delete-calendar", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.focus = Focus::Side;
+        // d: asks first (Work holds 2 items), file not touched yet; any other key, a click or the wheel
+        // cancels
+        press(&mut app, KeyCode::Char('d'));
+        assert_eq!(app.confirm_delete_calendar(), Some(("Work", 2)));
+        press(&mut app, KeyCode::Char('n'));
+        assert_eq!(app.confirm_delete_calendar(), None);
+        press(&mut app, KeyCode::Char('d'));
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert_eq!(app.confirm_delete_calendar(), None);
+        assert_eq!(read(), text);
+        // y: the heading and everything under it are gone; Personal is left, chosen
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(read(), "# Personal\n- Gym @2026-10-12\n");
+        let names: Vec<Option<&str>> = app
+            .groups
+            .iter()
+            .map(|group| group.name.as_deref())
+            .collect();
+        assert_eq!(names, [Some("Personal")]);
+        assert_eq!((app.focus, app.group_index), (Focus::Side, 0));
+        // u: it all comes back
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), text);
+        assert_eq!(app.notice, Some(Notice::Undone("Work".into())));
+        assert_eq!(app.groups.len(), 2);
+        clean_up(&path);
+        // Ungrouped items (before any heading) have no heading to delete: d does nothing
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        app.set_items(tasks::parse("- loose\n# Work\n- a\n"));
+        app.focus = Focus::Side;
+        press(&mut app, KeyCode::Char('d'));
+        assert_eq!(app.confirm_delete_calendar(), None);
+    }
 
     #[test]
     fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {

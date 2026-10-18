@@ -143,6 +143,52 @@ pub fn rename_calendar(text: &str, headings: &[HeadingLine], new: &str) -> Resul
     }
 }
 
+/// Delete a calendar: each of its heading lines (`headings`) and everything under it, up to the next heading
+/// (of any calendar; a `#` line in a code block does not count) or the end of the file; return the whole file
+/// after deleting and how many items were deleted. `Changed` if one of the heading lines now differs from
+/// when it was read
+///
+/// E.g. deleting `Moving` from `# Personal`, `- a`, `## Moving`, `- b`, `- c`, `# Work`, `- d` leaves
+/// `# Personal`, `- a`, `# Work`, `- d` (2 items deleted)
+pub fn delete_calendar(text: &str, headings: &[HeadingLine]) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    if headings
+        .iter()
+        .any(|heading| lines.get(heading.line - 1) != Some(&heading.text.as_str()))
+    {
+        return Err(Changed);
+    }
+    // Where every heading starts (0-based), as the parser sees them
+    let starts: Vec<usize> = tasks::parse(text)
+        .headings
+        .iter()
+        .map(|heading| heading.line - 1)
+        .collect();
+    let mut deleted = vec![false; segments.len()];
+    for heading in headings {
+        let start = heading.line - 1;
+        let end = starts
+            .iter()
+            .copied()
+            .find(|&next| next > start)
+            .unwrap_or(segments.len());
+        deleted[start..end].fill(true);
+    }
+    let kept = |keep: bool| -> String {
+        segments
+            .iter()
+            .zip(&deleted)
+            .filter(|&(_, &gone)| gone != keep)
+            .map(|(segment, _)| *segment)
+            .collect()
+    };
+    // How many items the deleted lines hold (counted by the parser, so it matches what the screen sees)
+    let count = tasks::parse(&kept(false)).items.len();
+    Ok((kept(true), count))
+}
+
 /// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
 /// line number (from 1)
 ///
@@ -632,6 +678,45 @@ mod tests {
         assert_eq!(
             rename_calendar("# Work\n- a\n", &work, "Day job"),
             Err(Changed)
+        );
+    }
+
+    #[test]
+    fn deleting_a_calendar_removes_its_headings_and_everything_under_them() {
+        // Work has two headings; under Personal, a `#` line in a code block is not a heading, so the part
+        // under the first Work does not end there
+        let text = "- loose\n# Work\n- a\n  - a1\n\nNotes about work\n# Personal\n```\n# not a heading\n```\n\
+                    - b\n## Work\n- c\n# Moving\n- d\n";
+        let calendar = |text: &str, name: &str| -> Vec<HeadingLine> {
+            parse(text)
+                .headings
+                .into_iter()
+                .filter(|line| line.heading.name == name)
+                .collect()
+        };
+        let work = calendar(text, "Work");
+        assert_eq!(
+            delete_calendar(text, &work),
+            Ok((
+                "- loose\n# Personal\n```\n# not a heading\n```\n- b\n# Moving\n- d\n".into(),
+                3
+            ))
+        );
+        // The last calendar: up to the end of the file
+        assert_eq!(
+            delete_calendar(text, &calendar(text, "Moving")),
+            Ok((text.replace("# Moving\n- d\n", ""), 1))
+        );
+        // A heading changed elsewhere: nothing is deleted
+        assert_eq!(
+            delete_calendar(&text.replace("## Work", "## Wrok"), &work),
+            Err(Changed)
+        );
+        // \r\n endings stay
+        let crlf = "# A\r\n- a\r\n# B\r\n- b\r\n";
+        assert_eq!(
+            delete_calendar(crlf, &calendar(crlf, "A")),
+            Ok(("# B\r\n- b\r\n".into(), 1))
         );
     }
 

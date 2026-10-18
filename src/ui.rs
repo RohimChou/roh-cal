@@ -226,6 +226,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             ),
             hints,
         );
+    } else if let Some((name, count)) = app.confirm_delete_calendar() {
+        frame.render_widget(
+            Line::styled(
+                texts.confirm_delete_calendar(name, count),
+                Style::new().fg(theme.notice),
+            ),
+            hints,
+        );
     } else if let Some(moving) = app.moving() {
         frame.render_widget(
             Line::styled(
@@ -285,7 +293,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             settings::render(frame, app, page);
         }
         // Delete confirmation and rescheduling: shown on the bottom row (already drawn above)
-        Mode::ConfirmDelete(..) | Mode::Moving(_) | Mode::Normal => {}
+        Mode::ConfirmDelete(..)
+        | Mode::ConfirmDeleteCalendar { .. }
+        | Mode::Moving(_)
+        | Mode::Normal => {}
     }
 }
 
@@ -736,7 +747,7 @@ mod tests {
         // Keyboard in the side menu: the key hints are the calendar list's
         assert_eq!(
             text_rows(buffer)[13].trim_end(),
-            " jk 移動  Space 勾選  a 新增日曆  e 改名  Esc 回去"
+            " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去"
         );
         // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
         // the end is cut off)

@@ -125,7 +125,7 @@ const EN: Texts = Texts {
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
-    hints_side: " jk move  Space show / hide  a add calendar  e rename  Esc back",
+    hints_side: " jk move  Space show / hide  a add calendar  e rename  d delete  Esc back",
     add_calendar_title: " New calendar ",
     rename_calendar_title: " Rename calendar ",
     ungrouped: "Ungrouped",
@@ -250,6 +250,7 @@ const EN: Texts = Texts {
                     ("Space / Enter", "check / uncheck"),
                     ("a", "add a calendar"),
                     ("e", "rename it"),
+                    ("d", "delete it, items too"),
                 ],
             },
             HelpSection {
@@ -278,7 +279,7 @@ const ZH_TW: Texts = Texts {
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
-    hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  Esc 回去",
+    hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去",
     add_calendar_title: " 新增日曆 ",
     rename_calendar_title: " 日曆改名 ",
     ungrouped: "未分組",
@@ -403,6 +404,7 @@ const ZH_TW: Texts = Texts {
                     ("Space / Enter", "勾選 / 取消"),
                     ("a", "新增日曆"),
                     ("e", "改名"),
+                    ("d", "刪除（連裡面的事）"),
                 ],
             },
             HelpSection {
@@ -632,6 +634,24 @@ impl Texts {
         }
     }
 
+    /// After `d` in the calendar list, the bottom row asks whether to delete the calendar,
+    /// e.g. ` 刪除日曆「Moving」和裡面的 4 件事？y 刪除，其他鍵取消`
+    pub fn confirm_delete_calendar(&self, name: &str, count: usize) -> String {
+        match (self.lang, count) {
+            (Lang::En, 0) => {
+                format!(" Delete the calendar \"{name}\"? y deletes, any other key cancels")
+            }
+            (Lang::En, 1) => format!(
+                " Delete the calendar \"{name}\" and its item? y deletes, any other key cancels"
+            ),
+            (Lang::En, n) => format!(
+                " Delete the calendar \"{name}\" and its {n} items? y deletes, any other key cancels"
+            ),
+            (Lang::ZhTw, 0) => format!(" 刪除日曆「{name}」？y 刪除，其他鍵取消"),
+            (Lang::ZhTw, n) => format!(" 刪除日曆「{name}」和裡面的 {n} 件事？y 刪除，其他鍵取消"),
+        }
+    }
+
     /// While rescheduling (after `r`), the hint on the bottom row,
     /// e.g. ` 改期「Send the weekly update」：移到新的日期  Enter 確定  Esc 取消`
     pub fn moving(&self, title: &str) -> String {
@@ -781,6 +801,27 @@ mod tests {
                 "@2026-13-01".into()
             ))),
             " @2026-13-01: no such day"
+        );
+    }
+
+    #[test]
+    fn confirm_delete_calendar_counts_the_items() {
+        let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
+        assert_eq!(
+            zh.confirm_delete_calendar("Moving", 0),
+            " 刪除日曆「Moving」？y 刪除，其他鍵取消"
+        );
+        assert_eq!(
+            zh.confirm_delete_calendar("Moving", 4),
+            " 刪除日曆「Moving」和裡面的 4 件事？y 刪除，其他鍵取消"
+        );
+        assert_eq!(
+            en.confirm_delete_calendar("Moving", 1),
+            " Delete the calendar \"Moving\" and its item? y deletes, any other key cancels"
+        );
+        assert_eq!(
+            en.confirm_delete_calendar("Moving", 4),
+            " Delete the calendar \"Moving\" and its 4 items? y deletes, any other key cancels"
         );
     }
 

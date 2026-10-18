@@ -146,6 +146,13 @@ pub enum Mode {
     },
     /// After `d`, asking whether to delete: the item to delete and how many items that removes (with subtasks)
     ConfirmDelete(Item, usize),
+    /// After `d` in the calendar list, asking whether to delete the calendar: its name, its heading lines
+    /// (as read when asking) and how many items that removes
+    ConfirmDeleteCalendar {
+        name: String,
+        headings: Vec<HeadingLine>,
+        count: usize,
+    },
     /// Editor box (`e`, `a`, `A`)
     Editor(Editor),
     /// Rescheduling (`r`): which item to move
@@ -294,6 +301,14 @@ impl App {
     pub fn confirm_delete(&self) -> Option<(&Item, usize)> {
         match &self.mode {
             Mode::ConfirmDelete(item, count) => Some((item, *count)),
+            _ => None,
+        }
+    }
+
+    /// If asking whether to delete a calendar: its name and how many items that removes
+    pub fn confirm_delete_calendar(&self) -> Option<(&str, usize)> {
+        match &self.mode {
+            Mode::ConfirmDeleteCalendar { name, count, .. } => Some((name, *count)),
             _ => None,
         }
     }
@@ -480,6 +495,7 @@ impl App {
             Mode::Settings { .. } => self.handle_settings_key(key),
             // Asking whether to delete: `y` deletes, any other key just cancels
             Mode::ConfirmDelete(..) => self.answer_delete(key),
+            Mode::ConfirmDeleteCalendar { .. } => self.answer_delete_calendar(key),
             // Editor box: keys are typing (Enter saves, Esc cancels)
             Mode::Editor(_) => self.handle_editor_key(key),
             // Rescheduling: only moving the date, confirming, cancelling
@@ -601,7 +617,7 @@ impl App {
     }
 
     /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
-    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one
+    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one, `d` deletes it
     fn handle_side_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
@@ -609,6 +625,7 @@ impl App {
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
+            KeyCode::Char('d') => self.ask_delete_calendar(),
             _ => {}
         }
     }
@@ -639,7 +656,7 @@ impl App {
             Mode::Settings { .. } => self.handle_settings_mouse(mouse),
             // Asking whether to delete: a click or the wheel just cancels (like any key other than `y`);
             // that event does nothing else
-            Mode::ConfirmDelete(..) => {
+            Mode::ConfirmDelete(..) | Mode::ConfirmDeleteCalendar { .. } => {
                 if matches!(
                     mouse.kind,
                     MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
