@@ -37,16 +37,16 @@ mod tests {
         let dir = test_dir("write");
         let path = dir.join("roh-cal").join("tasks.md");
         // The folder does not exist yet: it is created
-        write_atomically(&path, "- [ ] 週會\n").expect("write");
+        write_atomically(&path, "- [ ] Team sync\n").expect("write");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 週會\n"
+            "- [ ] Team sync\n"
         );
         // The file already exists: its whole content is replaced
-        write_atomically(&path, "- [x] 週會\n").expect("overwrite");
+        write_atomically(&path, "- [x] Team sync\n").expect("overwrite");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [x] 週會\n"
+            "- [x] Team sync\n"
         );
         // No temp file is left behind
         assert!(!dir.join("roh-cal").join("tasks.md.tmp").exists());
@@ -60,15 +60,15 @@ mod tests {
         // The real file lives elsewhere (e.g. a notes vault); tasks.md is a symlink to it
         let real = dir.join("vault-tasks.md");
         let link = dir.join("tasks.md");
-        std::fs::write(&real, "- [ ] 週會\n").expect("write");
+        std::fs::write(&real, "- [ ] Team sync\n").expect("write");
         std::os::unix::fs::symlink(&real, &link).expect("symlink");
-        write_atomically(&link, "- [x] 週會\n").expect("write");
+        write_atomically(&link, "- [x] Team sync\n").expect("write");
         // The symlink stays a symlink; the content goes into the real file
         let file_type = std::fs::symlink_metadata(&link).expect("meta").file_type();
         assert!(file_type.is_symlink());
         assert_eq!(
             std::fs::read_to_string(&real).expect("read"),
-            "- [x] 週會\n"
+            "- [x] Team sync\n"
         );
         std::fs::remove_dir_all(&dir).expect("clean up");
     }

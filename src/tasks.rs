@@ -17,9 +17,9 @@ pub struct Parsed {
 /// The kind of item: with or without a box (rules 1 and 2 of the spec)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// `- [ ] 文字` / `- [x] 文字`: a task, which you check off yourself
+    /// `- [ ] text` / `- [x] text`: a task, which you check off yourself
     Task,
-    /// `- 文字` (no box): an event (meeting, holiday, milestone); it cannot be checked off,
+    /// `- text` (no box): an event (meeting, holiday, milestone); it cannot be checked off,
     /// and it is over once its day has passed
     Event,
 }
@@ -33,7 +33,7 @@ pub struct Item {
     /// (events cannot be checked off)
     pub done: bool,
     /// Title: the text left after removing `- [ ] `, the date (and time) and a trailing `^id`, with runs of
-    /// spaces collapsed to one, e.g. `實作退款 API`
+    /// spaces collapsed to one, e.g. `Implement the refund API`
     pub title: String,
     /// The day it shows on in the calendar; none means not scheduled yet
     pub date: Option<Date>,
@@ -54,7 +54,7 @@ pub struct Item {
     /// The line number in the file (from 1, as editors show it)
     pub line: usize,
     /// The line's original text (the whole line, with indent, without the newline),
-    /// e.g. `  - [ ] 寫 integration test @2026-10-13`
+    /// e.g. `  - [ ] Write integration tests @2026-10-13`
     pub line_text: String,
 }
 
@@ -81,7 +81,7 @@ impl Item {
     }
 }
 
-/// The date and time taken from an item's text (the first `@日期` or `@日期..日期`,
+/// The date and time taken from an item's text (the first `@date` or `@date..date`,
 /// and the time right after it)
 #[derive(Debug, Default)]
 struct When {
@@ -93,7 +93,7 @@ struct When {
     time: Option<Time>,
 }
 
-/// A group heading, e.g. `# 付款 API 改版`, `# 國定假日 type:holiday`
+/// A group heading, e.g. `# Payments API v2`, `# US holidays type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
     /// How many `#`: the tasks page indents the heading by this. Groups are not nested yet;
@@ -130,7 +130,8 @@ pub enum WarningKind {
 /// `None` without front matter (the first line is not `---`, or there is no closing `---`).
 /// A `- work` inside is a YAML list, not an item
 ///
-/// E.g. `---` / `tags:` / `  - work` / `---` / `- [ ] 交週報` → `Some(4)`; reading starts at line 5
+/// E.g. `---` / `tags:` / `  - work` / `---` / `- [ ] Send the weekly update` → `Some(4)`; reading starts
+/// at line 5
 fn front_matter_end(text: &str) -> Option<usize> {
     let mut lines = text.lines();
     if lines.next()?.trim_end() != "---" {
@@ -212,7 +213,7 @@ pub fn parse(text: &str) -> Parsed {
     parsed
 }
 
-/// `# 名稱` to `###### 名稱` (`#` at the line start, followed by a space); `None` if it is not a heading
+/// `# Name` to `###### Name` (`#` at the line start, followed by a space); `None` if it is not a heading
 fn parse_heading(line: &str) -> Option<Heading> {
     let level = line.chars().take_while(|&c| c == '#').count();
     if !(1..=6).contains(&level) {
@@ -241,9 +242,10 @@ const HOLIDAY: &str = "type:holiday";
 /// Whether this line is an item: returns (task or event, done or not, the remaining text);
 /// `None` if it does not start with `- `
 ///
-/// E.g. `- [x] 打包` → (task, true, `打包`); `- [ ] 打包` → (task, false, ...); `- 看牙醫` → (event, false, ...)
+/// E.g. `- [x] Pack` → (task, true, `Pack`); `- [ ] Pack` → (task, false, ...);
+/// `- Dentist` → (event, false, ...)
 fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
-    // Must be "- " with the space; `-這樣` does not count
+    // Must be "- " with the space; `-Pack` does not count
     let rest = trimmed.strip_prefix("- ")?;
     match checkbox(rest) {
         Some((done, after)) => Some((Kind::Task, done, after.trim_start())),
@@ -255,8 +257,8 @@ fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
 /// The checkbox after `- `: returns (done or not, the text after the checkbox with its spaces kept);
 /// `None` if there is no checkbox
 ///
-/// `[ ]`, `[x]`, `[X]` must be followed by a space or the end. E.g. `[x] 打包` → (true, ` 打包`);
-/// `[ ]打包` is not a checkbox
+/// `[ ]`, `[x]`, `[X]` must be followed by a space or the end. E.g. `[x] Pack` → (true, ` Pack`);
+/// `[ ]Pack` is not a checkbox
 pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
     let marks = [("[ ]", false), ("[x]", true), ("[X]", true)];
     for (mark, done) in marks {
@@ -277,18 +279,19 @@ pub(crate) fn indent_width(line: &str) -> usize {
         .sum()
 }
 
-/// Take the first `@日期` or `@日期..日期` (and the time right after it) out of an item's text;
+/// Take the first `@date` or `@date..date` (and the time right after it) out of an item's text;
 /// what is left is the title
 ///
-/// E.g. `實作退款 API @2026-10-14` → (`實作退款 API`, 10/14, no time);
-/// `東京出差 @2026-10-20..2026-10-25 09:00` → (`東京出差`, 10/20 to 10/25, 9 o'clock)
+/// E.g. `Implement the refund API @2026-10-14` → (`Implement the refund API`, 10/14, no time);
+/// `Business trip to NYC @2026-10-20..2026-10-25 09:00` → (`Business trip to NYC`, 10/20 to 10/25,
+/// 9 o'clock)
 fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String, When) {
     let mut words = Vec::new();
     let mut when = When::default();
     let mut tokens = text.split_whitespace().peekable();
 
     while let Some(token) = tokens.next() {
-        // Already has a date (only the first counts), or not shaped like `@日期` / `@日期..日期` → plain text
+        // Already has a date (only the first counts), or not shaped like `@date` / `@date..date` → plain text
         let candidate = token
             .strip_prefix('@')
             .filter(|rest| looks_like_date(rest) || looks_like_range(rest));
@@ -391,10 +394,13 @@ mod tests {
     fn front_matter_at_the_top_is_skipped() {
         // Obsidian properties: `- work` under tags is not an item; reading goes on as usual after the closing
         // `---`, and line numbers follow the file
-        let text = "---\ntags:\n  - work\n---\n- [ ] 交週報 @2026-10-16\n";
+        let text = "---\ntags:\n  - work\n---\n- [ ] Send the weekly update @2026-10-16\n";
         let items = parse(text).items;
         assert_eq!(items.len(), 1);
-        assert_eq!((items[0].title.as_str(), items[0].line), ("交週報", 5));
+        assert_eq!(
+            (items[0].title.as_str(), items[0].line),
+            ("Send the weekly update", 5)
+        );
         // `---` not on line 1 (a Markdown divider), or no closing `---`: not front matter, read as usual
         assert_eq!(parse("- a\n---\n- b\n---\n").items.len(), 2);
         assert_eq!(parse("---\n- a\n- b\n").items.len(), 2);
@@ -402,39 +408,39 @@ mod tests {
 
     #[test]
     fn rule1_tasks_open_and_done() {
-        assert!(!one("- [ ] 打包").done);
-        assert!(one("- [x] 打包").done);
-        assert!(one("- [X] 打包").done);
+        assert!(!one("- [ ] Pack").done);
+        assert!(one("- [x] Pack").done);
+        assert!(one("- [X] Pack").done);
         // Nothing after the checkbox still counts (an empty task)
         assert_eq!(one("- [ ]").title, "");
     }
 
     #[test]
     fn rule2_item_without_checkbox_is_an_event() {
-        let item = one("- 看牙醫 @2026-10-14");
+        let item = one("- Dentist @2026-10-14");
         assert_eq!((item.kind, item.done), (Kind::Event, false));
-        assert_eq!(item.title, "看牙醫");
-        assert_eq!(one("- [ ] 打包").kind, Kind::Task);
-        assert_eq!(one("- [x] 打包").kind, Kind::Task);
+        assert_eq!(item.title, "Dentist");
+        assert_eq!(one("- [ ] Pack").kind, Kind::Task);
+        assert_eq!(one("- [x] Pack").kind, Kind::Task);
         // No space after `[ ]` means no checkbox: the whole thing is text, and it is an event
-        let item = one("- [ ]打包");
+        let item = one("- [ ]Pack");
         assert_eq!(item.kind, Kind::Event);
-        assert_eq!(item.title, "[ ]打包");
+        assert_eq!(item.title, "[ ]Pack");
     }
 
     #[test]
     fn open_means_an_unfinished_task_or_an_event_not_yet_past() {
         let today = date(2026, 10, 17);
         // Tasks: only unfinished ones count (even past their date; that is overdue)
-        assert!(one("- [ ] 交週報 @2026-10-16").is_open(today));
-        assert!(!one("- [x] 交週報 @2026-10-16").is_open(today));
-        assert!(one("- [ ] 整理書櫃").is_open(today));
+        assert!(one("- [ ] Send the weekly update @2026-10-16").is_open(today));
+        assert!(!one("- [x] Send the weekly update @2026-10-16").is_open(today));
+        assert!(one("- [ ] Organize the bookshelf").is_open(today));
         // Events: only today's and later ones count; once past, they are over
-        assert!(one("- 聚餐 @2026-10-17").is_open(today));
-        assert!(one("- 爬山 @2026-10-18").is_open(today));
-        assert!(!one("- 國慶日 @2026-10-10").is_open(today));
+        assert!(one("- Dinner with friends @2026-10-17").is_open(today));
+        assert!(one("- Go hiking @2026-10-18").is_open(today));
+        assert!(!one("- Farmers market @2026-10-10").is_open(today));
         // An event with no date: there is no day to compare, so it does not count
-        assert!(!one("- 想去的餐廳").is_open(today));
+        assert!(!one("- Restaurants to try").is_open(today));
     }
 
     #[test]
@@ -444,60 +450,57 @@ mod tests {
         assert_eq!(item.date, Some(date(2026, 10, 12)));
         assert_eq!(item.time, Some(time(14, 0, 0, 0)));
         // The date can also be in the middle
-        let item = one("- 交 @2026-10-16 週報");
+        let item = one("- Send @2026-10-16 the weekly update");
         assert_eq!(
             (item.title.as_str(), item.date),
-            ("交 週報", Some(date(2026, 10, 16)))
+            ("Send the weekly update", Some(date(2026, 10, 16)))
         );
         // No date = not scheduled yet
-        assert_eq!(one("- [ ] 整理書櫃").date, None);
+        assert_eq!(one("- [ ] Organize the bookshelf").date, None);
     }
 
     #[test]
     fn rule3_only_the_first_date_counts() {
-        let item = one("- [ ] 準備上線清冊 @2026-10-22 @2026-10-23");
+        let item = one("- [ ] Prepare the release checklist @2026-10-22 @2026-10-23");
         assert_eq!(item.date, Some(date(2026, 10, 22)));
-        assert_eq!(item.title, "準備上線清冊 @2026-10-23");
+        assert_eq!(item.title, "Prepare the release checklist @2026-10-23");
     }
 
     #[test]
     fn a_block_id_at_the_end_is_not_part_of_the_title() {
         // An Obsidian `^id` at the end of the line: not part of the title (it stays in the file);
         // a date before it is still read
-        let item = one("- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01");
-        assert_eq!(item.title, "跟中信確認 LDAP 帳號");
+        let item = one("- [ ] Confirm the LDAP account with IT @2026-10-20 ^csfds-01");
+        assert_eq!(item.title, "Confirm the LDAP account with IT");
         assert_eq!(item.date, Some(date(2026, 10, 20)));
         assert_eq!(
             item.line_text,
-            "- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01"
+            "- [ ] Confirm the LDAP account with IT @2026-10-20 ^csfds-01"
         );
         // Not at the end of the line, nothing after `^`, other symbols: all plain text
-        assert_eq!(one("- 讀 ^abc 那段").title, "讀 ^abc 那段");
-        assert_eq!(one("- 指數 2^").title, "指數 2^");
-        assert_eq!(one("- 次方 ^2.5").title, "次方 ^2.5");
+        assert_eq!(one("- Read the ^abc part").title, "Read the ^abc part");
+        assert_eq!(one("- Exponent 2^").title, "Exponent 2^");
+        assert_eq!(one("- Power ^2.5").title, "Power ^2.5");
     }
 
     #[test]
     fn rule3_at_mentions_and_other_text_stay_text() {
-        let item = one("- [ ] 跟前端 @Kevin 對 error code");
+        let item = one("- [ ] Sync with @Kevin on frontend error codes");
         assert_eq!(
             (item.title.as_str(), item.date),
-            ("跟前端 @Kevin 對 error code", None)
+            ("Sync with @Kevin on frontend error codes", None)
         );
         // A URL, key:value, #number are all just text
-        let item = one("- [ ] 參考 https://example.com due:2026-10-15 PR #482");
-        assert_eq!(
-            item.title,
-            "參考 https://example.com due:2026-10-15 PR #482"
-        );
+        let item = one("- [ ] See https://example.com due:2026-10-15 PR #482");
+        assert_eq!(item.title, "See https://example.com due:2026-10-15 PR #482");
         // The time counts only right after the date
-        assert_eq!(one("- 會議 14:00 @2026-10-12").time, None);
+        assert_eq!(one("- Meeting 14:00 @2026-10-12").time, None);
     }
 
     #[test]
     fn rule3_invalid_dates_stay_text_with_warning() {
-        let parsed = parse("- [ ] 繳房屋稅 @2026-13-01\n- [ ] 交 @2026-02-30");
-        assert_eq!(parsed.items[0].title, "繳房屋稅 @2026-13-01");
+        let parsed = parse("- [ ] Pay property tax @2026-13-01\n- [ ] Pay rent @2026-02-30");
+        assert_eq!(parsed.items[0].title, "Pay property tax @2026-13-01");
         assert_eq!(parsed.items[0].date, None);
         let expected = vec![
             Warning {
@@ -511,11 +514,11 @@ mod tests {
         ];
         assert_eq!(parsed.warnings, expected);
         // A time that does not exist: the date still counts, the time is text
-        let parsed = parse("- 會議 @2026-10-12 25:00");
+        let parsed = parse("- Meeting @2026-10-12 25:00");
         assert_eq!(parsed.items[0].date, Some(date(2026, 10, 12)));
         assert_eq!(
             (parsed.items[0].time, parsed.items[0].title.as_str()),
-            (None, "會議 25:00")
+            (None, "Meeting 25:00")
         );
         assert_eq!(
             parsed.warnings[0].kind,
@@ -525,8 +528,8 @@ mod tests {
 
     #[test]
     fn rule3_multi_day_items_from_the_first_day_to_the_last() {
-        let item = one("- 東京出差 @2026-10-20..2026-10-25");
-        assert_eq!(item.title, "東京出差");
+        let item = one("- Business trip to NYC @2026-10-20..2026-10-25");
+        assert_eq!(item.title, "Business trip to NYC");
         // The first, the last and every day between count; the day before and the day after do not
         assert!(item.covers(date(2026, 10, 20)) && item.covers(date(2026, 10, 25)));
         assert!(item.covers(date(2026, 10, 22)));
@@ -540,15 +543,15 @@ mod tests {
             )
         );
         // A time after it = the time on the first day; ranges may cross months and years
-        let item = one("- [ ] 受訓 @2026-12-30..2027-01-02 09:00");
+        let item = one("- [ ] Training @2026-12-30..2027-01-02 09:00");
         assert_eq!(item.time, Some(time(9, 0, 0, 0)));
         assert_eq!(item.end, Some(date(2027, 1, 2)));
         // Same first and last day = a one-day item
-        let item = one("- 開會 @2026-10-20..2026-10-20");
+        let item = one("- Meeting @2026-10-20..2026-10-20");
         assert_eq!((item.date, item.end), (Some(date(2026, 10, 20)), None));
         // A one-day item: its last day is that day
         assert_eq!(
-            one("- 週會 @2026-10-12").last_day(),
+            one("- Team sync @2026-10-12").last_day(),
             Some(date(2026, 10, 12))
         );
     }
@@ -557,10 +560,10 @@ mod tests {
     fn rule3_bad_ranges_stay_text_with_warning() {
         // Ends before it starts, or one end does not exist: the whole token is text, with one warning
         let parsed = parse(
-            "- 出差 @2026-10-25..2026-10-20
-- 出差 @2026-10-20..2026-13-01",
+            "- Trip @2026-10-25..2026-10-20
+- Trip @2026-10-20..2026-13-01",
         );
-        assert_eq!(parsed.items[0].title, "出差 @2026-10-25..2026-10-20");
+        assert_eq!(parsed.items[0].title, "Trip @2026-10-25..2026-10-20");
         assert_eq!((parsed.items[0].date, parsed.items[0].end), (None, None));
         assert_eq!(
             parsed.warnings,
@@ -577,24 +580,25 @@ mod tests {
         );
         // Not shaped like a date range (one end missing, only the day written): plain text, no warning
         let parsed = parse(
-            "- 出差 @2026-10-20..
-- 出差 @2026-10-20..25",
+            "- Trip @2026-10-20..
+- Trip @2026-10-20..25",
         );
         assert_eq!(parsed.items[0].date, None);
-        assert_eq!(parsed.items[1].title, "出差 @2026-10-20..25");
+        assert_eq!(parsed.items[1].title, "Trip @2026-10-20..25");
         assert!(parsed.warnings.is_empty());
     }
 
     #[test]
     fn multi_day_events_stay_open_until_their_last_day() {
         let today = date(2026, 10, 17);
-        assert!(one("- 出差 @2026-10-15..2026-10-17").is_open(today));
-        assert!(!one("- 出差 @2026-10-14..2026-10-16").is_open(today));
+        assert!(one("- Trip @2026-10-15..2026-10-17").is_open(today));
+        assert!(!one("- Trip @2026-10-14..2026-10-16").is_open(today));
     }
 
     #[test]
     fn rule4_headings_set_the_group_and_keep_their_level() {
-        let parsed = parse("- 沒分組\n# 個人\n- [ ] 繳信用卡\n## 搬家\n- [ ] 打包");
+        let parsed =
+            parse("- No group\n# Personal\n- [ ] Pay the credit card bill\n## Moving\n- [ ] Pack");
         let groups: Vec<_> = parsed.items.iter().map(|item| item.group.clone()).collect();
         let heading = |level, name: &str| {
             Some(Heading {
@@ -603,7 +607,10 @@ mod tests {
                 holiday: false,
             })
         };
-        assert_eq!(groups, vec![None, heading(1, "個人"), heading(2, "搬家")]);
+        assert_eq!(
+            groups,
+            vec![None, heading(1, "Personal"), heading(2, "Moving")]
+        );
         // `#tag` (no space) and 7 #s are not headings
         assert_eq!(parse("#tag\n- a").items[0].group, None);
         assert_eq!(parse("####### x\n- a").items[0].group, None);
@@ -613,28 +620,31 @@ mod tests {
     fn rule4b_type_holiday_makes_a_holiday_calendar() {
         // `type:holiday` can go anywhere and is not part of the name;
         // any other `key:value` is still part of the name
-        let group = |text: &str| parse(text).items[0].group.clone().expect("有標題");
-        let heading = group("# 國定假日 type:holiday\n- 國慶日 @2026-10-10");
-        assert_eq!((heading.name.as_str(), heading.holiday), ("國定假日", true));
-        let heading = group("## type:holiday 2026 連假\n- a");
+        let group = |text: &str| parse(text).items[0].group.clone().expect("has a heading");
+        let heading = group("# US holidays type:holiday\n- Long weekend @2026-10-10");
         assert_eq!(
             (heading.name.as_str(), heading.holiday),
-            ("2026 連假", true)
+            ("US holidays", true)
         );
-        let heading = group("# 工作 type:work\n- a");
+        let heading = group("## type:holiday 2026 long weekends\n- a");
         assert_eq!(
             (heading.name.as_str(), heading.holiday),
-            ("工作 type:work", false)
+            ("2026 long weekends", true)
+        );
+        let heading = group("# Work type:work\n- a");
+        assert_eq!(
+            (heading.name.as_str(), heading.holiday),
+            ("Work type:work", false)
         );
         // Upper case or a missing colon does not count
-        assert!(!group("# 假日 Type:Holiday\n- a").holiday);
-        assert!(!group("# 假日 holiday\n- a").holiday);
+        assert!(!group("# Days off Type:Holiday\n- a").holiday);
+        assert!(!group("# Days off holiday\n- a").holiday);
     }
 
     #[test]
     fn section_counts_headings_so_same_named_ones_differ() {
-        // 0 before any heading; the two 「工作」 sections have the same group but a different section
-        let items = parse("- a\n# 工作\n- b\n# 生活\n# 工作\n- c\n").items;
+        // 0 before any heading; the two "Work" sections have the same group but a different section
+        let items = parse("- a\n# Work\n- b\n# Personal\n# Work\n- c\n").items;
         let sections: Vec<_> = items.iter().map(|item| item.section).collect();
         assert_eq!(sections, [0, 1, 3]);
         assert_eq!(items[1].group, items[2].group);
@@ -642,7 +652,7 @@ mod tests {
 
     #[test]
     fn rule5_indentation_makes_children() {
-        let text = "- 東京 5 天\n  - [ ] 訂機票\n    - [ ] 比價\n  - [ ] 訂飯店\n- 出發";
+        let text = "- Tokyo, 5 days\n  - [ ] Book flights\n    - [ ] Compare prices\n  - [ ] Book the hotel\n- Fly out";
         let items = parse(text).items;
         let shape: Vec<_> = items.iter().map(|item| (item.depth, item.parent)).collect();
         assert_eq!(
@@ -656,9 +666,9 @@ mod tests {
             ]
         );
         // The original line is kept with its indent
-        assert_eq!(items[2].line_text, "    - [ ] 比價");
+        assert_eq!(items[2].line_text, "    - [ ] Compare prices");
         // A tab counts as indent too
-        let items = parse("- [ ] 打包\n\t- [ ] 書房").items;
+        let items = parse("- [ ] Pack\n\t- [ ] Office").items;
         assert_eq!(items[1].parent, Some(0));
         // Under a new heading, counting starts again from the outermost level
         let items = parse("- a\n# g\n  - b").items;
@@ -667,12 +677,12 @@ mod tests {
 
     #[test]
     fn other_lines_are_ignored() {
-        let text = "說明文字\n\n-沒有空白\n```\n- [ ] code block 裡的\n```\n- [ ] 真的任務";
+        let text = "Some notes\n\n-No space after the dash\n```\n- [ ] Inside a code block\n```\n- [ ] A real task";
         let parsed = parse(text);
         assert_eq!(parsed.items.len(), 1);
         assert_eq!(
             (parsed.items[0].title.as_str(), parsed.items[0].line),
-            ("真的任務", 7)
+            ("A real task", 7)
         );
     }
 
@@ -699,7 +709,7 @@ mod tests {
         assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 32);
         assert_eq!(count(|item| item.kind == Kind::Event), 19);
         assert_eq!(count(|item| item.date.is_none()), 11);
-        // 3 multi-day items (主管出差, 東京 5 天, 國慶連假)
+        // 3 multi-day items (Manager OOO, Tokyo, the long weekend)
         assert_eq!(count(|item| item.end.is_some()), 3);
         // 1 holiday calendar with 2 items
         assert_eq!(
