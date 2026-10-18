@@ -13,6 +13,7 @@ pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
+    config::Settings,
     tasks::{Item, Warning},
     texts::Lang,
     theme::Theme,
@@ -132,6 +133,8 @@ pub struct App {
     pub month_top: Option<Date>,
     /// 畫面的顏色
     pub theme: Theme,
+    /// 設定檔裡的開關（格線、相對週數…）
+    pub settings: Settings,
     /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
     pub screen: Rect,
     /// 任務檔的位置（打勾、編輯要寫回去）；`None` = 沒有任務檔（test），不寫
@@ -177,6 +180,7 @@ impl App {
             agenda_window: None,
             month_top: None,
             theme: Theme::catppuccin_mocha(),
+            settings: Settings::default(),
             screen: Rect::default(),
             tasks_path: None,
             notice: None,

@@ -17,6 +17,16 @@ cargo run --release -- --tasks testdata/tasks.md    # try it with the sample tas
 
 The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 
+## Config file
+`~/.config/roh-cal/config-v2.toml` (`$XDG_CONFIG_HOME` respected; v1's `config.toml` next to it is left alone). It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says which line. Example: [testdata/config.toml](testdata/config.toml).
+
+| Name | Default | Meaning |
+| :- | :- | :- |
+| `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
+| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3) |
+| `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
+| `[month]` `center_cursor` | `false` | Keep the selected week in the middle of the month grid's six weeks (off: scroll a week at a time when the selection leaves them) |
+
 For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chinese) explains the modules, the layout model and how the screen tests work.
 
 ## Keys

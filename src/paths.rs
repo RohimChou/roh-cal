@@ -15,6 +15,18 @@ pub fn tasks_file() -> Option<PathBuf> {
     )
 }
 
+/// 設定檔：`$XDG_CONFIG_HOME/roh-cal/config-v2.toml`，沒設就是 `~/.config/roh-cal/config-v2.toml`
+///
+/// 跟 v1 的 `config.toml` 放在同一個資料夾、但不同檔名：兩版的開關名字不一樣（v1 不認識的名字算錯誤），
+/// 用同一個檔案會互相弄壞；v2 取代 v1 時再改回 `config.toml`
+pub fn config_file() -> Option<PathBuf> {
+    Some(
+        xdg_dir("XDG_CONFIG_HOME", ".config")?
+            .join("roh-cal")
+            .join("config-v2.toml"),
+    )
+}
+
 /// 讀環境變數 `var` 和 `HOME`，交給 `resolve` 決定用哪個資料夾
 fn xdg_dir(var: &str, fallback: &str) -> Option<PathBuf> {
     resolve(std::env::var_os(var), std::env::var_os("HOME"), fallback)

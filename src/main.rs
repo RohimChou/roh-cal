@@ -2,6 +2,7 @@
 
 mod app;
 mod calendar;
+mod config;
 mod edit;
 mod files;
 mod paths;
@@ -40,6 +41,11 @@ fn main() -> Result<()> {
         Some(path) => load_tasks(path, required)?,
         None => Parsed::default(),
     };
+    // 設定檔：不存在就全部用預設值；寫錯了就在這裡印出哪一行錯（還沒進 TUI）
+    let settings = match paths::config_file() {
+        Some(path) => config::load(&path)?,
+        None => config::Settings::default(),
+    };
     // 今天：系統時區的日期
     let today = Zoned::now().date();
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
@@ -47,6 +53,7 @@ fn main() -> Result<()> {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
         let mut app = App::new(lang, today, parsed.items);
+        app.settings = settings;
         // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
         app.tasks_path = path;
         // 任務檔有寫錯的地方：一打開就在最下面一列說（任務頁看得到是哪幾行）
