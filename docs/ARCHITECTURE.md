@@ -18,7 +18,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
-| `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務、日曆清單的 `a` 新增日曆（`Target`）；直接打那一行的文字（tui-input），`edit::check`（日曆是 `edit::check_calendar`：名字不能空、不能跟別的日曆一樣）即時檢查，有問題就存不了（`App::editor`） | |
+| `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務、日曆清單的 `a` 新增日曆、`e` 日曆改名（同名的每一個標題都改，`#` 的層級不變）（`Target`）；直接打那一行的文字（tui-input），`edit::check`（日曆是 `edit::check_calendar`：名字不能空、不能跟別的日曆一樣）即時檢查，有問題就存不了（`App::editor`） | |
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/help.rs` | 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、點框外關掉（`App::help`） | |
 | `src/ui/help.rs` | 畫說明頁：畫面正中間、左右兩欄（太窄排成一欄、太矮可以捲）；內容在 `texts.rs` 的 `help_short` / `help_full` | ✓ |

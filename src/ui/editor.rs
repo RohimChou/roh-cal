@@ -43,6 +43,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
                     .add_title(matches!(place, Place::ChildOf(_)))
                     .to_string(),
                 Target::AddCalendar { .. } => texts.add_calendar_title.to_string(),
+                Target::RenameCalendar { .. } => texts.rename_calendar_title.to_string(),
             },
             Style::new().fg(theme.label),
         ))

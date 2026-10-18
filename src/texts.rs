@@ -74,6 +74,8 @@ pub struct Texts {
     pub hints_side: &'static str,
     /// The title on the editor's top border when adding a calendar
     pub add_calendar_title: &'static str,
+    /// The title on the editor's top border when renaming a calendar
+    pub rename_calendar_title: &'static str,
     /// Side menu: items at the top of the file, before any heading
     pub ungrouped: &'static str,
     /// The short version of the help page (`?`): the most used keys
@@ -123,8 +125,9 @@ const EN: Texts = Texts {
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
-    hints_side: " jk move  Space show / hide  a add calendar  Esc back",
+    hints_side: " jk move  Space show / hide  a add calendar  e rename  Esc back",
     add_calendar_title: " New calendar ",
+    rename_calendar_title: " Rename calendar ",
     ungrouped: "Ungrouped",
     help_short: HelpPage {
         title: "keys",
@@ -246,6 +249,7 @@ const EN: Texts = Texts {
                     ("j / k", "choose"),
                     ("Space / Enter", "check / uncheck"),
                     ("a", "add a calendar"),
+                    ("e", "rename it"),
                 ],
             },
             HelpSection {
@@ -274,8 +278,9 @@ const ZH_TW: Texts = Texts {
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
-    hints_side: " jk 移動  Space 勾選  a 新增日曆  Esc 回去",
+    hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  Esc 回去",
     add_calendar_title: " 新增日曆 ",
+    rename_calendar_title: " 日曆改名 ",
     ungrouped: "未分組",
     help_short: HelpPage {
         title: "按鍵",
@@ -397,6 +402,7 @@ const ZH_TW: Texts = Texts {
                     ("j / k", "選日曆"),
                     ("Space / Enter", "勾選 / 取消"),
                     ("a", "新增日曆"),
+                    ("e", "改名"),
                 ],
             },
             HelpSection {

@@ -7,7 +7,7 @@
 //! Every change checks first: if the line is not what was read (e.g. it was just edited in Obsidian),
 //! nothing is changed and `Changed` is returned
 
-use crate::tasks::{self, Heading, Item, WarningKind};
+use crate::tasks::{self, Heading, HeadingLine, Item, WarningKind};
 use jiff::{ToSpan, civil::Date};
 
 /// The line differs from when it was read (edited elsewhere, a line added above, the file got shorter),
@@ -109,6 +109,38 @@ pub fn add_calendar(text: &str, name: &str) -> (String, usize) {
     result.push_str(&format!("# {}{newline}", name.trim()));
     let line = result.lines().count();
     (result, line)
+}
+
+/// Rename a calendar: each of its heading lines (`headings`; headings with the same name are one calendar)
+/// becomes `<its own #s> <new>` (`new` = what was typed in the editor, checked with `check_calendar` first);
+/// return the whole changed file. `Changed` if one of those lines now differs from when it was read
+///
+/// E.g. `## Moving` renamed to `Moving house` → `## Moving house`
+pub fn rename_calendar(text: &str, headings: &[HeadingLine], new: &str) -> Result<String, Changed> {
+    let mut result = String::with_capacity(text.len());
+    let mut renamed = 0;
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
+    for (index, (content, segment)) in text.lines().zip(text.split_inclusive('\n')).enumerate() {
+        let Some(heading) = headings.iter().find(|heading| heading.line == index + 1) else {
+            result.push_str(segment);
+            continue;
+        };
+        if content != heading.text {
+            return Err(Changed);
+        }
+        result.push_str(&format!(
+            "{} {}",
+            "#".repeat(heading.heading.level),
+            new.trim()
+        ));
+        result.push_str(&segment[content.len()..]);
+        renamed += 1;
+    }
+    if renamed == headings.len() {
+        Ok(result)
+    } else {
+        Err(Changed)
+    }
 }
 
 /// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
@@ -577,6 +609,30 @@ mod tests {
         for text in ["Work", " Work ", "Work type:holiday"] {
             assert_eq!(read(text), Err(Problem::NameTaken), "{text:?}");
         }
+    }
+
+    #[test]
+    fn renaming_a_calendar_rewrites_each_of_its_headings() {
+        // Two Work headings (one calendar) at different levels, \r\n endings: each keeps its own #s
+        let text = "# Work\r\n- a\r\n## Moving\r\n- b\r\n## Work\r\n- c\r\n";
+        let work: Vec<HeadingLine> = parse(text)
+            .headings
+            .into_iter()
+            .filter(|line| line.heading.name == "Work")
+            .collect();
+        assert_eq!(
+            rename_calendar(text, &work, " Day job "),
+            Ok("# Day job\r\n- a\r\n## Moving\r\n- b\r\n## Day job\r\n- c\r\n".to_string())
+        );
+        // One of its lines was changed elsewhere, or is gone: nothing is renamed
+        assert_eq!(
+            rename_calendar(&text.replace("## Work", "## Wrok"), &work, "Day job"),
+            Err(Changed)
+        );
+        assert_eq!(
+            rename_calendar("# Work\n- a\n", &work, "Day job"),
+            Err(Changed)
+        );
     }
 
     #[test]

@@ -8,10 +8,11 @@
 //!   (not on the tasks page)
 //! - `A`: add a subtask to the chosen item
 //! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading)
+//! - `e` in the calendar list: rename the chosen calendar
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
-use crate::tasks::{Heading, Item};
+use crate::tasks::{Heading, HeadingLine, Item};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui_input::{Input, backend::crossterm::to_input_request};
 
@@ -33,6 +34,12 @@ pub enum Target {
     Add(Place),
     /// Add a calendar; `taken` = the names the calendars already have (as the editor opened)
     AddCalendar { taken: Vec<String> },
+    /// Rename a calendar: `headings` = its heading lines (as read when the editor opened), `taken` = the
+    /// names the other calendars have
+    RenameCalendar {
+        headings: Vec<HeadingLine>,
+        taken: Vec<String>,
+    },
 }
 
 /// What the text typed so far reads as
@@ -48,7 +55,7 @@ impl Editor {
     /// How the text typed so far reads (shown live on screen; if there is a problem it cannot be saved)
     pub fn check(&self) -> Result<Reading, edit::Problem> {
         match &self.target {
-            Target::AddCalendar { taken } => {
+            Target::AddCalendar { taken } | Target::RenameCalendar { taken, .. } => {
                 edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
             }
             Target::Edit(_) | Target::Add(_) => edit::check(self.input.value()).map(Reading::Item),
@@ -123,6 +130,39 @@ impl App {
         });
     }
 
+    /// `e` in the calendar list: opens the editor with the chosen calendar's heading text, without the `#`s
+    /// (e.g. `US holidays type:holiday`, so a holiday calendar stays one unless `type:holiday` is taken
+    /// out); 「Ungrouped」 has no heading, so nothing happens
+    pub(super) fn start_renaming_calendar(&mut self) {
+        let Some(name) = self
+            .groups
+            .get(self.group_index)
+            .and_then(|group| group.name.clone())
+        else {
+            return;
+        };
+        let headings: Vec<HeadingLine> = self
+            .headings
+            .iter()
+            .filter(|line| line.heading.name == name)
+            .cloned()
+            .collect();
+        let Some(first) = headings.first() else {
+            return;
+        };
+        let text = first.text.trim_start_matches('#').trim().to_string();
+        let taken = self
+            .groups
+            .iter()
+            .filter_map(|group| group.name.clone())
+            .filter(|other| *other != name)
+            .collect();
+        self.mode = Mode::Editor(Editor {
+            input: Input::new(text),
+            target: Target::RenameCalendar { headings, taken },
+        });
+    }
+
     /// Keys while the editor is open: `Enter` saves, `Esc` cancels, `Ctrl+C` quits;
     /// every other key is typing (cursor movement and deleting: see tui-input)
     pub(super) fn handle_editor_key(&mut self, key: KeyEvent) {
@@ -162,6 +202,9 @@ impl App {
         match (target, reading) {
             (Target::AddCalendar { .. }, Reading::Calendar(heading)) => {
                 self.save_new_calendar(&new, &heading.name);
+            }
+            (Target::RenameCalendar { headings, .. }, Reading::Calendar(heading)) => {
+                self.save_renamed_calendar(&headings, &new, &heading.name);
             }
             (Target::Edit(item), _) => {
                 if new != item.line_text.trim() {
@@ -246,6 +289,42 @@ impl App {
     }
 }
 
+impl App {
+    /// Saves a calendar's new name: each of its heading lines (`headings`) becomes `<its #s> <new>`; the
+    /// calendar stays chosen and keeps its checked state. Nothing changed: nothing is written. If the
+    /// task file cannot be read or written, the editor stays open and the bottom row says why; if it was
+    /// changed elsewhere: reload and close the editor
+    fn save_renamed_calendar(&mut self, headings: &[HeadingLine], new: &str, name: &str) {
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        let shown = self
+            .groups
+            .get(self.group_index)
+            .is_none_or(|group| group.shown);
+        match edit::rename_calendar(&text, headings, new) {
+            Ok(after) => {
+                if after != text && !self.write_tasks(&path, text, after, name.to_string()) {
+                    return;
+                }
+                self.mode = Mode::Normal;
+                if let Some(index) = self
+                    .groups
+                    .iter()
+                    .position(|group| group.name.as_deref() == Some(name))
+                {
+                    self.group_index = index;
+                    self.groups[index].shown = shown;
+                }
+            }
+            Err(edit::Changed) => {
+                self.mode = Mode::Normal;
+                self.reload(&text);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::write::Notice;
@@ -297,6 +376,68 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         assert_eq!(app.groups.len(), 1);
         assert_eq!(app.notice, Some(Notice::Undone("Side projects".into())));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
+        let text = "# Work\n- [ ] Review PRs @2026-10-10\n# Days off type:holiday\n\
+                    - Long weekend @2026-10-12\n## Work\n- [ ] Deploy @2026-10-20\n";
+        let (mut app, path) = app_with_task_file("rename-calendar", text);
+        app.focus = Focus::Side;
+        // The holiday calendar, unchecked: the editor holds its heading text, type:holiday too
+        app.group_index = 1;
+        app.groups[1].shown = false;
+        press(&mut app, KeyCode::Char('e'));
+        let typed = "Days off type:holiday";
+        assert_eq!(app.editor().map(|editor| editor.input.value()), Some(typed));
+        // The other calendar's name cannot be taken
+        for _ in typed.chars() {
+            press(&mut app, KeyCode::Backspace);
+        }
+        type_text(&mut app, "Work");
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_some());
+        // A new name: its heading is rewritten, the calendar stays chosen and unchecked
+        for _ in 0..4 {
+            press(&mut app, KeyCode::Backspace);
+        }
+        type_text(&mut app, "Holidays type:holiday");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            text.replace("# Days off", "# Holidays")
+        );
+        assert_eq!(app.group_index, 1);
+        assert_eq!(
+            (app.groups[1].name.as_deref(), app.groups[1].shown),
+            (Some("Holidays"), false)
+        );
+        // Work has two headings at different levels: both renamed, each keeps its #s
+        press(&mut app, KeyCode::Char('k'));
+        press(&mut app, KeyCode::Char('e'));
+        for _ in 0..4 {
+            press(&mut app, KeyCode::Backspace);
+        }
+        type_text(&mut app, "Day job");
+        press(&mut app, KeyCode::Enter);
+        let renamed = text
+            .replace("# Days off", "# Holidays")
+            .replace("# Work", "# Day job");
+        assert!(renamed.contains("## Day job\n"));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), renamed);
+        // Enter without changing anything: nothing written (no undo step)
+        let steps = app.undo.len();
+        press(&mut app, KeyCode::Char('e'));
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_none());
+        assert_eq!(app.undo.len(), steps);
+        // u brings the old name back
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            text.replace("# Days off", "# Holidays")
+        );
         clean_up(&path);
     }
 

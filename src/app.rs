@@ -601,13 +601,14 @@ impl App {
     }
 
     /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
-    /// unchecked calendar's items are hidden), `a` adds a calendar
+    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one
     fn handle_side_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
+            KeyCode::Char('e') => self.start_renaming_calendar(),
             _ => {}
         }
     }
