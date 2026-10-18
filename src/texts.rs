@@ -136,7 +136,7 @@ impl HelpSection {
 /// English text
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
+    hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
@@ -332,7 +332,7 @@ const EN: Texts = Texts {
 /// Traditional Chinese text
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+    hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
