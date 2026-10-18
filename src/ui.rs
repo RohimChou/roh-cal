@@ -358,9 +358,8 @@ mod tests {
 
     #[test]
     fn calendar_from_this_month_down_with_a_thick_line_between_years() {
-        // Only January shows the year (the month goes on the next row); January is on screen, so the header
-        // shows 「年月」 as usual; the line between years is thick; today, which is selected, gets brackets;
-        // the title row shows the date on the right
+        // Only January shows its year (its month name goes on the next row); the header's corner shows the
+        // top week's year (2026年); the line between years is thick; today, which is selected, gets brackets
         let terminal = draw(Lang::ZhTw, 35, 26, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
@@ -536,19 +535,15 @@ mod tests {
         for step in steps {
             app.selected = app.selected.saturating_add(step.days());
             let rows = text_rows(draw_app(&mut app, 40, 13).backend().buffer());
-            // Calendar rows: above are the title, border, header and
+            // Calendar rows: above are the border, the header and the
             // header line; below are the border and the key hints
             let body = &rows[3..rows.len() - 2];
             let selected = format!("[{}]", app.selected.day());
             let y = body
                 .iter()
                 .position(|row| row.contains(&selected))
-                .unwrap_or_else(|| panic!("{} 不在畫面上：{body:#?}", app.selected));
-            assert!(
-                y >= 2 && y + 2 < body.len(),
-                "{}：在第 {y} 列",
-                app.selected
-            );
+                .unwrap_or_else(|| panic!("{} is not on screen: {body:#?}", app.selected));
+            assert!(y >= 2 && y + 2 < body.len(), "{}: on row {y}", app.selected);
         }
     }
 
