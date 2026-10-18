@@ -88,8 +88,7 @@ pub struct CalendarSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MonthSettings {
-    /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column);
-    /// a new year's thick line is drawn either way
+    /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column)
     pub grid_lines: bool,
     /// Keeps the selected row fixed in the middle of the 6 rows (like vim's `scrolloff=999`);
     /// when off, it scrolls one row at a time, only when the selection moves out of the 6 rows

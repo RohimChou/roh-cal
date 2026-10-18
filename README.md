@@ -73,7 +73,7 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | Key | View |
 | :- | :- |
 | `1` | Calendar + agenda: the calendar on the left scrolls through the months; the agenda on the right lists each month's items next to it |
-| `2` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once; every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
+| `2` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once; `Enter` opens a popup with all of that day's items |
 | `3` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red |
 
 A terminal at least 120 columns wide also shows the calendar list on the left; narrower, `s` calls it up.
@@ -159,7 +159,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- | :- |
 | `theme` | `"catppuccin-mocha"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
-| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them a new year still gets its thick line |
+| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2) |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[calendar_list]` `max_width` | `36` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |

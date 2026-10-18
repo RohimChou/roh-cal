@@ -282,7 +282,7 @@ pub struct App {
     /// Agenda scroll: (the 1st of which month, which sorted row of that month is at the top); it scrolls only
     /// when a month has too many items to fit
     pub agenda_window: Option<(Date, usize)>,
-    /// Layout 2 scroll: the Monday of the top week (`None` = on the next draw, put the week before the 1st of
+    /// Layout 2 scroll: the Monday of the top week (`None` = on the next draw, put the week with the 1st of
     /// the selected month at the top)
     pub month_top: Option<Date>,
     /// Screen colors

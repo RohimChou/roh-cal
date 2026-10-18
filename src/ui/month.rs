@@ -1,11 +1,9 @@
 //! Layout 2: the month grid (like v1's month view): the whole area right of the side menu, 6 rows of
 //! equal-height cells, each cell listing that day's items
 //!
-//! A row is one week, Monday to Sunday, but every month starts a new row (like layout 1's calendar): the
-//! week holding Sep 30 and Oct 1 becomes two rows, each leaving the other month's days empty. With grid
-//! lines, the line above a new month is in the border color and the line above a new year is thick.
-//! 6 rows at a time; scrolls one row at a time only when the selected day leaves the screen (with
-//! `[month] center_cursor` on in the config file, the selected row stays on row 3).
+//! A row is one whole week, Monday to Sunday: the week holding Sep 30 and Oct 1 is one row with days of
+//! both months. 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen
+//! (with `[month] center_cursor` on in the config file, the selected week stays on row 3).
 //! Cell sizes are computed from the current space on every draw (they follow the terminal as it resizes)
 
 use super::{
@@ -47,26 +45,18 @@ struct Grid {
     /// Cells taken by a grid line: 1 with grid lines (between columns, below the header, between weeks),
     /// 0 without (cells touch)
     gap: u16,
-    /// Without grid lines, a new year on screen still gets its line: the row it comes after (from 0); one
-    /// row of height is taken for it. `None` with grid lines (they already have a line between every two
-    /// rows) or when no year starts on screen
-    year_line_after: Option<u16>,
 }
 
 impl Grid {
     /// Splits the inside of the box (`inner`) into cells; `lines` = whether to draw grid lines
-    /// (`[month] grid_lines` in the config file); `new_year_after` = the row a new year starts after, if any
-    /// (see `new_year_after`)
     /// (`[month] grid_lines` in the config file)
     ///
     /// Width: the week-number column takes 5 cells; the rest, minus 7 vertical lines, is split evenly over
     /// 7 days. The leftover cells go one each to the columns starting from Monday.
     /// Height: header 1 row + header line 1 row; the rest, minus the 5 lines between weeks, is split evenly
-    /// over 6 weeks. Without grid lines, only a new year's line (if any) is subtracted
-    fn new(inner: Rect, lines: bool, new_year_after: Option<u16>) -> Self {
+    /// over 6 weeks. Without grid lines nothing is subtracted but the header
+    fn new(inner: Rect, lines: bool) -> Self {
         let gap = u16::from(lines);
-        let year_line_after = new_year_after.filter(|_| !lines);
-        let year_line = u16::from(year_line_after.is_some());
         let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7 * gap);
         let (base, extra) = (days_width / 7, days_width % 7);
         let mut columns = [(inner.x, WEEK_COLUMN_WIDTH.min(inner.width)); 8];
@@ -79,12 +69,8 @@ impl Grid {
         Self {
             columns,
             header_y: inner.y,
-            week_height: inner
-                .height
-                .saturating_sub(1 + gap + (WEEKS - 1) * gap + year_line)
-                / WEEKS,
+            week_height: inner.height.saturating_sub(1 + gap + (WEEKS - 1) * gap) / WEEKS,
             gap,
-            year_line_after,
         }
     }
 
@@ -96,9 +82,7 @@ impl Grid {
 
     /// The first row of week `week` (from 0)
     fn week_y(&self, week: u16) -> u16 {
-        // Rows below the extra year line move down by its row
-        let year_line = u16::from(self.year_line_after.is_some_and(|after| week > after));
-        self.header_y + 1 + self.gap + week * (self.week_height + self.gap) + year_line
+        self.header_y + 1 + self.gap + week * (self.week_height + self.gap)
     }
 
     /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday)
@@ -113,78 +97,30 @@ impl Grid {
     }
 }
 
-/// The first day of the row `day` is in: its Monday, or the 1st of its month when the month starts later
-/// that week
-fn row_start(day: Date) -> Date {
-    calendar::monday_of(day).max(day.first_of_month())
-}
-
-/// The last day of the row starting on `start`: its Sunday, or the last day of the month if that comes first
-fn row_end(start: Date) -> Date {
-    calendar::monday_of(start)
-        .saturating_add(6.days())
-        .min(start.last_of_month())
-}
-
-/// The first day of the row `rows` rows after (negative: before) the row starting on `start`
-fn row_after(start: Date, rows: i64) -> Date {
-    let mut row = start;
-    for _ in 0..rows.unsigned_abs() {
-        row = if rows > 0 {
-            row_end(row).saturating_add(1.day())
-        } else {
-            row_start(row.saturating_sub(1.day()))
-        };
-    }
-    row
-}
-
-/// The first day of the top row on screen: starting from `top`, scroll only when the selected row leaves
-/// the 6 rows (one row at a time, like v1). `center` (`[month] center_cursor` in the config file) = ignore
-/// `top`; the selected row stays on row 3 of the 6 (with an even count it leans one row up, so one more
-/// row shows below)
+/// Monday of the top week on screen: starting from `top`, scroll only when the selected week leaves the
+/// 6 weeks (one week at a time, like v1). `center` (`[month] center_cursor` in the config file) = ignore
+/// `top`; the selected week stays on row 3 of the 6 (with an even count it leans one row up, so one more
+/// week shows below)
 fn scrolled(top: Date, selected: Date, center: bool) -> Date {
-    let row = row_start(selected);
+    let week = calendar::monday_of(selected);
     let last = i64::from(WEEKS - 1);
     if center {
-        return row_after(row, -last / 2);
+        return week.saturating_sub((last / 2).weeks());
     }
-    let top = row_start(top);
-    if row < top {
-        row
-    } else if row > row_after(top, last) {
-        row_after(row, -last)
+    let top = calendar::monday_of(top);
+    if week < top {
+        week
+    } else if week > top.saturating_add(last.weeks()) {
+        week.saturating_sub(last.weeks())
     } else {
         top
     }
 }
 
-/// The top row right after opening, after `t` / `[` / `]`, or when switching to layout 2: the last row of
-/// the month before `date`'s (so the end of the previous month shows)
+/// The top week right after opening, after `t` / `[` / `]`, or when switching to layout 2: the week with
+/// the 1st of `date`'s month (a month takes at most 6 weeks, so all of it shows)
 fn month_top(date: Date) -> Date {
-    row_after(date.first_of_month(), -1)
-}
-
-/// The line between two rows (with grid lines on)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Rule {
-    /// Within a month: a faint grid line
-    Week,
-    /// Above a new month: a line in the border color
-    Month,
-    /// Above a new year (the row starting on that January 1st): a thick line with the year on it
-    Year(Date),
-}
-
-impl Rule {
-    /// The line above the row starting on `start`
-    fn above(start: Date) -> Self {
-        match (start.month(), start.day()) {
-            (1, 1) => Self::Year(start),
-            (_, 1) => Self::Month,
-            _ => Self::Week,
-        }
-    }
+    calendar::monday_of(date.first_of_month())
 }
 
 /// Draws the month grid: a rounded box (the border lights up when the keyboard is on the calendar) with
@@ -214,24 +150,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .title_top(Line::styled(date, Style::new().fg(theme.text)).centered());
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let grid = Grid::new(inner, app.settings.month.grid_lines, new_year_after(top));
+    let grid = Grid::new(inner, app.settings.month.grid_lines);
     if grid.too_small() {
         return;
     }
     if app.settings.month.grid_lines {
-        // The line above each row after the first: faint, the border color above a new month, thick above a
-        // new year
-        let rules: Vec<Rule> = rows(top)
-            .skip(1)
-            .take(usize::from(WEEKS - 1))
-            .map(Rule::above)
-            .collect();
-        render_grid_lines(frame.buffer_mut(), inner, &grid, &rules, app, border);
-    }
-    // Without grid lines a new year still gets its thick line, on the row the grid set aside for it
-    if let Some(after) = grid.year_line_after {
-        let day = row_after(top, i64::from(after) + 1);
-        render_year_line(frame.buffer_mut(), inner, &grid, day, app, border);
+        render_grid_lines(frame.buffer_mut(), inner, &grid, app, border);
     }
 
     // Header: the week-number column says 「週」; each day's name sits at the far left of its column, lined
@@ -256,14 +180,18 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // The selected month: days of other months are grayed out
     let month = app.selected.first_of_month();
-    for (week, start) in (0..WEEKS).zip(rows(top)) {
-        let end = row_end(start);
-        let monday = calendar::monday_of(start);
+    for week in 0..WEEKS {
+        let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
-        // Week number: from the row's first day (a week split by a new month shows it on both rows); the
-        // row with the selected day gets the `week_number` color, other rows `week_number_dim`.
-        // With `[calendar] relative_weeks`, other rows show the difference in weeks
-        let week_color = if (start..=end).contains(&app.selected) {
+        // Week number: from a day of that week in the selected month (only differs for the week across the
+        // new year), from Monday if it has none; the selected week gets the `week_number` color, other
+        // weeks `week_number_dim`. With `[calendar] relative_weeks`, other weeks show the difference in weeks
+        let numbered = days
+            .iter()
+            .find(|day| day.first_of_month() == month)
+            .copied()
+            .unwrap_or(monday);
+        let week_color = if days.contains(&app.selected) {
             theme.week_number
         } else {
             theme.week_number_dim
@@ -277,52 +205,34 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             Line::styled(
                 format!(
                     " {:>3} ",
-                    calendar::week_label(start, app.selected, relative)
+                    calendar::week_label(numbered, app.selected, relative)
                 ),
                 Style::new().fg(week_color),
             ),
             number_area,
         );
-        // Only the row's own days are drawn; the other days of that week stay empty
-        let row_days: Vec<Option<Date>> = days
-            .iter()
-            .map(|&day| (start..=end).contains(&day).then_some(day))
-            .collect();
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
         // The selected day's cell gets a background, top-left to bottom-right (like v1)
-        let selected = days
-            .iter()
-            .position(|&day| day == app.selected && (start..=end).contains(&day));
+        let selected = days.iter().position(|&day| day == app.selected);
         if let Some(column) = selected {
             frame
                 .buffer_mut()
                 .set_style(cells[column], Style::new().bg(theme.cursor_line));
         }
-        let (bars, slots) = layout_row(&row_days, app);
-        let lines: Vec<Vec<Line>> = row_days
+        let (bars, slots) = layout_row(&days, app);
+        let lines: Vec<Vec<Line>> = days
             .iter()
             .zip(&slots)
             .zip(&cells)
-            .map(|((day, slots), cell)| {
-                day.map_or_else(Vec::new, |day| {
-                    cell_lines(day, month, slots, cell.height, app)
-                })
-            })
+            .map(|((&day, slots), cell)| cell_lines(day, month, slots, cell.height, app))
             .collect();
-        render_week(frame, &cells, &lines, selected);
+        render_week(frame, &cells, &lines, &days, selected);
         let shown: Vec<usize> = slots
             .iter()
             .zip(&cells)
             .map(|(slots, cell)| shown_lines(slots.len(), cell.height))
             .collect();
-        render_bars(
-            frame,
-            &cells,
-            &bars,
-            &shown,
-            start.first_of_month() != month,
-            app,
-        );
+        render_bars(frame, &cells, &bars, &shown, &days, app);
     }
 }
 
@@ -348,18 +258,14 @@ struct Bar<'a> {
     starts: bool,
 }
 
-/// Lays out one row's items (`days` = Monday to Sunday, `None` for days that belong to the other month's
-/// row): every multi-day item covering some of the days gets a line of its own on all of them
-/// (`Bar::lane`), so its days line up into one bar; the earlier it starts in the row, the higher its line,
-/// and a line is used again once free. Each day's one-day items then fill that day's free lines from the
-/// top (in `App::items_on` order), then go below
+/// Lays out one row's items (`days` = Monday to Sunday): every multi-day item covering some of the days
+/// gets a line of its own on all of them (`Bar::lane`), so its days line up into one bar; the earlier it
+/// starts in the row, the higher its line, and a line is used again once free. Each day's one-day items
+/// then fill that day's free lines from the top (in `App::items_on` order), then go below
 ///
 /// Returns the bars and, for each day, what each line under its date holds
-fn layout_row<'a>(days: &[Option<Date>], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a>>>) {
-    let on_day: Vec<Vec<&Item>> = days
-        .iter()
-        .map(|day| day.map(|day| app.items_on(day)).unwrap_or_default())
-        .collect();
+fn layout_row<'a>(days: &[Date], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a>>>) {
+    let on_day: Vec<Vec<&Item>> = days.iter().map(|&day| app.items_on(day)).collect();
     let mut bars: Vec<Bar> = Vec::new();
     for (column, items) in on_day.iter().enumerate() {
         for &item in items {
@@ -382,7 +288,7 @@ fn layout_row<'a>(days: &[Option<Date>], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec
                 lane,
                 first: column,
                 last,
-                starts: item.date == days[column],
+                starts: item.date == Some(days[column]),
             });
         }
     }
@@ -425,16 +331,17 @@ fn shown_lines(slots: usize, rows: u16) -> usize {
 
 /// Draws the row's bars over its cells: each bar is one band on its line in the `range` background, from
 /// its first day in the row to its last (over the grid lines between), with the title written once at the
-/// start; a day whose cell cannot show that line (it shows `+N` there instead) cuts the band.
-/// `other_month` = the row is not in the selected month (the text turns gray)
+/// start; a day whose cell cannot show that line (it shows `+N` there instead) cuts the band, and so does
+/// a new month (the title is written again after it). A band outside the selected month has gray text
 fn render_bars(
     frame: &mut Frame,
     cells: &[Rect],
     bars: &[Bar],
     shown: &[usize],
-    other_month: bool,
+    days: &[Date],
     app: &App,
 ) {
+    let month = app.selected.first_of_month();
     for bar in bars {
         let Ok(lane) = u16::try_from(bar.lane) else {
             continue;
@@ -445,9 +352,13 @@ fn render_bars(
                 column += 1;
                 continue;
             }
-            // A run of days that all show the bar's line
+            // A run of days in one month that all show the bar's line
             let first = column;
-            while column < bar.last && bar.lane < shown[column + 1] {
+            let first_month = days[first].first_of_month();
+            while column < bar.last
+                && bar.lane < shown[column + 1]
+                && days[column + 1].first_of_month() == first_month
+            {
                 column += 1;
             }
             let (from, to) = (cells[first], cells[column]);
@@ -455,7 +366,7 @@ fn render_bars(
             let time = bar.starts && first == bar.first;
             // Clear first: the grid lines under the band would otherwise still show through
             frame.render_widget(Clear, area);
-            frame.render_widget(bar_line(bar.item, time, other_month, app), area);
+            frame.render_widget(bar_line(bar.item, time, first_month != month, app), area);
             column += 1;
         }
     }
@@ -488,19 +399,20 @@ fn bar_line(item: &Item, time: bool, other_month: bool, app: &App) -> Line<'stat
     Line::from(spans).style(Style::new().bg(theme.range))
 }
 
-/// The first days of the rows from `top` down (as many as asked for)
-fn rows(top: Date) -> impl Iterator<Item = Date> {
-    std::iter::successors(Some(top), |&start| Some(row_after(start, 1)))
-}
-
-/// Draws the 7 cells of one week, line by line; `selected` = the column (0 = Monday) of the selected day's
-/// cell, if it is in this row
+/// Draws the 7 cells of one week (`days`, Monday to Sunday), line by line; `selected` = the column
+/// (0 = Monday) of the selected day's cell, if it is in this row
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
 /// (like a spreadsheet): if the neighbor has nothing on that line, its width is borrowed (drawing over
 /// the grid line between), and so on until a cell with something on that line, the selected day's cell
-/// (its background stays clean), or Sunday; anything longer is cut off
-fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>], selected: Option<usize>) {
+/// (its background stays clean), a new month, or Sunday; anything longer is cut off
+fn render_week(
+    frame: &mut Frame,
+    cells: &[Rect],
+    lines: &[Vec<Line>],
+    days: &[Date],
+    selected: Option<usize>,
+) {
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
             let mut right = cell.right();
@@ -508,7 +420,10 @@ fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>], selected:
                 for (next_column, (next, next_lines)) in
                     cells.iter().zip(lines).enumerate().skip(column + 1)
                 {
-                    if next_lines.len() > row || selected == Some(next_column) {
+                    if next_lines.len() > row
+                        || selected == Some(next_column)
+                        || days[next_column].first_of_month() != days[column].first_of_month()
+                    {
                         break;
                     }
                     right = next.right();
@@ -520,7 +435,7 @@ fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>], selected:
 }
 
 /// The lines of one cell: the date first (see `date_line`), then one line per slot (see `layout_row`):
-/// a one-day item, e.g. 「 ∙ 14:00 Code review」; a bar's line and a free line are left empty here (the
+/// a one-day item, e.g. 「 14:00 Code review」; a bar's line and a free line are left empty here (the
 /// bars are drawn over them afterwards)
 ///
 /// - List all slots if they fit; otherwise list one fewer and put `+N` on the last line
@@ -664,26 +579,15 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Draws the grid lines: `│` between columns, `─` below the header and between rows, `┬` / `┼` at
+/// Draws faint grid lines: `│` between columns, `─` below the header and between weeks, `┬` / `┼` at
 /// crossings; horizontal lines meet the outer border as `├` / `┤`, vertical lines meet the bottom border
-/// as `┴` (in the border color). `rules` = the line above each row after the first: faint (`grid`) within
-/// a month, the border color (`line`) above a new month, and above a new year a thick `━` (`year_line`,
-/// crossings `┿`, meeting the border as `┝` / `┥`) with the year written on it over Monday's cell
-/// (`label` color; left out when Monday's cell is too narrow), like layout 1's calendar.
-/// For the leftover rows (empty rows below the last row), vertical lines still run to the bottom border,
-/// so the last row just looks a few rows taller and no two lines stack up
+/// as `┴` (in the border color).
+/// For the leftover rows (empty rows below the last week), vertical lines still run to the bottom border,
+/// so the last week just looks a few rows taller and no two lines stack up
 ///
 /// Writes cell by cell straight into the `Buffer` (no widget); positions off screen are skipped
-fn render_grid_lines(
-    buffer: &mut Buffer,
-    inner: Rect,
-    grid: &Grid,
-    rules: &[Rule],
-    app: &App,
-    border: Style,
-) {
-    let theme = &app.theme;
-    let faint = Style::new().fg(theme.grid);
+fn render_grid_lines(buffer: &mut Buffer, inner: Rect, grid: &Grid, app: &App, border: Style) {
+    let faint = Style::new().fg(app.theme.grid);
     let mut put = |x: u16, y: u16, symbol: &str, style: Style| {
         if let Some(cell) = buffer.cell_mut(Position::new(x, y)) {
             cell.set_symbol(symbol).set_style(style);
@@ -696,116 +600,43 @@ fn render_grid_lines(
         }
         put(x, inner.bottom(), line::HORIZONTAL_UP, border);
     }
-    // The line below the header, then the one above each row after the first
-    let mut lines = vec![(
-        top,
-        line::HORIZONTAL,
-        line::HORIZONTAL_DOWN,
-        faint,
-        ("├", "┤"),
-    )];
-    // Years to write on their thick lines: (y, January 1st)
-    let mut years = Vec::new();
-    for (week, rule) in (0..).zip(rules) {
-        let y = grid.week_y(week) + grid.week_height;
-        lines.push(match rule {
-            Rule::Week => (y, line::HORIZONTAL, line::CROSS, faint, ("├", "┤")),
-            Rule::Month => {
-                let style = Style::new().fg(theme.line);
-                (y, line::HORIZONTAL, line::CROSS, style, ("├", "┤"))
-            }
-            Rule::Year(day) => {
-                years.push((y, *day));
-                let style = Style::new().fg(theme.year_line);
-                (y, line::THICK_HORIZONTAL, "┿", style, ("┝", "┥"))
-            }
-        });
-    }
-    for (y, horizontal, cross, style, (left, right)) in lines {
+    // The line below the header and the 5 between weeks
+    let mut rules = vec![(top, line::HORIZONTAL_DOWN)];
+    rules.extend((0..WEEKS - 1).map(|week| (grid.week_y(week) + grid.week_height, line::CROSS)));
+    for (y, cross) in rules {
         for x in inner.x..inner.right() {
-            put(x, y, horizontal, style);
+            put(x, y, line::HORIZONTAL, faint);
         }
         for x in grid.vertical_xs() {
-            put(x, y, cross, style);
+            put(x, y, cross, faint);
         }
-        put(inner.x.wrapping_sub(1), y, left, border);
-        put(inner.right(), y, right, border);
+        put(inner.x.wrapping_sub(1), y, line::VERTICAL_RIGHT, border);
+        put(inner.right(), y, line::VERTICAL_LEFT, border);
     }
-    for (y, day) in years {
-        write_year(buffer, grid, y, day, app);
-    }
-}
-
-/// Without grid lines: the line above a new year (thick `━` in `year_line`, meeting the border as `┝` /
-/// `┥`, with the year on it), on the row the grid set aside for it
-fn render_year_line(
-    buffer: &mut Buffer,
-    inner: Rect,
-    grid: &Grid,
-    day: Date,
-    app: &App,
-    border: Style,
-) {
-    let Some(after) = grid.year_line_after else {
-        return;
-    };
-    let y = grid.week_y(after) + grid.week_height;
-    let style = Style::new().fg(app.theme.year_line);
-    for x in inner.x..inner.right() {
-        buffer.set_string(x, y, line::THICK_HORIZONTAL, style);
-    }
-    buffer.set_string(inner.x.wrapping_sub(1), y, "┝", border);
-    buffer.set_string(inner.right(), y, "┥", border);
-    write_year(buffer, grid, y, day, app);
-}
-
-/// Writes the year of `day` on the thick line at `y`, one line cell in from Monday's left edge:
-/// 「━ 2027 ━━━」 (`label` color); left out when Monday's cell cannot keep a line cell on both sides
-fn write_year(buffer: &mut Buffer, grid: &Grid, y: u16, day: Date, app: &App) {
-    let (monday_x, monday_width) = grid.columns[1];
-    let label = format!(" {} ", app.lang.texts().year_label(day));
-    let width = u16::try_from(Span::raw(&label).width()).unwrap_or(u16::MAX);
-    if monday_width >= width.saturating_add(2) {
-        buffer.set_string(monday_x + 1, y, label, Style::new().fg(app.theme.label));
-    }
-}
-
-/// Which row a new year starts after, among the rows on screen from `top` (e.g. `Some(0)` when the
-/// second row starts on January 1st); `None` when no year starts on screen
-fn new_year_after(top: Date) -> Option<u16> {
-    rows(top)
-        .skip(1)
-        .take(usize::from(WEEKS - 1))
-        .position(|start| matches!(Rule::above(start), Rule::Year(_)))
-        .and_then(|row| u16::try_from(row).ok())
 }
 
 /// Which day a mouse click at (`column`, `row`) on the month grid (`area`) hits; `None` on the header,
-/// the week-number column, grid lines, the outer border or an empty cell of a split week
+/// the week-number column, grid lines or the outer border
 ///
 /// The scroll position is `app.month_top`, stored at the last draw; the empty leftover rows below the
 /// last week count as the last week
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let inner = Block::bordered().inner(area);
     let top = app.month_top?;
-    let grid = Grid::new(inner, app.settings.month.grid_lines, new_year_after(top));
+    let grid = Grid::new(inner, app.settings.month.grid_lines);
     if grid.too_small() {
         return None;
     }
     let position = Position::new(column, row);
-    for (week, start) in (0..WEEKS).zip(rows(top)) {
+    for week in 0..WEEKS {
         for weekday in 0..7 {
             let mut cell = grid.cell(week, weekday + 1);
             if week == WEEKS - 1 {
                 cell.height = inner.bottom() - cell.y;
             }
             if cell.contains(position) {
-                // A cell left empty because its day belongs to the other month's row: nothing to click
-                let day =
-                    calendar::monday_of(start).saturating_add(i64::try_from(weekday).ok()?.days());
-                return (start..=row_end(start))
-                    .contains(&day)
-                    .then_some(Click::Day(day));
+                let days = i64::from(week) * 7 + i64::try_from(weekday).ok()?;
+                return Some(Click::Day(top.saturating_add(days.days())));
             }
         }
     }
@@ -821,7 +652,7 @@ mod tests {
     fn grid_splits_the_days_evenly_and_the_weeks_equally() {
         // Inside 78 × 28 (an 80 × 30 box): day width 78 − 5 − 7 = 66, split over 7 columns = 9 remainder 3
         // → Mon, Tue, Wed get 10 cells, the others 9
-        let grid = Grid::new(Rect::new(1, 1, 78, 28), true, None);
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), true);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 10, 10, 10, 9, 9, 9, 9]);
         // 1 cell for a vertical line between columns: Monday starts at 1 + 5 + 1 = 7, Sunday's last cell
@@ -835,21 +666,18 @@ mod tests {
         assert_eq!(grid.week_y(0), 3);
         assert_eq!(grid.week_y(1), 7);
         // Not evenly divisible: 27 rows → 20 ÷ 6 = 3 remainder 2; the leftover stays at the bottom
-        assert_eq!(
-            Grid::new(Rect::new(1, 1, 78, 27), true, None).week_height,
-            3
-        );
+        assert_eq!(Grid::new(Rect::new(1, 1, 78, 27), true).week_height, 3);
         // Too small: cannot be drawn
-        assert!(Grid::new(Rect::new(1, 1, 18, 28), true, None).too_small());
-        assert!(Grid::new(Rect::new(1, 1, 78, 12), true, None).too_small());
-        assert!(!Grid::new(Rect::new(1, 1, 19, 13), true, None).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 18, 28), true).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 78, 12), true).too_small());
+        assert!(!Grid::new(Rect::new(1, 1, 19, 13), true).too_small());
     }
 
     #[test]
     fn without_grid_lines_the_cells_touch() {
         // 78 × 28 without grid lines: day width 78 − 5 = 73, split over 7 columns = 10 remainder 3
         // → Mon, Tue, Wed get 11 cells, the others 10; columns touch
-        let grid = Grid::new(Rect::new(1, 1, 78, 28), false, None);
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), false);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 11, 11, 11, 10, 10, 10, 10]);
         assert_eq!(grid.columns[1].0, 1 + 5);
@@ -861,25 +689,7 @@ mod tests {
         assert_eq!(grid.week_y(0), 2);
         assert_eq!(grid.week_y(1), 6);
         // A height too short with grid lines can be drawn without them: 12 − 1 = 11 → 1 row per week
-        assert!(!Grid::new(Rect::new(1, 1, 78, 12), false, None).too_small());
-    }
-
-    #[test]
-    fn without_grid_lines_a_new_year_takes_one_row_for_its_line() {
-        // 78 × 28 without grid lines, a new year after the first row: 28 − header 1 − year line 1 = 26 →
-        // 4 rows each (26 / 6 = 4 remainder 2); row 1 at y 2, the year line at y 6, row 2 at y 7, row 3 at y 11
-        let grid = Grid::new(Rect::new(1, 1, 78, 28), false, Some(0));
-        assert_eq!(grid.week_height, 4);
-        assert_eq!([0, 1, 2].map(|week| grid.week_y(week)), [2, 7, 11]);
-        // With grid lines there is already a line between every two rows: nothing changes
-        assert_eq!(
-            Grid::new(Rect::new(1, 1, 78, 28), true, Some(0)),
-            Grid::new(Rect::new(1, 1, 78, 28), true, None)
-        );
-        // Rows from 12/28: the second one starts on 1/1; rows from 12/7: the fifth; rows from 9/28: none
-        assert_eq!(new_year_after(date(2026, 12, 28)), Some(0));
-        assert_eq!(new_year_after(date(2026, 12, 7)), Some(3));
-        assert_eq!(new_year_after(date(2026, 9, 28)), None);
+        assert!(!Grid::new(Rect::new(1, 1, 78, 12), false).too_small());
     }
 
     #[test]
@@ -893,11 +703,7 @@ mod tests {
             date(2026, 10, 17),
             crate::tasks::parse(text).items,
         );
-        let days: Vec<Option<Date>> = date(2026, 10, 19)
-            .series(1.day())
-            .take(7)
-            .map(Some)
-            .collect();
+        let days: Vec<Date> = date(2026, 10, 19).series(1.day()).take(7).collect();
         let (bars, slots) = layout_row(&days, &app);
         let bars: Vec<(&str, usize, usize, usize)> = bars
             .iter()
@@ -923,22 +729,14 @@ mod tests {
             lines,
             ["=A D", "=A =B", "=A =B", "=C =B E", "=C =B", "=C F", "=C"]
         );
-        // A day of the other month's row has nothing; a bar starting before the row does not write the time
-        let mut split = days.clone();
-        split[0] = None;
-        let (bars, slots) = layout_row(&split, &app);
-        assert!(slots[0].is_empty());
-        assert_eq!((bars[0].item.title.as_str(), bars[0].first), ("A", 1));
-        assert!(!bars[0].starts);
-        // Free lines left in the middle stay (so the bars line up): 10/26-11/1, C ends on Wednesday and
-        // nothing else is there, so no line is left free
-        let later: Vec<Option<Date>> = date(2026, 10, 26)
-            .series(1.day())
-            .take(6)
-            .map(Some)
-            .chain([None])
-            .collect();
-        let (_, slots) = layout_row(&later, &app);
+        // The next row, 10/26-11/1: C started a row before, so it does not write the time there; C ends on
+        // Wednesday and nothing else is there, so no line is left free
+        let later: Vec<Date> = date(2026, 10, 26).series(1.day()).take(7).collect();
+        let (bars, slots) = layout_row(&later, &app);
+        assert_eq!(
+            (bars[0].item.title.as_str(), bars[0].first, bars[0].starts),
+            ("C", 0, false)
+        );
         assert_eq!(
             slots.iter().map(Vec::len).collect::<Vec<_>>(),
             [1, 1, 1, 0, 0, 0, 0]
@@ -955,45 +753,29 @@ mod tests {
     }
 
     #[test]
-    fn every_month_starts_a_new_row() {
-        // 2026-10-01 is a Thursday: the week of 9/28 splits into 9/28-9/30 and 10/1-10/4
-        assert_eq!(row_start(date(2026, 9, 30)), date(2026, 9, 28));
-        assert_eq!(row_start(date(2026, 10, 3)), date(2026, 10, 1));
-        assert_eq!(row_end(date(2026, 9, 28)), date(2026, 9, 30));
-        assert_eq!(row_end(date(2026, 10, 1)), date(2026, 10, 4));
-        // 11/1 is a Sunday: a row of its own between 10/26-10/31 and 11/2-11/8
-        assert_eq!(row_after(date(2026, 10, 26), 1), date(2026, 11, 1));
-        assert_eq!(row_after(date(2026, 11, 1), 1), date(2026, 11, 2));
-        assert_eq!(row_after(date(2026, 11, 2), -2), date(2026, 10, 26));
-        // 2027-02-01 is a Monday: the month starts a whole week, no extra row
-        assert_eq!(row_after(date(2027, 1, 25), 1), date(2027, 2, 1));
-        // The line above a row: thick before 1/1, the border color before any other 1st, faint otherwise
-        assert_eq!(Rule::above(date(2027, 1, 1)), Rule::Year(date(2027, 1, 1)));
-        assert_eq!(Rule::above(date(2026, 10, 1)), Rule::Month);
-        assert_eq!(Rule::above(date(2026, 10, 5)), Rule::Week);
-    }
-
-    #[test]
-    fn scrolling_moves_a_row_only_when_the_selection_leaves_the_six_rows() {
-        // Top is 9/28: rows 9/28-30, 10/1-4, 10/5-11, 10/12-18, 10/19-25, 10/26-31; no scrolling inside them
+    fn scrolling_moves_a_week_only_when_the_selection_leaves_the_six_weeks() {
+        // Top is 9/28: weeks 9/28, 10/5, 10/12, 10/19, 10/26, 11/2 (the week of 9/28 holds 10/1 too, the
+        // week of 10/26 holds 11/1); no scrolling inside them
         let top = date(2026, 9, 28);
         assert_eq!(scrolled(top, date(2026, 9, 28), false), top);
-        assert_eq!(scrolled(top, date(2026, 10, 31), false), top);
-        // One row further down (11/1): the top moves down one row (to 10/1); one row up (9/27, in the row
-        // 9/21-27): that row becomes the top
-        assert_eq!(scrolled(top, date(2026, 11, 1), false), date(2026, 10, 1));
+        assert_eq!(scrolled(top, date(2026, 11, 8), false), top);
+        // One week further down (11/9): the top moves down one week (to 10/5); one week up (9/27, in the
+        // week of 9/21): that week becomes the top
+        assert_eq!(scrolled(top, date(2026, 11, 9), false), date(2026, 10, 5));
         assert_eq!(scrolled(top, date(2026, 9, 27), false), date(2026, 9, 21));
-        // A stored top that is not the start of a row counts as the row it is in
+        // A stored top that is not a Monday counts as the week it is in
         assert_eq!(
             scrolled(date(2026, 10, 3), date(2026, 10, 17), false),
-            date(2026, 10, 1)
+            date(2026, 9, 28)
         );
-        // Centered: the selected row (10/12-18) is always row 3, so the top is two rows up (10/1)
+        // Centered: the selected week (10/12) is always row 3, so the top is two weeks up (9/28)
         for top in [date(2026, 9, 21), date(2026, 10, 12), date(2027, 1, 4)] {
-            assert_eq!(scrolled(top, date(2026, 10, 17), true), date(2026, 10, 1));
+            assert_eq!(scrolled(top, date(2026, 10, 17), true), date(2026, 9, 28));
         }
-        // Just opened: the last row of the previous month is at the top
+        // Just opened: the week with the 1st is at the top (10/1 is a Thursday, so 9/28; 2027/1/1 is a
+        // Friday, so 12/28; 2027/2/1 is a Monday, so 2/1 itself)
         assert_eq!(month_top(date(2026, 10, 17)), date(2026, 9, 28));
         assert_eq!(month_top(date(2027, 1, 31)), date(2026, 12, 28));
+        assert_eq!(month_top(date(2027, 2, 14)), date(2027, 2, 1));
     }
 }

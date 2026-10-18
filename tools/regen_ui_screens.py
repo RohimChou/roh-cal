@@ -44,9 +44,9 @@ PLAN = {
     "tasks_page_lists_the_file_as_a_tree": [(["zh", "70", "30", "2026-10-17"], "tasks.md", {"LAYOUT": "3"}), (["en", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "3", "EXPANDED": "6,59,60", "CHOSEN_LINE": "61"})],
     "tasks_page_points_at_format_mistakes": [(["zh", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "3", "CHOSEN_LINE": "43"})],
     "tasks_page_with_the_side_menu": [(["zh", "121", "14", "2026-10-17"], "tasks.md", {"LAYOUT": "3", "HIDDEN": "0,1"})],
-    "month_view_marks_a_new_year_with_a_thick_line": [(["en", "80", "30", "2027-01-01"], False, {"LAYOUT": "2"})],
-    "month_view_without_grid_lines_still_marks_a_new_year": [(["zh", "80", "24", "2027-01-01"], False, {"LAYOUT": "2", "NO_GRID": "1"})],
-    "month_view_scrolls_a_row_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-28"], False, {"LAYOUT": "2"}), (["zh", "80", "16", "2026-09-20", "2026-10-05"], False, {"LAYOUT": "2"})],
+    "month_view_puts_the_week_across_the_new_year_on_one_row": [(["en", "80", "30", "2027-01-01"], False, {"LAYOUT": "2"})],
+    "month_view_without_grid_lines_draws_no_line_for_the_new_year": [(["zh", "80", "24", "2027-01-01"], False, {"LAYOUT": "2", "NO_GRID": "1"})],
+    "month_view_scrolls_a_row_at_a_time": [(["en", "80", "16", "2026-11-16", "2026-09-28"], False, {"LAYOUT": "2"}), (["zh", "80", "16", "2026-09-20", "2026-10-12"], False, {"LAYOUT": "2"})],
 }
 
 
