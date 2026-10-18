@@ -17,3 +17,8 @@ grid_lines = false
 item_icons = false
 # 選取的那週固定在正中間（預設 false）
 center_cursor = true
+
+# 蓋掉 theme 的幾個角色（角色的名字見 themes/ 裡的 [roles]）：顏色、或那套 theme 的色票名字
+[colors]
+# 週末用 latte 的紅色
+weekend = "red"

@@ -27,6 +27,7 @@ The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3) |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
+| `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 | `[month]` `center_cursor` | `false` | Keep the selected week in the middle of the month grid's six weeks (off: scroll a week at a time when the selection leaves them) |
 
 For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chinese) explains the modules, the layout model and how the screen tests work.
@@ -51,6 +52,6 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
 | Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it, a chosen task again to check it off; hold `Shift` to select text in the terminal) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
-| `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes) and the screen follows right away, `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
+| `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes, a color row through the theme's palette) and the screen follows right away; a short terminal scrolls the list; `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
 | `Esc` | Back to the calendar from the agenda or the calendar list, or from the tasks page to layout 1; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |

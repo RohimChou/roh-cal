@@ -10,7 +10,7 @@ mod write;
 pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
-pub use settings::{ROWS, Row, SettingsPage};
+pub use settings::{Row, SettingsPage, rows};
 pub use tasks::TaskRow;
 pub use write::Notice;
 
@@ -204,9 +204,9 @@ impl App {
         }
     }
 
-    /// 照設定（`settings.theme`）換掉畫面的顏色；沒有這套 theme（設定檔讀進來時已經檢查過）就不換
+    /// 照設定（`settings.theme` + `settings.colors` 蓋掉的顏色）換掉畫面的顏色；組不出來（設定檔讀進來時已經檢查過）就不換
     pub fn apply_theme(&mut self) {
-        if let Some(theme) = Theme::builtin(&self.settings.theme) {
+        if let Ok(theme) = Theme::build(&self.settings.theme, &self.settings.colors) {
             self.theme = theme;
         }
     }

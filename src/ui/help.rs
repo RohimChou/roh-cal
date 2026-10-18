@@ -8,13 +8,10 @@ use crate::texts::{HelpPage, HelpSection};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
-    layout::{Constraint, Margin, Rect},
+    layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState,
-    },
+    widgets::{Block, BorderType, Clear, Padding, Paragraph},
 };
 
 /// 按鍵和它的說明之間至少空幾格（按鍵那欄的寬度 = 兩欄裡最長的按鍵 + 這麼多格）
@@ -47,24 +44,8 @@ pub fn render(frame: &mut Frame, app: &App, help: Help) {
     frame.render_widget(Clear, area);
     frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
     if max > 0 {
-        render_scrollbar(frame, area, scroll, max, theme);
+        super::render_scrollbar(frame, area, scroll, max, visible_rows(area), theme);
     }
-}
-
-/// 放不下時，右框線上畫捲軸：軌道就是原本的框線（不另外畫），粗線那段 = 現在看得到的部分在整頁的哪裡
-fn render_scrollbar(frame: &mut Frame, area: Rect, scroll: u16, max: u16, theme: &Theme) {
-    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .track_symbol(None)
-        .begin_symbol(None)
-        .end_symbol(None)
-        .thumb_symbol("┃")
-        .thumb_style(Style::new().fg(theme.label));
-    // 能停的位置有 max + 1 個（0..=max），一次看得到 visible_rows 行
-    let mut state = ScrollbarState::new(usize::from(max) + 1)
-        .position(usize::from(scroll))
-        .viewport_content_length(usize::from(visible_rows(area)));
-    // 上下的圓角不算：捲軸只畫在右框線的直線那段
-    frame.render_stateful_widget(scrollbar, area.inner(Margin::new(0, 1)), &mut state);
 }
 
 /// 說明頁的框（含框線）在 `screen` 上的範圍（滑鼠點框外 = 關掉）

@@ -10,12 +10,13 @@ use color_eyre::{
     eyre::{WrapErr, bail},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::io::ErrorKind;
 use std::path::Path;
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
 /// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`theme` = 最上面的 `theme = "..."`、`calendar` = `[calendar]`、
-/// `month` = `[month]`
+/// `month` = `[month]`、`colors` = `[colors]`
 ///
 /// 設定檔裡的名字就是欄位名（例：`[month]` 底下寫 `grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用
 /// `Default` 的值；`deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML。
@@ -29,6 +30,9 @@ pub struct Settings {
     pub calendar: CalendarSettings,
     /// `[month]`：大月曆（版型 3）的開關
     pub month: MonthSettings,
+    /// `[colors]`：蓋掉 theme 的幾個角色（角色 → 顏色，例：`today = "#a6e3a1"`）；沒寫的照 theme。
+    /// 只記跟 theme 不一樣的
+    pub colors: BTreeMap<String, String>,
 }
 
 impl Default for Settings {
@@ -37,6 +41,7 @@ impl Default for Settings {
             theme: theme::DEFAULT.to_string(),
             calendar: CalendarSettings::default(),
             month: MonthSettings::default(),
+            colors: BTreeMap::new(),
         }
     }
 }
@@ -99,22 +104,18 @@ fn read(path: &Path) -> std::io::Result<String> {
     }
 }
 
-/// 把設定檔的內容轉成 `Settings`：沒寫的欄位用預設值；不認識的名字、值的型別不對、沒有這套 theme 都是錯誤
-/// （錯誤訊息會指出第幾行哪裡錯）
+/// 把設定檔的內容轉成 `Settings`：沒寫的欄位用預設值；不認識的名字、值的型別不對都是錯誤（錯誤訊息會指出第幾行哪裡錯）；
+/// 沒有這套 theme、`[colors]` 的角色打錯或不是顏色也是錯誤
 fn parse(text: &str) -> Result<Settings> {
     let settings: Settings = toml::from_str(text)?;
-    if Theme::builtin(&settings.theme).is_none() {
-        bail!(
-            "no theme named \"{}\" (built-in: {})",
-            settings.theme,
-            theme::names().join(", ")
-        );
+    if let Err(error) = Theme::build(&settings.theme, &settings.colors) {
+        bail!(error);
     }
     Ok(settings)
 }
 
 /// 設定檔的新內容：值跟 `text` 現在不一樣的改掉，沒有那一行就加在同一個表（例：`[month]`）的後面
-/// （檔案結尾的註解還是留在最後面）；其他行、註解、空白一字不動
+/// （檔案結尾的註解還是留在最後面）；還原成 theme 的顏色整行拿掉；其他行、註解、空白一字不動
 fn updated(text: &str, settings: &Settings) -> Result<String> {
     // 保留格式的 TOML（toml_edit）：改一個值，其他內容原封不動
     let mut doc: DocumentMut = text.parse()?;
@@ -125,7 +126,8 @@ fn updated(text: &str, settings: &Settings) -> Result<String> {
     Ok(doc.to_string())
 }
 
-/// 把 `wanted` 裡跟 `current`（檔案現在的值）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做
+/// 把 `wanted` 裡跟 `current`（檔案現在的值）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做；
+/// `current` 有、`wanted` 沒有的（例：還原成 theme 的顏色）從 `doc` 拿掉
 ///
 /// `dyn TableLike`：`[month]` 這種表和 `{ a = 1 }` 這種寫在一行的表都可以傳進來
 fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLike) {
@@ -146,6 +148,10 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
             ) {
                 merge(doc_table, current_table, wanted_table);
             }
+            // 整個表都沒東西了（例：顏色全部還原）→ 連 `[colors]` 這行也拿掉
+            if wanted_table.is_empty() {
+                doc.remove(key);
+            }
             continue;
         }
         match (
@@ -163,6 +169,15 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
                 doc.insert(key, item.clone());
             }
         }
+    }
+    // 檔案有、要存的沒有（例：`r` 還原成 theme 的顏色）→ 整行拿掉（那行上面的註解也一起）
+    let stale: Vec<String> = current
+        .iter()
+        .map(|(key, _)| key.to_string())
+        .filter(|key| wanted.get(key).is_none())
+        .collect();
+    for key in stale {
+        doc.remove(&key);
     }
 }
 
@@ -205,6 +220,10 @@ mod tests {
             "[calendar]\nweek_numbers = true",
             // 沒有這套 theme
             "theme = \"dracula\"",
+            // 角色名字打錯、不是顏色、terminal 沒有 catppuccin 的色票名字
+            "[colors]\ntodya = \"red\"",
+            "[colors]\ntoday = \"redd\"",
+            "theme = \"terminal\"\n[colors]\ntoday = \"surface0\"",
         ] {
             assert!(parse(text).is_err(), "{text}");
         }
@@ -226,6 +245,7 @@ mod tests {
                     item_icons: false,
                     center_cursor: true,
                 },
+                colors: BTreeMap::from([("weekend".to_string(), "red".to_string())]),
             }
         );
         // 檔案不存在 → 預設值
@@ -298,6 +318,37 @@ mod tests {
             "theme = \"catppuccin-latte\"\n[month]\ngrid_lines = true\n"
         );
         assert_eq!(parse(&new_text).expect("reads back"), settings);
+    }
+
+    #[test]
+    fn updated_writes_changed_colors_and_removes_the_reset_ones() {
+        let text = "[month]\ngrid_lines = false\n\n[colors]\n# 太淡了\nmuted = \"#010203\"\nweekend = \"#f38ba8\"   # 紅\n";
+        // 讀進來 → muted 還原（拿掉）、新增 today、weekend 不變
+        let mut settings = parse(text).expect("valid");
+        settings.colors.remove("muted");
+        settings
+            .colors
+            .insert("today".to_string(), "#ffffff".to_string());
+        assert_eq!(
+            updated(text, &settings).expect("valid"),
+            "[month]\ngrid_lines = false\n\n[colors]\nweekend = \"#f38ba8\"   # 紅\ntoday = \"#ffffff\"\n"
+        );
+    }
+
+    #[test]
+    fn updated_removes_the_colors_table_when_every_color_is_reset() {
+        let text = "[month]\ngrid_lines = false\n\n[colors]\nweekend = \"#f38ba8\"\n";
+        let mut settings = parse(text).expect("valid");
+        settings.colors.clear();
+        assert_eq!(
+            updated(text, &settings).expect("valid"),
+            "[month]\ngrid_lines = false\n"
+        );
+        // 檔案沒有 [colors]、也沒有改過的顏色 → 不會多出空的 [colors]
+        assert_eq!(
+            updated("[month]\n", &Settings::default()).expect("valid"),
+            "[month]\n"
+        );
     }
 
     #[test]

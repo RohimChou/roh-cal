@@ -599,6 +599,8 @@ impl Texts {
             (Lang::ZhTw, Row::ItemIcons) => "大月曆：每件事前面加一個點",
             (Lang::En, Row::CenterCursor) => "Month grid: the selected week stays in the middle",
             (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
+            (Lang::En, Row::Color(_)) => "Color: l the next in the palette, r the theme's",
+            (Lang::ZhTw, Row::Color(_)) => "顏色：l 換色票的下一個，r 回到 theme 的",
         }
     }
 

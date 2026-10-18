@@ -9,14 +9,16 @@ mod settings;
 mod side;
 mod tasks;
 
-use crate::app::{App, View};
+use crate::app::{App, SettingsPage, View};
+use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
     Frame,
     buffer::Buffer,
-    layout::{Constraint, Layout, Position, Rect},
+    layout::{Constraint, Layout, Margin, Position, Rect},
     style::Style,
     text::{Line, Span},
+    widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 /// terminal 至少這麼寬才畫 side menu
@@ -60,6 +62,30 @@ fn clear_wide_left_of(buffer: &mut Buffer, area: Rect) {
             cell.set_symbol(" ");
         }
     }
+}
+
+/// 跳窗（`area`）放不下時，右框線上畫捲軸：軌道就是原本的框線（不另外畫），粗線那段 = 現在看得到的部分在整頁的哪裡。
+/// `scroll` = 往下捲了幾行、`max` = 最多能捲幾行、`visible` = 一次看得到幾行
+fn render_scrollbar(
+    frame: &mut Frame,
+    area: Rect,
+    scroll: u16,
+    max: u16,
+    visible: u16,
+    theme: &Theme,
+) {
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .track_symbol(None)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .thumb_symbol("┃")
+        .thumb_style(Style::new().fg(theme.label));
+    // 能停的位置有 max + 1 個（0..=max），一次看得到 visible 行
+    let mut state = ScrollbarState::new(usize::from(max) + 1)
+        .position(usize::from(scroll))
+        .viewport_content_length(usize::from(visible));
+    // 上下的圓角不算：捲軸只畫在右框線的直線那段
+    frame.render_stateful_widget(scrollbar, area.inner(Margin::new(0, 1)), &mut state);
 }
 
 /// terminal（`screen`）夠不夠寬畫 side menu
@@ -194,6 +220,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         help::render(frame, app, help);
     }
     if let Some(page) = app.settings_page {
+        // 先捲到選到的那列看得到（記在 `app.settings_page.top`），再畫
+        let page = SettingsPage {
+            top: settings::scrolled(app, frame.area(), page),
+            ..page
+        };
+        app.settings_page = Some(page);
         settings::render(frame, app, page);
     }
 }

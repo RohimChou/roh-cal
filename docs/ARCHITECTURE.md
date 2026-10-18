@@ -22,15 +22,15 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/help.rs` | 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、點框外關掉（`App::help`） | |
 | `src/ui/help.rs` | 畫說明頁：畫面正中間、左右兩欄（太窄排成一欄、太矮可以捲）；內容在 `texts.rs` 的 `help_short` / `help_full` | ✓ |
-| `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`ROWS`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
-| `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，最下面一行說明選到的那一列 | ✓ |
+| `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`rows()`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換，顏色那幾列在 theme 的色票裡換、`[colors]` 只記跟 theme 不一樣的）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
+| `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，顏色前面有色塊；放不下時捲到選到的那列（`SettingsPage::top`），最下面一行說明選到的那一列 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（日期靠右，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
 | `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫；在別處改過就重新載入；結果放在 `App::notice`（最下面一列）。改的是 `App::chosen_item()`（右邊或任務頁選到的那件）；寫完用 `edit::line_map` 把畫面記著的行號（任務頁選到的、展開的）搬到新的行號 | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週、週數欄寫什麼（`week_label`：`[calendar] relative_weeks` 時寫跟選取那週差幾週） | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
-| `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔 | |
+| `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色 | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`catppuccin-latte`（亮色背景）、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆 | |
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 都在這** | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
