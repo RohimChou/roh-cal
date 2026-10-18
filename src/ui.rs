@@ -1727,9 +1727,9 @@ mod tests {
     }
 
     #[test]
-    fn holidays_are_red() {
-        // US holidays (type:holiday): Long weekend 10/10-12, Halloween 10/31;
-        // 10/31 also has an item in Work, and the holiday red wins over orange
+    fn holidays_are_days_off() {
+        // US holidays (type:holiday): Long weekend 10/10-12, Halloween 10/31: in the weekend color, like a
+        // day off (10/12 is a Monday); 10/31 also has an item in Work, and the day off wins over orange
         let text = "# US holidays type:holiday\n- Long weekend @2026-10-10..2026-10-12\n\
                     - Halloween @2026-10-31\n# Work\n- [ ] On-call shift @2026-10-31\n";
         let mut app = App::new(
@@ -1745,10 +1745,10 @@ mod tests {
         };
         // 10/10 (Sat) x 29, 10/11 (Sun) x 32 at y 4; 10/12 (Mon) x 14 at y 5;
         // 10/31 (Sat) x 29 at y 7; 10/9 (Fri) x 26 at y 4 is not a holiday
-        assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.holiday));
-        assert_eq!(fg(&mut app, 32, 4), ("1".into(), theme.holiday));
-        assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.holiday));
-        assert_eq!(fg(&mut app, 29, 7), ("1".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.weekend));
+        assert_eq!(fg(&mut app, 32, 4), ("1".into(), theme.weekend));
+        assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.weekend));
+        assert_eq!(fg(&mut app, 29, 7), ("1".into(), theme.weekend));
         assert_eq!(fg(&mut app, 26, 4), ("9".into(), theme.text));
         // If today is a holiday, today's green comes first
         app.today = date(2026, 10, 10);

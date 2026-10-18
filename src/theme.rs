@@ -32,12 +32,11 @@ pub struct Theme {
     pub week_number: Color,
     /// The week numbers of other weeks (dimmer)
     pub week_number_dim: Color,
-    /// Saturday and Sunday dates and headers
+    /// Days off: Saturday and Sunday (dates and headers) and holidays (the days of items in a holiday
+    /// calendar)
     pub weekend: Color,
     /// Dates that have items not over yet
     pub has_item: Color,
-    /// Holiday dates (the days of items in a holiday calendar)
-    pub holiday: Color,
     /// Today's date
     pub today: Color,
     /// The selected date in layout 1's calendar: the brackets around it `[17]`
@@ -90,7 +89,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 22] = [
+pub const ROLES: [&str; 21] = [
     "text",
     "muted",
     "line",
@@ -100,7 +99,6 @@ pub const ROLES: [&str; 22] = [
     "week_number_dim",
     "weekend",
     "has_item",
-    "holiday",
     "today",
     "selected",
     "cursor_line",
@@ -267,7 +265,6 @@ impl Theme {
             "week_number_dim" => self.week_number_dim,
             "weekend" => self.weekend,
             "has_item" => self.has_item,
-            "holiday" => self.holiday,
             "today" => self.today,
             "selected" => self.selected,
             "cursor_line" => self.cursor_line,

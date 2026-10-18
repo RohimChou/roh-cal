@@ -426,15 +426,15 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// A day's date color: today > holiday > has items not over yet (unfinished tasks, events not yet
-/// past) > weekend > normal
+/// A day's date color: today > holiday (in the weekend color: a day off) > has items not over yet
+/// (unfinished tasks, events not yet past) > weekend > normal
 /// (items that are all over, or in unchecked calendars, count as no items)
 pub(super) fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
         theme.today
     } else if app.is_holiday(day) {
-        theme.holiday
+        theme.weekend
     } else if app
         .items
         .iter()
