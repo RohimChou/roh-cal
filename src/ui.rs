@@ -596,6 +596,21 @@ mod tests {
     }
 
     #[test]
+    fn a_one_row_terminal_with_the_side_menu_does_not_panic() {
+        // 只有 1 列（全給操作說明）：side menu 是 0 列高，夠寬時在左邊、不夠寬時按了 s 蓋在左邊，都不能 panic
+        let text = "# 工作\n- a @2026-10-10\n";
+        for (width, focus) in [(121, Focus::Calendar), (60, Focus::Side)] {
+            let mut app = App::new(
+                Lang::ZhTw,
+                date(2026, 10, 17),
+                crate::tasks::parse(text).items,
+            );
+            app.focus = focus;
+            draw_app(&mut app, width, 1);
+        }
+    }
+
+    #[test]
     fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         // 121 × 10：side menu 裡放得下 5 個日曆（y 3～7），有 12 個（c01～c12，各 1 件）
         let text: String = (1..=12)

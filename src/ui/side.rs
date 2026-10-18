@@ -121,9 +121,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 .set_style(row, Style::new().bg(theme.cursor_line));
         }
     }
-    // 放不下：右框線上、日曆那幾列旁邊畫捲軸
+    // 放不下：右框線上、日曆那幾列旁邊畫捲軸（框裡連一列都沒有就不畫）
     if let Ok(max) = u16::try_from(max)
         && max > 0
+        && body.height > 0
     {
         let rows = Rect {
             y: body.y - 1,
