@@ -427,7 +427,7 @@ mod tests {
         // the width is the larger of the longest description and the key hints on the bottom border
         // (42 cells + a blank on each side)
         let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-        assert_eq!(area, Rect::new(12, 2, 46, 41));
+        assert_eq!(area, Rect::new(12, 2, 46, 40));
         assert_eq!(
             rows,
             [
@@ -454,7 +454,6 @@ mod tests {
                 "│    week_number          yellow             │",
                 "│    week_number_dim      dim_yellow         │",
                 "│    weekend              blue               │",
-                "│    has_item             peach              │",
                 "│    today                green              │",
                 "│    selected             red                │",
                 "│    cursor_line          surface0           │",
@@ -556,10 +555,10 @@ mod tests {
             [
                 "╭ roh-cal ∙ 設定 ────────────────────────────╮",
                 "│                                            │",
+                "│    label                lavender           │",
                 "│    week_number          yellow             │",
                 "│    week_number_dim      dim_yellow         │",
                 "│    weekend              blue               │",
-                "│    has_item             peach              │",
                 "│    today                green              │",
                 "│    selected             red                │",
                 "│    cursor_line          surface0           │",

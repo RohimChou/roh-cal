@@ -73,8 +73,8 @@ pub struct Item {
 
 impl Item {
     /// Not over yet: an unfinished task, or an event not yet past (today counts; a multi-day one goes by
-    /// its last day). Its day is orange in the calendar,
-    /// and it uses that day's color in the agenda; finished ones (done tasks, past events) turn gray
+    /// its last day). It uses its day's color in the agenda; finished ones (done tasks, past events) turn
+    /// gray
     pub fn is_open(&self, today: Date) -> bool {
         match self.kind {
             Kind::Task => !self.done,

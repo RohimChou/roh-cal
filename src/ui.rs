@@ -825,8 +825,7 @@ mod tests {
 
     #[test]
     fn unchecked_calendars_hide_their_items() {
-        // Personal unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed,
-        // and 10/5 and 10/10 are no longer orange
+        // Personal unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed
         let mut app = agenda_app(Lang::En);
         app.groups[1].shown = false;
         let terminal = draw_app(&mut app, 121, 14);
@@ -855,11 +854,11 @@ mod tests {
         assert_eq!(cell(2, 4), ("☐", theme.muted));
         assert_eq!(cell(4, 4), ("P", theme.muted));
         assert_eq!(cell(2, 3), ("☑", theme.checked));
-        // 10/5 (Monday) and 10/10 (Saturday) go back to their
-        // usual colors; 10/16 is an ungrouped item, still orange
+        // Dates keep their usual colors whatever items they have: 10/5 (Monday), 10/16 (Friday, an
+        // ungrouped item) normal, 10/10 (Saturday) weekend blue
         assert_eq!(cell(50, 4), ("5", theme.text));
         assert_eq!(cell(65, 4), ("0", theme.weekend));
-        assert_eq!(cell(62, 5), ("6", theme.has_item));
+        assert_eq!(cell(62, 5), ("6", theme.text));
     }
 
     #[test]
@@ -1090,9 +1089,9 @@ mod tests {
         // the right in the normal color (2026/10/17 starts at x 52)
         assert_eq!(cell(37, 1), ("重", theme.muted, false));
         assert_eq!(cell(52, 1), ("2", theme.text, false));
-        // 10/5 has an unfinished item: date and title are orange, same as on the calendar
-        assert_eq!(cell(38, 3), ("1", theme.has_item, false));
-        assert_eq!(cell(43, 3), ("P", theme.has_item, false));
+        // 10/5 (Monday) has an unfinished item: date and title in that day's color, the normal one
+        assert_eq!(cell(38, 3), ("1", theme.text, false));
+        assert_eq!(cell(43, 3), ("P", theme.text, false));
         // 10/15's finished item: the whole line is gray (the date too), the title struck through
         assert_eq!(cell(37, 5), ("1", theme.muted, false));
         assert_eq!(cell(43, 5), ("F", theme.muted, true));
@@ -1100,8 +1099,8 @@ mod tests {
         assert_eq!(cell(43, 7), ("D", theme.today, false));
         assert_eq!(cell(43, 8), ("0", theme.muted, false));
         assert_eq!(cell(49, 8), ("C", theme.today, false));
-        // 10/18 (Sun) has an unfinished item: orange wins over the weekend color
-        assert_eq!(cell(49, 9), ("G", theme.has_item, false));
+        // 10/18 (Sun): the weekend color
+        assert_eq!(cell(49, 9), ("G", theme.weekend, false));
     }
 
     #[test]
@@ -1647,8 +1646,8 @@ mod tests {
             ]
         );
         // Calendar: every day in a range is underlined (10/20-25, 10/28-11/3), the days just before and after
-        // are not; colors do not change: the start day is orange, and days in the middle with no items of
-        // their own (10/21, x 19-20) keep the normal color
+        // are not; colors do not change: the start day (10/20) and the days in the middle (10/21, x 19-20)
+        // keep the normal color
         let buffer = terminal.backend().buffer();
         let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
         // 10/19 (Mon) x 13-14, 10/20 (Tue) x 16-17, 10/25
@@ -1657,7 +1656,7 @@ mod tests {
         assert!(underlined(17, 6) && underlined(32, 6));
         assert!(!underlined(14, 7) && underlined(20, 7));
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(17, 6)].fg, theme.has_item);
+        assert_eq!(buffer[(17, 6)].fg, theme.text);
         assert_eq!(buffer[(20, 6)].fg, theme.text);
         // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2): the brackets hold
         // the range; November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from
@@ -1729,7 +1728,7 @@ mod tests {
     #[test]
     fn holidays_are_days_off() {
         // US holidays (type:holiday): Long weekend 10/10-12, Halloween 10/31: in the weekend color, like a
-        // day off (10/12 is a Monday); 10/31 also has an item in Work, and the day off wins over orange
+        // day off (10/12 is a Monday); 10/31 also has an item in Work, which does not change the color
         let text = "# US holidays type:holiday\n- Long weekend @2026-10-10..2026-10-12\n\
                     - Halloween @2026-10-31\n# Work\n- [ ] On-call shift @2026-10-31\n";
         let mut app = App::new(
@@ -1754,18 +1753,18 @@ mod tests {
         app.today = date(2026, 10, 10);
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.today));
         app.today = date(2026, 10, 17);
-        // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/31 back to the
-        // has-items orange, 10/10 back to weekend blue)
+        // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/12, a
+        // Monday, back to normal; 10/10 a Saturday, still a weekend)
         assert_eq!(app.groups[0].name.as_deref(), Some("US holidays"));
         app.groups[0].shown = false;
-        assert_eq!(fg(&mut app, 29, 7), ("1".into(), theme.has_item));
+        assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.text));
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.weekend));
     }
 
     #[test]
     fn events_gray_out_once_their_day_is_past() {
-        // 10/9: an overdue unfinished task (orange); 10/10: a past event (gray, not struck through, and the
-        // day goes back to weekend blue); 10/18: an upcoming event (orange)
+        // 10/9 (Fri): an overdue unfinished task; 10/10 (Sat): a past event (gray, not struck through);
+        // 10/18 (Sun): an upcoming event. Dates keep their usual colors, items not over yet follow them
         let text = "- [ ] Send the weekly update @2026-10-09\n- Farmers market @2026-10-10\n\
                     - Go hiking @2026-10-18 07:00\n";
         let mut app = App::new(
@@ -1785,22 +1784,21 @@ mod tests {
             )
         };
         // Calendar: 10/9 (Fri) x 26, 10/10 (Sat) x 29 at y 4; 10/18 (Sun) x 32 at y 5
-        assert_eq!(cell(26, 4), ("9", theme.has_item, false));
+        assert_eq!(cell(26, 4), ("9", theme.text, false));
         assert_eq!(cell(29, 4), ("0", theme.weekend, false));
-        assert_eq!(cell(32, 5), ("8", theme.has_item, false));
+        assert_eq!(cell(32, 5), ("8", theme.weekend, false));
         // Agenda (starts at x 36, one item per row): titles
         // at x 43; Go hiking has a time in front, so it is at x 49
-        assert_eq!(cell(43, 3), ("S", theme.has_item, false));
+        assert_eq!(cell(43, 3), ("S", theme.text, false));
         assert_eq!(cell(43, 4), ("F", theme.muted, false));
         assert_eq!(cell(38, 4), ("0", theme.muted, false));
-        assert_eq!(cell(49, 5), ("G", theme.has_item, false));
+        assert_eq!(cell(49, 5), ("G", theme.weekend, false));
     }
 
     #[test]
-    fn days_with_open_items_are_orange() {
-        // The 16th has an unfinished item → orange; the 15th has only finished ones → same as no items; the
-        // 17th (today) has items → still today's color; the 18th (Sun) has items → orange wins over the
-        // weekend color; the 14th has no items
+    fn items_do_not_change_the_date_color() {
+        // The 16th has an unfinished item, the 15th only finished ones, the 14th none: all the normal
+        // color; the 17th (today) is today's color, the 18th (Sun) the weekend color, items or not
         let text = "- [ ] Send the weekly update @2026-10-16\n- [x] Fix the login bug @2026-10-15\n\
                     - Dinner with friends @2026-10-17\n- [ ] Go hiking @2026-10-18 07:00\n";
         let mut app = App::new(
@@ -1814,9 +1812,9 @@ mod tests {
         let fg = |x: u16| (buffer[(x, 5)].symbol(), buffer[(x, 5)].fg);
         assert_eq!(fg(20), ("4", theme.text));
         assert_eq!(fg(23), ("5", theme.text));
-        assert_eq!(fg(26), ("6", theme.has_item));
+        assert_eq!(fg(26), ("6", theme.text));
         assert_eq!(fg(29), ("7", theme.today));
-        assert_eq!(fg(32), ("8", theme.has_item));
+        assert_eq!(fg(32), ("8", theme.weekend));
     }
 
     /// An app in layout 2 with today 2026/10/17, `selected` selected, and `text` as the task file
@@ -2068,9 +2066,9 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 10/12 (Mon) unfinished item: time muted, title orange
+        // 10/12 (Mon) unfinished item: time muted, title in the day's color (normal)
         assert_eq!(cell(8, 12), ("1", theme.muted, false));
-        assert_eq!(cell(14, 12), ("C", theme.has_item, false));
+        assert_eq!(cell(14, 12), ("C", theme.text, false));
         // 10/15 (Thu) finished item: whole line gray, title struck through
         assert_eq!(cell(41, 12), ("F", theme.muted, true));
         // 10/17 (Sat) today: green
@@ -2082,16 +2080,17 @@ mod tests {
         assert_eq!(cell(20, 4), ("a", theme.other_month, false));
         // 10/20 (Tue)'s long title borrows cells up to 10/23 (Fri): text over the grid lines keeps its own
         // color (x 49 was a vertical line); the grid lines after the text keep the grid color
-        assert_eq!(cell(49, 16), ("s", theme.has_item, false));
+        assert_eq!(cell(49, 16), ("s", theme.text, false));
         assert_eq!(buffer[(59, 16)].symbol(), "│");
         assert_eq!(buffer[(59, 16)].fg, theme.grid);
-        // Only 1 row per week: the dots follow the day's color (10/16 orange); all done (10/15) is muted
+        // Only 1 row per week: the dots follow the day's color (10/16, a Friday: normal); all done (10/15)
+        // is muted
         let terminal = draw_app(&mut app, 80, 16);
         let buffer = terminal.backend().buffer();
         // 80 × 16: week 3 is at y 7; 10/16 is 「 16 ⠶」, 10/15 is 「 15 ⠂」
         assert_eq!(
             (buffer[(54, 7)].symbol(), buffer[(54, 7)].fg),
-            ("⠶", theme.has_item)
+            ("⠶", theme.text)
         );
         assert_eq!(
             (buffer[(44, 7)].symbol(), buffer[(44, 7)].fg),
@@ -2131,8 +2130,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // Personal unchecked: its items leave the cells, and those
-        // days are no longer orange (10/18 back to weekend blue)
+        // Personal unchecked: its items leave the cells (10/18 stays weekend blue either way)
         app.groups[1].shown = false;
         let terminal = draw_app(&mut app, 121, 22);
         assert_eq!(
@@ -2167,11 +2165,6 @@ mod tests {
         let theme = Theme::catppuccin_mocha();
         let cell = &terminal.backend().buffer()[(109, 9)];
         assert_eq!((cell.symbol(), cell.fg), ("1", theme.weekend));
-        // Checked again: orange
-        app.groups[1].shown = true;
-        let terminal = draw_app(&mut app, 121, 22);
-        let cell = &terminal.backend().buffer()[(109, 9)];
-        assert_eq!((cell.symbol(), cell.fg), ("1", theme.has_item));
     }
 
     #[test]
@@ -2508,10 +2501,10 @@ mod tests {
         // Heading: Work (label color, bold)
         assert_eq!(buffer[(2, 3)].fg, theme.label);
         assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
-        // Send the weekly update (y 4): not done → normal text, date (x 33-37) orange;
+        // Send the weekly update (y 4): not done → normal text, date (x 33-37) in its day's color (normal);
         // the chosen row gets the highlight across the whole row
         assert_eq!(cell(8, 4), ("S", theme.text, false));
-        assert_eq!(cell(34, 4), ("0", theme.has_item, false));
+        assert_eq!(cell(34, 4), ("0", theme.text, false));
         assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
         assert_eq!(buffer[(1, 5)].bg, Color::Reset);
         // Fix the login bug (y 5): done → gray, struck through; Hackathon (y 6): past event → gray, not
@@ -2990,9 +2983,9 @@ mod tests {
         // 10/15's long title does not borrow into the selected cell: it stops at the grid line
         assert_eq!(cell(41, 12).0, "S");
         assert_eq!(cell(50, 12).0, " ");
-        // Today green, days with unfinished items orange, weekends blue
+        // Today green, weekends blue, other days normal (10/15 has an unfinished item: no different)
         assert_eq!(cell(62, 11), ("7", theme.today, true));
-        assert_eq!(cell(42, 11), ("5", theme.has_item, true));
+        assert_eq!(cell(42, 11), ("5", theme.text, true));
         assert_eq!(cell(72, 11), ("8", theme.weekend, true));
         // Dates in other months are gray, not bold: 9/28; 10/1's month (same row) is in the label color
         assert_eq!(cell(9, 3), ("8", theme.other_month, false));
