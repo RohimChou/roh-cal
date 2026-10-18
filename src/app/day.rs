@@ -12,6 +12,7 @@ impl App {
             return;
         }
         self.day_index = 0;
+        self.day_clicked = false;
         self.focus = Focus::Day;
     }
 
@@ -37,7 +38,7 @@ impl App {
         self.day_index = self.day_index.saturating_add_signed(step).min(last);
     }
 
-    /// 跳窗開著時點左鍵：點一件 = 選它，再點一次已經選到的 = 打勾（跟右邊的事項框一樣）；
+    /// 跳窗開著時點左鍵：點一件 = 選它，再點一次已經選到的 = 打勾（跟右邊的事項框一樣；打開之後第一次點只算選，見 `day_clicked`）；
     /// 點框外 = 關掉跳窗（跟 `Esc` 一樣），點框線、空白的地方不理
     pub(super) fn click_day(&mut self, column: u16, row: u16) {
         if !ui::day_area(self).contains(Position::new(column, row)) {
@@ -45,8 +46,11 @@ impl App {
             return;
         }
         match ui::day_item_at(self, column, row) {
-            Some(index) if index == self.day_index => self.toggle_chosen(),
-            Some(index) => self.day_index = index,
+            Some(index) if index == self.day_index && self.day_clicked => self.toggle_chosen(),
+            Some(index) => {
+                self.day_index = index;
+                self.day_clicked = true;
+            }
             None => {}
         }
     }
@@ -195,7 +199,7 @@ mod tests {
     fn checking_and_editing_keep_the_popup_on_the_same_item() {
         let (mut app, path) = popup_with_file("day-popup-edit");
         let read = || std::fs::read_to_string(&path).expect("read");
-        // 整理書櫃（第 2 件）Space：取消打勾；再點一次已經選到的那件：又打勾，檔案回到原本的樣子
+        // 整理書櫃（第 2 件）Space：取消打勾
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char(' '));
         assert!(read().contains("- [ ] 整理書櫃 @2026-10-17\n"));
@@ -203,13 +207,19 @@ mod tests {
             (app.focus, chosen(&app).as_deref()),
             (Focus::Day, Some("整理書櫃"))
         );
+        // 點選到的那件：打開之後第一次點只算選（連點兩下選取的那天，第二下不會順手打勾）；再點一次才打勾，檔案回到原本的樣子
         let area = ui::day_area(&app);
-        mouse(
-            &mut app,
-            MouseEventKind::Down(MouseButton::Left),
-            area.x + 3,
-            area.y + 2,
-        );
+        let click = |app: &mut App| {
+            mouse(
+                app,
+                MouseEventKind::Down(MouseButton::Left),
+                area.x + 3,
+                area.y + 2,
+            );
+        };
+        click(&mut app);
+        assert!(read().contains("- [ ] 整理書櫃 @2026-10-17\n"));
+        click(&mut app);
         assert_eq!(read(), DAY);
         // e 加上 18:00：排到最後面，跳窗還選著它
         press(&mut app, KeyCode::Char('e'));
