@@ -15,12 +15,13 @@ pub fn tasks_file() -> Option<PathBuf> {
     )
 }
 
-/// 設定檔：`$XDG_CONFIG_HOME/roh-cal/config.toml`，沒設就是 `~/.config/roh-cal/config.toml`
+/// 設定檔：`$XDG_CONFIG_HOME/roh-cal/config-v1.toml`，沒設就是 `~/.config/roh-cal/config-v1.toml`
+/// （`config.toml` 給 v2 用；兩版的設定名字不一樣，共用一個檔會互相讀不了）
 pub fn config_file() -> Option<PathBuf> {
     Some(
         xdg_dir("XDG_CONFIG_HOME", ".config")?
             .join("roh-cal")
-            .join("config.toml"),
+            .join("config-v1.toml"),
     )
 }
 

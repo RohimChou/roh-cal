@@ -74,7 +74,7 @@ In the settings panel:
 | Mouse click | Pick a row; click the picked row again to change it (like `l`) |
 
 ## Settings file
-`~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). Every key is optional; edit it by hand or with the settings panel. Saving from the panel rewrites only the lines whose value changed, so your comments and layout stay. A typo or an unknown key is an error shown before the calendar starts.
+`~/.config/roh-cal/config-v1.toml` (`$XDG_CONFIG_HOME` respected; `config.toml` belongs to v2). Every key is optional; edit it by hand or with the settings panel. Saving from the panel rewrites only the lines whose value changed, so your comments and layout stay. A typo or an unknown key is an error shown before the calendar starts.
 
 ```toml
 [calendar]               # both views
