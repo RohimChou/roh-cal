@@ -11,7 +11,7 @@ pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
-    tasks::Item,
+    tasks::{Item, Warning},
     texts::Lang,
     theme::Theme,
     ui::{self, Click},
@@ -108,6 +108,8 @@ pub struct App {
     pub selected: Date,
     /// 任務檔裡的所有項目
     pub items: Vec<Item>,
+    /// 任務檔寫錯的地方（例：`@2026-13-01`），任務頁上標出來
+    pub warnings: Vec<Warning>,
     /// side menu 上的日曆，照任務檔裡出現的順序
     pub groups: Vec<Group>,
     /// 按 `s` 收起 side menu
@@ -163,6 +165,7 @@ impl App {
             side_hidden: false,
             group_index: 0,
             items,
+            warnings: Vec::new(),
             focus: Focus::Calendar,
             view: View::Planner,
             agenda_index: 0,

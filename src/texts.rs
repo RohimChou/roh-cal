@@ -148,10 +148,34 @@ impl Texts {
             (Lang::ZhTw, Notice::Failed(kind)) => format!(" 寫不進任務檔（{kind}）"),
             (Lang::En, Notice::NotATask) => " An event has no box to check".into(),
             (Lang::ZhTw, Notice::NotATask) => " 行程沒有框，不能打勾".into(),
+            (Lang::En, Notice::Mistakes(count)) => {
+                format!(
+                    " The task file has {count} mistake(s): press 4 to see them on the tasks page"
+                )
+            }
+            (Lang::ZhTw, Notice::Mistakes(count)) => {
+                format!(" 任務檔有 {count} 處寫錯：按 4 到任務頁看是哪幾行")
+            }
             (Lang::En, Notice::Undone(title)) => format!(" Undone: {title}"),
             (Lang::ZhTw, Notice::Undone(title)) => format!(" 已復原：{title}"),
             (Lang::En, Notice::NothingToUndo) => " Nothing to undo".into(),
             (Lang::ZhTw, Notice::NothingToUndo) => " 沒有可以復原的".into(),
+        }
+    }
+
+    /// 任務頁表頭右邊：任務檔有幾處寫錯，例：`1 處寫錯` / `1 mistake(s)`
+    pub fn mistakes(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} mistake(s) "),
+            Lang::ZhTw => format!("{count} 處寫錯 "),
+        }
+    }
+
+    /// 任務頁最下面一列：選到的那一行寫錯了什麼，例：` 第 44 行：@2026-13-01：沒有這一天`
+    pub fn tasks_mistake(&self, line: usize, kind: &WarningKind) -> String {
+        match self.lang {
+            Lang::En => format!(" Line {line}: {}", self.mistake(kind)),
+            Lang::ZhTw => format!(" 第 {line} 行：{}", self.mistake(kind)),
         }
     }
 
@@ -357,6 +381,10 @@ mod tests {
         );
         let zh = Lang::ZhTw.texts();
         assert_eq!(zh.notice(&Notice::NotATask), " 行程沒有框，不能打勾");
+        assert_eq!(
+            zh.notice(&Notice::Mistakes(2)),
+            " 任務檔有 2 處寫錯：按 4 到任務頁看是哪幾行"
+        );
         assert_eq!(
             zh.notice(&Notice::Failed(ErrorKind::PermissionDenied)),
             " 寫不進任務檔（permission denied）"

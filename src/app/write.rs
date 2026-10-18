@@ -3,7 +3,7 @@
 use super::{App, Focus};
 use crate::edit;
 use crate::files;
-use crate::tasks::{self, Item, Kind};
+use crate::tasks::{self, Kind, Parsed};
 use ratatui::crossterm::event::KeyCode;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -20,6 +20,8 @@ pub enum Notice {
     Failed(ErrorKind),
     /// 想打勾的是行程（沒有框）：行程不能打勾
     NotATask,
+    /// 任務檔有幾處寫錯（例：`@2026-13-01`）；一打開就說
+    Mistakes(usize),
     /// undo 成功，帶著被復原的那件事的標題，例：`週會`
     Undone(String),
     /// 沒有可以 undo 的（還沒寫過檔，或已經退到底）
@@ -139,7 +141,7 @@ impl App {
             return;
         }
         self.remap_lines(edit::line_map(&step.after, &step.before));
-        self.set_items(tasks::parse(&step.before).items);
+        self.set_items(tasks::parse(&step.before));
         self.notice = Some(Notice::Undone(step.title));
     }
 
@@ -183,7 +185,7 @@ impl App {
         }
         // 畫面記著的行號（選到的那件、展開的子任務）跟著搬
         self.remap_lines(edit::line_map(&before, &after));
-        self.set_items(tasks::parse(&after).items);
+        self.set_items(tasks::parse(&after));
         self.undo.push(UndoStep {
             before,
             after,
@@ -197,7 +199,7 @@ impl App {
 
     /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫；之前記的 undo 都對不上了，清掉
     pub(super) fn reload(&mut self, text: &str) {
-        self.set_items(tasks::parse(text).items);
+        self.set_items(tasks::parse(text));
         self.undo.clear();
         self.notice = Some(Notice::Reloaded);
     }
@@ -209,7 +211,7 @@ impl App {
     }
 
     /// 換一份新的事（寫檔、重新載入之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態
-    fn set_items(&mut self, items: Vec<Item>) {
+    fn set_items(&mut self, Parsed { items, warnings }: Parsed) {
         let mut groups = super::Group::list(&items);
         for group in &mut groups {
             if let Some(old) = self.groups.iter().find(|old| old.name == group.name) {
@@ -219,6 +221,7 @@ impl App {
         self.groups = groups;
         self.group_index = self.group_index.min(self.groups.len().saturating_sub(1));
         self.items = items;
+        self.warnings = warnings;
     }
 }
 

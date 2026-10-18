@@ -25,7 +25,8 @@ TEXTS = {
     "en": dict(hints=" hjkl move  Tab switch  [] month  t today  q quit",
                hints_tasks=" jk move  hl fold  Space check  e edit  a add  Esc calendar  q quit",
                hints_tasks_side=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  q quit",
-               tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}",
+               tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
+               mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
                hints_side=" hjkl move  Tab switch  [] month  t today  s calendars  q quit",
                side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
@@ -34,7 +35,8 @@ TEXTS = {
     "zh": dict(hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
                hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
                hints_tasks_side=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  q 離開",
-               tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}",
+               tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
+               mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
                hints_side=" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
                side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
@@ -128,7 +130,7 @@ def read_groups(text):
     """分組（side menu 的日曆），照第一次出現的順序；回傳 [(名稱（標題之前的是 None）, 有日期的有幾件)]
     （用 read_tree 讀：code block 裡的不算、不存在的日期不算有日期）"""
     groups = {}  # dict 會照放進去的順序
-    for it in read_tree(text):
+    for it in read_tree(text)[0]:
         name = it["group"][0] if it["group"] else None
         groups.setdefault(name, 0)
         groups[name] += it["date"] is not None
@@ -368,8 +370,9 @@ def month_screen(lang, w, h, selected, top, items, groups):
 
 def read_tree(text):
     """任務頁用：讀整份檔案的每一件事（沒日期的也算），另外寫的簡單版 parser。
-    回傳 [dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]，照檔案的順序"""
-    items, stack, group, in_code = [], [], None, False
+    回傳 ([dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]（照檔案的順序）,
+    寫錯的地方 [(第幾行, "date" / "time" / "range", 那個字)])"""
+    items, stack, group, in_code, mistakes = [], [], None, False, []
     for n, raw in enumerate(text.splitlines(), start=1):
         stripped = raw.lstrip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
@@ -402,13 +405,20 @@ def read_tree(text):
                     first = datetime.date.fromisoformat(m.group(1))
                     last = datetime.date.fromisoformat(m.group(2)) if m.group(2) else first
                     ok = last >= first
+                    if not ok:
+                        mistakes.append((n, "range", w))
                 except ValueError:
                     ok = False
+                    mistakes.append((n, "date", w))
                 if ok:
                     date, end = first, (last if last > first else None)
-                    if i + 1 < len(words) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", words[i + 1]):
-                        time = words[i + 1]
-                        i += 1
+                    # 日期後面緊接長得像時間的字：存在的就是時間，不存在的當文字、記一個錯
+                    if i + 1 < len(words) and re.fullmatch(r"\d\d:\d\d", words[i + 1]):
+                        if int(words[i + 1][:2]) < 24 and int(words[i + 1][3:]) < 60:
+                            time = words[i + 1]
+                            i += 1
+                        else:
+                            mistakes.append((n, "time", words[i + 1]))
                     i += 1
                     continue
             out.append(w)
@@ -421,13 +431,13 @@ def read_tree(text):
         items.append(dict(line=n, text=raw.strip(), indent=indent, depth=len(stack), parent=parent, task=task,
                           done=done, title=" ".join(out), date=date, end=end, time=time, group=group))
         stack.append((indent, len(items) - 1))
-    return items
+    return items, mistakes
 
 
 def tasks_screen(lang, w, h, text, groups):
     """任務頁：side menu（夠寬才有）+ 任務框（表頭、樹狀的每一列、最下面選到的那一行原本的文字）"""
     t = TEXTS[lang]
-    items = read_tree(text)
+    items, mistakes = read_tree(text)
     hidden_names = {groups[i][0] for i in HIDDEN}
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
@@ -492,8 +502,14 @@ def tasks_screen(lang, w, h, text, groups):
     detail = ""
     if cursor is not None:
         it = items[rows[cursor][1]]
-        detail = t["detail"](it["line"], it["text"])
-    inner = [ljust(t["tasks"], iw), "─" * iw] + body + ["─" * iw, ljust(cut(detail, iw), iw)]
+        wrong = [m for m in mistakes if m[0] == it["line"]]
+        detail = t["mistake"](*wrong[0]) if wrong else t["detail"](it["line"], it["text"])
+    # 表頭：左邊「任務」、右邊有幾處寫錯（有的話）
+    header = t["tasks"]
+    if mistakes:
+        count = t["mistakes"](len(mistakes))
+        header = header + " " * (iw - width(header) - width(count)) + count
+    inner = [ljust(header, iw), "─" * iw] + body + ["─" * iw, ljust(cut(detail, iw), iw)]
     lines = ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in inner] + ["╰" + "─" * iw + "╯"]
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]

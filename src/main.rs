@@ -11,6 +11,7 @@ mod theme;
 mod ui;
 
 use app::App;
+use app::Notice;
 use clap::Parser;
 use color_eyre::{Result, eyre::WrapErr};
 use jiff::Zoned;
@@ -20,7 +21,7 @@ use ratatui::crossterm::{
 };
 use std::io::{ErrorKind, stdout};
 use std::path::{Path, PathBuf};
-use tasks::Item;
+use tasks::Parsed;
 use texts::Lang;
 
 fn main() -> Result<()> {
@@ -35,9 +36,9 @@ fn main() -> Result<()> {
         Some(path) => (Some(path), true),
         None => (paths::tasks_file(), false),
     };
-    let items = match &path {
-        Some(path) => load_items(path, required)?,
-        None => Vec::new(),
+    let parsed = match &path {
+        Some(path) => load_tasks(path, required)?,
+        None => Parsed::default(),
     };
     // 今天：系統時區的日期
     let today = Zoned::now().date();
@@ -45,18 +46,24 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| {
         // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
         let _mouse = MouseCapture::enable()?;
-        let mut app = App::new(lang, today, items);
+        let mut app = App::new(lang, today, parsed.items);
         // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
         app.tasks_path = path;
+        // 任務檔有寫錯的地方：一打開就在最下面一列說（任務頁看得到是哪幾行）
+        app.warnings = parsed.warnings;
+        if !app.warnings.is_empty() {
+            app.notice = Some(Notice::Mistakes(app.warnings.len()));
+        }
         app.run(terminal)
     })
 }
 
-/// 讀任務檔；`required` = 使用者自己指定的檔案（`--tasks`），不存在要報錯；預設位置的檔案不存在就當作沒有任務
-fn load_items(path: &Path, required: bool) -> Result<Vec<Item>> {
+/// 讀任務檔（事和寫錯的地方）；`required` = 使用者自己指定的檔案（`--tasks`），不存在要報錯；
+/// 預設位置的檔案不存在就當作沒有任務
+fn load_tasks(path: &Path, required: bool) -> Result<Parsed> {
     match std::fs::read_to_string(path) {
-        Ok(text) => Ok(tasks::parse(&text).items),
-        Err(error) if !required && error.kind() == ErrorKind::NotFound => Ok(Vec::new()),
+        Ok(text) => Ok(tasks::parse(&text)),
+        Err(error) if !required && error.kind() == ErrorKind::NotFound => Ok(Parsed::default()),
         Err(error) => {
             Err(error).wrap_err_with(|| format!("cannot read task file: {}", path.display()))
         }
@@ -185,11 +192,14 @@ mod tests {
     fn missing_task_file_is_an_error_only_when_asked_for() {
         // 自己用 --tasks 指定的檔案不存在 → 錯誤
         let missing = Path::new("testdata/no-such-file.md");
-        assert!(load_items(missing, true).is_err());
+        assert!(load_tasks(missing, true).is_err());
         // 預設位置的檔案不存在 → 沒有任務
-        assert!(load_items(missing, false).expect("no tasks").is_empty());
-        // 範例檔讀得到
-        let items = load_items(Path::new("testdata/tasks.md"), true).expect("sample file");
-        assert_eq!(items.len(), 57);
+        assert_eq!(
+            load_tasks(missing, false).expect("no tasks"),
+            Parsed::default()
+        );
+        // 範例檔讀得到（有一處故意寫錯的日期）
+        let parsed = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
+        assert_eq!((parsed.items.len(), parsed.warnings.len()), (57, 1));
     }
 }

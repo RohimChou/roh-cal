@@ -34,6 +34,7 @@ PLAN = {
     "month_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3", "HIDDEN": "1"})],
     "month_view_lists_a_multi_day_item_on_each_of_its_days": [(["zh", "80", "30", "2026-10-17"], "ranges.md", {"LAYOUT": "3"})],
     "tasks_page_lists_the_file_as_a_tree": [(["zh", "70", "30", "2026-10-17"], "tasks.md", {"LAYOUT": "4"}), (["en", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "EXPANDED": "6,59,60", "CHOSEN_LINE": "61"})],
+    "tasks_page_points_at_format_mistakes": [(["zh", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "CHOSEN_LINE": "43"})],
     "tasks_page_with_the_side_menu": [(["zh", "121", "14", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "HIDDEN": "0,1"})],
     "month_view_scrolls_a_week_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-21"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-09-28"], False, {"LAYOUT": "3"})],
 }

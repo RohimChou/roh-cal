@@ -1737,13 +1737,11 @@ mod tests {
         assert!(!underlined(9, 19));
     }
 
-    /// 任務頁、今天 2026/10/17、任務檔是範例檔的 app
+    /// 任務頁、今天 2026/10/17、任務檔是範例檔的 app（寫錯的地方也記著，跟 `main` 一樣）
     fn tasks_app(lang: Lang) -> App {
-        let mut app = App::new(
-            lang,
-            date(2026, 10, 17),
-            crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
-        );
+        let parsed = crate::tasks::parse(include_str!("../testdata/tasks.md"));
+        let mut app = App::new(lang, date(2026, 10, 17), parsed.items);
+        app.warnings = parsed.warnings;
         app.view = View::Tasks;
         app.focus = Focus::Tasks;
         app
@@ -1758,7 +1756,7 @@ mod tests {
             text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
             [
                 "╭────────────────────────────────────────────────────────────────────╮",
-                "│ 任務                                                               │",
+                "│ 任務                                                      1 處寫錯 │",
                 "│────────────────────────────────────────────────────────────────────│",
                 "│ 付款 API 改版                                                      │",
                 "│   [x] 跟 PM 對齊退款流程規格                                  9/28 │",
@@ -1797,7 +1795,7 @@ mod tests {
             text_rows(draw_app(&mut app, 70, 16).backend().buffer()),
             [
                 "╭────────────────────────────────────────────────────────────────────╮",
-                "│ Tasks                                                              │",
+                "│ Tasks                                                 1 mistake(s) │",
                 "│────────────────────────────────────────────────────────────────────│",
                 "│    ∙  光復節                                                 10/25 │",
                 "│ 學習 Rust                                                          │",
@@ -1884,6 +1882,43 @@ mod tests {
     }
 
     #[test]
+    fn tasks_page_points_at_format_mistakes() {
+        // 表頭右邊寫有幾處寫錯；選到寫錯的那一行（第 43 行 @2026-13-01）：最下面一列改說哪裡錯，標題紅字
+        let mut app = tasks_app(Lang::ZhTw);
+        app.tasks_line = Some(43);
+        let terminal = draw_app(&mut app, 70, 16);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭────────────────────────────────────────────────────────────────────╮",
+                "│ 任務                                                      1 處寫錯 │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│   [ ] 繳信用卡                                               10/25 │",
+                "│    ∙  看牙醫                                           10/14 10:30 │",
+                "│   [ ] 整理書櫃                                                     │",
+                "│   [ ] 買生日禮物給媽媽                                        11/2 │",
+                "│   [ ] 預約年度健檢                                           10/16 │",
+                "│    ∙  媽媽生日                                               10/29 │",
+                "│   [ ] 繳房屋稅 @2026-13-01                                         │",
+                "│   搬家                                                             │",
+                "│   [ ] 找搬家公司估價                                          11/7 │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
+                "╰────────────────────────────────────────────────────────────────────╯",
+                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
+            ]
+        );
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        // 表頭的「1 處寫錯」、最下面那列都是紅字
+        assert_eq!(buffer[(60, 1)].fg, theme.error);
+        assert_eq!(buffer[(2, 13)].fg, theme.error);
+        // 繳房屋稅那列（y 9）的標題紅字（標題從 x 8 開始）；別列不是
+        assert_eq!(buffer[(8, 9)].fg, theme.error);
+        assert_eq!(buffer[(8, 8)].fg, theme.text);
+    }
+
+    #[test]
     fn tasks_page_with_the_side_menu() {
         // 121 格寬：side menu 在左邊；沒勾的日曆（未分組、付款 API 改版）整組不列
         let mut app = tasks_app(Lang::ZhTw);
@@ -1893,7 +1928,7 @@ mod tests {
             text_rows(draw_app(&mut app, 121, 14).backend().buffer()),
             [
                 "╭───────────────────────╮╭──────────────────────────────────────────────────────────────────────────────────────────────╮",
-                "│ 日曆                  ││ 任務                                                                                         │",
+                "│ 日曆                  ││ 任務                                                                                1 處寫錯 │",
                 "│───────────────────────││──────────────────────────────────────────────────────────────────────────────────────────────│",
                 "│ ☐ 付款 API 改版    12 ││ 個人                                                                                         │",
                 "│ ☐ 例行             14 ││   [ ] 繳信用卡                                                                         10/25 │",

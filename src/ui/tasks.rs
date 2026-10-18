@@ -83,6 +83,17 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         Line::styled(texts.header_tasks, Style::new().fg(theme.muted)),
         header,
     );
+    // 表頭右邊：任務檔有寫錯的地方就寫幾處（紅字）
+    if !app.warnings.is_empty() {
+        frame.render_widget(
+            Line::from(Span::styled(
+                texts.mistakes(app.warnings.len()),
+                Style::new().fg(theme.error),
+            ))
+            .right_aligned(),
+            header,
+        );
+    }
     for area in [rule, bottom_rule] {
         frame.render_widget(
             Line::styled(
@@ -129,22 +140,31 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         }
     }
-    // 最下面：選到的那一行原本的文字（看得到檔案裡怎麼寫）
+    // 最下面：選到的那一行原本的文字（看得到檔案裡怎麼寫）；那一行寫錯了就改說哪裡錯（紅字）
     if let Some(item) = app.tasks_chosen() {
-        frame.render_widget(
-            Line::styled(
+        let line = match app
+            .warnings
+            .iter()
+            .find(|warning| warning.line == item.line)
+        {
+            Some(warning) => Line::styled(
+                texts.tasks_mistake(item.line, &warning.kind),
+                Style::new().fg(theme.error),
+            ),
+            None => Line::styled(
                 texts.tasks_detail(item.line, item.line_text.trim()),
                 Style::new().fg(theme.muted),
             ),
-            detail,
-        );
+        };
+        frame.render_widget(line, detail);
     }
 }
 
 /// 一件事：「 ▸ [ ] 實作退款 API  1/4            10/14 」：左邊是縮排（一層 2 格）、`▸` / `▾`（有子任務：收著 / 展開）、
 /// `[ ]` / `[x]`（任務）或 ` ∙ `（行程）、標題、子任務做完幾件；右邊靠右是日期和時間（沒日期就空著）
 ///
-/// 顏色：結束了的（做完的任務、過去的行程）灰、做完的標題劃線；日期用那天在月曆上的顏色；`▸`、子任務的件數、時間淡色
+/// 顏色：結束了的（做完的任務、過去的行程）灰、做完的標題劃線；寫錯的那一行標題紅字；日期用那天在月曆上的顏色；
+/// `▸`、子任務的件數、時間淡色
 fn render_item(
     frame: &mut Frame,
     area: Rect,
@@ -166,7 +186,9 @@ fn render_item(
         (Kind::Task, true) => "[x]",
         (Kind::Event, _) => " ∙ ",
     };
-    let mut title = Style::new().fg(color);
+    // 那一行有寫錯的地方：標題紅字
+    let mistake = app.warnings.iter().any(|warning| warning.line == item.line);
+    let mut title = Style::new().fg(if mistake { theme.error } else { color });
     if item.done {
         title = title.add_modifier(Modifier::CROSSED_OUT);
     }
