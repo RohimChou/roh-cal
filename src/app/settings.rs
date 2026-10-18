@@ -6,7 +6,7 @@
 //! value, `r` resets that row, `R` resets everything (press `y` to confirm),
 //! `q` / `Esc` / `,` or a click outside the box closes it
 
-use super::{App, Mode, Notice};
+use super::{App, Mode, Notice, View};
 use crate::config::{self, CalendarListSettings, Settings};
 use crate::theme::{self, Theme};
 use crate::ui;
@@ -70,6 +70,21 @@ impl Row {
             Self::ListWidth => Some("calendar_list"),
             Self::Color(_) => Some("colors"),
         }
+    }
+
+    /// The views this setting changes something on (the settings page dims it on the others);
+    /// `None` = every view
+    pub fn views(self) -> Option<&'static [View]> {
+        match self {
+            Self::RelativeWeeks => Some(&[View::Planner, View::Month]),
+            Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
+            Self::Theme | Self::ListWidth | Self::Color(_) => None,
+        }
+    }
+
+    /// Whether this setting changes something on `view`
+    pub fn applies_to(self, view: View) -> bool {
+        self.views().is_none_or(|views| views.contains(&view))
     }
 
     /// The name shown on the left = the name in the config file (pinned by a test)

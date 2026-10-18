@@ -1,6 +1,6 @@
 //! On-screen text: one set in English, one in Traditional Chinese; switching language = switching `Texts`
 
-use crate::app::{Notice, Row};
+use crate::app::{Notice, Row, View};
 use crate::edit::Problem;
 use crate::tasks::{Heading, Item, Kind, WarningKind};
 use jiff::civil::Date;
@@ -668,6 +668,24 @@ impl Texts {
                 format!(" Reschedule \"{title}\": move to the new day  Enter done  Esc cancel")
             }
             Lang::ZhTw => format!(" 改期「{title}」：移到新的日期  Enter 確定  Esc 取消"),
+        }
+    }
+
+    /// Below the description on the settings page, when the chosen setting does nothing on the current view:
+    /// which views it is for, e.g. `這個畫面用不到：2 大月曆`
+    pub fn setting_elsewhere(&self, views: &[View]) -> String {
+        let name = |view: &View| match (self.lang, view) {
+            (Lang::En, View::Planner) => "1 calendar + agenda",
+            (Lang::En, View::Month) => "2 month grid",
+            (Lang::En, View::Tasks) => "3 tasks page",
+            (Lang::ZhTw, View::Planner) => "1 月曆 + 事項",
+            (Lang::ZhTw, View::Month) => "2 大月曆",
+            (Lang::ZhTw, View::Tasks) => "3 任務頁",
+        };
+        let names: Vec<&str> = views.iter().map(name).collect();
+        match self.lang {
+            Lang::En => format!("Not used here: {}", names.join(", ")),
+            Lang::ZhTw => format!("這個畫面用不到：{}", names.join("、")),
         }
     }
 
