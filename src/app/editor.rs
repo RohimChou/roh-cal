@@ -53,7 +53,7 @@ impl App {
         });
     }
 
-    /// `a`: adds an item, prefilled with `- [ ]  @選取的日期`,
+    /// `a`: adds an item, prefilled with `- [ ]  @<selected day>`,
     /// cursor where the title goes (no date on the tasks page)
     ///
     /// Keyboard in the agenda, the tasks page or layout 3's popup: placed in the
@@ -207,10 +207,10 @@ mod tests {
     #[test]
     fn a_failed_write_keeps_the_editor_and_what_was_typed() {
         use std::os::unix::fs::PermissionsExt;
-        let text = "- [ ] 早上 @2026-10-10\n";
+        let text = "- [ ] Review PRs @2026-10-10\n";
         let (mut app, path) = app_with_task_file("editor-failed", text);
         press(&mut app, KeyCode::Char('e'));
-        type_text(&mut app, " 改");
+        type_text(&mut app, " for Amy");
         // Make the folder read-only: the temp file cannot be written (reading still works)
         let dir = path.parent().expect("dir");
         let mode = |mode| std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode));
@@ -219,7 +219,7 @@ mod tests {
         // The editor is still open, the typed text is still there, and the bottom row says why
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
-            Some("- [ ] 早上 @2026-10-10 改")
+            Some("- [ ] Review PRs @2026-10-10 for Amy")
         );
         assert_eq!(
             app.notice,
@@ -232,34 +232,37 @@ mod tests {
         assert!(app.editor().is_none());
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 早上 @2026-10-10 改\n"
+            "- [ ] Review PRs @2026-10-10 for Amy\n"
         );
         clean_up(&path);
     }
 
     #[test]
     fn e_opens_the_line_and_enter_saves_what_was_typed() {
-        let text = "# 例行\n  - [ ] 交週報 @2026-10-16 17:30\n";
+        let text = "# Recurring\n  - [ ] Send the weekly update @2026-10-16 17:30\n";
         let (mut app, path) = app_with_task_file("edit", text);
         // e: the editor holds that line (without indentation), cursor at the end
         press(&mut app, KeyCode::Char('e'));
-        let editor = app.editor().expect("編輯框");
-        assert_eq!(editor.input.value(), "- [ ] 交週報 @2026-10-16 17:30");
+        let editor = app.editor().expect("editor");
+        assert_eq!(
+            editor.input.value(),
+            "- [ ] Send the weekly update @2026-10-16 17:30"
+        );
         // Change 17:30 to 18:00: the cursor is at the end, press Backspace 5 times, then type
         for _ in 0..5 {
             press(&mut app, KeyCode::Backspace);
         }
-        type_text(&mut app, "18:00 給主管");
+        type_text(&mut app, "18:00 to my manager");
         press(&mut app, KeyCode::Enter);
-        // Indentation kept; 「給主管」 follows the time and is part of the title
+        // Indentation kept; "to my manager" follows the time and is part of the title
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "# 例行\n  - [ ] 交週報 @2026-10-16 18:00 給主管\n"
+            "# Recurring\n  - [ ] Send the weekly update @2026-10-16 18:00 to my manager\n"
         );
         assert!(app.editor().is_none());
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
-            Some("交週報 給主管")
+            Some("Send the weekly update to my manager")
         );
         // u undoes
         press(&mut app, KeyCode::Char('u'));
@@ -269,28 +272,33 @@ mod tests {
 
     #[test]
     fn a_in_the_agenda_adds_to_the_chosen_items_group() {
-        let text = "# 工作\n- [ ] 寫報告 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n";
+        let text =
+            "# Work\n- [ ] Write the design doc @2026-10-16\n# Personal\n- Go hiking @2026-10-18\n";
         let (mut app, path) = app_with_task_file("add", text);
         // a: the selected day is prefilled, cursor where the title goes; the top border says 「新增」
+        // (zh-TW for "New item")
         press(&mut app, KeyCode::Char('a'));
-        let editor = app.editor().expect("編輯框");
+        let editor = app.editor().expect("editor");
         assert_eq!(editor.input.value(), "- [ ]  @2026-10-16");
         assert_eq!(editor.input.cursor(), 6);
-        type_text(&mut app, "交週報");
+        type_text(&mut app, "Send the weekly update");
         press(&mut app, KeyCode::Enter);
-        // Added at the end of 「工作」; the agenda chooses the new item
+        // Added at the end of "Work"; the agenda chooses the new item
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "# 工作\n- [ ] 寫報告 @2026-10-16\n- [ ] 交週報 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n"
+            "# Work\n- [ ] Write the design doc @2026-10-16\n- [ ] Send the weekly update @2026-10-16\n# Personal\n- Go hiking @2026-10-18\n"
         );
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
-            Some("交週報")
+            Some("Send the weekly update")
         );
         // u: removes the whole line; the notice names the added item
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
-        assert_eq!(app.notice, Some(Notice::Undone("交週報".into())));
+        assert_eq!(
+            app.notice,
+            Some(Notice::Undone("Send the weekly update".into()))
+        );
         clean_up(&path);
     }
 
@@ -298,54 +306,53 @@ mod tests {
     fn a_on_the_calendar_adds_on_the_selected_day() {
         // Selected 10/20 (nothing that day): added at the end of
         // the file; the keyboard moves to the agenda with it chosen
-        let text = "# 工作\n- [ ] 寫報告 @2026-10-16\n";
+        let text = "# Work\n- [ ] Write the design doc @2026-10-16\n";
         let (mut app, path) = app_with_task_file("add-calendar", text);
         press(&mut app, KeyCode::Esc);
         app.selected = date(2026, 10, 20);
         press(&mut app, KeyCode::Char('a'));
-        type_text(&mut app, "看醫生");
+        type_text(&mut app, "Get a flu shot");
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "# 工作\n- [ ] 寫報告 @2026-10-16\n- [ ] 看醫生 @2026-10-20\n"
+            "# Work\n- [ ] Write the design doc @2026-10-16\n- [ ] Get a flu shot @2026-10-20\n"
         );
         assert_eq!(app.focus, Focus::Agenda);
-        // Selected 10/16 (「寫報告」 is that day): added to 「寫報告」's
+        // Selected 10/16 ("Write the design doc" is that day): added to its
         // group; layout 3 has no agenda, so the keyboard stays on the calendar
         app.view = crate::app::View::Month;
         app.focus = Focus::Calendar;
         app.selected = date(2026, 10, 16);
         press(&mut app, KeyCode::Char('a'));
-        type_text(&mut app, "印出來");
+        type_text(&mut app, "Share it with the team");
         press(&mut app, KeyCode::Enter);
-        assert!(
-            std::fs::read_to_string(&path)
-                .expect("read")
-                .contains("- [ ] 看醫生 @2026-10-20\n- [ ] 印出來 @2026-10-16\n")
-        );
+        assert!(std::fs::read_to_string(&path).expect("read").contains(
+            "- [ ] Get a flu shot @2026-10-20\n- [ ] Share it with the team @2026-10-16\n"
+        ));
         assert_eq!(app.focus, Focus::Calendar);
         clean_up(&path);
     }
 
     #[test]
     fn shift_a_adds_a_subtask_and_keeps_the_parent_chosen() {
-        let text = "- [ ] 寫報告 @2026-10-16\n- [ ] 交週報 @2026-10-16\n";
+        let text =
+            "- [ ] Write the design doc @2026-10-16\n- [ ] Send the weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("add-subtask", text);
         press(&mut app, KeyCode::Char('A'));
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
             Some("- [ ] ")
         );
-        type_text(&mut app, "找資料");
+        type_text(&mut app, "Gather requirements");
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n- [ ] 交週報 @2026-10-16\n"
+            "- [ ] Write the design doc @2026-10-16\n  - [ ] Gather requirements\n- [ ] Send the weekly update @2026-10-16\n"
         );
-        // The subtask has no date and is not in the agenda: 「寫報告」 stays chosen
+        // The subtask has no date and is not in the agenda: "Write the design doc" stays chosen
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
-            Some("寫報告")
+            Some("Write the design doc")
         );
         clean_up(&path);
     }
@@ -364,18 +371,18 @@ mod tests {
         );
         assert!(!path.exists());
         // Title typed: the file is created
-        type_text(&mut app, "第一件事");
+        type_text(&mut app, "First task");
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 第一件事 @2026-10-17\n"
+            "- [ ] First task @2026-10-17\n"
         );
         clean_up(&path);
     }
 
     #[test]
     fn a_line_with_a_mistake_is_not_saved() {
-        let text = "- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Send the weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-mistake", text);
         press(&mut app, KeyCode::Enter);
         // Change the date to 10/32, which does not exist: Enter does
@@ -385,10 +392,10 @@ mod tests {
         }
         type_text(&mut app, "32");
         press(&mut app, KeyCode::Enter);
-        let editor = app.editor().expect("還開著");
+        let editor = app.editor().expect("still open");
         assert!(editor.check().is_err());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
-        // Remove the leading 「- 」: not an item, not saved either
+        // Remove the leading `- `: not an item, not saved either
         press(&mut app, KeyCode::Home);
         press(&mut app, KeyCode::Delete);
         press(&mut app, KeyCode::Delete);
@@ -406,14 +413,14 @@ mod tests {
     #[test]
     fn keys_go_to_the_editor_while_it_is_open() {
         // q, u, j, Space are all typing: they do not quit, undo, change the chosen item or check it off
-        let text = "- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Send the weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-keys", text);
         press(&mut app, KeyCode::Char('e'));
         type_text(&mut app, " qu j");
         assert!(!app.should_quit);
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
-            Some("- [ ] 交週報 @2026-10-16 qu j")
+            Some("- [ ] Send the weekly update @2026-10-16 qu j")
         );
         // Saving with no change: nothing is written, no undo is recorded
         press(&mut app, KeyCode::Esc);
@@ -427,7 +434,7 @@ mod tests {
     #[test]
     fn taking_the_date_away_leaves_the_agenda() {
         // Date removed: after saving, the agenda no longer has it and the keyboard goes back to the calendar
-        let text = "- [ ] 交週報 @2026-10-16\n";
+        let text = "- [ ] Send the weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-undated", text);
         press(&mut app, KeyCode::Char('e'));
         for _ in 0.." @2026-10-16".chars().count() {
@@ -436,7 +443,7 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] 交週報\n"
+            "- [ ] Send the weekly update\n"
         );
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.selected, date(2026, 10, 16));

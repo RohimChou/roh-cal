@@ -85,7 +85,7 @@ pub struct CalendarSettings {
 pub struct MonthSettings {
     /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column)
     pub grid_lines: bool,
-    /// Puts a dot before each item in a cell (`∙ 14:00 週會`)
+    /// Puts a dot before each item in a cell (`∙ 14:00 Team sync`)
     pub item_icons: bool,
     /// Keeps the selected week fixed in the middle of the 6 weeks (like vim's `scrolloff=999`);
     /// when off, it scrolls one week at a time, only when the selection moves out of the 6 weeks
@@ -362,8 +362,7 @@ mod tests {
 
     #[test]
     fn updated_changes_only_what_differs_and_keeps_comments() {
-        let text =
-            "# 我的設定\n\n[month]\n# 格線\ngrid_lines = true   # 太花了\ncenter_cursor = true\n";
+        let text = "# My settings\n\n[month]\n# Grid lines\ngrid_lines = true   # too busy\ncenter_cursor = true\n";
         // grid_lines becomes false (the line exists: only the value changes, both comments stay);
         // item_icons becomes false (no such line: added at the end of [month]);
         // center_cursor unchanged (untouched)
@@ -374,7 +373,7 @@ mod tests {
         });
         assert_eq!(
             updated_file(text, &settings).expect("valid file"),
-            "# 我的設定\n\n[month]\n# 格線\ngrid_lines = false   # 太花了\ncenter_cursor = true\nitem_icons = false\n"
+            "# My settings\n\n[month]\n# Grid lines\ngrid_lines = false   # too busy\ncenter_cursor = true\nitem_icons = false\n"
         );
     }
 
@@ -420,7 +419,7 @@ mod tests {
 
     #[test]
     fn updated_writes_changed_colors_and_removes_the_reset_ones() {
-        let text = "[month]\ngrid_lines = false\n\n[colors]\n# 太淡了\nmuted = \"#010203\"\nweekend = \"#f38ba8\"   # 紅\n";
+        let text = "[month]\ngrid_lines = false\n\n[colors]\n# too faint\nmuted = \"#010203\"\nweekend = \"#f38ba8\"   # red\n";
         // Read in → muted reset (removed), today added, weekend unchanged
         let mut settings = parse(text).expect("valid");
         settings.colors.remove("muted");
@@ -429,7 +428,7 @@ mod tests {
             .insert("today".to_string(), "#ffffff".to_string());
         assert_eq!(
             updated_file(text, &settings).expect("valid"),
-            "[month]\ngrid_lines = false\n\n[colors]\nweekend = \"#f38ba8\"   # 紅\ntoday = \"#ffffff\"\n"
+            "[month]\ngrid_lines = false\n\n[colors]\nweekend = \"#f38ba8\"   # red\ntoday = \"#ffffff\"\n"
         );
     }
 
@@ -452,7 +451,7 @@ mod tests {
     #[test]
     fn updated_leaves_the_text_alone_when_nothing_changed() {
         // Values in the file that equal the defaults are not removed either (grid_lines defaults to true)
-        let text = "# 註解\n[month]\ngrid_lines = true\n";
+        let text = "# A comment\n[month]\ngrid_lines = true\n";
         assert_eq!(
             updated_file(text, &Settings::default()).expect("valid"),
             text

@@ -952,7 +952,7 @@ mod tests {
 
     /// The agenda in order: 10/10 a, 10/17 b, 10/17 c, 10/20 d (the undated one is not listed)
     const ITEMS: &str =
-        "- d @2026-10-20\n- c @2026-10-17 09:00\n- 沒日期\n- b @2026-10-17\n- a @2026-10-10\n";
+        "- d @2026-10-20\n- c @2026-10-17 09:00\n- No date\n- b @2026-10-17\n- a @2026-10-10\n";
 
     #[test]
     fn tab_moves_into_the_agenda_and_back() {
@@ -979,7 +979,7 @@ mod tests {
 
     #[test]
     fn tab_stays_on_the_calendar_without_items() {
-        let mut app = app_with("- 沒日期\n");
+        let mut app = app_with("- No date\n");
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Calendar);
     }
@@ -1091,24 +1091,24 @@ mod tests {
     #[test]
     fn groups_keep_file_order() {
         // Items before any heading are `None`; headings with the same name are one group; `##` is a group too
-        let app = app_with("- a\n# 工作\n- b\n## 生活\n- c\n# 工作\n- d\n# 沒有項目\n");
+        let app = app_with("- a\n# Work\n- b\n## Personal\n- c\n# Work\n- d\n# No items\n");
         let names: Vec<Option<&str>> = app
             .groups
             .iter()
             .map(|group| group.name.as_deref())
             .collect();
-        assert_eq!(names, [None, Some("工作"), Some("生活")]);
+        assert_eq!(names, [None, Some("Work"), Some("Personal")]);
         assert!(app.groups.iter().all(|group| group.shown));
-        // d is under the second "# 工作" and also counts as "工作"
+        // d is under the second "# Work" and also counts as "Work"
         assert!(app.groups[1].includes(&app.items[3]));
         assert!(!app.groups[0].includes(&app.items[3]));
     }
 
     #[test]
     fn unchecked_groups_leave_the_agenda() {
-        // "生活" unchecked: its b and c are not listed, and Tab into the agenda skips them too
+        // "Personal" unchecked: its b and c are not listed, and Tab into the agenda skips them too
         let mut app = app_with(
-            "- a @2026-10-10\n# 生活\n- b @2026-10-17\n- c @2026-10-20\n# 工作\n- d @2026-10-25\n",
+            "- a @2026-10-10\n# Personal\n- b @2026-10-17\n- c @2026-10-20\n# Work\n- d @2026-10-25\n",
         );
         app.groups[1].shown = false;
         let titles: Vec<&str> = app
@@ -1135,8 +1135,8 @@ mod tests {
         app
     }
 
-    /// Three groups: ungrouped (a), 生活 (b), 工作 (c)
-    const GROUPS: &str = "- a @2026-10-10\n# 生活\n- b @2026-10-17\n# 工作\n- c @2026-10-20\n";
+    /// Three groups: ungrouped (a), Personal (b), Work (c)
+    const GROUPS: &str = "- a @2026-10-10\n# Personal\n- b @2026-10-17\n# Work\n- c @2026-10-20\n";
 
     #[test]
     fn tab_goes_through_the_side_menu_when_wide() {
@@ -1147,7 +1147,7 @@ mod tests {
             assert_eq!(app.focus, focus);
         }
         // No items in the agenda: the calendar goes straight to the side menu
-        let mut app = wide_app_with("- 沒日期\n");
+        let mut app = wide_app_with("- No date\n");
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Side);
         // Hidden: same as when narrow, calendar ⇄ agenda
@@ -1162,7 +1162,7 @@ mod tests {
     fn side_menu_keys_choose_and_check_calendars() {
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
-        // j to "生活", Space unchecks it: b is no longer listed
+        // j to "Personal", Space unchecks it: b is no longer listed
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.group_index, 1);
         press(&mut app, KeyCode::Char(' '));
@@ -1215,7 +1215,7 @@ mod tests {
         let click = |app: &mut App, row| {
             app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, row));
         };
-        // First click: chooses "生活", the keyboard moves to the side menu, not toggled yet
+        // First click: chooses "Personal", the keyboard moves to the side menu, not toggled yet
         click(&mut app, 4);
         assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
         assert!(app.groups[1].shown);
@@ -1301,13 +1301,13 @@ mod tests {
     #[test]
     fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
         // 60 × 20: s calls it up over the left side (after the border, header, and line, one calendar per row:
-        // ungrouped y 3, 生活 y 4)
+        // ungrouped y 3, Personal y 4)
         let mut app = app_with(GROUPS);
         app.screen = Rect::new(0, 0, 60, 20);
         press(&mut app, KeyCode::Char('s'));
         let area = ui::side_overlay(&app).expect("overlay");
         assert_eq!(area, Rect::new(0, 0, 22, 19));
-        // Click 生活: chooses it; click again: unchecks it
+        // Click Personal: chooses it; click again: unchecks it
         let left = MouseEventKind::Down(MouseButton::Left);
         app.handle_mouse(mouse(left, 3, 4));
         assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
@@ -1347,10 +1347,10 @@ mod tests {
 
     #[test]
     fn a_multi_day_item_is_listed_in_each_month_and_chosen_from_any_of_its_days() {
-        // 主管出差 10/28-11/3: one row in October and one in November; the November row is listed on 11/1,
-        // before 11/1's 準備月報
+        // Manager OOO 10/28-11/3: one row in October and one in November; the November row is listed on
+        // 11/1, before 11/1's "Write the monthly report"
         let mut app = app_with(
-            "- [ ] 準備月報 @2026-11-01\n- 主管出差 @2026-10-28..2026-11-03\n- [ ] 交週報 @2026-10-30\n",
+            "- [ ] Write the monthly report @2026-11-01\n- Manager OOO @2026-10-28..2026-11-03\n- [ ] Send the weekly update @2026-10-30\n",
         );
         let rows: Vec<(&str, Date)> = app
             .agenda()
@@ -1360,29 +1360,33 @@ mod tests {
         assert_eq!(
             rows,
             [
-                ("主管出差", date(2026, 10, 28)),
-                ("交週報", date(2026, 10, 30)),
-                ("主管出差", date(2026, 11, 1)),
-                ("準備月報", date(2026, 11, 1)),
+                ("Manager OOO", date(2026, 10, 28)),
+                ("Send the weekly update", date(2026, 10, 30)),
+                ("Manager OOO", date(2026, 11, 1)),
+                ("Write the monthly report", date(2026, 11, 1)),
             ]
         );
-        // Select 11/2 (inside 出差) and press Tab: chooses the November row; the selected day stays
+        // Select 11/2 (inside the OOO) and press Tab: chooses the November row; the selected day stays
         app.selected = date(2026, 11, 2);
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.agenda_index, 2);
         assert_eq!(app.selected, date(2026, 11, 2));
-        // j: 準備月報, the calendar jumps to 11/1; k: back to 出差; 11/1 is also one of its days,
-        // so the calendar stays
+        // j: "Write the monthly report", the calendar jumps to 11/1; k: back to the OOO; 11/1 is also
+        // one of its days, so the calendar stays
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.selected, date(2026, 11, 1));
         press(&mut app, KeyCode::Char('k'));
         assert_eq!((app.agenda_index, app.selected), (2, date(2026, 11, 1)));
-        // Up again: 交週報 (10/30) → 出差's October row (10/30 is also one of its days, so the calendar stays)
+        // Up again: "Send the weekly update" (10/30) → the OOO's October row (10/30 is also one of its
+        // days, so the calendar stays)
         press(&mut app, KeyCode::Char('k'));
         press(&mut app, KeyCode::Char('k'));
         assert_eq!((app.agenda_index, app.selected), (0, date(2026, 10, 30)));
-        // Tab on 10/29 (inside 出差, in October): chooses the October row, ahead of 10/30's 交週報
-        let mut app = app_with("- [ ] 交週報 @2026-10-30\n- 主管出差 @2026-10-28..2026-11-03\n");
+        // Tab on 10/29 (inside the OOO, in October): chooses the October row, ahead of 10/30's
+        // "Send the weekly update"
+        let mut app = app_with(
+            "- [ ] Send the weekly update @2026-10-30\n- Manager OOO @2026-10-28..2026-11-03\n",
+        );
         app.selected = date(2026, 10, 29);
         press(&mut app, KeyCode::Tab);
         assert_eq!(
@@ -1498,7 +1502,7 @@ mod tests {
         for key in keys {
             let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
             app.handle_key(key);
-            assert!(app.should_quit, "{key:?} 應該要離開");
+            assert!(app.should_quit, "{key:?} should quit");
         }
     }
 
@@ -1513,7 +1517,7 @@ mod tests {
         for key in keys {
             let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
             app.handle_key(key);
-            assert!(!app.should_quit, "{key:?} 不應該離開");
+            assert!(!app.should_quit, "{key:?} should not quit");
         }
     }
 }

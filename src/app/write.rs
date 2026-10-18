@@ -23,7 +23,7 @@ pub enum Notice {
     NotATask,
     /// The task file has some mistakes (e.g. `@2026-13-01`); said as soon as it opens
     Mistakes(usize),
-    /// Undo worked; carries the title of the item that was restored, e.g. `週會`
+    /// Undo worked; carries the title of the item that was restored, e.g. `Team sync`
     Undone(String),
     /// Nothing to undo (no writes yet, or already undone all the way back)
     NothingToUndo,
@@ -41,7 +41,7 @@ pub(super) struct UndoStep {
     /// The whole file roh-cal wrote (undo only happens if the file
     /// still matches it exactly; otherwise it was changed elsewhere)
     after: String,
-    /// The title of the item it changed (`已復原：週會`)
+    /// The title of the item it changed (`Undone: Team sync`)
     title: String,
     /// For a move up / down (`J` / `K`), which two blocks were swapped: line numbers
     /// the screen remembers follow it (reversed on undo); `None` for other writes
@@ -341,15 +341,15 @@ pub(crate) mod tests {
 
     #[test]
     fn space_or_x_checks_the_chosen_item_off_in_the_file() {
-        let text = "# 例行\n- [ ] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n";
+        let text = "# Recurring\n- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
         let (mut app, path) = app_with_task_file("toggle", text);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // Choose the second item (「下午」) and press Space: only that line changes
+        // Choose the second item ("Deploy to staging") and press Space: only that line changes
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(
             read(),
-            "# 例行\n- [ ] 早上 @2026-10-17 09:00\n- [x] 下午 @2026-10-17 14:00\n"
+            "# Recurring\n- [ ] Review PRs @2026-10-17 09:00\n- [x] Deploy to staging @2026-10-17 14:00\n"
         );
         // The items on screen update too; the same item is still chosen, no notice
         assert!(app.items[1].done);
@@ -364,7 +364,7 @@ pub(crate) mod tests {
 
     #[test]
     fn an_event_cannot_be_checked_off() {
-        let text = "- 看牙醫 @2026-10-17 10:30\n";
+        let text = "- Dentist appointment @2026-10-17 10:30\n";
         let (mut app, path) = app_with_task_file("event", text);
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
@@ -377,9 +377,9 @@ pub(crate) mod tests {
 
     #[test]
     fn toggle_reloads_instead_of_writing_when_the_file_changed_elsewhere() {
-        let (mut app, path) = app_with_task_file("changed", "- [ ] 早上 @2026-10-17 09:00\n");
+        let (mut app, path) = app_with_task_file("changed", "- [ ] Review PRs @2026-10-17 09:00\n");
         // A line was added above, elsewhere (e.g. Obsidian)
-        let edited = "- [ ] 新的 @2026-10-17 08:00\n- [ ] 早上 @2026-10-17 09:00\n";
+        let edited = "- [ ] Go to the gym @2026-10-17 08:00\n- [ ] Review PRs @2026-10-17 09:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char(' '));
         // File untouched, reloaded (now two items), notice shown
@@ -391,7 +391,7 @@ pub(crate) mod tests {
 
     #[test]
     fn toggle_says_why_when_the_file_is_gone() {
-        let (mut app, path) = app_with_task_file("gone", "- [ ] 早上 @2026-10-17 09:00\n");
+        let (mut app, path) = app_with_task_file("gone", "- [ ] Review PRs @2026-10-17 09:00\n");
         std::fs::remove_file(&path).expect("remove");
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(app.notice, Some(Notice::Failed(ErrorKind::NotFound)));
@@ -405,7 +405,7 @@ pub(crate) mod tests {
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
-            tasks::parse("- [ ] 早上 @2026-10-17\n").items,
+            tasks::parse("- [ ] Review PRs @2026-10-17\n").items,
         );
         app.focus = Focus::Agenda;
         press(&mut app, KeyCode::Char(' '));
@@ -417,7 +417,7 @@ pub(crate) mod tests {
     fn a_notice_from_a_click_stays_after_the_button_is_released() {
         // 70 × 23, October at the top: the agenda's first row (y 3) is the event on 10/10;
         // a double click = trying to check it off, and events cannot be checked off
-        let text = "- 開會 @2026-10-10\n";
+        let text = "- Team sync @2026-10-10\n";
         let (mut app, path) = app_with_task_file("click-notice", text);
         app.focus = Focus::Calendar;
         app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
@@ -434,7 +434,7 @@ pub(crate) mod tests {
             app.handle_mouse(mouse(down, 40));
             app.handle_mouse(mouse(up, 40));
         }
-        // 「放開」 (the release) does not clear the notice; neither does moving or dragging
+        // The release does not clear the notice; neither does moving or dragging
         assert_eq!(app.notice, Some(Notice::NotATask));
         app.handle_mouse(mouse(MouseEventKind::Moved, 50));
         app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), 50));
@@ -447,8 +447,8 @@ pub(crate) mod tests {
 
     #[test]
     fn clicking_the_chosen_item_again_checks_it_off() {
-        // 70 × 23, October at the top: the agenda's first row (y 3, from x 36) is 10/10's 「早上」
-        let text = "- [ ] 早上 @2026-10-10\n";
+        // 70 × 23, October at the top: the agenda's first row (y 3, from x 36) is 10/10's "Review PRs"
+        let text = "- [ ] Review PRs @2026-10-10\n";
         let (mut app, path) = app_with_task_file("click", text);
         app.focus = Focus::Calendar;
         app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
@@ -466,7 +466,7 @@ pub(crate) mod tests {
         assert_eq!(read(), text);
         // Click again: checked off
         app.handle_mouse(click);
-        assert_eq!(read(), "- [x] 早上 @2026-10-10\n");
+        assert_eq!(read(), "- [x] Review PRs @2026-10-10\n");
         clean_up(&path);
     }
 
@@ -475,10 +475,10 @@ pub(crate) mod tests {
         // Add an item in the agenda (the new one, the 2nd item, is chosen),
         // then u: the agenda has only 1 item left, so the last one is chosen
         // (not the 2nd item that no longer exists, so checking off still works)
-        let text = "- [ ] 早上 @2026-10-10\n";
+        let text = "- [ ] Review PRs @2026-10-10\n";
         let (mut app, path) = app_with_task_file("undo-add", text);
         press(&mut app, KeyCode::Char('a'));
-        for c in "新的".chars() {
+        for c in "Buy groceries".chars() {
             press(&mut app, KeyCode::Char(c));
         }
         press(&mut app, KeyCode::Enter);
@@ -490,7 +490,7 @@ pub(crate) mod tests {
                 app.focus,
                 app.chosen().map(|entry| entry.item.title.as_str())
             ),
-            (Focus::Agenda, Some("早上"))
+            (Focus::Agenda, Some("Review PRs"))
         );
         // Delete the only item too: the agenda is empty, back to the calendar
         press(&mut app, KeyCode::Char('d'));
@@ -501,7 +501,8 @@ pub(crate) mod tests {
 
     #[test]
     fn u_undoes_the_last_writes_one_at_a_time_then_has_nothing_left() {
-        let text = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n";
+        let text =
+            "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
         let (mut app, path) = app_with_task_file("undo", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         // Check off both items, then go back to the calendar
@@ -511,15 +512,16 @@ pub(crate) mod tests {
         press(&mut app, KeyCode::Esc);
         assert_eq!(
             read(),
-            "- [x] 早上 @2026-10-17 09:00\n- [x] 下午 @2026-10-17 14:00\n"
+            "- [x] Review PRs @2026-10-17 09:00\n- [x] Deploy to staging @2026-10-17 14:00\n"
         );
-        // Press u on the calendar: first undoes the last write (「下午」), then 「早上」; the screen follows
+        // Press u on the calendar: first undoes the last write ("Deploy to staging"), then "Review PRs";
+        // the screen follows
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(
             read(),
-            "- [x] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n"
+            "- [x] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n"
         );
-        assert_eq!(app.notice, Some(Notice::Undone("下午".into())));
+        assert_eq!(app.notice, Some(Notice::Undone("Deploy to staging".into())));
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), text);
         assert!(!app.items[0].done);
@@ -530,11 +532,12 @@ pub(crate) mod tests {
 
     #[test]
     fn u_leaves_the_file_alone_when_it_changed_elsewhere() {
-        let (mut app, path) = app_with_task_file("undo-changed", "- [ ] 早上 @2026-10-17 09:00\n");
+        let (mut app, path) =
+            app_with_task_file("undo-changed", "- [ ] Review PRs @2026-10-17 09:00\n");
         // Check off and uncheck (two steps recorded), then the file is changed again elsewhere
         press(&mut app, KeyCode::Char(' '));
         press(&mut app, KeyCode::Char(' '));
-        let edited = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 新的 @2026-10-17 10:00\n";
+        let edited = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Book a haircut @2026-10-17 10:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char('u'));
         // The other changes stay, it only reloads; the two recorded steps no longer match, so all are cleared
@@ -548,7 +551,8 @@ pub(crate) mod tests {
 
     #[test]
     fn undo_keeps_only_the_last_50_steps() {
-        let (mut app, path) = app_with_task_file("undo-limit", "- [ ] 早上 @2026-10-17 09:00\n");
+        let (mut app, path) =
+            app_with_task_file("undo-limit", "- [ ] Review PRs @2026-10-17 09:00\n");
         // Check off / uncheck 51 times (odd count → it ends checked off)
         for _ in 0..=UNDO_LEVELS {
             press(&mut app, KeyCode::Char('x'));
@@ -564,40 +568,39 @@ pub(crate) mod tests {
         // The earliest step was dropped: the file stays as it was after the first check-off
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [x] 早上 @2026-10-17 09:00\n"
+            "- [x] Review PRs @2026-10-17 09:00\n"
         );
         clean_up(&path);
     }
 
-    /// 10/17's 「早上」 has one subtask (no date, not in the agenda), 「下午」 has none
+    /// 10/17's "Review PRs" has one subtask (no date, not in the agenda), "Deploy to staging" has none
     /// (for the delete tests)
-    const WITH_SUBTASK: &str =
-        "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n- [ ] 下午 @2026-10-17 14:00\n";
+    const WITH_SUBTASK: &str = "- [ ] Review PRs @2026-10-17 09:00\n  - [ ] Amy's PR\n- [ ] Deploy to staging @2026-10-17 14:00\n";
 
     #[test]
     fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {
         let (mut app, path) = app_with_task_file("delete", WITH_SUBTASK);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // d: asks first, file not touched yet; 「早上」 + subtask = 2 items
+        // d: asks first, file not touched yet; "Review PRs" + subtask = 2 items
         press(&mut app, KeyCode::Char('d'));
         assert_eq!(
             app.confirm_delete()
                 .map(|(item, count)| (item.title.as_str(), count)),
-            Some(("早上", 2))
+            Some(("Review PRs", 2))
         );
         assert_eq!(read(), WITH_SUBTASK);
-        // y: deletes 「早上」 and its subtask, only 「下午」 is left; the agenda chooses 「下午」
+        // y: deletes "Review PRs" and its subtask, only "Deploy to staging" is left; the agenda chooses it
         press(&mut app, KeyCode::Char('y'));
-        assert_eq!(read(), "- [ ] 下午 @2026-10-17 14:00\n");
+        assert_eq!(read(), "- [ ] Deploy to staging @2026-10-17 14:00\n");
         assert_eq!(app.confirm_delete(), None);
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
-            Some("下午")
+            Some("Deploy to staging")
         );
         // u: the whole block comes back
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), WITH_SUBTASK);
-        assert_eq!(app.notice, Some(Notice::Undone("早上".into())));
+        assert_eq!(app.notice, Some(Notice::Undone("Review PRs".into())));
         clean_up(&path);
     }
 
@@ -673,7 +676,7 @@ pub(crate) mod tests {
         press(&mut app, KeyCode::Char('d'));
         // It was 2 items when it asked; before pressing y, a subtask was added
         // elsewhere → it would delete 3, which differs from what it asked
-        let edited = "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n  - [ ] 印講義\n- [ ] 下午 @2026-10-17 14:00\n";
+        let edited = "- [ ] Review PRs @2026-10-17 09:00\n  - [ ] Amy's PR\n  - [ ] Kevin's PR\n- [ ] Deploy to staging @2026-10-17 14:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
@@ -683,7 +686,7 @@ pub(crate) mod tests {
 
     #[test]
     fn deleting_the_last_item_goes_back_to_the_calendar() {
-        let (mut app, path) = app_with_task_file("delete-last", "- [ ] 早上 @2026-10-17\n");
+        let (mut app, path) = app_with_task_file("delete-last", "- [ ] Review PRs @2026-10-17\n");
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
@@ -693,9 +696,9 @@ pub(crate) mod tests {
 
     #[test]
     fn rewriting_keeps_the_calendars_checked_state() {
-        // 「生活」 is unchecked; after a check-off writes the file and
-        // the calendars are re-listed, 「生活」 is still unchecked
-        let text = "- [ ] 早上 @2026-10-17 09:00\n# 生活\n- [ ] 爬山 @2026-10-18\n";
+        // "Personal" is unchecked; after a check-off writes the file and
+        // the calendars are re-listed, "Personal" is still unchecked
+        let text = "- [ ] Review PRs @2026-10-17 09:00\n# Personal\n- [ ] Go hiking @2026-10-18\n";
         let (mut app, path) = app_with_task_file("groups", text);
         app.groups[1].shown = false;
         press(&mut app, KeyCode::Char(' '));

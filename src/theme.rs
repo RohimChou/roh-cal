@@ -57,7 +57,7 @@ pub struct Theme {
     pub grid: Color,
     /// Days in the month grid (layout 3) outside the selected month: dates and items turn gray
     pub other_month: Color,
-    /// Section names on the help page (`移動`, `編輯`…)
+    /// Section names on the help page (`Move`, `Edit`…)
     pub help_section: Color,
     /// Keys on the help page (`hjkl`, `Space`…)
     pub help_key: Color,
