@@ -11,8 +11,8 @@ use ratatui::{
     widgets::{Block, BorderType, Paragraph},
 };
 
-/// Editor height: top border, the typing row, the check-result row, bottom border
-const HEIGHT: u16 = 4;
+/// Editor height: top border, the typing row, a blank row, the check-result row, bottom border
+const HEIGHT: u16 = 5;
 
 /// The widest the editor gets: a usual task line fits with room to spare; a longer one scrolls
 const MAX_WIDTH: u16 = 80;
@@ -61,7 +61,7 @@ fn layout(screen: Rect) -> (Rect, Rect) {
 
 /// Draws the editor: the top border says 「編輯事項」 when editing an item (or 「新增 ∙ the calendar it goes
 /// into」, 「新增日曆」); row 1 is the typed text
-/// (cursor at the typing position); row 2 shows live what the line will be read as (red text when something
+/// (cursor at the typing position); after a blank row, row 3 shows live what the line will be read as (red text when something
 /// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
@@ -121,7 +121,8 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         input_area.x + u16::try_from(cursor).unwrap_or(0),
         input_area.y,
     ));
-    // Check result: what it reads as (muted), or what is wrong (red)
+    // Check result: what it reads as (muted), or what is wrong (red); a blank row between it and the typed
+    // text (left out when the terminal is too short for it)
     if inner.height > 1 {
         let check = match editor.check() {
             Ok(Reading::Item(item)) => {
@@ -136,7 +137,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         frame.render_widget(
             check,
             Rect {
-                y: inner.y + 1,
+                y: inner.y + 2.min(inner.height - 1),
                 height: 1,
                 ..inner
             },

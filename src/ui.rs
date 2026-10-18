@@ -1416,11 +1416,12 @@ mod tests {
         app.handle_key(KeyEvent::from(KeyCode::Tab));
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
         // 70 × 12: the edit box is in the upper middle and 2 cells from each side (x 2-67); there is
-        // room, so a blank row above and below the text and a blank cell left and right: 6 rows tall,
-        // y 1-6 (a third of the 11 − 6 = 5 free rows above it, the key-hint row does not count)
+        // room, so a blank row above and below and a blank cell left and right, and a blank row between the
+        // typed text and the check: 7 rows tall, y 1-7 (a third of the 11 − 7 = 4 free rows above it, the
+        // key-hint row does not count)
         let mut terminal = draw_app(&mut app, 70, 12);
         let area = editor_area(Rect::new(0, 0, 70, 12));
-        assert_eq!(area, Rect::new(2, 1, 66, 6));
+        assert_eq!(area, Rect::new(2, 1, 66, 7));
         let rows = area_rows(terminal.backend().buffer(), area);
         assert!(rows[0].starts_with("╭ 編輯事項 ─"), "{}", rows[0]);
         assert!(rows[0].ends_with("─╮"));
@@ -1429,15 +1430,16 @@ mod tests {
             rows[2].trim_end_matches([' ', '│']),
             "│  - [ ] Pick up the cake 🎂 @17:30"
         );
+        assert_eq!(rows[3].trim_end_matches([' ', '│']), "");
         assert_eq!(
-            rows[3].trim_end_matches([' ', '│']),
+            rows[4].trim_end_matches([' ', '│']),
             "│  任務 · 2026/10/16（五） 17:30 · 「Pick up the cake 🎂」"
         );
-        assert_eq!(rows[4].trim_end_matches([' ', '│']), "");
+        assert_eq!(rows[5].trim_end_matches([' ', '│']), "");
         assert!(
-            rows[5].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+            rows[6].starts_with("╰ Enter 存檔  Esc 取消 ─"),
             "{}",
-            rows[5]
+            rows[6]
         );
         // The item is on the selected day (choosing it in the agenda selected 10/16), so its date is left
         // out and the time stays as @17:30. The cursor is right after the typed text, at box x 2 + border
@@ -1449,7 +1451,7 @@ mod tests {
         // What the line parses as is shown muted; change it to a time
         // that does not exist: that row becomes a red explanation
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.muted);
+        assert_eq!(terminal.backend().buffer()[(5, 5)].fg, theme.muted);
         for code in [
             KeyCode::Backspace,
             KeyCode::Backspace,
@@ -1461,10 +1463,10 @@ mod tests {
         let terminal = draw_app(&mut app, 70, 12);
         let rows = area_rows(terminal.backend().buffer(), area);
         assert_eq!(
-            rows[3].trim_end_matches([' ', '│']),
+            rows[4].trim_end_matches([' ', '│']),
             "│  17:99：沒有這個時間"
         );
-        assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.error);
+        assert_eq!(terminal.backend().buffer()[(5, 5)].fg, theme.error);
         // Adding: the top border names the calendar it goes into, the bottom border says Tab switches it
         let mut app = App::new(
             Lang::ZhTw,
@@ -1477,9 +1479,9 @@ mod tests {
         let rows = area_rows(terminal.backend().buffer(), area);
         assert!(rows[0].starts_with("╭ 新增 ∙ Work > SFAP ─"), "{}", rows[0]);
         assert!(
-            rows[5].starts_with("╰ Enter 存檔  Tab 換日曆  Esc 取消 ─"),
+            rows[6].starts_with("╰ Enter 存檔  Tab 換日曆  Esc 取消 ─"),
             "{}",
-            rows[5]
+            rows[6]
         );
     }
 
@@ -1488,16 +1490,17 @@ mod tests {
         use ratatui::crossterm::event::{
             KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
         };
-        // 80 × 24: 76 wide (2 cells from each side), 6 tall with the blank rows, top at (23 - 6) / 3 = 5;
-        // 200 × 50: at most 80 wide, centered; narrower than 30: the whole width; too short for the blank
-        // rows (80 × 6: 5 rows above the key hints): 4 tall
-        assert_eq!(editor_area(Rect::new(0, 0, 80, 24)), Rect::new(2, 5, 76, 6));
+        // 80 × 24: 76 wide (2 cells from each side), 7 tall with the blank rows (border, blank, typed text,
+        // blank, check, blank, border), top at (23 - 7) / 3 = 5; 200 × 50: at most 80 wide, centered; narrower
+        // than 30: the whole width; too short for the blank rows above and below (80 × 6: 5 rows above the
+        // key hints): 5 tall
+        assert_eq!(editor_area(Rect::new(0, 0, 80, 24)), Rect::new(2, 5, 76, 7));
         assert_eq!(
             editor_area(Rect::new(0, 0, 200, 50)),
-            Rect::new(60, 14, 80, 6)
+            Rect::new(60, 14, 80, 7)
         );
-        assert_eq!(editor_area(Rect::new(0, 0, 29, 24)), Rect::new(0, 5, 29, 6));
-        assert_eq!(editor_area(Rect::new(0, 0, 80, 6)), Rect::new(2, 0, 76, 4));
+        assert_eq!(editor_area(Rect::new(0, 0, 29, 24)), Rect::new(0, 5, 29, 7));
+        assert_eq!(editor_area(Rect::new(0, 0, 80, 6)), Rect::new(2, 0, 76, 5));
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
