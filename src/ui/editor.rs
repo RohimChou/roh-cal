@@ -3,6 +3,7 @@
 
 use crate::app::{App, Editor, Reading, Target};
 use crate::edit::Place;
+use crate::tasks::Priority;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
@@ -11,8 +12,9 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Paragraph},
 };
 
-/// Editor height: top border, the typing row, a blank row, the check-result row, bottom border
-const HEIGHT: u16 = 5;
+/// Editor height: top border, the typing row, a blank row, the check-result row, the hint row (what can be
+/// typed), bottom border
+const HEIGHT: u16 = 6;
 
 /// The widest the editor gets: a usual task line fits with room to spare; a longer one scrolls
 const MAX_WIDTH: u16 = 80;
@@ -155,15 +157,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             Style::new().fg(theme.label),
         ))
         .title_bottom(Line::styled(
-            match &editor.target {
-                // A calendar: `#` picks the calendar it goes inside
-                Target::AddCalendar { .. } | Target::RenameCalendar { .. }
-                    if !editor.hash_list.calendars.is_empty() =>
-                {
-                    texts.calendar_editor_keys()
-                }
-                _ => texts.editor_keys(!editor.hash_list.calendars.is_empty()),
-            },
+            texts.editor_keys(),
             Style::new().fg(theme.muted),
         ));
     // Clear the screen underneath and one blank cell around the box first (not the key-hint row at the
@@ -230,7 +224,62 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             },
         );
     }
+    // What can be typed, under the check result (left out when the terminal is too short for it)
+    if inner.height > 3 {
+        frame.render_widget(
+            hint_line(editor, app),
+            Rect {
+                y: inner.y + 3,
+                height: 1,
+                ..inner
+            },
+        );
+    }
     render_list(frame, editor, app);
+}
+
+/// The hint row: what can be typed, the thing to type in the help page's key color and what it does muted.
+/// An item's line: `@2026-10-19 日期  @10:00 時間  ! !! !!! 優先度  #名字 換日曆` (today's date; `!` `!!` `!!!` each in
+/// its priority's color; `#` only when it can pick a calendar, not for a subtask); a calendar's name:
+/// `type:holiday 假日日曆  #名字 放到哪個日曆裡`
+fn hint_line(editor: &Editor, app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let hints = &app.lang.texts().editor_hints;
+    let key = |text: String| Span::styled(text, Style::new().fg(theme.help_key));
+    let says = |text: &str| Span::styled(format!(" {text}  "), Style::new().fg(theme.muted));
+    let mut spans = vec![Span::raw(" ")];
+    match editor.target {
+        Target::AddCalendar { .. } | Target::RenameCalendar { .. } => {
+            spans.extend([key("type:holiday".to_string()), says(hints.holiday)]);
+        }
+        Target::Edit { .. } | Target::Add(_) => {
+            spans.extend([
+                key(format!("@{}", app.today)),
+                says(hints.date),
+                key("@10:00".to_string()),
+                says(hints.time),
+            ]);
+            for (marks, priority) in [
+                ("!", Priority::Low),
+                (" !!", Priority::Medium),
+                (" !!!", Priority::High),
+            ] {
+                spans.push(Span::styled(
+                    marks,
+                    Style::new().fg(theme.priority(priority)),
+                ));
+            }
+            spans.push(says(hints.priority));
+        }
+    }
+    if !editor.hash_list.calendars.is_empty() {
+        let what = match editor.target {
+            Target::AddCalendar { .. } | Target::RenameCalendar { .. } => hints.inside,
+            Target::Edit { .. } | Target::Add(_) => hints.calendar,
+        };
+        spans.extend([key(hints.name_key.to_string()), says(what)]);
+    }
+    Line::from(spans)
 }
 
 /// Draws the `#` list over the editor (see `list_area`): one calendar per row, its full path; the characters

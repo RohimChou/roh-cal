@@ -78,6 +78,8 @@ pub struct Texts {
     pub hints_side: &'static str,
     /// The keys on the bottom border of the editor's `#` list
     pub hash_list_keys: &'static str,
+    /// The editor's hint row: what can be typed in the line
+    pub editor_hints: EditorHints,
     /// The title on the editor's top border when adding a calendar
     pub add_calendar_title: &'static str,
     /// The calendar a new item goes into when the task file has no calendar yet (`# 預設`)
@@ -103,6 +105,25 @@ pub struct Texts {
     pub picker_hint: &'static str,
     /// The color picker's last line: a color code can be typed too
     pub picker_typing: &'static str,
+}
+
+/// The words on the editor's hint row (what can be typed in the line)
+#[derive(Debug, Clone, Copy)]
+pub struct EditorHints {
+    /// After `@2026-10-19`: an item's date
+    pub date: &'static str,
+    /// After `@10:00`: its time
+    pub time: &'static str,
+    /// After `! !! !!!`: its priority
+    pub priority: &'static str,
+    /// What to type before part of a calendar's name: `#name`
+    pub name_key: &'static str,
+    /// After `#name` for an item: it switches calendar
+    pub calendar: &'static str,
+    /// After `type:holiday` for a calendar: a holiday calendar
+    pub holiday: &'static str,
+    /// After `#name` for a calendar: the calendar it goes inside
+    pub inside: &'static str,
 }
 
 /// The help page: the short version (what `?` opens: the sections of `short` that work where the keyboard
@@ -162,6 +183,15 @@ const EN: Texts = Texts {
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a/A add calendar  e rename  d delete  Esc back",
     hash_list_keys: " Enter pick  Esc close ",
+    editor_hints: EditorHints {
+        date: "date",
+        time: "time",
+        priority: "priority",
+        name_key: "#name",
+        calendar: "calendar",
+        holiday: "holiday calendar",
+        inside: "inside it",
+    },
     add_calendar_title: " New calendar ",
     default_calendar: "Default",
     rename_calendar_title: " Rename calendar ",
@@ -374,6 +404,15 @@ const ZH_TW: Texts = Texts {
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a/A 新增日曆  e 改名  d 刪除  Esc 回去",
     hash_list_keys: " Enter 選定  Esc 收起 ",
+    editor_hints: EditorHints {
+        date: "日期",
+        time: "時間",
+        priority: "優先度",
+        name_key: "#名字",
+        calendar: "換日曆",
+        holiday: "假日日曆",
+        inside: "放到哪個日曆裡",
+    },
     add_calendar_title: " 新增日曆 ",
     default_calendar: "預設",
     rename_calendar_title: " 日曆改名 ",
@@ -681,23 +720,11 @@ impl Texts {
         }
     }
 
-    /// The calendar editor's bottom border: how to save, that `#` and a calendar's name picks the calendar it
-    /// goes inside, how to cancel
-    pub fn calendar_editor_keys(&self) -> &'static str {
+    /// The editor's bottom border: how to save, how to cancel (what can be typed is on the hint row inside)
+    pub fn editor_keys(&self) -> &'static str {
         match self.lang {
-            Lang::En => " Enter save  #name inside  Esc cancel ",
-            Lang::ZhTw => " Enter 存檔  #名字 放到哪個日曆裡  Esc 取消 ",
-        }
-    }
-
-    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding or editing an item, so
-    /// typing `#` and a calendar's name switches its calendar
-    pub fn editor_keys(&self, calendars: bool) -> &'static str {
-        match (self.lang, calendars) {
-            (Lang::En, false) => " Enter save  Esc cancel ",
-            (Lang::En, true) => " Enter save  #name calendar  Esc cancel ",
-            (Lang::ZhTw, false) => " Enter 存檔  Esc 取消 ",
-            (Lang::ZhTw, true) => " Enter 存檔  #名字 換日曆  Esc 取消 ",
+            Lang::En => " Enter save  Esc cancel ",
+            Lang::ZhTw => " Enter 存檔  Esc 取消 ",
         }
     }
 
