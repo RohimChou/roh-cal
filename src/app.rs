@@ -33,6 +33,7 @@ use ratatui::{
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,6 +174,8 @@ pub struct App {
     pub day_clicked: bool,
     /// Popup scroll: which item is at the top (it scrolls only when the chosen item leaves the box)
     pub day_top: usize,
+    /// Layout 3: the day and time of the last click on the month grid, to tell a double click
+    last_click: Option<(Date, Instant)>,
     /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
     /// day's month at the top)
     pub calendar_top: Option<i64>,
@@ -232,6 +235,7 @@ impl App {
             day_index: 0,
             day_clicked: false,
             day_top: 0,
+            last_click: None,
             calendar_top: None,
             agenda_window: None,
             month_top: None,
@@ -661,6 +665,10 @@ impl App {
             // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
+                    // Layout 3: only a real double click opens the day popup
+                    Some(Click::Day(date)) if self.view == View::Month => {
+                        self.click_month_day(date, Instant::now());
+                    }
                     // Clicking the selected day again (keyboard on the calendar) = go into that
                     // day's items (like Enter)
                     Some(Click::Day(date))

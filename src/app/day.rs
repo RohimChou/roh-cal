@@ -1,12 +1,35 @@
-//! Layout 3's day popup: `Enter` on the calendar (or clicking the selected day again) opens it. It lists all
+//! Layout 3's day popup: `Enter` on the calendar (or double-clicking a day) opens it. It lists all
 //! items on the selected day (also ones a cell cannot fit and shows as `+N`). The keys are the same as in
 //! layout 1's agenda (drawing is in `ui::day`)
 
 use super::{App, Focus};
 use crate::ui;
+use jiff::civil::Date;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
+use std::time::{Duration, Instant};
+
+/// Two clicks on the same day at most this far apart count as a double click
+const DOUBLE_CLICK: Duration = Duration::from_millis(500);
 
 impl App {
+    /// A click on a day in the month grid at time `now`: selects the day; a second click on the same day
+    /// within `DOUBLE_CLICK` (a double click) opens the day popup. Clicking the selected day again later
+    /// only selects it, so a stray click does not cover the grid with the popup
+    pub(super) fn click_month_day(&mut self, day: Date, now: Instant) {
+        let double = self
+            .last_click
+            .is_some_and(|(last, at)| last == day && now.duration_since(at) <= DOUBLE_CLICK);
+        self.selected = day;
+        self.focus = Focus::Calendar;
+        if double {
+            // A third quick click starts over instead of counting as another double click
+            self.last_click = None;
+            self.open_day_popup();
+        } else {
+            self.last_click = Some((day, now));
+        }
+    }
+
     /// Opens the popup with the first item chosen; does not open if the day has no items
     pub(super) fn open_day_popup(&mut self) {
         if self.items_on(self.selected).is_empty() {
@@ -91,6 +114,7 @@ mod tests {
     use jiff::civil::date;
     use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     use ratatui::layout::Rect;
+    use std::time::{Duration, Instant};
 
     /// 10/17 has 4 items. Popup order: "Trip to NYC" (starts 10/16), "Triage bugs" (no time),
     /// "Team sync" 10:00, "Weekly update" 17:30; 10/20 has one more
@@ -154,6 +178,60 @@ mod tests {
         app.selected = date(2026, 10, 19);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.focus, Focus::Calendar);
+    }
+
+    #[test]
+    fn only_a_double_click_opens_the_day_from_the_month_grid() {
+        let mut app = month_app();
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let (oct16, oct17, oct18) = (date(2026, 10, 16), date(2026, 10, 17), date(2026, 10, 18));
+        // The selected day clicked again 0.9 s later: only selected, no popup
+        app.click_month_day(oct17, at(0));
+        app.click_month_day(oct17, at(900));
+        assert_eq!(app.focus, Focus::Calendar);
+        // Another click 0.3 s after that one: a double click, the popup opens
+        app.click_month_day(oct17, at(1200));
+        assert_eq!(
+            (app.focus, chosen(&app).as_deref()),
+            (Focus::Day, Some("Trip to NYC"))
+        );
+        // Two quick clicks on different days: the second day is selected, no popup
+        press(&mut app, KeyCode::Esc);
+        app.click_month_day(oct16, at(2000));
+        app.click_month_day(oct17, at(2200));
+        assert_eq!((app.selected, app.focus), (oct17, Focus::Calendar));
+        // A day that was not selected, double-clicked: the first click selects it, the second opens it
+        app.click_month_day(oct18, at(3000));
+        app.click_month_day(oct18, at(3300));
+        assert_eq!((app.selected, app.focus), (oct18, Focus::Day));
+    }
+
+    #[test]
+    fn the_mouse_needs_two_quick_presses_to_open_the_day() {
+        // October on top of the grid; find the cell that maps to 10/17
+        let mut app = month_app();
+        app.month_top = Some(date(2026, 9, 28));
+        let (column, row) = (0..60)
+            .flat_map(|x| (0..20).map(move |y| (x, y)))
+            .find(|&(x, y)| ui::click_at(&app, x, y) == Some(ui::Click::Day(date(2026, 10, 17))))
+            .expect("10/17 is on screen");
+        // One press on the selected day: nothing opens
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+        );
+        assert_eq!(app.focus, Focus::Calendar);
+        // A second press right away: a double click
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+        );
+        assert_eq!(app.focus, Focus::Day);
     }
 
     #[test]
