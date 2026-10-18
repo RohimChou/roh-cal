@@ -11,11 +11,11 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 ## 模組地圖
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
-| `src/main.rs` | 讀命令列參數、讀任務檔、開 / 關 TUI 和滑鼠 | |
-| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`3` 版型 3） | |
+| `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
+| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`3` 版型 3、`4` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
 | `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
-| `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`[calendar]`、`[month]` 的開關，`App::settings`）；沒寫的用預設值，名字打錯算錯誤。設定頁關掉時存回去（`save`：toml_edit，只改有變的那幾行，註解留著） | |
+| `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除的那一塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
 | `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務（`Target`）；直接打那一行的文字（tui-input），`edit::check` 即時檢查，有問題就存不了（`App::editor`） | |
@@ -31,8 +31,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週、週數欄寫什麼（`week_label`：`[calendar] relative_weeks` 時寫跟選取那週差幾週） | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色 | |
-| `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`catppuccin-latte`（亮色背景）、`gruvbox-dark`、`tokyo-night`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆 | |
-| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 都在這** | ✓ |
+| `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`catppuccin-latte`（亮色背景）、`gruvbox-dark`、`tokyo-night`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
+| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 大多在這**（說明頁、設定頁的在各自的檔案） | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
 | `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`） | ✓ |
@@ -43,11 +43,14 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 ```text
 App::run 的迴圈
  ├─ 記下 terminal 大小（app.screen）
- ├─ ui::render → planner::render（版型 1；版型 3 是 month::render，見下面「版型 3」）
- │   ├─ Months::window_for    選取的那個月，右邊在月份裡捲到哪 → app.agenda_window
- │   ├─ Months::scrolled_to   整個畫面捲到哪                 → app.calendar_top
- │   ├─ Months::visible_rows  畫面上每一列是什麼
- │   └─ 一列一列畫，左右兩個框的同一列在同一個高度
+ ├─ ui::render
+ │   ├─ 主畫面：planner::render（版型 1）/ month::render（版型 3，見下面「版型 3」）/ tasks::render（任務頁）
+ │   │   版型 1：
+ │   │   ├─ Months::window_for    選取的那個月，右邊在月份裡捲到哪 → app.agenda_window
+ │   │   ├─ Months::scrolled_to   整個畫面捲到哪                 → app.calendar_top
+ │   │   ├─ Months::visible_rows  畫面上每一列是什麼
+ │   │   └─ 一列一列畫，左右兩個框的同一列在同一個高度
+ │   └─ 跳窗（編輯框、說明頁、設定頁）蓋在最上面；設定頁先捲到選到的那列（settings::scrolled）
  └─ 等一個輸入 → App::handle_key / App::handle_mouse（滑鼠點的位置用 ui::click_at 換算）
      └─ 先看 App::mode（同時只會有一種）：說明頁、設定頁、問要不要刪、編輯框、改期中各自收按鍵和滑鼠，
         都沒開（Mode::Normal）才照鍵盤在哪個框處理；多一種模式時，沒處理到的 match compiler 會抓到

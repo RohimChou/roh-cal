@@ -255,7 +255,7 @@ impl App {
         }
     }
 
-    /// 照設定（`settings.theme` + `settings.colors` 蓋掉的顏色）換掉畫面的顏色；組不出來（設定檔讀進來時已經檢查過）就不換
+    /// 照設定（`settings.theme` + `settings.colors` 蓋掉的顏色）換掉畫面的顏色；組不出來就不換（設定檔讀進來時檢查過、換 theme 走 `Settings::set_theme`，正常都組得出來）
     pub fn apply_theme(&mut self) {
         if let Ok(theme) = Theme::build(&self.settings.theme, &self.settings.colors) {
             self.theme = theme;

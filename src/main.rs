@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use tasks::Parsed;
 use texts::Lang;
 
+/// 讀命令列參數、任務檔、設定檔，進 TUI 跑到離開為止；設定檔、`--tasks` 指定的任務檔讀不進來就印出哪裡錯（不進 TUI）
 fn main() -> Result<()> {
     // 出錯時印出好讀的錯誤訊息與 backtrace
     color_eyre::install()?;
@@ -47,7 +48,7 @@ fn main() -> Result<()> {
         Some(path) => config::load(path)?,
         None => config::Settings::default(),
     };
-    // --theme 比設定檔優先（這次打開用；之後在設定頁改了東西、關掉時會一起存進設定檔）
+    // --theme 比設定檔優先，只有這次打開用：設定頁關掉時只存頁面上改過的，不會把它存進設定檔
     if let Some(theme) = args.theme {
         settings.set_theme(&theme);
     }
@@ -60,7 +61,7 @@ fn main() -> Result<()> {
         let mut app = App::new(lang, today, parsed.items);
         app.settings = settings;
         app.apply_theme();
-        // 設定頁改過的開關存回同一個檔案（還不存在的話，有改東西才會建立）
+        // 設定頁改過的設定存回同一個檔案（還不存在的話，有改東西才會建立）
         app.config_path = config_path;
         // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
         app.tasks_path = path;
@@ -100,6 +101,7 @@ impl MouseCapture {
 }
 
 impl Drop for MouseCapture {
+    /// 關掉滑鼠事件
     fn drop(&mut self) {
         // drop 不能回傳錯誤；關不掉也沒辦法再做什麼，所以忽略
         let _ = execute!(stdout(), DisableMouseCapture);

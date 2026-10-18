@@ -107,6 +107,7 @@ pub struct HelpSection {
     pub keys: &'static [(&'static str, &'static str)],
 }
 
+/// 英文的字
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl move  Tab switch  [] month  t today  ? help  q quit",
@@ -243,6 +244,7 @@ const EN: Texts = Texts {
     settings_reset_all: "Reset everything? y resets, any other key cancels",
 };
 
+/// 繁體中文的字
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  q 離開",

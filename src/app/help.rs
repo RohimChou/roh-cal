@@ -85,10 +85,12 @@ mod tests {
         app
     }
 
+    /// 按一個鍵
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }
 
+    /// 在 (`column`, `row`) 的一個滑鼠事件
     fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
         MouseEvent {
             kind,

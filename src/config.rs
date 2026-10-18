@@ -1,6 +1,6 @@
 //! 設定檔：啟動時讀進來（位置見 `paths::config_file`），設定頁（`,`）關掉時把改過的存回去
 //!
-//! 只寫想改的就好，沒寫的用預設值；名字打錯、型別不對都算錯誤（啟動時印出哪一行錯，不進 TUI）。
+//! 只寫想改的就好，沒寫的用預設值；名字打錯、型別不對都算錯誤（啟動時印出哪一行錯，不進 TUI；`[colors]` 寫錯是說哪個角色哪個值）。
 //! 存檔只改有變的那幾行，其他行和註解一字不動（手寫的設定檔不會被蓋掉）。範例見 `testdata/config.toml`
 
 use crate::files;
@@ -31,7 +31,7 @@ pub struct Settings {
     /// `[month]`：大月曆（版型 3）的開關
     pub month: MonthSettings,
     /// `[colors]`：蓋掉 theme 的幾個角色（角色 → 顏色，例：`today = "#a6e3a1"`）；沒寫的照 theme。
-    /// 只記跟 theme 不一樣的
+    /// 設定頁只寫跟 theme 不一樣的（還原就拿掉那一行）
     pub colors: BTreeMap<String, String>,
 }
 

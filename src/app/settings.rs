@@ -323,6 +323,7 @@ mod tests {
         app
     }
 
+    /// 按一個鍵
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }

@@ -93,7 +93,7 @@ fn value_width() -> usize {
         .iter()
         .map(|name| name.len())
         .chain(colors)
-        .chain([3])
+        .chain(["off".len()])
         .max()
         .unwrap_or(0)
 }

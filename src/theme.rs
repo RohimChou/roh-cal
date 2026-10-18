@@ -184,15 +184,17 @@ pub fn color_text(color: Color) -> String {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeFile {
+    /// 色票：名字 → 顏色（`"#rrggbb"`）；`[roles]` 可以寫這裡的名字
     #[serde(default)]
     palette: BTreeMap<String, String>,
+    /// 每個角色用哪個顏色（色票的名字或顏色）；`Theme::parse` 再一個一個讀成顏色
     roles: toml::Table,
 }
 
 impl Theme {
     /// [Catppuccin Mocha](https://catppuccin.com/palette)：暗色背景用的柔和配色（跟 v1 的預設一樣）
     pub fn catppuccin_mocha() -> Self {
-        Self::builtin(DEFAULT).unwrap_or_else(|| unreachable!("內建的 theme"))
+        Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("內建的 theme"))
     }
 
     /// 內建的 theme 裡叫 `name` 的那一套（沒有蓋掉的顏色）；沒有這個名字是 `None`
@@ -266,7 +268,7 @@ impl Theme {
     /// 把 theme 檔（TOML）轉成 `Theme`：先用 `colors` 蓋掉幾個角色，`[roles]` 裡寫色票名字的再換成 `[palette]` 裡的顏色，
     /// 最後一個角色一個角色讀成顏色（`"#rrggbb"`、`"blue"` 這種 terminal 的顏色名字、256 色的編號都可以）。
     /// 少了角色、不認識的角色、不是顏色都是錯誤
-    pub fn parse(text: &str, colors: &BTreeMap<String, String>) -> Result<Self, toml::de::Error> {
+    fn parse(text: &str, colors: &BTreeMap<String, String>) -> Result<Self, toml::de::Error> {
         let ThemeFile { palette, mut roles } = toml::from_str(text)?;
         for (role, color) in colors {
             roles.insert(role.clone(), toml::Value::String(color.clone()));
