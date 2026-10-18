@@ -760,14 +760,26 @@ def tasks_screen(lang, w, h, text, groups):
             p = items[p]["parent"]
         return True
 
-    rows, previous = [], object()
+    # Calendars are a tree, like the side menu: a heading is indented 2 cells per calendar it is inside,
+    # and so are its items (on top of their own subtask indent)
+    rows, previous, shown = [], object(), ()
     for k, it in enumerate(items):
         path = paths[it["line"]]
         if is_hidden(path, hidden) or not visible(k):
             continue
-        # A new calendar (path) gets a heading row
+        # A new calendar (path) gets a heading row; first, the calendars it is inside get theirs, except
+        # those already right above (the last heading listed was inside them too)
         if (path, it["group"]) != previous:
-            rows.append(("heading", it["group"]))
+            if path is None:
+                rows.append(("heading", None, 0))
+                shown = ()
+            else:
+                keep = 0
+                while keep < len(path) - 1 and keep < len(shown) and path[keep] == shown[keep]:
+                    keep += 1
+                for depth in range(keep, len(path)):
+                    rows.append(("heading", path[depth], depth))
+                shown = path
             previous = (path, it["group"])
         rows.append(("item", k))
     item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
@@ -794,7 +806,8 @@ def tasks_screen(lang, w, h, text, groups):
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
         check = ("[x]" if it["done"] else "[ ]") if it["task"] else " ∙ "
-        prefix = " " + "  " * it["depth"] + marker + " " + check + " "
+        levels = (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]
+        prefix = " " + "  " * levels + marker + " " + check + " "
         text = it["title"]
         subtasks = [c for c in children if c["task"]]
         if subtasks:
@@ -814,8 +827,8 @@ def tasks_screen(lang, w, h, text, groups):
     row_lines = []
     for row in rows:
         if row[0] == "heading":
-            name, level = row[1] if row[1] else (None, 1)
-            row_lines.append([ljust(cut(" " + "  " * (level - 1) + (t["ungrouped"] if name is None else name), iw), iw)])
+            _, name, depth = row
+            row_lines.append([ljust(cut(" " + "  " * depth + (t["ungrouped"] if name is None else name), iw), iw)])
         else:
             row_lines.append(item_lines(row[1]))
     all_lines = [line for lines in row_lines for line in lines]

@@ -43,6 +43,31 @@ fn brackets_jump_to_the_previous_or_next_calendar() {
     assert_eq!(app.selected, date(2026, 10, 17));
 }
 
+#[test]
+fn calendars_inside_calendars_list_their_outer_calendars_first() {
+    // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
+    let mut app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");
+    assert_eq!(shape(&app), ["#A", "a1", "#P", "#Q", "q1", "#P", "p1"]);
+    let depths: Vec<usize> = app
+        .tasks_rows()
+        .iter()
+        .filter_map(|row| match row {
+            TaskRow::Heading { depth, .. } => Some(*depth),
+            TaskRow::Item { .. } => None,
+        })
+        .collect();
+    assert_eq!(depths, [0, 0, 1, 0]);
+    // ] from a1 skips P's heading (nothing right under it) to Q's first item, then on to p1; [ back
+    let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(chosen(&app).as_deref(), Some("q1"));
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(chosen(&app).as_deref(), Some("p1"));
+    press(&mut app, KeyCode::Char('['));
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(chosen(&app).as_deref(), Some("a1"));
+}
+
 /// What each row looks like: heading `#name`, item `title` (two spaces per level
 /// in front; an item with subtasks gets `+` when collapsed, `-` when expanded)
 fn shape(app: &App) -> Vec<String> {

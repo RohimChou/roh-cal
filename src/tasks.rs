@@ -134,8 +134,7 @@ struct When {
 /// A group heading, e.g. `# Payments API v2`, `# US holidays type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
-    /// How many `#`: fewer `#` = a level up (`#` Work → `##` SFAP is a calendar inside Work); the tasks
-    /// page indents the heading by this
+    /// How many `#`: fewer `#` = a level up (`#` Work → `##` SFAP is a calendar inside Work)
     pub level: usize,
     /// The heading text (without `type:holiday`)
     pub name: String,

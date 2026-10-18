@@ -242,9 +242,9 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
         })
 }
 
-/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is its name (indented by
-/// its level, the label color, bold); an item's line is that line of its left part, and on the first line its
-/// date and time columns on the right
+/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is its name (indented 2 cells
+/// per calendar it is inside, the label color, bold); an item's line is that line of its left part, and on the
+/// first line its date and time columns on the right
 fn render_line(
     frame: &mut Frame,
     area: Rect,
@@ -254,9 +254,9 @@ fn render_line(
 ) {
     let theme = &app.theme;
     match (row, layout) {
-        (TaskRow::Heading { name, level }, _) => {
+        (TaskRow::Heading { name, depth }, _) => {
             let name = name.as_deref().unwrap_or(app.lang.texts().ungrouped);
-            let indent = "  ".repeat(level.saturating_sub(1));
+            let indent = "  ".repeat(*depth);
             frame.render_widget(
                 Line::styled(
                     format!(" {indent}{name}"),
@@ -361,8 +361,17 @@ pub(super) fn wrap(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'stati
         .collect()
 }
 
+/// How many levels an item's line is indented (2 cells each): the calendars its calendar is inside (an item
+/// in `Work > SFAP` 1 more, under its heading), plus its own subtask depth
+fn levels(item: &Item) -> usize {
+    item.group
+        .as_ref()
+        .map_or(0, |heading| heading.parents.len())
+        + item.depth
+}
+
 /// One item laid out at `width` cells: 「 ▸ [ ] 實作退款 API  1/4            10/14       」. On the left: the indent
-/// (2 cells per level), `▸` / `▾` (has subtasks: collapsed / expanded), `[ ]` / `[x]` (task) or ` ∙ ` (event),
+/// (2 cells per level, see `levels`), `▸` / `▾` (has subtasks: collapsed / expanded), `[ ]` / `[x]` (task) or ` ∙ ` (event),
 /// the title, and how many subtasks are done; when that does not fit, the title (with the count) wraps onto
 /// the next lines, which start under the title. On the right of the first line: a date column
 /// (right-aligned) and a time column, sized by `date_columns`; an item without a time leaves that cell blank
@@ -417,7 +426,7 @@ fn item_lines(
         });
     let prefix = vec![
         Span::styled(
-            format!(" {}{marker} ", "  ".repeat(item.depth)),
+            format!(" {}{marker} ", "  ".repeat(levels(item))),
             Style::new().fg(theme.muted),
         ),
         Span::styled(format!("{check} "), Style::new().fg(color)),
@@ -487,12 +496,12 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         .iter()
         .zip(&layouts)
         .position(|(&start, layout)| (start..start + layout.height()).contains(&line))?;
-    let depth = match rows.get(index)? {
-        TaskRow::Item { index, .. } => app.items.get(*index)?.depth,
+    let levels = match rows.get(index)? {
+        TaskRow::Item { index, .. } => levels(app.items.get(*index)?),
         TaskRow::Heading { .. } => return None,
     };
-    // `▸` sits at cell 1 + 2 × depth inside the box, on the item's first line
-    let marker = usize::from(body.x) + 1 + 2 * depth;
+    // `▸` sits at cell 1 + 2 × levels inside the box, on the item's first line
+    let marker = usize::from(body.x) + 1 + 2 * levels;
     Some(Click::TaskRow {
         row: index,
         on_marker: line == starts[index] && usize::from(column) == marker,

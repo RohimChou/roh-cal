@@ -2438,6 +2438,59 @@ fn tasks_app(lang: Lang) -> App {
 }
 
 #[test]
+fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
+    // testdata/calendars.md: `# Work` has no items of its own, so its heading row comes from `## SFAP`'s;
+    // a calendar is indented 2 cells per calendar it is inside, and so are its items (under its heading);
+    // `### Bugs` goes one deeper; `# Work` again at the end gets a heading again
+    let parsed = crate::tasks::parse(include_str!("../../testdata/calendars.md"));
+    let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
+    (app.view, app.focus) = (View::Tasks, Focus::Tasks);
+    app.screen = Rect::new(0, 0, 60, 22);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 60, 22).backend().buffer()),
+        [
+            "╭──────────────────────────────────────────────────────────╮",
+            "│ Tasks                                                    │",
+            "│──────────────────────────────────────────────────────────│",
+            "│ Work                                                     │",
+            "│   SFAP                                                   │",
+            "│   ▸ [ ] Fix the login bug  0/1               10/20       │",
+            "│     Bugs                                                 │",
+            "│       [ ] Session times out too early        10/21       │",
+            "│   CAIS                                                   │",
+            "│     [ ] Ship the monthly report              10/22       │",
+            "│ Personal                                                 │",
+            "│    ∙  Gym                                    10/18       │",
+            "│   Moving                                                 │",
+            "│     [ ] Pack the books                        11/1       │",
+            "│ Work                                                     │",
+            "│    ∙  Team sync                              10/19 10:00 │",
+            "│                                                          │",
+            "│                                                          │",
+            "│──────────────────────────────────────────────────────────│",
+            "│ Line 3  - [ ] Fix the login bug @2026-10-20              │",
+            "╰──────────────────────────────────────────────────────────╯",
+            " 123 view  jk move  hl fold  Space check  e edit  a add  s c",
+        ]
+    );
+    // `▸` of the first item (inside SFAP, 1 level in): x = 1 + 1 + 2 = 4 on the screen, row 5
+    assert_eq!(
+        click_at(&app, 4, 5),
+        Some(Click::TaskRow {
+            row: 2,
+            on_marker: true
+        })
+    );
+    assert_eq!(
+        click_at(&app, 2, 5),
+        Some(Click::TaskRow {
+            row: 2,
+            on_marker: false
+        })
+    );
+}
+
+#[test]
 fn tasks_page_lists_the_file_as_a_tree() {
     // 70 × 30: the whole task file listed by calendar, items without a date too;
     // subtasks folded (▸), followed by how many subtasks are done; date and time
@@ -2636,7 +2689,7 @@ fn tasks_page_points_at_format_mistakes() {
             "│    ∙  Mom's birthday 🎂                                10/29       │",
             "│   [ ] Pay property tax @2026-13-01                                 │",
             "│   Moving                                                           │",
-            "│   [ ] Get quotes from movers                            11/7       │",
+            "│     [ ] Get quotes from movers                          11/7       │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
             "╰────────────────────────────────────────────────────────────────────╯",

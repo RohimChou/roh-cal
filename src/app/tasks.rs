@@ -14,8 +14,8 @@ pub enum TaskRow {
     Heading {
         /// The heading's name; `None` = the 「未分組」 part at the top of the file, before any heading
         name: Option<String>,
-        /// How many `#` (for indentation)
-        level: usize,
+        /// How many calendars it is inside (for indentation): 0 = top level, 1 = e.g. `SFAP` in `Work`
+        depth: usize,
     },
     /// An item
     Item {
@@ -29,22 +29,48 @@ pub enum TaskRow {
 }
 
 impl App {
-    /// Every row of the tasks page, in file order: a heading row comes first whenever the calendar changes;
+    /// Every row of the tasks page, in file order: a heading row comes first whenever the calendar changes,
+    /// with the calendars it is inside before it as a tree (like the side menu: `Work` with no items of its
+    /// own still gets a row above `SFAP`, unless the heading right above is in `Work` too);
     /// a subtask is listed only if every level above it is expanded;
     /// calendars unchecked in the side menu are left out entirely
     pub fn tasks_rows(&self) -> Vec<TaskRow> {
         let mut rows = Vec::new();
         // Which group the last listed item was in (a new group gets a heading)
         let mut previous = None;
+        // The path of the last heading listed, e.g. `Work > SFAP`: those calendars are already on screen
+        let mut listed: Vec<&String> = Vec::new();
         for (index, item) in self.items.iter().enumerate() {
             if !self.is_shown(item) || !self.ancestors_expanded(item) {
                 continue;
             }
             if previous != Some(&item.group) {
-                rows.push(TaskRow::Heading {
-                    name: item.group.as_ref().map(|heading| heading.name.clone()),
-                    level: item.group.as_ref().map_or(1, |heading| heading.level),
-                });
+                let path: Vec<&String> = item
+                    .group
+                    .iter()
+                    .flat_map(|heading| heading.parents.iter().chain([&heading.name]))
+                    .collect();
+                // Calendars shared with the last heading's path are listed already; the calendar itself
+                // always gets a row (e.g. back in `Work` after `Work > SFAP`)
+                let same = path
+                    .iter()
+                    .zip(&listed)
+                    .take_while(|(name, other)| name == other)
+                    .count()
+                    .min(path.len().saturating_sub(1));
+                if path.is_empty() {
+                    rows.push(TaskRow::Heading {
+                        name: None,
+                        depth: 0,
+                    });
+                }
+                for (depth, name) in path.iter().enumerate().skip(same) {
+                    rows.push(TaskRow::Heading {
+                        name: Some((*name).clone()),
+                        depth,
+                    });
+                }
+                listed = path;
                 previous = Some(&item.group);
             }
             let children = self.items.iter().any(|other| other.parent == Some(index));
@@ -127,7 +153,8 @@ impl App {
 
     /// `[` / `]`: chooses the first item of the previous (`step` = -1) / next (1) calendar (heading) on the
     /// tasks page, like `[` `]` on the calendar go to the 1st of the previous / next month; stays put when
-    /// there is no calendar that way
+    /// there is no calendar that way. A heading with no items right under it (`Work` listed above
+    /// `Work > SFAP`) is skipped
     fn jump_calendar(&mut self, step: isize) {
         let rows = self.tasks_rows();
         let Some(cursor) = self.tasks_cursor(&rows) else {
@@ -136,7 +163,10 @@ impl App {
         let headings: Vec<usize> = rows
             .iter()
             .enumerate()
-            .filter(|(_, row)| matches!(row, TaskRow::Heading { .. }))
+            .filter(|&(position, row)| {
+                matches!(row, TaskRow::Heading { .. })
+                    && matches!(rows.get(position + 1), Some(TaskRow::Item { .. }))
+            })
             .map(|(position, _)| position)
             .collect();
         // The calendar the chosen item is in: the last heading above it
