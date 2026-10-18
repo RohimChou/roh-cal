@@ -164,15 +164,19 @@ impl Row {
 
     /// 這一列還原成預設值（顏色 = 拿掉蓋掉的，回到 theme 的顏色）
     fn reset(self, settings: &mut Settings) {
-        let defaults = Settings::default();
+        let mut defaults = Settings::default();
         if let Self::Color(role) = self {
             settings.colors.remove(role);
             return;
         }
-        match self.switch(settings) {
-            Some(switch) => *switch = self.value(&defaults) == "on",
-            None => settings.set_theme(&defaults.theme),
+        // 開關：換成預設值裡同一個開關的值；不是開關的只剩 theme
+        if let Some(default) = self.switch(&mut defaults).copied() {
+            if let Some(switch) = self.switch(settings) {
+                *switch = default;
+            }
+            return;
         }
+        settings.set_theme(&defaults.theme);
     }
 }
 

@@ -109,10 +109,15 @@ pub fn area(app: &App, screen: Rect) -> Rect {
         .map(|&row| Span::raw(texts.setting_description(row)).width() + 2)
         .max()
         .unwrap_or(0);
-    let (title, hint) = (title(app), hint_text(app, None));
+    // 下框線放得下操作說明，也放得下按了 `R` 之後的問句
+    let hint_width = [texts.settings_hint, texts.settings_reset_all]
+        .map(|hint| Span::raw(hint).width() + 2)
+        .into_iter()
+        .max()
+        .unwrap_or(0);
     let inside = (row_width.max(description_width) + RIGHT_MARGIN)
-        .max(title.width())
-        .max(Span::raw(hint).width() + 2);
+        .max(title(app).width())
+        .max(hint_width);
     let width = u16::try_from(inside + 2).unwrap_or(u16::MAX);
     let height = u16::try_from(entries().len())
         .unwrap_or(u16::MAX)
@@ -168,9 +173,9 @@ fn title(app: &App) -> Line<'static> {
 }
 
 /// 下框線的字：平常是操作說明；正在問要不要全部還原（`page.confirm_reset`）就換成問句
-fn hint_text(app: &App, page: Option<SettingsPage>) -> &'static str {
+fn hint_text(app: &App, page: SettingsPage) -> &'static str {
     let texts = app.lang.texts();
-    if page.is_some_and(|page| page.confirm_reset) {
+    if page.confirm_reset {
         texts.settings_reset_all
     } else {
         texts.settings_hint
@@ -194,7 +199,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
         .padding(PADDING)
         .title_top(title(app))
         .title_bottom(Line::styled(
-            format!(" {} ", hint_text(app, Some(page))),
+            format!(" {} ", hint_text(app, page)),
             hint_style,
         ));
     let rows = rows();
@@ -223,7 +228,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
                     format!("{indent}{:<width$}", row.name()),
                     Style::new().fg(theme.help_key),
                 )];
-                // 顏色：先畫色塊（底色 = 那個角色現在的顏色）
+                // 顏色：先畫色塊（底色 = 那個角色現在的顏色；`Reset` = terminal 預設的顏色，看起來就是空的）
                 if let Some(color) = row.color(&app.settings) {
                     spans.push(Span::styled(SWATCH, Style::new().bg(color)));
                     spans.push(Span::raw(" "));
@@ -299,7 +304,15 @@ mod tests {
     /// 打開設定頁（`page`）畫一次 70 × `height` 的畫面，回傳 app（`settings_page.top` 已經捲好）、框的位置、
     /// 框裡每一列的字（右框線上的捲軸 `┃` 換回 `│`）、整個畫面
     fn draw(page: SettingsPage, height: u16) -> (App, Rect, Vec<String>, Buffer) {
-        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        draw_app(
+            App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()),
+            page,
+            height,
+        )
+    }
+
+    /// 跟 `draw` 一樣，但用傳進來的 `app`（例：先換了 theme）
+    fn draw_app(mut app: App, page: SettingsPage, height: u16) -> (App, Rect, Vec<String>, Buffer) {
         app.screen = Rect::new(0, 0, 70, height);
         app.settings_page = Some(page);
         let mut terminal = Terminal::new(TestBackend::new(70, height)).unwrap();
@@ -404,6 +417,20 @@ mod tests {
         assert_eq!(buffer[(35, 14)].bg, theme.text);
         assert_eq!(buffer[(38, 14)].bg, theme.cursor_line);
         assert_eq!(rows[35], "│  顏色：l 換色票的下一個，r 回到 theme 的   │");
+    }
+
+    #[test]
+    fn a_reset_color_gets_no_swatch() {
+        // terminal 的 text 是 terminal 預設的字色（Reset）：色塊那 2 格看起來是空的，後面寫 Reset
+        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        app.settings.set_theme("terminal");
+        app.apply_theme();
+        let (_, _, rows, buffer) = draw_app(app, SettingsPage::default(), 40);
+        assert_eq!(rows[13], "│    text                 Reset              │");
+        assert_eq!(buffer[(35, 14)].bg, Color::Reset);
+        assert_eq!(buffer[(36, 14)].bg, Color::Reset);
+        // 其他角色照樣有色塊（muted = dark-gray）
+        assert_eq!(buffer[(35, 15)].bg, Color::DarkGray);
     }
 
     #[test]
