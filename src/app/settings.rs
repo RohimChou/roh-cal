@@ -5,6 +5,7 @@
 
 use super::{App, Notice};
 use crate::config::{self, Settings};
+use crate::theme;
 use crate::ui;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
@@ -20,9 +21,11 @@ pub struct SettingsPage {
     pub confirm_reset: bool,
 }
 
-/// 設定頁的一列 = 設定檔的一個開關
+/// 設定頁的一列 = 設定檔的一個設定
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
+    /// 最上層的 `theme`：用哪一套內建的 theme
+    Theme,
     /// `[calendar] relative_weeks`
     RelativeWeeks,
     /// `[month] grid_lines`
@@ -33,8 +36,9 @@ pub enum Row {
     CenterCursor,
 }
 
-/// 設定頁的列，照顯示的順序（同一個表的排在一起）
-pub const ROWS: [Row; 4] = [
+/// 設定頁的列，照顯示的順序（跟設定檔一樣：最上層的在前，同一個表的排在一起）
+pub const ROWS: [Row; 5] = [
+    Row::Theme,
     Row::RelativeWeeks,
     Row::GridLines,
     Row::ItemIcons,
@@ -42,17 +46,19 @@ pub const ROWS: [Row; 4] = [
 ];
 
 impl Row {
-    /// 這一列在設定檔的哪個表（`[calendar]`、`[month]`）；設定頁也照這個分段
-    pub fn section(self) -> &'static str {
+    /// 這一列在設定檔的哪個表（`[calendar]`、`[month]`）；最上層的（`theme`）是 `None`。設定頁也照這個分段
+    pub fn section(self) -> Option<&'static str> {
         match self {
-            Self::RelativeWeeks => "calendar",
-            Self::GridLines | Self::ItemIcons | Self::CenterCursor => "month",
+            Self::Theme => None,
+            Self::RelativeWeeks => Some("calendar"),
+            Self::GridLines | Self::ItemIcons | Self::CenterCursor => Some("month"),
         }
     }
 
     /// 顯示在左邊的名字 = 設定檔裡的名字（有 test 釘住）
     pub fn name(self) -> &'static str {
         match self {
+            Self::Theme => "theme",
             Self::RelativeWeeks => "relative_weeks",
             Self::GridLines => "grid_lines",
             Self::ItemIcons => "item_icons",
@@ -60,31 +66,54 @@ impl Row {
         }
     }
 
-    /// 這一列在 `settings` 裡的開關（`&mut`：改值、還原都用這個）
-    fn switch(self, settings: &mut Settings) -> &mut bool {
+    /// 開關那幾列在 `settings` 裡的那個 `bool`（`&mut`：改值、還原用）；`theme` 不是開關，是 `None`
+    fn switch(self, settings: &mut Settings) -> Option<&mut bool> {
         match self {
-            Self::RelativeWeeks => &mut settings.calendar.relative_weeks,
-            Self::GridLines => &mut settings.month.grid_lines,
-            Self::ItemIcons => &mut settings.month.item_icons,
-            Self::CenterCursor => &mut settings.month.center_cursor,
+            Self::Theme => None,
+            Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
+            Self::GridLines => Some(&mut settings.month.grid_lines),
+            Self::ItemIcons => Some(&mut settings.month.item_icons),
+            Self::CenterCursor => Some(&mut settings.month.center_cursor),
         }
     }
 
-    /// 現在的值：開著 / 關著
-    pub fn value(self, settings: &Settings) -> bool {
-        // `switch` 要 `&mut`，複製一份來讀（`Settings` 是 `Copy`）
-        *self.switch(&mut settings.clone())
+    /// 現在的值（畫在右邊的字）：開關是 `on` / `off`，`theme` 是那套 theme 的名字
+    pub fn value(self, settings: &Settings) -> String {
+        let on_off = |on: bool| if on { "on" } else { "off" }.to_string();
+        match self {
+            Self::Theme => settings.theme.clone(),
+            Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
+            Self::GridLines => on_off(settings.month.grid_lines),
+            Self::ItemIcons => on_off(settings.month.item_icons),
+            Self::CenterCursor => on_off(settings.month.center_cursor),
+        }
     }
 
-    /// 改這一列的值：開關 on ⇄ off
-    fn change(self, settings: &mut Settings) {
-        let switch = self.switch(settings);
-        *switch = !*switch;
+    /// 改這一列的值：開關 on ⇄ off；`theme` 照內建的順序換下一套（`step` = 1）/ 上一套（-1），頭尾相接
+    fn change(self, settings: &mut Settings, step: isize) {
+        if let Some(switch) = self.switch(settings) {
+            *switch = !*switch;
+            return;
+        }
+        let names = theme::names();
+        let index = names
+            .iter()
+            .position(|&name| name == settings.theme)
+            .unwrap_or(0);
+        let next = index
+            .cast_signed()
+            .saturating_add(step)
+            .rem_euclid(names.len().cast_signed());
+        settings.theme = names[next.cast_unsigned()].to_string();
     }
 
     /// 這一列還原成預設值
     fn reset(self, settings: &mut Settings) {
-        *self.switch(settings) = self.value(&Settings::default());
+        let defaults = Settings::default();
+        match self.switch(settings) {
+            Some(switch) => *switch = self.value(&defaults) == "on",
+            None => settings.theme = defaults.theme,
+        }
     }
 }
 
@@ -103,6 +132,7 @@ impl App {
         if page.confirm_reset {
             if key.code == KeyCode::Char('y') {
                 self.settings = Settings::default();
+                self.apply_theme();
             }
             self.settings_page = Some(SettingsPage {
                 confirm_reset: false,
@@ -119,10 +149,14 @@ impl App {
             }
             KeyCode::Char('j') | KeyCode::Down => self.choose_setting(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_setting(-1),
-            KeyCode::Char('h' | 'l' | ' ') | KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
-                row.change(&mut self.settings);
+            KeyCode::Char('h') | KeyCode::Left => self.change_setting(row, -1),
+            KeyCode::Char('l' | ' ') | KeyCode::Right | KeyCode::Enter => {
+                self.change_setting(row, 1);
             }
-            KeyCode::Char('r') => row.reset(&mut self.settings),
+            KeyCode::Char('r') => {
+                row.reset(&mut self.settings);
+                self.apply_theme();
+            }
             KeyCode::Char('R') => {
                 self.settings_page = Some(SettingsPage {
                     confirm_reset: true,
@@ -132,6 +166,12 @@ impl App {
             KeyCode::Char('q' | ',') | KeyCode::Esc => self.close_settings(),
             _ => {}
         }
+    }
+
+    /// 改 `row` 的值（`step` 見 `Row::change`），換了 theme 畫面的顏色馬上跟著換
+    fn change_setting(&mut self, row: Row, step: isize) {
+        row.change(&mut self.settings, step);
+        self.apply_theme();
     }
 
     /// 設定頁開著時的滑鼠：滾輪上下選一列；點一列 = 選那列，再點一次選到的那列 = 改它的值；點框外關掉
@@ -149,7 +189,7 @@ impl App {
                     return;
                 }
                 match ui::settings_row_at(self, mouse.column, mouse.row) {
-                    Some(row) if row == page.row => ROWS[row].change(&mut self.settings),
+                    Some(row) if row == page.row => self.change_setting(ROWS[row], 1),
                     Some(row) => self.settings_page = Some(SettingsPage { row, ..page }),
                     None => {}
                 }
@@ -181,6 +221,7 @@ mod tests {
     use super::*;
     use crate::config::{CalendarSettings, MonthSettings};
     use crate::texts::Lang;
+    use crate::theme::Theme;
     use jiff::civil::date;
     use ratatui::layout::Rect;
 
@@ -207,6 +248,7 @@ mod tests {
         assert!(!path.exists());
         // 改了 relative_weeks 再關掉：只寫那一行
         press(&mut app, KeyCode::Char(','));
+        press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Char('q'));
         assert_eq!(
@@ -216,6 +258,7 @@ mod tests {
         assert_eq!(app.notice, None);
         // Ctrl+C 離開前也存
         press(&mut app, KeyCode::Char(','));
+        press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
@@ -246,6 +289,7 @@ mod tests {
     fn every_switch_has_a_row() {
         // 把 `Settings` 拆開到每個欄位：多加了開關、這裡沒跟著加就編譯不過，提醒要在 `ROWS` 加一列
         let Settings {
+            theme: _,
             calendar: CalendarSettings { relative_weeks: _ },
             month:
                 MonthSettings {
@@ -254,17 +298,26 @@ mod tests {
                     center_cursor: _,
                 },
         } = Settings::default();
-        assert_eq!(ROWS.len(), 4);
+        assert_eq!(ROWS.len(), 5);
     }
 
     #[test]
     fn row_names_are_the_config_file_names() {
-        // 每一列照「[表] 名字 = 跟預設相反的值」寫成設定檔，讀回來剛好是那一列改過的值
+        // 每一列改一次值，照「[表] 名字 = 新的值」寫成設定檔，讀回來剛好是改過的設定
         for row in ROWS {
-            let flipped = !row.value(&Settings::default());
-            let text = format!("[{}]\n{} = {flipped}\n", row.section(), row.name());
-            let settings: Settings = toml::from_str(&text).expect(&text);
-            assert_eq!(row.value(&settings), flipped, "{text}");
+            let mut changed = Settings::default();
+            row.change(&mut changed, 1);
+            let value = match row {
+                Row::Theme => format!("\"{}\"", row.value(&changed)),
+                _ => (row.value(&changed) == "on").to_string(),
+            };
+            let table = row
+                .section()
+                .map(|section| format!("[{section}]\n"))
+                .unwrap_or_default();
+            let text = format!("{table}{} = {value}\n", row.name());
+            let read: Settings = toml::from_str(&text).expect(&text);
+            assert_eq!(read, changed, "{text}");
         }
     }
 
@@ -272,7 +325,21 @@ mod tests {
     fn comma_opens_it_and_hl_change_the_chosen_row() {
         let mut app = app_with_settings();
         assert_eq!(app.settings_page, Some(SettingsPage::default()));
-        // 第一列 relative_weeks：l 打開、h 再關掉
+        // 第一列 theme：l 換下一套（畫面的顏色馬上跟著換）、到最後一套再 l 回到第一套、h 往回
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.settings.theme, "catppuccin-latte");
+        assert_eq!(
+            Some(&app.theme),
+            Theme::builtin("catppuccin-latte").as_ref()
+        );
+        press(&mut app, KeyCode::Char('l'));
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.settings.theme, "catppuccin-mocha");
+        press(&mut app, KeyCode::Char('h'));
+        assert_eq!(app.settings.theme, "terminal");
+        assert_eq!(app.theme.text, ratatui::style::Color::Reset);
+        // j 到 relative_weeks：l 打開、h 再關掉
+        press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         assert!(app.settings.calendar.relative_weeks);
         press(&mut app, KeyCode::Char('h'));
@@ -281,8 +348,9 @@ mod tests {
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char(' '));
         assert!(!app.settings.month.grid_lines);
-        press(&mut app, KeyCode::Char('k'));
-        press(&mut app, KeyCode::Char('k'));
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('k'));
+        }
         assert_eq!(app.settings_page.map(|page| page.row), Some(0));
         // 到尾也停在最後一列
         for _ in 0..10 {
@@ -294,13 +362,17 @@ mod tests {
     #[test]
     fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         let mut app = app_with_settings();
+        // theme 換成 latte，relative_weeks 打開、grid_lines 關掉
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
-        // r：只還原 grid_lines，relative_weeks 還是開著
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('l'));
+        // r：只還原 grid_lines，其他的不動
         press(&mut app, KeyCode::Char('r'));
         assert!(app.settings.month.grid_lines);
         assert!(app.settings.calendar.relative_weeks);
+        assert_eq!(app.settings.theme, "catppuccin-latte");
         // R 之後按別的鍵：只是取消，那個鍵也不做事（j 不會移動）
         press(&mut app, KeyCode::Char('R'));
         assert_eq!(app.settings_page.map(|page| page.confirm_reset), Some(true));
@@ -309,18 +381,27 @@ mod tests {
             app.settings_page.map(|page| page.confirm_reset),
             Some(false)
         );
-        assert_eq!(app.settings_page.map(|page| page.row), Some(1));
+        assert_eq!(app.settings_page.map(|page| page.row), Some(2));
         assert!(app.settings.calendar.relative_weeks);
-        // R 再 y：全部還原
+        // R 再 y：全部還原，畫面的顏色也回到預設的 theme
         press(&mut app, KeyCode::Char('R'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(app.settings, Settings::default());
+        assert_eq!(app.theme, Theme::catppuccin_mocha());
         assert!(app.settings_page.is_some());
+        // theme 那列也能單獨 r
+        for _ in 0..2 {
+            press(&mut app, KeyCode::Char('k'));
+        }
+        press(&mut app, KeyCode::Char('h'));
+        press(&mut app, KeyCode::Char('r'));
+        assert_eq!(app.settings.theme, "catppuccin-mocha");
+        assert_eq!(app.theme, Theme::catppuccin_mocha());
     }
 
     #[test]
     fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-        // 100 × 30：框（46 × 13）在 (27, 9)，grid_lines 那列在框裡第 5 行：9 + 框線 1 + padding 1 + 4 = 15
+        // 100 × 30：框（46 × 15）在 (27, 8)，grid_lines 那列在框裡第 7 行：8 + 框線 1 + padding 1 + 6 = 16
         let mut app = app_with_settings();
         let click = |app: &mut App, column, row| {
             app.handle_mouse(MouseEvent {
@@ -330,20 +411,20 @@ mod tests {
                 modifiers: KeyModifiers::NONE,
             });
         };
-        click(&mut app, 50, 15);
-        assert_eq!(app.settings_page.map(|page| page.row), Some(1));
+        click(&mut app, 50, 16);
+        assert_eq!(app.settings_page.map(|page| page.row), Some(2));
         assert!(app.settings.month.grid_lines);
         // 再點一次選到的那列：改值
-        click(&mut app, 50, 15);
+        click(&mut app, 50, 16);
         assert!(!app.settings.month.grid_lines);
         // 滾輪：選下一列
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::ScrollDown,
             column: 50,
-            row: 15,
+            row: 16,
             modifiers: KeyModifiers::NONE,
         });
-        assert_eq!(app.settings_page.map(|page| page.row), Some(2));
+        assert_eq!(app.settings_page.map(|page| page.row), Some(3));
         // 點框外：關掉，底下的月曆不會被點到
         click(&mut app, 0, 0);
         assert_eq!(app.settings_page, None);

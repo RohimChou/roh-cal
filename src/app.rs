@@ -204,6 +204,13 @@ impl App {
         }
     }
 
+    /// 照設定（`settings.theme`）換掉畫面的顏色；沒有這套 theme（設定檔讀進來時已經檢查過）就不換
+    pub fn apply_theme(&mut self) {
+        if let Some(theme) = Theme::builtin(&self.settings.theme) {
+            self.theme = theme;
+        }
+    }
+
     /// 這件事要不要顯示：它的日曆（分組）有勾選才顯示
     pub fn is_shown(&self, item: &Item) -> bool {
         self.groups

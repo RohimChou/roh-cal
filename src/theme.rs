@@ -55,10 +55,25 @@ pub struct Theme {
 }
 
 /// 內建的 theme：(名字, theme 檔的內容)；檔案在 repo 的 `themes/`，編進執行檔
-pub const BUILTIN: [(&str, &str); 1] = [(
-    "catppuccin-mocha",
-    include_str!("../themes/catppuccin-mocha.toml"),
-)];
+pub const BUILTIN: [(&str, &str); 3] = [
+    (
+        "catppuccin-mocha",
+        include_str!("../themes/catppuccin-mocha.toml"),
+    ),
+    (
+        "catppuccin-latte",
+        include_str!("../themes/catppuccin-latte.toml"),
+    ),
+    ("terminal", include_str!("../themes/terminal.toml")),
+];
+
+/// 沒指定時用的 theme
+pub const DEFAULT: &str = "catppuccin-mocha";
+
+/// 內建的 theme 的名字，照 `BUILTIN` 的順序
+pub fn names() -> Vec<&'static str> {
+    BUILTIN.iter().map(|&(name, _)| name).collect()
+}
 
 /// theme 檔（TOML）的樣子：`[palette]` 色票（名字自己取，可以不寫）、`[roles]` 每個角色用哪個顏色
 #[derive(Debug, Deserialize)]
@@ -72,7 +87,7 @@ struct ThemeFile {
 impl Theme {
     /// [Catppuccin Mocha](https://catppuccin.com/palette)：暗色背景用的柔和配色（跟 v1 的預設一樣）
     pub fn catppuccin_mocha() -> Self {
-        Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("內建的 theme"))
+        Self::builtin(DEFAULT).unwrap_or_else(|| unreachable!("內建的 theme"))
     }
 
     /// 內建的 theme 裡叫 `name` 的那一套；沒有這個名字是 `None`
@@ -106,6 +121,22 @@ mod tests {
             assert!(Theme::parse(text).is_ok(), "{name}");
         }
         assert_eq!(Theme::builtin("no-such-theme"), None);
+        // 每一套都不一樣（複製貼上忘了改會抓到）
+        let themes: Vec<Theme> = names()
+            .iter()
+            .filter_map(|name| Theme::builtin(name))
+            .collect();
+        assert_eq!(themes.len(), 3);
+        assert_ne!(themes[0], themes[1]);
+        assert_ne!(themes[1], themes[2]);
+        assert_eq!(
+            Theme::builtin("catppuccin-latte").map(|theme| theme.today),
+            Some(Color::Rgb(0x40, 0xa0, 0x2b))
+        );
+        assert_eq!(
+            Theme::builtin("terminal").map(|theme| theme.text),
+            Some(Color::Reset)
+        );
     }
 
     #[test]

@@ -43,10 +43,14 @@ fn main() -> Result<()> {
     };
     // 設定檔：不存在就全部用預設值；寫錯了就在這裡印出哪一行錯（還沒進 TUI）
     let config_path = paths::config_file();
-    let settings = match &config_path {
+    let mut settings = match &config_path {
         Some(path) => config::load(path)?,
         None => config::Settings::default(),
     };
+    // --theme 比設定檔優先（這次打開用；之後在設定頁改了東西、關掉時會一起存進設定檔）
+    if let Some(theme) = args.theme {
+        settings.theme = theme;
+    }
     // 今天：系統時區的日期
     let today = Zoned::now().date();
     // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
@@ -55,6 +59,7 @@ fn main() -> Result<()> {
         let _mouse = MouseCapture::enable()?;
         let mut app = App::new(lang, today, parsed.items);
         app.settings = settings;
+        app.apply_theme();
         // 設定頁改過的開關存回同一個檔案（還不存在的話，有改東西才會建立）
         app.config_path = config_path;
         // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
@@ -120,6 +125,14 @@ struct Args {
         help = "Screen language [default: the system language, else en]"
     )]
     lang: Option<Lang>,
+    /// `--theme`：用哪一套內建的 theme；沒給就照設定檔
+    #[arg(
+        long,
+        value_name = "NAME",
+        value_parser = parse_theme,
+        help = "Color theme: catppuccin-mocha, catppuccin-latte or terminal [default: the config file's, else catppuccin-mocha]"
+    )]
+    theme: Option<String>,
     /// `--tasks`：任務檔的路徑；沒給就用預設位置
     #[arg(
         long,
@@ -137,6 +150,14 @@ struct Args {
         help = "Print version"
     )]
     version: (),
+}
+
+/// `--theme` 的值：內建的 theme 的名字才收（clap 會在前面加上是哪個參數、哪個值）
+fn parse_theme(name: &str) -> Result<String, String> {
+    match theme::Theme::builtin(name) {
+        Some(_) => Ok(name.to_string()),
+        None => Err(format!("built-in: {}", theme::names().join(", "))),
+    }
 }
 
 /// `--lang` 的值換成 `Lang`；不支援的語言回傳錯誤（clap 會在前面加上是哪個參數、哪個值）
@@ -167,12 +188,22 @@ mod tests {
         assert_eq!(parsed.lang, Some(Lang::ZhTw));
         assert_eq!(parsed.tasks, Some(PathBuf::from("testdata/tasks.md")));
         assert_eq!(args("--lang en").expect("valid").lang, Some(Lang::En));
+        assert_eq!(
+            args("--theme terminal").expect("valid").theme.as_deref(),
+            Some("terminal")
+        );
         assert_eq!(args("").expect("no args"), Args::default());
     }
 
     #[test]
     fn parse_args_rejects_mistakes() {
-        for line in ["--lang", "--tasks", "--lang ja", "--foo bar"] {
+        for line in [
+            "--lang",
+            "--tasks",
+            "--lang ja",
+            "--foo bar",
+            "--theme dracula",
+        ] {
             assert!(args(line).is_err(), "{line}");
         }
     }

@@ -1,11 +1,13 @@
-//! 設定頁（`,`）：蓋在畫面正中間的框，設定檔的開關照表（`[calendar]`、`[month]`）分段列出來；
-//! 最下面一行說明選到的那一列在做什麼
+//! 設定頁（`,`）：蓋在畫面正中間的框，設定檔的設定照設定檔的樣子列出來：最上層的（`theme`）在前，
+//! 再來照表（`[calendar]`、`[month]`）分段；最下面一行說明選到的那一列在做什麼
 //!
 //! ```text
 //! ╭ roh-cal ∙ 設定 ─────────────────────────╮
 //! │                                         │
+//! │  theme              catppuccin-mocha    │  ← 選到的那列墊底色
+//! │                                         │
 //! │  [calendar]                             │
-//! │    relative_weeks   off                 │  ← 選到的那列墊底色
+//! │    relative_weeks   off                 │
 //! │                                         │
 //! │  [month]                                │
 //! │    grid_lines       on                  │
@@ -16,6 +18,7 @@
 //! ```
 
 use crate::app::{App, ROWS, SettingsPage};
+use crate::theme;
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -31,11 +34,11 @@ const PADDING: Padding = Padding::vertical(1);
 /// 內容和右框線之間空幾格（跟左邊段落名的縮排一樣）
 const RIGHT_MARGIN: usize = 2;
 
-/// 框裡的一行：段落名、一列開關（`ROWS` 的第幾列）、空行、說明
+/// 框裡的一行：段落名、一列設定（`ROWS` 的第幾列）、空行、說明
 enum Entry {
     /// `[calendar]` 這種段落名
     Section(&'static str),
-    /// 一列開關：`ROWS` 的第幾列
+    /// 一列設定：`ROWS` 的第幾列
     Row(usize),
     /// 空行
     Blank,
@@ -43,7 +46,8 @@ enum Entry {
     Description,
 }
 
-/// 框裡由上到下每一行是什麼：每一段是段落名 + 那一段的列，段和段之間空一行；最後空一行再寫說明
+/// 框裡由上到下每一行是什麼：最上層的列在前（沒有段落名）；每一段是段落名 + 那一段的列，段和段之間空一行；
+/// 最後空一行再寫說明
 fn entries() -> Vec<Entry> {
     let mut entries = Vec::new();
     for (index, row) in ROWS.iter().enumerate() {
@@ -52,7 +56,9 @@ fn entries() -> Vec<Entry> {
             if index > 0 {
                 entries.push(Entry::Blank);
             }
-            entries.push(Entry::Section(row.section()));
+            if let Some(section) = row.section() {
+                entries.push(Entry::Section(section));
+            }
         }
         entries.push(Entry::Row(index));
     }
@@ -66,11 +72,21 @@ fn name_width() -> usize {
     ROWS.iter().map(|row| row.name().len()).max().unwrap_or(0) + NAME_GAP
 }
 
+/// 值那欄最寬幾格：開關的 `off`、最長的 theme 名字
+fn value_width() -> usize {
+    theme::names()
+        .iter()
+        .map(|name| name.len())
+        .chain([3])
+        .max()
+        .unwrap_or(0)
+}
+
 /// 框的位置：大小剛好包住內容（說明取最長的那句，選別列時框不會變大變小），放在 `screen` 正中間
 pub fn area(app: &App, screen: Rect) -> Rect {
     let texts = app.lang.texts();
-    // 一列：縮排 4 + 名字那欄 + 值（最長 `off` 3 格）
-    let row_width = 4 + name_width() + 3;
+    // 一列：縮排 4 + 名字那欄 + 值
+    let row_width = 4 + name_width() + value_width();
     let description_width = ROWS
         .iter()
         .map(|&row| Span::raw(texts.setting_description(row)).width() + 2)
@@ -116,7 +132,8 @@ fn hint_text(app: &App, page: Option<SettingsPage>) -> &'static str {
     }
 }
 
-/// 畫設定頁：每一列「名字　值」，選到的那列墊底色；最下面寫選到的那一列在做什麼
+/// 畫設定頁：每一列「名字　值」（最上層的縮排 2、表裡的縮排 4，值對齊在同一欄），選到的那列墊底色；
+/// 最下面寫選到的那一列在做什麼
 pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -148,21 +165,21 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
             ),
             Entry::Row(index) => {
                 let row = ROWS[index];
-                let value = if row.value(&app.settings) {
-                    "on"
-                } else {
-                    "off"
-                };
                 let mut value_style = Style::new().fg(theme.text);
                 if index == page.row {
                     value_style = value_style.add_modifier(Modifier::BOLD);
                 }
+                // 表裡的多縮排 2 格，名字那欄少 2 格，值才對齊
+                let (indent, width) = match row.section() {
+                    Some(_) => ("    ", name_width()),
+                    None => ("  ", name_width() + 2),
+                };
                 Line::from(vec![
                     Span::styled(
-                        format!("    {:<width$}", row.name(), width = name_width()),
+                        format!("{indent}{:<width$}", row.name()),
                         Style::new().fg(theme.help_key),
                     ),
-                    Span::styled(value, value_style),
+                    Span::styled(row.value(&app.settings), value_style),
                 ])
             }
             Entry::Blank => Line::default(),
@@ -243,14 +260,16 @@ mod tests {
 
     #[test]
     fn settings_list_the_switches_by_table_with_a_description() {
-        // 預期的框用另一支 Python 算：名字那欄 = 最長的名字（relative_weeks，14 格）+ 3；
-        // 寬度看最長的說明（38 格 + 縮排 2 + 右邊留 2）和下框線的操作說明（42 格 + 前後空白），取大的
+        // 預期的框用另一支 Python 算：名字那欄 = 最長的名字（relative_weeks，14 格）+ 3，最上層的 theme 縮排少 2 格、
+        // 名字那欄多 2 格，值都在同一欄；寬度看最長的說明（38 格 + 縮排 2 + 右邊留 2）和下框線的操作說明（42 格 + 前後空白）
         let (_, area, rows, buffer) = draw(SettingsPage::default());
-        assert_eq!(area, Rect::new(12, 5, 46, 13));
+        assert_eq!(area, Rect::new(12, 4, 46, 15));
         assert_eq!(
             rows,
             [
                 "╭ roh-cal ∙ 設定 ────────────────────────────╮",
+                "│                                            │",
+                "│  theme              catppuccin-mocha       │",
                 "│                                            │",
                 "│  [calendar]                                │",
                 "│    relative_weeks   off                    │",
@@ -260,40 +279,50 @@ mod tests {
                 "│    item_icons       on                     │",
                 "│    center_cursor    off                    │",
                 "│                                            │",
-                "│  週數欄：選取那週寫週數，其他週寫差幾週    │",
+                "│  顏色：l 換下一套 theme，h 換上一套        │",
                 "│                                            │",
                 "╰ jk 選  hl 改  r 還原  R 全部還原  Esc 關閉 ╯",
             ]
         );
-        // 選到的那列（第一列，y = 5 + 3）整列墊底色、值加粗；其他列沒有底色
+        // 選到的那列（第一列 theme，y = 4 + 2）整列墊底色、值加粗；其他列沒有底色
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(13, 8)].bg, theme.cursor_line);
-        assert_eq!(buffer[(56, 8)].bg, theme.cursor_line);
-        // 值在框裡面縮排 4 + 名字那欄 17 格之後：13 + 21 = 34
-        assert!(buffer[(34, 8)].modifier.contains(Modifier::BOLD));
-        assert_eq!(buffer[(13, 11)].bg, Color::Reset);
-        assert_eq!(buffer[(17, 8)].fg, theme.help_key);
-        assert_eq!(buffer[(15, 7)].fg, theme.help_section);
+        assert_eq!(buffer[(13, 6)].bg, theme.cursor_line);
+        assert_eq!(buffer[(56, 6)].bg, theme.cursor_line);
+        // 值那欄：框裡面 13 + 縮排 2 + 名字那欄 19 = 34（表裡的列：13 + 4 + 17，一樣是 34）
+        assert!(buffer[(34, 6)].modifier.contains(Modifier::BOLD));
+        assert_eq!(buffer[(34, 9)].symbol(), "o");
+        assert_eq!(buffer[(13, 9)].bg, Color::Reset);
+        assert_eq!(buffer[(15, 6)].fg, theme.help_key);
+        assert_eq!(buffer[(15, 8)].fg, theme.help_section);
     }
 
     #[test]
     fn the_description_follows_the_chosen_row_and_r_asks_on_the_bottom_border() {
         let (_, _, rows, _) = draw(SettingsPage {
-            row: 3,
+            row: 4,
             confirm_reset: true,
         });
-        assert_eq!(rows[10], "│  大月曆：選取的那週固定在正中間            │");
-        assert_eq!(rows[12], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
+        assert_eq!(rows[12], "│  大月曆：選取的那週固定在正中間            │");
+        assert_eq!(rows[14], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
     }
 
     #[test]
     fn clicks_map_to_the_rows() {
         let (app, _, _, _) = draw(SettingsPage::default());
-        // 第一列在 y 8、month 的三列在 y 11～13；段落名、空行、說明、框線上都不算
-        assert_eq!(row_at(&app, app.screen, 20, 8), Some(0));
-        assert_eq!(row_at(&app, app.screen, 13, 11), Some(1));
-        assert_eq!(row_at(&app, app.screen, 56, 13), Some(3));
-        for (x, y) in [(20, 7), (20, 10), (20, 15), (12, 8), (57, 8), (20, 5)] {
+        // theme 在 y 6、relative_weeks 在 y 9、month 的三列在 y 12～14；段落名、空行、說明、框線上都不算
+        assert_eq!(row_at(&app, app.screen, 20, 6), Some(0));
+        assert_eq!(row_at(&app, app.screen, 20, 9), Some(1));
+        assert_eq!(row_at(&app, app.screen, 13, 12), Some(2));
+        assert_eq!(row_at(&app, app.screen, 56, 14), Some(4));
+        for (x, y) in [
+            (20, 7),
+            (20, 8),
+            (20, 11),
+            (20, 16),
+            (12, 6),
+            (57, 6),
+            (20, 4),
+        ] {
             assert_eq!(row_at(&app, app.screen, x, y), None, "({x}, {y})");
         }
     }

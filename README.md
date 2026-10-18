@@ -11,6 +11,7 @@ cargo run --release -- --tasks testdata/tasks.md    # try it with the sample tas
 | Option | Meaning |
 | :- | :- |
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
+| `--theme <name>` | Color theme: `catppuccin-mocha` (default), `catppuccin-latte` (light backgrounds) or `terminal` (the terminal's own 16 colors). Default: the config file's `theme` |
 | `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
 | `-h`, `--help` | Print the options |
 | `-v`, `-V`, `--version` | Print the version |
@@ -22,6 +23,7 @@ The task file format is in [docs/task-file-format.md](docs/task-file-format.md).
 
 | Name | Default | Meaning |
 | :- | :- | :- |
+| `theme` | `"catppuccin-mocha"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3) |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
@@ -49,6 +51,6 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
 | Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it, a chosen task again to check it off; hold `Shift` to select text in the terminal) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
-| `,` | Settings: the config file's switches (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it and the screen follows right away, `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
+| `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes) and the screen follows right away, `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
 | `Esc` | Back to the calendar from the agenda or the calendar list, or from the tasks page to layout 1; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |

@@ -4,23 +4,41 @@
 //! 存檔只改有變的那幾行，其他行和註解一字不動（手寫的設定檔不會被蓋掉）。範例見 `testdata/config.toml`
 
 use crate::files;
-use color_eyre::{Result, eyre::WrapErr};
+use crate::theme::{self, Theme};
+use color_eyre::{
+    Result,
+    eyre::{WrapErr, bail},
+};
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::path::Path;
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
-/// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`calendar` = `[calendar]`、`month` = `[month]`
+/// 執行時可以改的設定 = 設定檔的內容，結構一模一樣：`theme` = 最上面的 `theme = "..."`、`calendar` = `[calendar]`、
+/// `month` = `[month]`
 ///
 /// 設定檔裡的名字就是欄位名（例：`[month]` 底下寫 `grid_lines = false`）。`serde` 的 `default`：沒寫的欄位用
-/// `Default` 的值；`deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+/// `Default` 的值；`deny_unknown_fields`：不認識的名字算錯誤，打錯字才不會被默默忽略。`Serialize`：存檔時反過來轉成 TOML。
+/// 有 `String`（會配置記憶體），所以不是 `Copy`，要複製一份得明確寫 `.clone()`
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
+    /// 用哪一套內建的 theme（`theme::BUILTIN` 的名字），例：`catppuccin-latte`
+    pub theme: String,
     /// `[calendar]`：版型 1、3 的月曆共用的開關
     pub calendar: CalendarSettings,
     /// `[month]`：大月曆（版型 3）的開關
     pub month: MonthSettings,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            theme: theme::DEFAULT.to_string(),
+            calendar: CalendarSettings::default(),
+            month: MonthSettings::default(),
+        }
+    }
 }
 
 /// 月曆共用的開關（設定檔的 `[calendar]`）；預設全部關（`bool` 的預設值是 `false`）
@@ -81,10 +99,18 @@ fn read(path: &Path) -> std::io::Result<String> {
     }
 }
 
-/// 把設定檔的內容轉成 `Settings`：沒寫的欄位用預設值；不認識的名字、值的型別不對都是錯誤
+/// 把設定檔的內容轉成 `Settings`：沒寫的欄位用預設值；不認識的名字、值的型別不對、沒有這套 theme 都是錯誤
 /// （錯誤訊息會指出第幾行哪裡錯）
 fn parse(text: &str) -> Result<Settings> {
-    Ok(toml::from_str(text)?)
+    let settings: Settings = toml::from_str(text)?;
+    if Theme::builtin(&settings.theme).is_none() {
+        bail!(
+            "no theme named \"{}\" (built-in: {})",
+            settings.theme,
+            theme::names().join(", ")
+        );
+    }
+    Ok(settings)
 }
 
 /// 設定檔的新內容：值跟 `text` 現在不一樣的改掉，沒有那一行就加在同一個表（例：`[month]`）的後面
@@ -177,6 +203,8 @@ mod tests {
             "[mnth]\ngrid_lines = false",
             // v1 的名字（v1 的 week_numbers = true 是相對週數，v2 改叫 relative_weeks）
             "[calendar]\nweek_numbers = true",
+            // 沒有這套 theme
+            "theme = \"dracula\"",
         ] {
             assert!(parse(text).is_err(), "{text}");
         }
@@ -189,6 +217,7 @@ mod tests {
         assert_eq!(
             settings,
             Settings {
+                theme: "catppuccin-latte".to_string(),
                 calendar: CalendarSettings {
                     relative_weeks: true
                 },
@@ -253,6 +282,22 @@ mod tests {
             updated(text, &settings).expect("valid file"),
             "[month]\ngrid_lines = true\ncenter_cursor = true\n# item_icons = true\n"
         );
+    }
+
+    #[test]
+    fn updated_puts_the_theme_above_the_tables() {
+        // theme 寫在最上層：TOML 規定要在所有 `[表]` 前面，不然會被當成最後那個表的
+        let settings = Settings {
+            theme: "catppuccin-latte".to_string(),
+            ..Settings::default()
+        };
+        let text = "[month]\ngrid_lines = true\n";
+        let new_text = updated(text, &settings).expect("valid file");
+        assert_eq!(
+            new_text,
+            "theme = \"catppuccin-latte\"\n[month]\ngrid_lines = true\n"
+        );
+        assert_eq!(parse(&new_text).expect("reads back"), settings);
     }
 
     #[test]

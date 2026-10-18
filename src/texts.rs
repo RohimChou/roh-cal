@@ -587,6 +587,8 @@ impl Texts {
     /// 設定頁最下面：選到的那一列在做什麼
     pub fn setting_description(&self, row: Row) -> &'static str {
         match (self.lang, row) {
+            (Lang::En, Row::Theme) => "Colors: l the next theme, h the previous one",
+            (Lang::ZhTw, Row::Theme) => "顏色：l 換下一套 theme，h 換上一套",
             (Lang::En, Row::RelativeWeeks) => {
                 "Week column: the others count from the selected week"
             }

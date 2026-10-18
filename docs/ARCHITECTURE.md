@@ -22,7 +22,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/help.rs` | 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、點框外關掉（`App::help`） | |
 | `src/ui/help.rs` | 畫說明頁：畫面正中間、左右兩欄（太窄排成一欄、太矮可以捲）；內容在 `texts.rs` 的 `help_short` / `help_full` | ✓ |
-| `src/app/settings.rs` | 設定頁（`,`）：設定檔的開關一列一列（`Row`、`ROWS`，名字 = 設定檔的名字）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，畫面馬上跟著變 | |
+| `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`ROWS`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
 | `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，最下面一行說明選到的那一列 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
@@ -31,7 +31,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週、週數欄寫什麼（`week_label`：`[calendar] relative_weeks` 時寫跟選取那週差幾週） | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔 | |
-| `themes/` | 內建的 theme 檔 | |
+| `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`catppuccin-latte`（亮色背景）、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆 | |
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 都在這** | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |

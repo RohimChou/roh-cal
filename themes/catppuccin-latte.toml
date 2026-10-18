@@ -1,0 +1,41 @@
+# Catppuccin Latte：亮色背景用的柔和配色（Mocha 的亮色版，角色配的顏色一樣）
+# 色票：https://catppuccin.com/palette 的 latte
+
+[palette]
+text = "#4c4f69"
+subtext0 = "#6c6f85"
+overlay0 = "#9ca0b0"
+surface2 = "#acb0be"
+surface0 = "#ccd0da"
+lavender = "#7287fd"
+blue = "#1e66f5"
+green = "#40a02b"
+yellow = "#df8e1d"
+# 黃色和底色（base #eff1f5）7:3 混出來的淡黃：看得出是黃色，但比選取那週淡
+dim_yellow = "#e4ac5e"
+peach = "#fe640b"
+red = "#d20f39"
+mauve = "#8839ef"
+
+[roles]
+text = "text"
+muted = "subtext0"
+line = "surface2"
+year_line = "lavender"
+label = "lavender"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "blue"
+has_item = "peach"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "surface0"
+focus = "mauve"
+checked = "mauve"
+notice = "yellow"
+error = "red"
+grid = "surface0"
+other_month = "overlay0"
+help_section = "blue"
+help_key = "peach"

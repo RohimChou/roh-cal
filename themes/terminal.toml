@@ -1,0 +1,25 @@
+# terminal：只用 terminal 自己的 16 色（顏色跟著 terminal 的設定走），什麼底色的 terminal 都看得清楚
+# "reset" = terminal 預設的字色；"dark-gray" = terminal 的「亮黑色」
+
+[roles]
+text = "reset"
+muted = "dark-gray"
+line = "dark-gray"
+year_line = "light-blue"
+label = "light-blue"
+week_number = "yellow"
+week_number_dim = "dark-gray"
+weekend = "blue"
+has_item = "yellow"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "dark-gray"
+focus = "magenta"
+checked = "magenta"
+notice = "yellow"
+error = "red"
+grid = "dark-gray"
+other_month = "dark-gray"
+help_section = "blue"
+help_key = "yellow"
