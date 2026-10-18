@@ -1,13 +1,17 @@
 //! Layout 2's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
-//! agenda), with the selected day on the top border and some blank space inside the border when there is room
+//! agenda; a title too long for the box wraps onto the next lines), with the selected day on the top border
+//! and some blank space inside the border when there is room
 
-use super::{clear_with_ring, months::scrolled_top, planner::item_line, render_scrollbar};
+use super::{
+    clear_with_ring, months::scrolled_to_range, planner::item_line, render_scrollbar, tasks::wrap,
+};
 use crate::app::App;
+use crate::tasks::Item;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
     style::Style,
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, BorderType},
 };
 
@@ -19,15 +23,48 @@ const MIN_WIDTH: u16 = 30;
 const PADDING: Margin = Margin::new(1, 1);
 
 /// The popup's area (incl. border) on the month grid (`main`): centered. Width follows the longest item
-/// (at least `MIN_WIDTH`); height = that day's item count + top and bottom border; neither exceeds the month
-/// grid. Used both for drawing and for mapping mouse positions
+/// (at least `MIN_WIDTH`); height = how many lines that day's items take + top and bottom border; neither
+/// exceeds the month grid. Used both for drawing and for mapping mouse positions
 pub fn area(app: &App, main: Rect) -> Rect {
     layout(app, main).0
 }
 
+/// One item's lines at `width` cells (one blank cell kept at the end): its date and time, then its title;
+/// a title that does not fit wraps onto the next lines, which start under the title
+fn item_lines(item: &Item, app: &App, chosen: bool, width: u16) -> Vec<Line<'static>> {
+    let mut spans = item_line(item, app, chosen).spans;
+    // The last span is the title, the ones before it the date (and time)
+    let title = spans.pop().into_iter().collect::<Vec<_>>();
+    let prefix_width = Line::from(spans.clone()).width();
+    let room = usize::from(width).saturating_sub(prefix_width + 1);
+    let mut wrapped = wrap(&title, room).into_iter();
+    let mut lines = vec![Line::from(
+        spans
+            .into_iter()
+            .chain(wrapped.next().unwrap_or_default())
+            .collect::<Vec<_>>(),
+    )];
+    lines.extend(wrapped.map(|line| {
+        Line::from(
+            std::iter::once(Span::raw(" ".repeat(prefix_width)))
+                .chain(line)
+                .collect::<Vec<_>>(),
+        )
+    }));
+    lines
+}
+
+/// How many lines each of the day's items takes at `width` cells (see `item_lines`)
+fn heights(app: &App, width: u16) -> Vec<usize> {
+    app.items_on(app.selected)
+        .iter()
+        .map(|item| item_lines(item, app, false, width).len())
+        .collect()
+}
+
 /// The popup's area (see `area`) and where the items go inside it: the border taken off, and the padding
-/// too, each way only when the box still fits on the month grid with it (too many items to fit = no
-/// rows of padding, so as many items as possible show)
+/// too, each way only when the box still fits on the month grid with it (too many lines to fit = no rows of
+/// padding, so as many lines as possible show)
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let items = app.items_on(app.selected);
     let widest = items
@@ -38,49 +75,75 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     // Left and right border + one blank cell at the end
     let bare_width = to_u16(widest + 3);
-    let bare_height = to_u16(items.len() + 2);
-    let padding = Margin::new(
-        if bare_width + 2 * PADDING.horizontal <= main.width {
-            PADDING.horizontal
-        } else {
-            0
-        },
-        if bare_height + 2 * PADDING.vertical <= main.height {
-            PADDING.vertical
-        } else {
-            0
-        },
-    );
-    let width = (bare_width + 2 * padding.horizontal)
-        .max(MIN_WIDTH)
-        .min(main.width);
-    let height = (bare_height + 2 * padding.vertical).min(main.height);
+    let horizontal = if bare_width + 2 * PADDING.horizontal <= main.width {
+        PADDING.horizontal
+    } else {
+        0
+    };
+    let width = (bare_width + 2 * horizontal).max(MIN_WIDTH).min(main.width);
+    // Lines: the items wrapped at the width inside the border and padding
+    let lines: usize = heights(app, width.saturating_sub(2 + 2 * horizontal))
+        .iter()
+        .sum();
+    let bare_height = to_u16(lines + 2);
+    let vertical = if bare_height + 2 * PADDING.vertical <= main.height {
+        PADDING.vertical
+    } else {
+        0
+    };
+    let height = (bare_height + 2 * vertical).min(main.height);
     let area = Rect::new(
         main.x + (main.width - width) / 2,
         main.y + (main.height - height) / 2,
         width,
         height,
     );
-    (area, Block::bordered().inner(area).inner(padding))
+    (
+        area,
+        Block::bordered()
+            .inner(area)
+            .inner(Margin::new(horizontal, vertical)),
+    )
 }
 
-/// Draws the popup: first scroll so the chosen item is visible (only scroll when it falls outside the box, so
-/// clicking a visible item does not scroll it away; stored in `app.day_top`), clear the month grid underneath
-/// and one blank cell around the box (as far as the month grid goes), then one item per row. The chosen item's
-/// date gets brackets `[10/17]` and its row the selection background (same as layout 1's agenda). When the
-/// items do not fit, the right border has a scrollbar
+/// Where each of the day's items starts, counting lines from the first item's first line, and the total
+fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
+    let mut total = 0;
+    let starts = heights
+        .iter()
+        .map(|height| {
+            let start = total;
+            total += height;
+            start
+        })
+        .collect();
+    (starts, total)
+}
+
+/// Draws the popup: first scroll so the chosen item's lines are all visible (only scroll when they fall
+/// outside the box, so clicking a visible item does not scroll it away; stored in `app.day_top`, counted in
+/// lines), clear the month grid underneath and one blank cell around the box (as far as the month grid goes),
+/// then the items line by line. The chosen item's date gets brackets `[10/17]` and its lines the selection
+/// background from border to border (same as layout 1's agenda). When the lines do not fit, the right border
+/// has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
+    let heights = heights(app, inner.width);
+    let (starts, total) = starts(&heights);
     let visible = i64::from(inner.height);
-    let top = scrolled_top(
-        i64::try_from(app.day_top).unwrap_or(0),
-        i64::try_from(app.day_index).unwrap_or(0),
-        visible,
-        0,
-    );
-    // Do not overscroll: the last item just touches the bottom
-    let max = i64::try_from(app.items_on(app.selected).len()).unwrap_or(0) - visible;
-    app.day_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
+    let to_i64 = |n: usize| i64::try_from(n).unwrap_or(i64::MAX);
+    if let (Some(&first), Some(&height)) = (starts.get(app.day_index), heights.get(app.day_index)) {
+        let top = scrolled_to_range(
+            to_i64(app.day_top),
+            to_i64(first),
+            to_i64(first + height) - 1,
+            visible,
+            0,
+        );
+        // Do not overscroll: the last line just touches the bottom
+        let max = to_i64(total) - visible;
+        app.day_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
+    }
     // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
@@ -94,50 +157,67 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
         ));
     clear_with_ring(frame, area, main);
     frame.render_widget(block, area);
-    let items = app.items_on(app.selected);
-    let visible = usize::from(inner.height);
-    let top = app.day_top;
-    let rows = items.iter().enumerate().skip(top);
-    for ((index, item), y) in rows.zip(inner.y..inner.bottom()) {
-        let row = Rect {
-            y,
-            height: 1,
-            ..inner
-        };
+    for (index, (item, start)) in app.items_on(app.selected).iter().zip(&starts).enumerate() {
         let chosen = index == app.day_index;
-        frame.render_widget(item_line(item, app, chosen), row);
-        // The chosen item: the selection background from border to border (as in layout 1's agenda)
-        if chosen {
-            let bar = Rect {
-                x: area.x + 1,
-                width: area.width.saturating_sub(2),
-                ..row
+        for (part, line) in item_lines(item, app, chosen, inner.width)
+            .iter()
+            .enumerate()
+        {
+            // Above the top of the box: skip; below its bottom: done
+            let Some(offset) = (start + part).checked_sub(app.day_top) else {
+                continue;
             };
-            frame
-                .buffer_mut()
-                .set_style(bar, Style::new().bg(theme.selection));
+            let Some(y) = u16::try_from(offset)
+                .ok()
+                .map(|offset| inner.y + offset)
+                .filter(|&y| y < inner.bottom())
+            else {
+                break;
+            };
+            let row = Rect {
+                y,
+                height: 1,
+                ..inner
+            };
+            frame.render_widget(line, row);
+            // The chosen item: the selection background from border to border (as in layout 1's agenda)
+            if chosen {
+                let bar = Rect {
+                    x: area.x + 1,
+                    width: area.width.saturating_sub(2),
+                    ..row
+                };
+                frame
+                    .buffer_mut()
+                    .set_style(bar, Style::new().bg(theme.selection));
+            }
         }
     }
-    if items.len() > visible {
+    if total > usize::from(inner.height) {
         let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
         render_scrollbar(
             frame,
             area,
-            to_u16(top),
-            to_u16(items.len() - visible),
+            to_u16(app.day_top),
+            to_u16(total - usize::from(inner.height)),
             inner.height,
             theme,
         );
     }
 }
 
-/// Which popup item the mouse click at (`column`, `row`) hits (its index in `items_on(selected)`);
-/// `None` on the border, in the padding, outside the box, or below the last item
+/// Which popup item the mouse click at (`column`, `row`) hits (its index in `items_on(selected)`; any line
+/// of a wrapped item); `None` on the border, in the padding, outside the box, or below the last item
 pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     let (_, inner) = layout(app, main);
     if !inner.contains(Position::new(column, row)) {
         return None;
     }
-    let index = app.day_top + usize::from(row - inner.y);
-    (index < app.items_on(app.selected).len()).then_some(index)
+    let line = app.day_top + usize::from(row - inner.y);
+    let heights = heights(app, inner.width);
+    let (starts, _) = starts(&heights);
+    starts
+        .iter()
+        .zip(&heights)
+        .position(|(&start, &height)| (start..start + height).contains(&line))
 }

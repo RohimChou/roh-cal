@@ -2837,6 +2837,55 @@ mod tests {
     }
 
     #[test]
+    fn a_long_title_wraps_in_the_day_popup() {
+        // 60 × 20, layout 2: the long title makes the popup as wide as the month grid (60, x 0, too wide for
+        // blank cells left and right); inside the border 58 cells, the date takes 7 and one blank stays at the
+        // end, so the title wraps at 50 cells (expected lines from the Python `wrap` in
+        // tools/expected_screen.py), the second line under the title; 3 lines + border + a blank row above
+        // and below = 7 tall → y 6, the lines at y 8-10
+        let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
+        let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+        app.focus = Focus::Day;
+        app.screen = Rect::new(0, 0, 60, 20);
+        let terminal = draw_app(&mut app, 60, 20);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(day_area(&app), Rect::new(0, 6, 60, 7));
+        let rows: Vec<String> = area_rows(buffer, Rect::new(1, 8, 58, 3))
+            .iter()
+            .map(|row| row.trim_end().to_string())
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                "[10/17]A really long title that just keeps going and",
+                "       going and going past the edge of the box",
+                " 10/17 Pack",
+            ]
+        );
+        // The chosen (first) item: both lines have the selection background from border to border
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(buffer[(1, 9)].bg, theme.selection);
+        assert_eq!(buffer[(58, 9)].bg, theme.selection);
+        assert_eq!(buffer[(1, 10)].bg, Color::Reset);
+        // A click on the wrapped line is the first item; on the next line, the second
+        assert_eq!(day_item_at(&app, 20, 9), Some(0));
+        assert_eq!(day_item_at(&app, 20, 10), Some(1));
+        // Too short (60 × 8, month grid 7 rows: 5 lines inside the border, no blank rows): 4 short items and
+        // the long one last take 6 lines; choosing the long one scrolls one line so both its lines show
+        let text = "- [ ] a @2026-10-17\n- [ ] b @2026-10-17\n- [ ] c @2026-10-17\n- [ ] d @2026-10-17\n- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n";
+        let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+        app.focus = Focus::Day;
+        app.day_index = 4;
+        let terminal = draw_app(&mut app, 60, 8);
+        let rows = text_rows(terminal.backend().buffer());
+        assert!(
+            rows[5].contains("going and going past the edge of the box"),
+            "{rows:#?}"
+        );
+        assert!(rows[1].contains(" 10/17 b"), "{rows:#?}");
+    }
+
+    #[test]
     fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19);
         // there is room, so a blank row above and below the items and a blank cell left and right:

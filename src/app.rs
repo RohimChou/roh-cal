@@ -276,7 +276,8 @@ pub struct App {
     /// chooses it and does not check it
     /// (double-clicking the selected day: the first click opens the popup, the second lands on its first item)
     pub day_clicked: bool,
-    /// Popup scroll: which item is at the top (it scrolls only when the chosen item leaves the box)
+    /// Popup scroll: which line is at the top (a long title wraps onto more than one line; it scrolls only
+    /// when the chosen item leaves the box)
     pub day_top: usize,
     /// The day and time of the last click on a calendar day (both layouts), to tell a double click
     last_click: Option<(Date, Instant)>,

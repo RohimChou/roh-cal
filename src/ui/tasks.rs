@@ -291,7 +291,7 @@ fn render_line(
 /// Each character keeps its span's style
 ///
 /// E.g. width 10: `Send the weekly update` → `Send the`, `weekly`, `update`
-fn wrap(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'static>>> {
+pub(super) fn wrap(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'static>>> {
     let width = width.max(1);
     let wide = |c: char| Span::raw(c.to_string()).width() > 1;
     let mut lines: Vec<Vec<(char, Style)>> = vec![Vec::new()];
