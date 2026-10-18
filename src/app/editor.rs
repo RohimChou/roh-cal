@@ -52,10 +52,10 @@ impl App {
 
     /// `a`：新增一件，預先填好 `- [ ]  @選取的日期`，游標在標題的位置（任務頁不填日期）
     ///
-    /// 鍵盤在右邊、任務頁：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
+    /// 鍵盤在右邊、任務頁、版型 3 的跳窗：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
-            Focus::Agenda | Focus::Tasks => self.chosen_item().cloned(),
+            Focus::Agenda | Focus::Tasks | Focus::Day => self.chosen_item().cloned(),
             Focus::Calendar | Focus::Side => self
                 .items_on(self.selected)
                 .first()

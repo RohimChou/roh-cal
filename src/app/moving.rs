@@ -88,7 +88,7 @@ impl App {
         }
     }
 
-    /// 確定：選取的日期移了幾天，那件事就搬幾天，寫回任務檔；回到按 `r` 之前的框（右邊選著搬過去的那件）
+    /// 確定：選取的日期移了幾天，那件事就搬幾天，寫回任務檔；回到按 `r` 之前的框（右邊、版型 3 的跳窗選著搬過去的那件）
     fn finish_moving(&mut self) {
         let Moving { item, from, back } = match std::mem::take(&mut self.mode) {
             Mode::Moving(moving) => moving,
@@ -130,6 +130,14 @@ impl App {
             match index {
                 Some(index) if moved => self.agenda_index = index,
                 _ => self.focus = Focus::Calendar,
+            }
+        }
+        // 版型 3 的跳窗：打開新的那天、選著搬過去的那件；沒搬成就關掉
+        if back.1 == Focus::Day {
+            if moved {
+                self.choose_day_line(item.line);
+            } else {
+                self.focus = Focus::Calendar;
             }
         }
     }

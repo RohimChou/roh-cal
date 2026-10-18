@@ -71,6 +71,8 @@ pub struct Texts {
     pub hints_tasks: &'static str,
     /// 任務頁最下面一列的操作說明：terminal 夠寬、有 side menu 的時候（多一個 `s`）
     pub hints_tasks_side: &'static str,
+    /// 版型 3「那天的事」跳窗開著時，最下面一列的操作說明
+    pub hints_day: &'static str,
     /// side menu：檔案開頭、還沒有標題的項目
     pub ungrouped: &'static str,
     /// 說明頁（`?`）的精簡版：最常用的鍵
@@ -119,6 +121,7 @@ const EN: Texts = Texts {
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  , settings  q quit",
     hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
+    hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     ungrouped: "Ungrouped",
     help_short: HelpPage {
         title: "keys",
@@ -264,6 +267,7 @@ const ZH_TW: Texts = Texts {
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  , 設定  q 離開",
     hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
+    hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     ungrouped: "未分組",
     help_short: HelpPage {
         title: "按鍵",

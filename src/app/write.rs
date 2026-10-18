@@ -114,6 +114,10 @@ impl App {
                     self.choose_task_row_near(row);
                     return;
                 }
+                // 版型 3 的跳窗：選的位置 set_items 已經調好了（那天沒事了就關掉）
+                if self.view == View::Month {
+                    return;
+                }
                 // 右邊選下一件（原本的位置）；刪到沒有了就回到月曆
                 match self.agenda().len().checked_sub(1) {
                     Some(last) => self.choose(self.agenda_index.min(last)),
@@ -230,7 +234,8 @@ impl App {
     }
 
     /// 換一份新的事（寫檔、重新載入、復原之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態。
-    /// 右邊的事變少了（例：復原了剛新增的那件）：鍵盤在右邊、選的位置超出範圍就選最後一件，一件都沒有了就回到月曆
+    /// 右邊的事變少了（例：復原了剛新增的那件）：鍵盤在右邊、選的位置超出範圍就選最後一件，一件都沒有了就回到月曆；
+    /// 版型 3 的跳窗也一樣（見 `keep_day_choice`）
     fn set_items(&mut self, Parsed { items, warnings }: Parsed) {
         let mut groups = super::Group::list(&items);
         for group in &mut groups {
@@ -242,6 +247,9 @@ impl App {
         self.group_index = self.group_index.min(self.groups.len().saturating_sub(1));
         self.items = items;
         self.warnings = warnings;
+        if self.focus == Focus::Day {
+            self.keep_day_choice();
+        }
         if self.focus == Focus::Agenda && self.agenda_index >= self.agenda().len() {
             match self.agenda().len().checked_sub(1) {
                 Some(last) => self.choose(last),

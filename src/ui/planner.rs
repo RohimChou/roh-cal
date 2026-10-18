@@ -452,7 +452,7 @@ pub(super) fn date_text(item: &Item) -> String {
 /// 還沒結束的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。結束了的整行變灰：
 /// 做完的任務標題再劃線，過去的行程不劃線。
 /// `chosen` = 鍵盤在右邊時選到的這件：日期加括號 `[10/17]`、加粗
-fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
+pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
     let color = if item.is_open(app.today) {
         item.date.map_or(theme.text, |date| day_color(date, app))

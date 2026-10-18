@@ -1,5 +1,6 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
+mod day;
 mod editor;
 mod help;
 mod moving;
@@ -44,6 +45,8 @@ pub enum Focus {
     Side,
     /// 任務頁（`4`）：`j` / `k` 一件一件選、`l` / `h` 展開 / 收起子任務
     Tasks,
+    /// 版型 3 的「那天的事」跳窗（月曆上 `Enter`）：`j` / `k` 一件一件選選取那天的事
+    Day,
 }
 
 /// 用哪個版型（數字鍵切換）
@@ -150,6 +153,8 @@ pub struct App {
     pub view: View,
     /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
     pub agenda_index: usize,
+    /// 版型 3 的跳窗選到第幾件事（`items_on(selected)` 裡的位置）；鍵盤在跳窗時才用
+    pub day_index: usize,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
     /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；事太多、那個月放不下時才會捲
@@ -197,6 +202,7 @@ impl App {
             focus: Focus::Calendar,
             view: View::Planner,
             agenda_index: 0,
+            day_index: 0,
             calendar_top: None,
             agenda_window: None,
             month_top: None,
@@ -323,15 +329,16 @@ impl App {
     pub fn chosen(&self) -> Option<Entry<'_>> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
-            Focus::Calendar | Focus::Side | Focus::Tasks => None,
+            Focus::Calendar | Focus::Side | Focus::Tasks | Focus::Day => None,
         }
     }
 
-    /// 鍵盤選到的那件事：右邊選到的、或任務頁選到的；鍵盤在月曆、side menu 是 `None`（打勾、編輯、刪除、改期都用這件）
+    /// 鍵盤選到的那件事：右邊選到的、任務頁選到的、或版型 3 跳窗選到的；鍵盤在月曆、side menu 是 `None`（打勾、編輯、刪除、改期都用這件）
     fn chosen_item(&self) -> Option<&Item> {
         match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item),
             Focus::Tasks => self.tasks_chosen(),
+            Focus::Day => self.items_on(self.selected).get(self.day_index).copied(),
             Focus::Calendar | Focus::Side => None,
         }
     }
@@ -399,6 +406,8 @@ impl App {
     /// 已經在主框：任務頁回到版型 1、月曆就離開。其他鍵看鍵盤在哪個框
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
+            // 跳窗開著時 q 只關跳窗（跟說明頁一樣），不離開
+            KeyCode::Char('q') if self.focus == Focus::Day => self.focus = Focus::Calendar,
             KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -437,6 +446,7 @@ impl App {
                 Focus::Agenda => self.handle_agenda_key(key.code),
                 Focus::Side => self.handle_side_key(key.code),
                 Focus::Tasks => self.handle_tasks_key(key.code),
+                Focus::Day => self.handle_day_key(key.code),
             },
         }
     }
@@ -456,13 +466,14 @@ impl App {
     }
 
     /// 月曆上 `Enter`（或再點一次選取的那天）：進到那天的事，鍵盤換到右邊、選那天的第一件；
-    /// 版型 3 沒有右邊，換到版型 1；那天沒事就不動
+    /// 版型 3 沒有右邊，打開「那天的事」跳窗；那天沒事就不動
     fn open_day(&mut self) {
-        if !self.agenda().iter().any(|entry| entry.is_on(self.selected)) {
+        if self.view == View::Month {
+            self.open_day_popup();
             return;
         }
-        if self.view == View::Month {
-            self.set_view(View::Planner);
+        if !self.agenda().iter().any(|entry| entry.is_on(self.selected)) {
+            return;
         }
         self.enter_agenda();
     }
@@ -547,6 +558,10 @@ impl App {
             // 往下滾（看後面的）、往上滾
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
+            // 版型 3 的跳窗開著：點跳窗裡的事、點框外關掉
+            MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
+                self.click_day(mouse.column, mouse.row);
+            }
             // 點在日期或事上才選；點在表頭、線、空格上不理
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
@@ -577,13 +592,14 @@ impl App {
         }
     }
 
-    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊、任務頁就移一件事，在 side menu 就移一個日曆
+    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊、任務頁、跳窗就移一件事，在 side menu 就移一個日曆
     fn scroll(&mut self, step: i8) {
         match self.focus {
             Focus::Calendar => self.move_by(7 * i64::from(step)),
             Focus::Agenda => self.choose_next(isize::from(step)),
             Focus::Side => self.choose_group(isize::from(step)),
             Focus::Tasks => self.choose_task(isize::from(step)),
+            Focus::Day => self.choose_day(isize::from(step)),
         }
     }
 
@@ -613,9 +629,10 @@ impl App {
     }
 
     /// `Tab`：月曆 → 右邊的事項（一件事都沒有、或是版型 3 就跳過）→ side menu（有畫才去）→ 月曆；
-    /// 任務頁：任務頁 ⇄ side menu（有畫才去）
+    /// 任務頁：任務頁 ⇄ side menu（有畫才去）；版型 3 的跳窗開著時不理
     fn next_focus(&mut self) {
         match self.focus {
+            Focus::Day => {}
             Focus::Calendar => {
                 if self.view == View::Planner {
                     self.enter_agenda();
@@ -679,10 +696,14 @@ impl App {
     }
 
     /// 寫檔之後，右邊選檔案第 `line` 行那件事：跨月的事選選取那天那個月的那一行；
-    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆；任務頁就選那一列
+    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆；任務頁就選那一列；版型 3 的跳窗就選跳窗裡那件
     fn choose_line(&mut self, line: usize) {
         if self.view == View::Tasks {
             self.choose_task_line(line);
+            return;
+        }
+        if self.focus == Focus::Day {
+            self.choose_day_line(line);
             return;
         }
         if self.view != View::Planner {
@@ -1179,11 +1200,14 @@ mod tests {
         app.selected = date(2026, 10, 18);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.focus, Focus::Calendar);
-        // 版型 3：換到版型 1 再進去
+        // 版型 3：不換版型，打開那天的事跳窗、選第一件（b）
         let mut app = app_with(ITEMS);
         app.view = View::Month;
         press(&mut app, KeyCode::Enter);
-        assert_eq!((app.view, app.focus), (View::Planner, Focus::Agenda));
+        assert_eq!(
+            (app.view, app.focus, app.day_index),
+            (View::Month, Focus::Day, 0)
+        );
         // 再點一次選取的那天也一樣（70 × 23、10 月在最上面：10/17 在 x 27～29、y 5）
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 70, 23);

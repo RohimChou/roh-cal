@@ -1,6 +1,7 @@
 //! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是主畫面（版型 1 的月曆框 + 事項框、版型 3 的大月曆、或任務頁），
-//! 最下面一列操作說明；跳窗（編輯框、說明頁、設定頁）蓋在最上面
+//! 最下面一列操作說明；跳窗（版型 3 那天的事、編輯框、說明頁、設定頁）蓋在最上面
 
+mod day;
 mod editor;
 mod help;
 mod month;
@@ -10,7 +11,7 @@ mod settings;
 mod side;
 mod tasks;
 
-use crate::app::{App, Mode, SettingsPage, View};
+use crate::app::{App, Focus, Mode, SettingsPage, View};
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
@@ -28,6 +29,16 @@ const SIDE_MIN_WIDTH: u16 = 120;
 /// 編輯框的位置（滑鼠點框外 = 取消用）
 pub fn editor_area(screen: Rect) -> Rect {
     editor::area(screen)
+}
+
+/// 版型 3「那天的事」跳窗的框在畫面上的位置（滑鼠點框外 = 關掉用）
+pub fn day_area(app: &App) -> Rect {
+    day::area(app, areas(app.screen, app).main)
+}
+
+/// 滑鼠點在 (`column`, `row`) 點到跳窗裡的第幾件（`App::items_on(selected)` 的位置）
+pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
+    day::item_at(app, areas(app.screen, app).main, column, row)
 }
 
 /// 說明頁的框在畫面上的位置（滑鼠點框外 = 關掉用）
@@ -196,8 +207,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     } else {
-        // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
+        // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）；版型 3 的跳窗開著時寫跳窗裡的鍵
         let hint_text = match (app.view, side_fits(frame.area())) {
+            _ if app.focus == Focus::Day => texts.hints_day,
             (View::Tasks, true) => texts.hints_tasks_side,
             (View::Tasks, false) => texts.hints_tasks,
             (_, true) => texts.hints_side,
@@ -213,6 +225,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
         View::Tasks => tasks::render(frame, main_area, app),
+    }
+    // 版型 3 那天的事跳窗：蓋在大月曆上（編輯框、說明頁這些再蓋在它上面）
+    if app.view == View::Month && app.focus == Focus::Day {
+        day::render(frame, main_area, app);
     }
     // 編輯框、說明頁、設定頁蓋在最上面
     match &app.mode {
@@ -2248,6 +2264,51 @@ mod tests {
                 " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
             ]
         );
+    }
+
+    #[test]
+    fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
+        // 60 × 20、版型 3、10/17 有 4 件：跳窗在大月曆（60 × 19）正中間，30 格寬（最窄）、6 列高 → x 15、y 6；
+        // 上框線寫日期，一件一列（跟版型 1 右邊一樣），選到的第一件日期加括號；最下面一列換成跳窗的鍵
+        let text = "- [ ] 交週報 @2026-10-17 17:30\n- 週會 @2026-10-17 10:00\n\
+                    - [x] 整理書櫃 @2026-10-17\n- 出差 @2026-10-16..2026-10-18\n";
+        let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
+        app.focus = Focus::Day;
+        let terminal = draw_app(&mut app, 60, 20);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(
+            area_rows(buffer, Rect::new(15, 6, 30, 6)),
+            [
+                "╭ 2026/10/17（六） ──────────╮",
+                "│[10/16~18]出差              │",
+                "│ 10/17 整理書櫃             │",
+                "│ 10/17 10:00 週會           │",
+                "│ 10/17 17:30 交週報         │",
+                "╰────────────────────────────╯",
+            ]
+        );
+        // 操作說明 61 格，60 格寬時最後一個字切掉
+        assert_eq!(
+            text_rows(buffer)[19],
+            " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關"
+        );
+        // 框線是鍵盤所在的顏色、括號是選取的紅
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(buffer[(15, 6)].fg, theme.focus);
+        assert_eq!(buffer[(16, 7)].fg, theme.selected);
+        // 太矮（60 × 6，大月曆 5 列）：框裡放 3 件，選最後一件時往下捲一件；右框線上有捲軸
+        app.day_index = 3;
+        let terminal = draw_app(&mut app, 60, 6);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(
+            area_rows(buffer, Rect::new(15, 1, 29, 3)),
+            [
+                "│ 10/17 整理書櫃             ",
+                "│ 10/17 10:00 週會           ",
+                "│[10/17]17:30 交週報         ",
+            ]
+        );
+        assert!((1..4).any(|y| buffer[(44, y)].symbol() == "┃"));
     }
 
     #[test]
