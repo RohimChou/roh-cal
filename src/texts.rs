@@ -187,6 +187,13 @@ const EN: Texts = Texts {
                 ],
             },
             HelpSection {
+                title: "Tasks page",
+                keys: &[
+                    ("l / h", "expand / collapse"),
+                    ("+ / -", "expand / collapse all"),
+                ],
+            },
+            HelpSection {
                 title: "Mouse",
                 keys: &[
                     ("wheel", "a week / an item"),
@@ -210,7 +217,6 @@ const EN: Texts = Texts {
                     ("r", "reschedule"),
                     ("d", "delete with subtasks"),
                     ("u", "undo"),
-                    ("l / h", "expand / collapse"),
                 ],
             },
             HelpSection {
@@ -324,6 +330,10 @@ const ZH_TW: Texts = Texts {
                 ],
             },
             HelpSection {
+                title: "任務頁",
+                keys: &[("l / h", "展開 / 收起"), ("+ / -", "全部展開 / 全部收起")],
+            },
+            HelpSection {
                 title: "滑鼠",
                 keys: &[
                     ("wheel", "移一週 / 一件"),
@@ -347,7 +357,6 @@ const ZH_TW: Texts = Texts {
                     ("r", "改期"),
                     ("d", "刪除（連子任務）"),
                     ("u", "復原"),
-                    ("l / h", "展開 / 收起"),
                 ],
             },
             HelpSection {

@@ -395,7 +395,7 @@ mod tests {
                     scroll: 0,
                 },
             );
-            // 右欄 28 行 + padding 2 + 框線 2，放得下不用捲
+            // 長的那欄（左欄）28 行 + padding 2 + 框線 2，放得下不用捲
             assert_eq!(area.height, 32, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {

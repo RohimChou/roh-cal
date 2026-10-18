@@ -25,7 +25,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`rows()`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換，顏色那幾列在 theme 的色票裡換、`[colors]` 只記跟 theme 不一樣的）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
 | `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，顏色前面有色塊；放不下時捲到選到的那列（`SettingsPage::top`），最下面一行說明選到的那一列 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
-| `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
+| `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h` `+` `-`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（右邊日期、時間各一欄、上下對齊，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
 | `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫；在別處改過就重新載入；結果放在 `App::notice`（最下面一列）。改的是 `App::chosen_item()`（右邊或任務頁選到的那件）；寫完用 `edit::line_map` 把畫面記著的行號（任務頁選到的、展開的）搬到新的行號 | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週、週數欄寫什麼（`week_label`：`[calendar] relative_weeks` 時寫跟選取那週差幾週） | |

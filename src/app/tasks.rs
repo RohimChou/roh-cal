@@ -91,7 +91,7 @@ impl App {
         }
     }
 
-    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務；
+    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務，`+` / `-` 全部展開 / 全部收起；
     /// 寫檔的鍵跟右邊的事項框一樣：`Space` / `x` 打勾、`e` / `Enter` 編輯、`a` 新增、`A` 新增子任務、`d` 刪除、`r` 改期
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
         match code {
@@ -99,6 +99,8 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.choose_task(-1),
             KeyCode::Char('l') | KeyCode::Right => self.expand_task(),
             KeyCode::Char('h') | KeyCode::Left => self.collapse_task(),
+            KeyCode::Char('+') => self.expand_all(),
+            KeyCode::Char('-') => self.collapse_all(),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),
@@ -163,6 +165,33 @@ impl App {
         if let Some(parent) = parent.and_then(|index| self.items.get(index)) {
             self.tasks_line = Some(parent.line);
         }
+    }
+
+    /// `+`：每一件有子任務的都展開
+    fn expand_all(&mut self) {
+        let parents: Vec<usize> = self
+            .items
+            .iter()
+            .filter_map(|item| item.parent)
+            .filter_map(|index| self.items.get(index))
+            .map(|parent| parent.line)
+            .collect();
+        self.expanded.extend(parents);
+    }
+
+    /// `-`：全部收起來；選到的是子任務（收起來就看不到了）就改選它最上層的那件
+    fn collapse_all(&mut self) {
+        let top = self.tasks_chosen().map(|chosen| {
+            let mut item = chosen;
+            while let Some(parent) = item.parent.and_then(|index| self.items.get(index)) {
+                item = parent;
+            }
+            item.line
+        });
+        if let Some(line) = top {
+            self.tasks_line = Some(line);
+        }
+        self.expanded.clear();
     }
 
     /// 點任務頁的第 `row` 列（`tasks_rows()` 裡的位置）：點一下選它，點的是 `▸` / `▾` 就展開 / 收起；
@@ -340,6 +369,54 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("整理書櫃")
         );
+    }
+
+    #[test]
+    fn plus_and_minus_expand_and_collapse_everything() {
+        let mut app = tasks_app(TREE);
+        // +：每一層都展開，還選著原本那件（沒分組）
+        press(&mut app, KeyCode::Char('+'));
+        assert_eq!(
+            shape(&app),
+            [
+                "#",
+                "沒分組",
+                "#工作",
+                "-寫報告",
+                "  -找資料",
+                "    查文獻",
+                "  列大綱",
+                "整理書櫃",
+                "#生活",
+                "爬山"
+            ]
+        );
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("沒分組")
+        );
+        // 往下選到最深的查文獻；-：全部收起，改選它最上層的寫報告
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('j'));
+        }
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("查文獻")
+        );
+        press(&mut app, KeyCode::Char('-'));
+        assert_eq!(
+            shape(&app),
+            [
+                "#",
+                "沒分組",
+                "#工作",
+                "+寫報告",
+                "整理書櫃",
+                "#生活",
+                "爬山"
+            ]
+        );
+        assert_eq!(app.tasks_line, Some(3));
     }
 
     #[test]

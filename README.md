@@ -49,6 +49,7 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
 | `1` / `3` / `4` | Layout 1 (calendar + agenda) / layout 3 (a big month grid, six weeks with each day's items in its cell) / the tasks page (the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file; lines with a format mistake such as `@2026-13-01` are red, and the bottom line says what is wrong) |
 | `l` / `h` | On the tasks page: expand / collapse the chosen item's subtasks (`l` again goes to the first subtask, `h` again to the parent); click `▸` to do the same |
+| `+` / `-` | On the tasks page: expand / collapse every item's subtasks (when the chosen item gets hidden, its top-level item is chosen instead) |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
 | Mouse wheel / click | Move one week (in the agenda and on the tasks page: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it, a chosen task again to check it off; hold `Shift` to select text in the terminal) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
