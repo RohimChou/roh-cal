@@ -73,7 +73,7 @@ impl App {
     }
 
     /// `d`: first counts how many items deleting the chosen one would remove
-    /// (including subtasks), then asks the user in the bottom row (only `y` deletes)
+    /// (including subtasks), then asks the user in the bottom row (only `d` again or `y` deletes)
     pub(super) fn ask_delete(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -87,7 +87,8 @@ impl App {
         }
     }
 
-    /// Keys while asking "delete?": `y` deletes (with subtasks), `Ctrl+C` quits, any other key just cancels
+    /// Keys while asking "delete?": `d` (so `dd` deletes, like vim) or `y` deletes (with subtasks), `Ctrl+C`
+    /// quits, any other key just cancels
     ///
     /// If the count from when it asked differs from the count now (e.g. a
     /// subtask was just added elsewhere), it does not delete and reloads instead
@@ -104,7 +105,7 @@ impl App {
             self.should_quit = true;
             return;
         }
-        if key.code != KeyCode::Char('y') {
+        if !matches!(key.code, KeyCode::Char('d' | 'y')) {
             return;
         }
         // Deleting from the day popup (either layout): writing adjusts or closes the popup itself
@@ -150,7 +151,7 @@ impl App {
 
     /// `d` in the calendar list: first counts how many items deleting the chosen calendar (with the calendars
     /// inside it) would remove, then
-    /// asks in the bottom row (only `y` deletes); 「Ungrouped」 has no heading, so nothing happens
+    /// asks in the bottom row (only `d` again or `y` deletes); 「Ungrouped」 has no heading, so nothing happens
     pub(super) fn ask_delete_calendar(&mut self) {
         let headings = self.chosen_calendar_headings();
         let Some(name) = headings.first().map(|line| line.heading.name.clone()) else {
@@ -171,7 +172,7 @@ impl App {
         }
     }
 
-    /// Keys while asking "delete this calendar?": `y` deletes it (its headings and everything under them),
+    /// Keys while asking "delete this calendar?": `d` or `y` deletes it (its headings and everything under them),
     /// `Ctrl+C` quits, any other key just cancels. If the count from when it asked differs from the count
     /// now (e.g. an item was just added to it elsewhere), it does not delete and reloads instead
     pub(super) fn answer_delete_calendar(&mut self, key: KeyEvent) {
@@ -191,7 +192,7 @@ impl App {
             self.should_quit = true;
             return;
         }
-        if key.code != KeyCode::Char('y') {
+        if !matches!(key.code, KeyCode::Char('d' | 'y')) {
             return;
         }
         let Some((path, text)) = self.read_tasks() else {

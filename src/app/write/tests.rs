@@ -391,7 +391,31 @@ fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {
 }
 
 #[test]
-fn any_key_other_than_y_cancels_the_delete() {
+fn dd_deletes_like_dy() {
+    // An item: d, then d again (like vim's dd)
+    let (mut app, path) = app_with_task_file("delete-dd", WITH_SUBTASK);
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('d'));
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "- [ ] Deploy to staging @2026-10-17 14:00\n"
+    );
+    clean_up(&path);
+    // A calendar in the calendar list: the same
+    let text = "# Work\n- [ ] Review PRs @2026-10-10\n# Personal\n- Gym @2026-10-12\n";
+    let (mut app, path) = app_with_task_file("delete-calendar-dd", text);
+    app.focus = Focus::Side;
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('d'));
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "# Personal\n- Gym @2026-10-12\n"
+    );
+    clean_up(&path);
+}
+
+#[test]
+fn any_key_other_than_d_or_y_cancels_the_delete() {
     let (mut app, path) = app_with_task_file("delete-cancel", WITH_SUBTASK);
     for other in [KeyCode::Char('j'), KeyCode::Char('n'), KeyCode::Esc] {
         press(&mut app, KeyCode::Char('d'));

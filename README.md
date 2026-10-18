@@ -123,7 +123,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `e` / `Enter` | Edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears. On the calendar views an item on the selected day shows without its date (a time as `@10:00`), and the date is put back when saving; a multi-day item shows its whole range. The tasks page shows the whole line, so take a date away there. The top border names the item's calendar; to move the item (with its subtasks) to another one, type `#` and part of its name, as when adding |
 | `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, on the selected day (the date is added when saving; type your own `@2026-10-20` for another day, `@10:00` for a time; the tasks page adds no date) / add a subtask under the chosen item. To put the item in another calendar, type `#` and part of the calendar's name: a list of the calendars that match opens under it (fuzzy, like fzy: `#sf` finds `Work > SFAP`); `↑` `↓` (`Ctrl+P` `Ctrl+N`) or the wheel choose, `Enter`, `Tab` or a click picks one (the `#` word is taken out of the line), `Esc` closes the list and leaves the word as it is (e.g. an Obsidian `#tag`) |
 | `r` | Reschedule the chosen item (the tasks page borrows layout 1's calendar; an undated item gets the day you pick). The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
-| `d` | Delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
+| `d` | Delete the chosen item with its subtasks, after asking on the bottom line (`d` again or `y` deletes, so `dd` works like in vim; any other key cancels) |
 
 **On the tasks page**
 
@@ -145,7 +145,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `j` past the last calendar | The 「Hide done」 switch at the bottom of the list: `Space`, `Enter` or a click switches hiding done tasks (and their subtasks) everywhere; saved to the config file right away |
 | `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved |
 | `e` | Rename the chosen calendar in the same editor: it starts with the heading's text (`type:holiday` included, so a holiday calendar stays one unless you take it out); every heading of that calendar is rewritten, each keeping its `#` level. Ungrouped items have no heading to rename |
-| `d` | Delete the chosen calendar: its headings and everything under them, the calendars inside it too, up to the next heading with as many `#` or fewer. The bottom row asks first and says how many items go with it; only `y` deletes, `u` brings it back |
+| `d` | Delete the chosen calendar: its headings and everything under them, the calendars inside it too, up to the next heading with as many `#` or fewer. The bottom row asks first and says how many items go with it; only `d` again (`dd`) or `y` deletes, `u` brings it back |
 | `L` / `H` | Move the chosen calendar one level in (inside the calendar right above it at the same level) / out, with the calendars inside it: their headings get one `#` more / fewer |
 
 **Mouse**

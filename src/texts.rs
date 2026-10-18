@@ -769,39 +769,45 @@ impl Texts {
     }
 
     /// After `d`, the bottom row asks whether to delete,
-    /// e.g. ` 刪除「Write the design doc」和底下 2 件子任務？y 刪除，其他鍵取消`
+    /// e.g. ` 刪除「Write the design doc」和底下 2 件子任務？d 或 y 刪除，其他鍵取消`
     pub fn confirm_delete(&self, title: &str, count: usize) -> String {
         let subtasks = count.saturating_sub(1);
         match (self.lang, subtasks) {
-            (Lang::En, 0) => format!(" Delete \"{title}\"? y deletes, any other key cancels"),
+            (Lang::En, 0) => format!(" Delete \"{title}\"? d or y deletes, any other key cancels"),
             (Lang::En, 1) => {
-                format!(" Delete \"{title}\" and its subtask? y deletes, any other key cancels")
+                format!(
+                    " Delete \"{title}\" and its subtask? d or y deletes, any other key cancels"
+                )
             }
             (Lang::En, n) => {
                 format!(
-                    " Delete \"{title}\" and its {n} subtasks? y deletes, any other key cancels"
+                    " Delete \"{title}\" and its {n} subtasks? d or y deletes, any other key cancels"
                 )
             }
-            (Lang::ZhTw, 0) => format!(" 刪除「{title}」？y 刪除，其他鍵取消"),
-            (Lang::ZhTw, n) => format!(" 刪除「{title}」和底下 {n} 件子任務？y 刪除，其他鍵取消"),
+            (Lang::ZhTw, 0) => format!(" 刪除「{title}」？d 或 y 刪除，其他鍵取消"),
+            (Lang::ZhTw, n) => {
+                format!(" 刪除「{title}」和底下 {n} 件子任務？d 或 y 刪除，其他鍵取消")
+            }
         }
     }
 
     /// After `d` in the calendar list, the bottom row asks whether to delete the calendar,
-    /// e.g. ` 刪除日曆「Moving」和裡面的 4 件事？y 刪除，其他鍵取消`
+    /// e.g. ` 刪除日曆「Moving」和裡面的 4 件事？d 或 y 刪除，其他鍵取消`
     pub fn confirm_delete_calendar(&self, name: &str, count: usize) -> String {
         match (self.lang, count) {
             (Lang::En, 0) => {
-                format!(" Delete the calendar \"{name}\"? y deletes, any other key cancels")
+                format!(" Delete the calendar \"{name}\"? d or y deletes, any other key cancels")
             }
             (Lang::En, 1) => format!(
-                " Delete the calendar \"{name}\" and its item? y deletes, any other key cancels"
+                " Delete the calendar \"{name}\" and its item? d or y deletes, any other key cancels"
             ),
             (Lang::En, n) => format!(
-                " Delete the calendar \"{name}\" and its {n} items? y deletes, any other key cancels"
+                " Delete the calendar \"{name}\" and its {n} items? d or y deletes, any other key cancels"
             ),
-            (Lang::ZhTw, 0) => format!(" 刪除日曆「{name}」？y 刪除，其他鍵取消"),
-            (Lang::ZhTw, n) => format!(" 刪除日曆「{name}」和裡面的 {n} 件事？y 刪除，其他鍵取消"),
+            (Lang::ZhTw, 0) => format!(" 刪除日曆「{name}」？d 或 y 刪除，其他鍵取消"),
+            (Lang::ZhTw, n) => {
+                format!(" 刪除日曆「{name}」和裡面的 {n} 件事？d 或 y 刪除，其他鍵取消")
+            }
         }
     }
 

@@ -103,19 +103,19 @@ fn confirm_delete_calendar_counts_the_items() {
     let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
     assert_eq!(
         zh.confirm_delete_calendar("Moving", 0),
-        " 刪除日曆「Moving」？y 刪除，其他鍵取消"
+        " 刪除日曆「Moving」？d 或 y 刪除，其他鍵取消"
     );
     assert_eq!(
         zh.confirm_delete_calendar("Moving", 4),
-        " 刪除日曆「Moving」和裡面的 4 件事？y 刪除，其他鍵取消"
+        " 刪除日曆「Moving」和裡面的 4 件事？d 或 y 刪除，其他鍵取消"
     );
     assert_eq!(
         en.confirm_delete_calendar("Moving", 1),
-        " Delete the calendar \"Moving\" and its item? y deletes, any other key cancels"
+        " Delete the calendar \"Moving\" and its item? d or y deletes, any other key cancels"
     );
     assert_eq!(
         en.confirm_delete_calendar("Moving", 4),
-        " Delete the calendar \"Moving\" and its 4 items? y deletes, any other key cancels"
+        " Delete the calendar \"Moving\" and its 4 items? d or y deletes, any other key cancels"
     );
 }
 
@@ -124,15 +124,15 @@ fn confirm_delete_counts_the_subtasks() {
     let zh = Lang::ZhTw.texts();
     assert_eq!(
         zh.confirm_delete("Go to the gym", 1),
-        " 刪除「Go to the gym」？y 刪除，其他鍵取消"
+        " 刪除「Go to the gym」？d 或 y 刪除，其他鍵取消"
     );
     assert_eq!(
         zh.confirm_delete("Write the design doc", 3),
-        " 刪除「Write the design doc」和底下 2 件子任務？y 刪除，其他鍵取消"
+        " 刪除「Write the design doc」和底下 2 件子任務？d 或 y 刪除，其他鍵取消"
     );
     assert_eq!(
         Lang::En.texts().confirm_delete("a", 2),
-        " Delete \"a\" and its subtask? y deletes, any other key cancels"
+        " Delete \"a\" and its subtask? d or y deletes, any other key cancels"
     );
 }
 

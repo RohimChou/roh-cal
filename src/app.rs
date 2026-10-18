@@ -636,7 +636,7 @@ impl App {
             Mode::Help(_) => self.handle_help_key(key),
             // Settings page: only choosing a row, changing a value, resetting, closing
             Mode::Settings { .. } => self.handle_settings_key(key),
-            // Asking whether to delete: `y` deletes, any other key just cancels
+            // Asking whether to delete: `d` (`dd`) or `y` deletes, any other key just cancels
             Mode::ConfirmDelete(..) => self.answer_delete(key),
             Mode::ConfirmDeleteCalendar { .. } => self.answer_delete_calendar(key),
             // Editor box: keys are typing (Enter saves, Esc cancels)
