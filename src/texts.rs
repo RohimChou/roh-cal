@@ -68,7 +68,7 @@ pub struct Texts {
     pub header_tasks: &'static str,
     /// The key hints on the tasks page's bottom row
     pub hints_tasks: &'static str,
-    /// The key hints on the bottom row while layout 3's day popup is open
+    /// The key hints on the bottom row while layout 2's day popup is open
     pub hints_day: &'static str,
     /// The key hints on the bottom row while the keyboard is in the side menu (calendar list)
     pub hints_side: &'static str,
@@ -149,8 +149,8 @@ const EN: Texts = Texts {
                 title: "Views",
                 keys: &[
                     ("1", "calendar + agenda"),
-                    ("3", "month grid"),
-                    ("4", "tasks page"),
+                    ("2", "month grid"),
+                    ("3", "tasks page"),
                     ("s", "calendar list"),
                 ],
             },
@@ -191,8 +191,8 @@ const EN: Texts = Texts {
                 title: "Views",
                 keys: &[
                     ("1", "calendar + agenda"),
-                    ("3", "month grid"),
-                    ("4", "tasks page"),
+                    ("2", "month grid"),
+                    ("3", "tasks page"),
                     ("Tab / Shift+Tab", "next / previous pane"),
                     ("s", "hide / show calendars"),
                     ("Esc", "back to the calendar"),
@@ -306,8 +306,8 @@ const ZH_TW: Texts = Texts {
                 title: "畫面",
                 keys: &[
                     ("1", "月曆 + 事項"),
-                    ("3", "大月曆"),
-                    ("4", "任務頁"),
+                    ("2", "大月曆"),
+                    ("3", "任務頁"),
                     ("s", "日曆清單"),
                 ],
             },
@@ -348,8 +348,8 @@ const ZH_TW: Texts = Texts {
                 title: "畫面",
                 keys: &[
                     ("1", "月曆 + 事項"),
-                    ("3", "大月曆"),
-                    ("4", "任務頁"),
+                    ("2", "大月曆"),
+                    ("3", "任務頁"),
                     ("Tab / Shift+Tab", "換框 / 反方向換框"),
                     ("s", "收起 / 打開日曆清單"),
                     ("Esc", "回到月曆"),
@@ -478,11 +478,11 @@ impl Texts {
             (Lang::ZhTw, Notice::NotATask) => " 行程沒有框，不能打勾".into(),
             (Lang::En, Notice::Mistakes(count)) => {
                 format!(
-                    " The task file has {count} mistake(s): press 4 to see them on the tasks page"
+                    " The task file has {count} mistake(s): press 3 to see them on the tasks page"
                 )
             }
             (Lang::ZhTw, Notice::Mistakes(count)) => {
-                format!(" 任務檔有 {count} 處寫錯：按 4 到任務頁看是哪幾行")
+                format!(" 任務檔有 {count} 處寫錯：按 3 到任務頁看是哪幾行")
             }
             (Lang::En, Notice::Undone(title)) => format!(" Undone: {title}"),
             (Lang::ZhTw, Notice::Undone(title)) => format!(" 已復原：{title}"),
@@ -775,7 +775,7 @@ mod tests {
         assert_eq!(zh.notice(&Notice::NotATask), " 行程沒有框，不能打勾");
         assert_eq!(
             zh.notice(&Notice::Mistakes(2)),
-            " 任務檔有 2 處寫錯：按 4 到任務頁看是哪幾行"
+            " 任務檔有 2 處寫錯：按 3 到任務頁看是哪幾行"
         );
         assert_eq!(
             zh.notice(&Notice::Failed(ErrorKind::PermissionDenied)),

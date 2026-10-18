@@ -125,7 +125,7 @@ impl App {
                     self.choose_task_row_near(row);
                     return;
                 }
-                // Layout 3's popup: set_items already adjusted the chosen
+                // Layout 2's popup: set_items already adjusted the chosen
                 // position (closes it if that day has no items left)
                 if self.view == View::Month {
                     return;
@@ -373,7 +373,7 @@ impl App {
     /// If the agenda has fewer items (e.g. the item just added was undone), the keyboard
     /// is in the agenda and the chosen position is out of range: choose the last item;
     /// if no items are left, go back to the calendar;
-    /// layout 3's popup works the same way (see `keep_day_choice`)
+    /// layout 2's popup works the same way (see `keep_day_choice`)
     pub(crate) fn set_items(
         &mut self,
         Parsed {

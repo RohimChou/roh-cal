@@ -81,7 +81,7 @@ impl App {
     /// `a`: adds an item, prefilled with `- [ ]  @<selected day>`,
     /// cursor where the title goes (no date on the tasks page)
     ///
-    /// Keyboard in the agenda, the tasks page or layout 3's popup: placed in the
+    /// Keyboard in the agenda, the tasks page or layout 2's popup: placed in the
     /// chosen item's group; on the calendar: placed in the group of the selected
     /// day's first item, or at the end of the file if that day has none
     pub(super) fn start_adding(&mut self) {
@@ -621,7 +621,7 @@ mod tests {
         );
         assert_eq!(app.focus, Focus::Agenda);
         // Selected 10/16 ("Write the design doc" is that day): added to its
-        // group; layout 3 has no agenda, so the keyboard stays on the calendar
+        // group; layout 2 has no agenda, so the keyboard stays on the calendar
         app.view = crate::app::View::Month;
         app.focus = Focus::Calendar;
         app.selected = date(2026, 10, 16);

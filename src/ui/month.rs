@@ -1,4 +1,4 @@
-//! Layout 3: the month grid (like v1's month view): the whole area right of the side menu, 6 rows of
+//! Layout 2: the month grid (like v1's month view): the whole area right of the side menu, 6 rows of
 //! equal-height cells, each cell listing that day's items
 //!
 //! A row is one week, Monday to Sunday, but every month starts a new row (like layout 1's calendar): the
@@ -159,7 +159,7 @@ fn scrolled(top: Date, selected: Date, center: bool) -> Date {
     }
 }
 
-/// The top row right after opening, after `t` / `[` / `]`, or when switching to layout 3: the last row of
+/// The top row right after opening, after `t` / `[` / `]`, or when switching to layout 2: the last row of
 /// the month before `date`'s (so the end of the previous month shows)
 fn month_top(date: Date) -> Date {
     row_after(date.first_of_month(), -1)

@@ -1,4 +1,4 @@
-//! Layout 3's day popup: `Enter` on the calendar (or double-clicking a day) opens it. It lists all
+//! Layout 2's day popup: `Enter` on the calendar (or double-clicking a day) opens it. It lists all
 //! items on the selected day (also ones a cell cannot fit and shows as `+N`). The keys are the same as in
 //! layout 1's agenda (drawing is in `ui::day`)
 
@@ -99,7 +99,7 @@ mod tests {
                        - [x] Triage bugs @2026-10-17\n- Trip to NYC @2026-10-16..2026-10-18\n\
                        - [ ] Deploy to prod @2026-10-20\n";
 
-    /// An app in layout 3 with 10/17 selected and the keyboard on the calendar (no task file)
+    /// An app in layout 2 with 10/17 selected and the keyboard on the calendar (no task file)
     fn month_app() -> App {
         let mut app = App::new(
             Lang::ZhTw,
@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(app.focus, Focus::Calendar);
     }
 
-    /// An app with a task file, in layout 3, 10/17 selected, the popup open
+    /// An app with a task file, in layout 2, 10/17 selected, the popup open
     fn popup_with_file(name: &str) -> (App, std::path::PathBuf) {
         let (mut app, path) = app_with_task_file(name, DAY);
         app.view = View::Month;
@@ -371,7 +371,7 @@ mod tests {
             (Focus::Day, Some("File expenses"))
         );
         // d, y deletes "File expenses": chooses the last item ("Trip to NYC"); deleting "Trip to NYC" too
-        // leaves the day empty, so the popup closes, still in layout 3
+        // leaves the day empty, so the popup closes, still in layout 2
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(

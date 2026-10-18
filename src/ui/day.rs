@@ -1,4 +1,4 @@
-//! Layout 3's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
+//! Layout 2's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
 //! agenda), with the selected day on the top border
 
 use super::{clear_wide_left_of, months::scrolled_top, planner::item_line, render_scrollbar};

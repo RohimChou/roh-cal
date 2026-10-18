@@ -34,7 +34,7 @@ pub struct Settings {
     pub theme: String,
     /// `[calendar]`: switches shared by the calendars of layouts 1 and 3
     pub calendar: CalendarSettings,
-    /// `[month]`: switches for the big month calendar (layout 3)
+    /// `[month]`: switches for the big month calendar (layout 2)
     pub month: MonthSettings,
     /// `[calendar_list]`: the calendar list on the far left (the side menu)
     pub calendar_list: CalendarListSettings,

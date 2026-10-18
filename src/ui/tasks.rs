@@ -1,4 +1,4 @@
-//! Tasks page (`4`): the whole area right of the side menu, listing the entire task file by calendar, with
+//! Tasks page (`3`): the whole area right of the side menu, listing the entire task file by calendar, with
 //! subtasks as a tree; the bottom row shows the chosen line's original text
 
 use super::{

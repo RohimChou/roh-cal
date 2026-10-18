@@ -53,7 +53,7 @@ cp testdata/tasks.md /tmp/tasks.md
 roh-cal --tasks /tmp/tasks.md
 ```
 
-Press `?` for the keys, `3` and `4` for the other views, `q` to quit. Without `--tasks`, roh-cal reads `~/.local/share/roh-cal/tasks.md`. A task file looks like this:
+Press `?` for the keys, `2` and `3` for the other views, `q` to quit. Without `--tasks`, roh-cal reads `~/.local/share/roh-cal/tasks.md`. A task file looks like this:
 
 ```markdown
 # Work
@@ -73,8 +73,8 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | Key | View |
 | :- | :- |
 | `1` | Calendar + agenda: the calendar on the left scrolls through the months; the agenda on the right lists each month's items next to it |
-| `3` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once; every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
-| `4` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red |
+| `2` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once; every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
+| `3` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red |
 
 A terminal at least 120 columns wide also shows the calendar list on the left; narrower, `s` calls it up.
 
@@ -94,14 +94,14 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 | Key | Action |
 | :- | :- |
-| `1` / `3` / `4` | Switch to the calendar + agenda / the month grid / the tasks page |
-| `Tab` / `Shift+Tab` | Switch to the next / previous pane: the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 3's day popup is open |
+| `1` / `2` / `3` | Switch to the calendar + agenda / the month grid / the tasks page |
+| `Tab` / `Shift+Tab` | Switch to the next / previous pane: the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 2's day popup is open |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups) when the terminal is at least 120 columns wide; narrower, `s` calls it up over the left of the screen with the keyboard in it, and `s`, `Esc`, `q` or clicking outside put it away, back to the pane you were in |
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
 | `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes, `max_width` one cell at a time, a color row through the theme's palette) and the screen follows right away; a short terminal scrolls the list; `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
-| `Esc` | Back to the layout's main pane (the calendar, or the tasks page) from the agenda, layout 3's day popup or the calendar list; from the tasks page to layout 1; quit from the calendar |
-| `q` / `Ctrl+C` | Quit (`q` in layout 3's day popup or the narrow calendar list only closes it) |
+| `Esc` | Back to the layout's main pane (the calendar, or the tasks page) from the agenda, layout 2's day popup or the calendar list; from the tasks page to layout 1; quit from the calendar |
+| `q` / `Ctrl+C` | Quit (`q` in layout 2's day popup or the narrow calendar list only closes it) |
 
 **On the calendar** (layouts 1 and 3)
 
@@ -110,10 +110,10 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
-| `Enter` | Go into the selected day's items: in layout 1 the agenda's first item that day; layout 3 opens a popup over the month grid with all of that day's items, the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day |
+| `Enter` | Go into the selected day's items: in layout 1 the agenda's first item that day; layout 2 opens a popup over the month grid with all of that day's items, the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day |
 | `a` | Add an item on the selected day, in the calendar of that day's first item (or at the end of the file when the day has none). With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
 
-**On an item** (the agenda, layout 3's day popup, the tasks page)
+**On an item** (the agenda, layout 2's day popup, the tasks page)
 
 | Key | Action |
 | :- | :- |
@@ -159,7 +159,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- | :- |
 | `theme` | `"catppuccin-mocha"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
-| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3); without them a new year still gets its thick line |
+| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them a new year still gets its thick line |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[calendar_list]` `max_width` | `36` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |

@@ -1,6 +1,6 @@
 //! Draws the whole screen: the side menu on the far left (only when wide enough; when narrow, `s` shows it
-//! over the left side), the main view on the right (layout 1's calendar box + agenda, layout 3's month grid,
-//! or the tasks page), the key hints on the bottom row; popups (layout 3's day popup, the edit box, the help
+//! over the left side), the main view on the right (layout 1's calendar box + agenda, layout 2's month grid,
+//! or the tasks page), the key hints on the bottom row; popups (layout 2's day popup, the edit box, the help
 //! page, the settings page) go on top
 
 mod day;
@@ -33,7 +33,7 @@ pub fn editor_area(screen: Rect) -> Rect {
     editor::area(screen)
 }
 
-/// Where layout 3's day popup (that day's items) is on screen (so a mouse click outside it can close it)
+/// Where layout 2's day popup (that day's items) is on screen (so a mouse click outside it can close it)
 pub fn day_area(app: &App) -> Rect {
     day::area(app, areas(app.screen, app).main)
 }
@@ -132,7 +132,7 @@ struct Areas {
     /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
     side: Rect,
     /// The whole block right of the side menu and above the key
-    /// hints: layout 3's month grid and the tasks page are drawn here
+    /// hints: layout 2's month grid and the tasks page are drawn here
     main: Rect,
     /// Left side of layout 1: the calendar box
     calendar: Rect,
@@ -203,8 +203,8 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
 }
 
 /// Draws the whole screen: in the middle, the side menu on the far left (only when wide enough; when narrow,
-/// `s` shows it over the left side), and on the right layout 1's calendar box + agenda, layout 3's month grid
-/// or the tasks page; the key hints on the bottom row; open popups (layout 3's day popup, the edit box, the
+/// `s` shows it over the left side), and on the right layout 1's calendar box + agenda, layout 2's month grid
+/// or the tasks page; the key hints on the bottom row; open popups (layout 2's day popup, the edit box, the
 /// help page, the settings page) are drawn last, on top
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
@@ -248,7 +248,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     } else {
-        // The tasks page has its own key hints; while layout 3's popup or the calendar list has the keyboard,
+        // The tasks page has its own key hints; while layout 2's popup or the calendar list has the keyboard,
         // show its keys
         let hint_text = match app.view {
             _ if app.focus == Focus::Day => texts.hints_day,
@@ -273,7 +273,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         frame.render_widget(Clear, area);
         side::render(frame, area, app);
     }
-    // Layout 3's day popup: over the month grid (the edit box, help page and so on go on top of it)
+    // Layout 2's day popup: over the month grid (the edit box, help page and so on go on top of it)
     if app.view == View::Month && app.focus == Focus::Day {
         day::render(frame, main_area, app);
     }
@@ -1747,7 +1747,7 @@ mod tests {
         assert_eq!(fg(32), ("8", theme.has_item));
     }
 
-    /// An app in layout 3 with today 2026/10/17, `selected` selected, and `text` as the task file
+    /// An app in layout 2 with today 2026/10/17, `selected` selected, and `text` as the task file
     fn month_app(lang: Lang, selected: Date, text: &str) -> App {
         let mut app = App::new(lang, date(2026, 10, 17), crate::tasks::parse(text).items);
         app.view = View::Month;
@@ -2262,7 +2262,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今",
             ]
         );
-        // Same in layout 3
+        // Same in layout 2
         app.view = View::Month;
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
@@ -2569,7 +2569,7 @@ mod tests {
 
     #[test]
     fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
-        // 60 × 20, layout 3, 10/17 has 4 items: the popup is centered on the month
+        // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month
         // grid (60 × 19), 30 cells wide (the minimum), 6 rows tall → x 15, y 6; the top
         // border shows the date, one item per row (like layout 1's agenda), the first item
         // is chosen with its date in brackets; the bottom row switches to the popup's keys

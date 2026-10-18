@@ -48,9 +48,9 @@ pub enum Focus {
     /// The side menu at the far left (always shown when wide enough; otherwise `s` calls it up over the left):
     /// `j` / `k` choose a calendar, `Space` checks it
     Side,
-    /// The tasks page (`4`): `j` / `k` choose items one by one, `l` / `h` expand / collapse subtasks
+    /// The tasks page (`3`): `j` / `k` choose items one by one, `l` / `h` expand / collapse subtasks
     Tasks,
-    /// Layout 3's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
+    /// Layout 2's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
     Day,
 }
 
@@ -59,9 +59,9 @@ pub enum Focus {
 pub enum View {
     /// Layout 1 (`1`): calendar on the left; on the right, each month's items line up with that month
     Planner,
-    /// Layout 3 (`3`): the big month grid, 6 weeks at a time; each cell lists that day's items
+    /// Layout 2 (`2`): the big month grid, 6 weeks at a time; each cell lists that day's items
     Month,
-    /// Tasks page (`4`): the whole task file listed by calendar, subtasks as a tree, undated items included
+    /// Tasks page (`3`): the whole task file listed by calendar, subtasks as a tree, undated items included
     Tasks,
 }
 
@@ -265,7 +265,7 @@ pub struct App {
     pub view: View,
     /// Which item is chosen in the agenda (index in `agenda()`); used only when the keyboard is there
     pub agenda_index: usize,
-    /// Which item is chosen in layout 3's popup (index in `items_on(selected)`);
+    /// Which item is chosen in layout 2's popup (index in `items_on(selected)`);
     /// used only when the keyboard is in the popup
     pub day_index: usize,
     /// Whether the mouse has clicked in the popup since it opened; before that, clicking the chosen item only
@@ -282,7 +282,7 @@ pub struct App {
     /// Agenda scroll: (the 1st of which month, which sorted row of that month is at the top); it scrolls only
     /// when a month has too many items to fit
     pub agenda_window: Option<(Date, usize)>,
-    /// Layout 3 scroll: the Monday of the top week (`None` = on the next draw, put the week before the 1st of
+    /// Layout 2 scroll: the Monday of the top week (`None` = on the next draw, put the week before the 1st of
     /// the selected month at the top)
     pub month_top: Option<Date>,
     /// Screen colors
@@ -502,7 +502,7 @@ impl App {
 
     /// Items on `day` (calendar checked; a multi-day item counts if it covers that day): earlier starts
     /// first, items starting the same day by time
-    /// (no time first; same time keeps file order). Layout 3's cells and `a` on the calendar (to find that
+    /// (no time first; same time keeps file order). Layout 2's cells and `a` on the calendar (to find that
     /// day's group) both use this
     pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
@@ -522,7 +522,7 @@ impl App {
         }
     }
 
-    /// The item the keyboard has chosen: in the agenda, on the tasks page, or in layout 3's popup; `None` on
+    /// The item the keyboard has chosen: in the agenda, on the tasks page, or in layout 2's popup; `None` on
     /// the calendar or side menu (checking, editing, deleting, and rescheduling all act on this item)
     fn chosen_item(&self) -> Option<&Item> {
         match self.focus {
@@ -550,7 +550,7 @@ impl App {
     }
 
     /// Hides the side menu that was called up when narrow: the keyboard goes back to the pane it was in
-    /// before (for the agenda and layout 3's popup, the choice stays;
+    /// before (for the agenda and layout 2's popup, the choice stays;
     /// if unchecked calendars left fewer items, the last one is chosen). If that pane is gone now (the layout
     /// changed, no items left), it goes back to the main pane
     fn put_side_away(&mut self) {
@@ -619,9 +619,9 @@ impl App {
     }
 
     /// Keys when no popup is open: `Tab` switches pane, `[` / `]` switch month, `t` back to today, `u` undo,
-    /// `1` / `3` / `4` switch layout, `s` hides / shows the side menu, `?` help page, `,` settings page,
+    /// `1` / `2` / `3` switch layout, `s` hides / shows the side menu, `?` help page, `,` settings page,
     /// `q` / `Ctrl+C` quit. `Esc` goes back to this layout's main pane;
-    /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 3's
+    /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 2's
     /// popup or the side menu called up when narrow is open, `Esc` / `q` only close it.
     /// Other keys depend on which pane has the keyboard
     fn handle_normal_key(&mut self, key: KeyEvent) {
@@ -654,8 +654,8 @@ impl App {
             KeyCode::Char('?') => self.mode = Mode::Help(Help::default()),
             KeyCode::Char(',') => self.open_settings(),
             KeyCode::Char('1') => self.set_view(View::Planner),
-            KeyCode::Char('3') => self.set_view(View::Month),
-            KeyCode::Char('4') => self.set_view(View::Tasks),
+            KeyCode::Char('2') => self.set_view(View::Month),
+            KeyCode::Char('3') => self.set_view(View::Tasks),
             // 1st of the previous / next month, scrolled to the top (ignored on the tasks page: no calendar)
             KeyCode::Char('[') if self.view != View::Tasks => self.jump_month(-1),
             KeyCode::Char(']') if self.view != View::Tasks => self.jump_month(1),
@@ -701,7 +701,7 @@ impl App {
 
     /// `Enter` on the calendar (or double-clicking a day): go into that day's items; the keyboard
     /// moves to the agenda and the day's first item is chosen;
-    /// layout 3 has no agenda, so it opens the day popup instead; nothing happens if the day has no items
+    /// layout 2 has no agenda, so it opens the day popup instead; nothing happens if the day has no items
     fn open_day(&mut self) {
         if self.view == View::Month {
             self.open_day_popup();
@@ -815,7 +815,7 @@ impl App {
             {
                 self.put_side_away();
             }
-            // Layout 3's popup is open: click items in it, a click outside closes it
+            // Layout 2's popup is open: click items in it, a click outside closes it
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
                 self.click_day(mouse.column, mouse.row);
             }
@@ -870,12 +870,12 @@ impl App {
         }
     }
 
-    /// Switches layout: the selected day's month scrolls to the top; layout 3 has no agenda, so a keyboard
+    /// Switches layout: the selected day's month scrolls to the top; layout 2 has no agenda, so a keyboard
     /// there goes back to the calendar
     fn set_view(&mut self, view: View) {
         self.view = view;
         self.scroll_to_month();
-        // The side menu stays; other panes go to this layout's main pane (layout 3 has no agenda, the tasks
+        // The side menu stays; other panes go to this layout's main pane (layout 2 has no agenda, the tasks
         // page has no calendar)
         if self.focus != Focus::Side {
             self.focus = match (view, self.focus) {
@@ -897,9 +897,9 @@ impl App {
         self.month_top = None;
     }
 
-    /// `Tab`: calendar → agenda (skipped if there are no items, or in layout 3) → side menu (only if drawn)
+    /// `Tab`: calendar → agenda (skipped if there are no items, or in layout 2) → side menu (only if drawn)
     /// → calendar;
-    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 3's popup is open
+    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 2's popup is open
     fn next_focus(&mut self) {
         match self.focus {
             Focus::Day => {}
@@ -917,8 +917,8 @@ impl App {
     }
 
     /// `Shift+Tab`: `Tab` backwards: calendar → side menu (only if drawn) → agenda (skipped if there are no
-    /// items, or in layout 3) → calendar;
-    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 3's popup is open
+    /// items, or in layout 2) → calendar;
+    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 2's popup is open
     fn previous_focus(&mut self) {
         match self.focus {
             Focus::Day => {}
@@ -992,8 +992,8 @@ impl App {
 
     /// After a write, chooses the item on file line `line` in the agenda; for an item spanning months, the row
     /// in the selected day's month.
-    /// If the agenda does not have it (e.g. its date was removed, or layout 3 has no agenda), back to the
-    /// calendar. On the tasks page, choose that row; in layout 3's popup, choose that item in the popup
+    /// If the agenda does not have it (e.g. its date was removed, or layout 2 has no agenda), back to the
+    /// calendar. On the tasks page, choose that row; in layout 2's popup, choose that item in the popup
     fn choose_line(&mut self, line: usize) {
         if self.view == View::Tasks {
             self.choose_task_line(line);
@@ -1199,7 +1199,7 @@ mod tests {
         press(&mut app, KeyCode::BackTab);
         press(&mut app, KeyCode::BackTab);
         assert_eq!(app.focus, Focus::Calendar);
-        // Layout 3: calendar ⇄ side menu; the day popup ignores it
+        // Layout 2: calendar ⇄ side menu; the day popup ignores it
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 140, 30);
         app.view = View::Month;
@@ -1213,7 +1213,7 @@ mod tests {
         // Tasks page: tasks page ⇄ side menu
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 140, 30);
-        press(&mut app, KeyCode::Char('4'));
+        press(&mut app, KeyCode::Char('3'));
         press(&mut app, KeyCode::BackTab);
         assert_eq!(app.focus, Focus::Side);
         press(&mut app, KeyCode::BackTab);
@@ -1575,9 +1575,9 @@ mod tests {
             assert_eq!((app.focus, app.agenda_index), (Focus::Agenda, 2), "{close}");
             assert!(!app.should_quit);
         }
-        // Layout 3, the 10/17 popup with the 2nd item (c) chosen: call it up and hide it; the popup comes back
+        // Layout 2, the 10/17 popup with the 2nd item (c) chosen: call it up and hide it; the popup comes back
         // with c still chosen
-        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Char('2'));
         press(&mut app, KeyCode::Enter);
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('s'));
@@ -1704,7 +1704,7 @@ mod tests {
         app.selected = date(2026, 10, 18);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.focus, Focus::Calendar);
-        // Layout 3: the layout stays; the day popup opens with the first item (b) chosen
+        // Layout 2: the layout stays; the day popup opens with the first item (b) chosen
         let mut app = app_with(ITEMS);
         app.view = View::Month;
         press(&mut app, KeyCode::Enter);
@@ -1750,11 +1750,11 @@ mod tests {
 
     #[test]
     fn number_keys_switch_layouts() {
-        // 3 switches to the month grid, 1 switches back; switching scrolls the selected month to the top
+        // 2 switches to the month grid, 1 switches back; switching scrolls the selected month to the top
         let mut app = app_with(ITEMS);
         app.calendar_top = Some(5);
         app.month_top = Some(date(2026, 1, 5));
-        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Char('2'));
         assert_eq!(app.view, View::Month);
         assert_eq!((app.calendar_top, app.month_top), (None, None));
         press(&mut app, KeyCode::Char('1'));
@@ -1763,11 +1763,11 @@ mod tests {
         // the side menu is not affected
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Agenda);
-        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Char('2'));
         assert_eq!(app.focus, Focus::Calendar);
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
-        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Char('2'));
         assert_eq!(app.focus, Focus::Side);
     }
 

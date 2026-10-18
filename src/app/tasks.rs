@@ -1,4 +1,4 @@
-//! Tasks page (`4`): lists the whole task file by calendar (group),
+//! Tasks page (`3`): lists the whole task file by calendar (group),
 //! subtasks as a tree (collapsed by default), undated items included;
 //! `j` / `k` up / down, `l` / `h` expand / collapse (`+` / `-`
 //! all), `L` / `H` indent / outdent, `J` / `K` move up / down
@@ -441,7 +441,7 @@ mod tests {
             date(2026, 10, 17),
             crate::tasks::parse(text).items,
         );
-        app.handle_key(KeyEvent::from(KeyCode::Char('4')));
+        app.handle_key(KeyEvent::from(KeyCode::Char('3')));
         app
     }
 
@@ -661,7 +661,7 @@ mod tests {
     /// app with the tasks page open; call `clean_up` when done
     fn tasks_app_with_file(name: &str, text: &str) -> (App, std::path::PathBuf) {
         let (mut app, path) = super::super::write::tests::app_with_task_file(name, text);
-        press(&mut app, KeyCode::Char('4'));
+        press(&mut app, KeyCode::Char('3'));
         (app, path)
     }
 

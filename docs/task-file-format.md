@@ -40,8 +40,8 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | :- | :- |
 | Item marker | Only `- ` starts an item (not `*` / `+`), so there is one way to write it |
 | Date token | `@` + a valid date or range, separated by whitespace. The **first** date token is used; it is removed from the displayed title. Convention: put it at the end of the line |
-| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Kevin`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning: roh-cal says how many there are when it opens, and the tasks page (`4`) marks those lines in red and says what is wrong. So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
-| Items without a date | Unscheduled; not shown on the calendar, but listed on the tasks page (`4`) |
+| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Kevin`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning: roh-cal says how many there are when it opens, and the tasks page (`3`) marks those lines in red and says what is wrong. So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
+| Items without a date | Unscheduled; not shown on the calendar, but listed on the tasks page (`3`) |
 | Children | Shown on the calendar only if they have their own date; otherwise they belong to the parent |
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
 | Encoding | UTF-8; LF or CRLF, preserved on write |

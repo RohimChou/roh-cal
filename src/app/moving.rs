@@ -94,7 +94,7 @@ impl App {
     }
 
     /// Confirm: move the item as many days as the selected day moved and write back to the task file;
-    /// go back to the pane from before `r` (the agenda or layout 3's popup has the moved item chosen)
+    /// go back to the pane from before `r` (the agenda or layout 2's popup has the moved item chosen)
     fn finish_moving(&mut self) {
         let Moving { item, from, back } = match std::mem::take(&mut self.mode) {
             Mode::Moving(moving) => moving,
@@ -143,7 +143,7 @@ impl App {
                 _ => self.focus = Focus::Calendar,
             }
         }
-        // Layout 3's popup: open on the new day with the moved item chosen; if the move failed, close it
+        // Layout 2's popup: open on the new day with the moved item chosen; if the move failed, close it
         if back.1 == Focus::Day {
             if moved {
                 self.choose_day_line(item.line);

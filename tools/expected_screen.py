@@ -1,5 +1,5 @@
 """Compute the screens of layout 1 (side menu + calendar on the left + agenda on the right),
-layout 3 (side menu + month grid) and the tasks page on their own, as the expected values
+layout 2 (side menu + month grid) and the tasks page on their own, as the expected values
 of the screen tests in `src/ui.rs`.
 
 Written apart from the Rust code (weeks come from Python's `calendar`, week numbers use a different formula,
@@ -10,12 +10,12 @@ Usage (from the repo root):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONTH SKIP_ROWS] < TASK_FILE
 (TOP_MONTH = YYYY-MM of the month block at the top; SKIP_ROWS = how many rows to skip)
 Example: python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
-Layout 3 (env var LAYOUT=3):
+Layout 2 (env var LAYOUT=2):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TASK_FILE
 (A row is one week, but every month starts a new row. TOP_ROW = YYYY-MM-DD of the top row's first day.
 Not given = just opened: the last row of the month before the selected one; scroll if the selected row is
 not within the 6 rows)
-Tasks page (env var LAYOUT=4):
+Tasks page (env var LAYOUT=3):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
 (the tasks page does not use SELECTED_DAY, but it must still be given);
 EXPANDED = line numbers of the items whose subtasks are expanded, comma-separated;
@@ -23,13 +23,13 @@ CHOSEN_LINE = line number of the chosen item (not given = the first item)
 Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in the agenda);
 WINDOW = how many rows the selected month's agenda is scrolled;
 SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
-NO_GRID = layout 3 draws no grid lines (config `[month] grid_lines = false`);
-NO_ICONS = no dot before items in layout 3 (`item_icons = false`);
-CENTER = layout 3 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
+NO_GRID = layout 2 draws no grid lines (config `[month] grid_lines = false`);
+NO_ICONS = no dot before items in layout 2 (`item_icons = false`);
+CENTER = layout 2 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
 RELATIVE = week-number column in layouts 1 and 3: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
-are not shown; LAYOUT = 3 is layout 3, 4 is the tasks page
+are not shown; LAYOUT = 2 is layout 2, 3 is the tasks page
 Today is always 2026-10-17.
 """
 import calendar
@@ -373,7 +373,7 @@ class Canvas:
 
 
 def month_screen(lang, w, h, selected, top, items, groups):
-    """Layout 3: side menu (only when wide enough) + month grid (6 rows: a week, split in two where a new
+    """Layout 2: side menu (only when wide enough) + month grid (6 rows: a week, split in two where a new
     month starts) + hints line"""
     t = TEXTS[lang]
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
@@ -757,9 +757,9 @@ lang, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 selected = datetime.date.fromisoformat(sys.argv[4])
 text = sys.stdin.read()
 groups = read_groups(text)
-if os.environ.get("LAYOUT") == "4":
+if os.environ.get("LAYOUT") == "3":
     out = tasks_screen(lang, w, h, text, groups)
-elif os.environ.get("LAYOUT") == "3":
+elif os.environ.get("LAYOUT") == "2":
     items = read_items(text, {groups[i][0] for i in HIDDEN})
     top = month_top(selected, sys.argv[5] if len(sys.argv) > 5 else None)
     out = month_screen(lang, w, h, selected, top, items, groups)

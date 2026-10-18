@@ -40,8 +40,8 @@ Sleep 1s
 Type "u"
 Sleep 1.5s
 
-# 版型 3：大月曆，Enter 打開那天的事
-Type "3"
+# 版型 2：大月曆，Enter 打開那天的事
+Type "2"
 Sleep 2s
 Enter
 Sleep 2s
@@ -49,7 +49,7 @@ Escape
 Sleep 1s
 
 # 任務頁：全部展開、往下看、全部收起
-Type "4"
+Type "3"
 Sleep 1.5s
 Type "+"
 Sleep 1s
