@@ -737,11 +737,9 @@ impl Texts {
     pub fn problem(&self, problem: &Problem) -> String {
         match (self.lang, problem) {
             (Lang::En, Problem::NotAnItem) => {
-                " Start with \"- \" (\"- [ ] \" for a task, \"- \" for an event)".into()
+                " Start with \"- [ ] \" for a task, \"- \" for an event".into()
             }
-            (Lang::ZhTw, Problem::NotAnItem) => {
-                " 要用「- 」開頭才是一件事（「- [ ] 」是任務、「- 」是行程）".into()
-            }
+            (Lang::ZhTw, Problem::NotAnItem) => " 開頭寫「- [ ] 」是任務，寫「- 」是行程".into(),
             (Lang::En, Problem::EmptyTitle) => " The title is empty".into(),
             (Lang::ZhTw, Problem::EmptyTitle) => " 標題是空的".into(),
             (Lang::En, Problem::EmptyName) => " The name is empty".into(),
