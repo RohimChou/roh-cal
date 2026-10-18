@@ -104,7 +104,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         hints,
     } = areas(frame.area(), app);
     // 改期中：說明現在在搬哪件、怎麼確定；有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
-    if let Some(moving) = &app.moving {
+    if let Some((item, count)) = &app.confirm_delete {
+        frame.render_widget(
+            Line::styled(
+                texts.confirm_delete(&item.title, *count),
+                Style::new().fg(theme.notice),
+            ),
+            hints,
+        );
+    } else if let Some(moving) = &app.moving {
         frame.render_widget(
             Line::styled(
                 texts.moving(&moving.item.title),

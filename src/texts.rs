@@ -230,6 +230,24 @@ impl Texts {
         }
     }
 
+    /// 按了 `d`，最下面一列問要不要刪，例：` 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消`
+    pub fn confirm_delete(&self, title: &str, count: usize) -> String {
+        let subtasks = count.saturating_sub(1);
+        match (self.lang, subtasks) {
+            (Lang::En, 0) => format!(" Delete \"{title}\"? y deletes, any other key cancels"),
+            (Lang::En, 1) => {
+                format!(" Delete \"{title}\" and its subtask? y deletes, any other key cancels")
+            }
+            (Lang::En, n) => {
+                format!(
+                    " Delete \"{title}\" and its {n} subtasks? y deletes, any other key cancels"
+                )
+            }
+            (Lang::ZhTw, 0) => format!(" 刪除「{title}」？y 刪除，其他鍵取消"),
+            (Lang::ZhTw, n) => format!(" 刪除「{title}」和底下 {n} 件子任務？y 刪除，其他鍵取消"),
+        }
+    }
+
     /// 改期中（按了 `r`），最下面一列的說明，例：` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
     pub fn moving(&self, title: &str) -> String {
         match self.lang {
@@ -351,6 +369,23 @@ mod tests {
                 "@2026-13-01".into()
             ))),
             " @2026-13-01: no such day"
+        );
+    }
+
+    #[test]
+    fn confirm_delete_counts_the_subtasks() {
+        let zh = Lang::ZhTw.texts();
+        assert_eq!(
+            zh.confirm_delete("早上", 1),
+            " 刪除「早上」？y 刪除，其他鍵取消"
+        );
+        assert_eq!(
+            zh.confirm_delete("寫報告", 3),
+            " 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消"
+        );
+        assert_eq!(
+            Lang::En.texts().confirm_delete("a", 2),
+            " Delete \"a\" and its subtask? y deletes, any other key cancels"
         );
     }
 

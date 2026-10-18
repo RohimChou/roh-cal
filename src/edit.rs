@@ -91,6 +91,23 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
     Ok((result, at + 1))
 }
 
+/// 刪除：`item` 連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算；後面的空行不算）一起刪掉；
+/// 回傳刪掉之後的整個檔案，和刪掉幾件（含它自己）
+///
+/// 例：刪 `- 東京 5 天` → 底下的 `  - [ ] 訂機票`、`    - [ ] 比價` 一起刪，共 3 件
+pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let start = find_line(&lines, item)?;
+    let end = block_end(&lines, start);
+    // 刪掉的那幾行裡有幾件（用 parser 數，跟畫面認的一樣）
+    let count = tasks::parse(&segments[start..end].concat()).items.len();
+    let mut result = segments[..start].concat();
+    result.push_str(&segments[end..].concat());
+    Ok((result, count))
+}
+
 /// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
 fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     let index = item.line.checked_sub(1).ok_or(Changed)?;
@@ -327,6 +344,30 @@ mod tests {
             add("- [ ] 別的\n", "- b", &Place::InGroupOf(item(GROUPS, 0))),
             Err(Changed)
         );
+    }
+
+    #[test]
+    fn delete_takes_the_subtasks_along() {
+        // 寫報告 + 2 件子任務（中間的空行也刪）= 3 件；後面跟下一組之間的空行留著
+        assert_eq!(
+            delete(GROUPS, &item(GROUPS, 0)),
+            Ok(("# 工作\n\n# 生活\n- 爬山 @2026-10-18\n".into(), 3))
+        );
+        // 刪子任務：只有它自己
+        assert_eq!(
+            delete(GROUPS, &item(GROUPS, 2)),
+            Ok((
+                "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n\n# 生活\n- 爬山 @2026-10-18\n".into(),
+                1
+            ))
+        );
+        // 最後一行沒有換行、\r\n：其他行照原樣
+        assert_eq!(
+            delete("- a\r\n- b", &item("- a\r\n- b", 1)),
+            Ok(("- a\r\n".into(), 1))
+        );
+        // 在別處改過：不刪
+        assert_eq!(delete("- [ ] 別的\n", &item(GROUPS, 0)), Err(Changed));
     }
 
     #[test]

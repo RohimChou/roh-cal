@@ -1,9 +1,10 @@
-//! 寫任務檔：打勾、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
+//! 寫任務檔：打勾、刪除、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
 
-use super::App;
+use super::{App, Focus};
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Item, Kind};
+use ratatui::crossterm::event::KeyCode;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -51,6 +52,49 @@ impl App {
         match edit::toggle(&text, &item) {
             Ok(after) => self.write_tasks(&path, text, after, item.title),
             Err(edit::Changed) => self.reload(&text),
+        }
+    }
+
+    /// `d`：先算刪掉選到的那件會刪掉幾件（含子任務），最下面一列問使用者（`y` 才刪）
+    pub(super) fn ask_delete(&mut self) {
+        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+            return;
+        };
+        let Some((_, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::delete(&text, &item) {
+            Ok((_, count)) => self.confirm_delete = Some((item, count)),
+            Err(edit::Changed) => self.reload(&text),
+        }
+    }
+
+    /// 問「要刪嗎」的時候按的鍵：`y` 刪掉（連子任務），其他鍵都只是取消
+    ///
+    /// 問的時候算的件數跟現在算的不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
+    pub(super) fn answer_delete(&mut self, code: KeyCode) {
+        let Some((item, count)) = self.confirm_delete.take() else {
+            return;
+        };
+        if code != KeyCode::Char('y') {
+            return;
+        }
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::delete(&text, &item) {
+            Ok((after, deleted)) if deleted == count => {
+                self.write_tasks(&path, text, after, item.title);
+                // 右邊選下一件（原本的位置）；刪到沒有了就回到月曆
+                match self.agenda().len().checked_sub(1) {
+                    Some(last) => self.choose(self.agenda_index.min(last)),
+                    None => self.focus = Focus::Calendar,
+                }
+            }
+            _ => {
+                self.reload(&text);
+                self.focus = Focus::Calendar;
+            }
         }
     }
 
@@ -162,7 +206,6 @@ impl App {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::app::Focus;
     use crate::texts::Lang;
     use jiff::civil::date;
     use ratatui::crossterm::event::{
@@ -359,6 +402,79 @@ pub(crate) mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [x] 早上 @2026-10-17 09:00\n"
         );
+        clean_up(&path);
+    }
+
+    /// 10/17 早上有一個子任務（沒日期，不在右邊）、下午沒有（刪除的 test 用）
+    const WITH_SUBTASK: &str =
+        "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n- [ ] 下午 @2026-10-17 14:00\n";
+
+    #[test]
+    fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {
+        let (mut app, path) = app_with_task_file("delete", WITH_SUBTASK);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // d：先問，檔案還沒動；早上 + 子任務 = 2 件
+        press(&mut app, KeyCode::Char('d'));
+        assert_eq!(
+            app.confirm_delete
+                .as_ref()
+                .map(|(item, count)| (item.title.as_str(), *count)),
+            Some(("早上", 2))
+        );
+        assert_eq!(read(), WITH_SUBTASK);
+        // y：刪掉早上和它的子任務，只剩下午；右邊選著下午
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(read(), "- [ ] 下午 @2026-10-17 14:00\n");
+        assert_eq!(app.confirm_delete, None);
+        assert_eq!(
+            app.chosen().map(|entry| entry.item.title.as_str()),
+            Some("下午")
+        );
+        // u：整段救回來
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), WITH_SUBTASK);
+        assert_eq!(app.notice, Some(Notice::Undone("早上".into())));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn any_key_other_than_y_cancels_the_delete() {
+        let (mut app, path) = app_with_task_file("delete-cancel", WITH_SUBTASK);
+        for other in [KeyCode::Char('j'), KeyCode::Char('n'), KeyCode::Esc] {
+            press(&mut app, KeyCode::Char('d'));
+            // 取消用的那個鍵只拿來取消：還在右邊、還選著第一件
+            press(&mut app, other);
+            assert_eq!(app.confirm_delete, None, "{other:?}");
+            assert_eq!(
+                (app.focus, app.agenda_index),
+                (Focus::Agenda, 0),
+                "{other:?}"
+            );
+        }
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
+        clean_up(&path);
+    }
+
+    #[test]
+    fn y_does_not_delete_when_the_subtasks_changed_meanwhile() {
+        let (mut app, path) = app_with_task_file("delete-changed", WITH_SUBTASK);
+        press(&mut app, KeyCode::Char('d'));
+        // 問的時候是 2 件；按 y 之前，在別處多加了一個子任務 → 會刪 3 件，跟問的不一樣
+        let edited = "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n  - [ ] 印講義\n- [ ] 下午 @2026-10-17 14:00\n";
+        std::fs::write(&path, edited).expect("edit");
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+        assert_eq!(app.notice, Some(Notice::Reloaded));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn deleting_the_last_item_goes_back_to_the_calendar() {
+        let (mut app, path) = app_with_task_file("delete-last", "- [ ] 早上 @2026-10-17\n");
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
+        assert_eq!(app.focus, Focus::Calendar);
         clean_up(&path);
     }
 

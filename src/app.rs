@@ -133,6 +133,8 @@ pub struct App {
     pub moving: Option<Moving>,
     /// 編輯框（按了 `e`）；`None` = 沒開
     pub editor: Option<Editor>,
+    /// 按了 `d`、正在問要不要刪：要刪的那件和會刪掉幾件（含子任務）
+    pub confirm_delete: Option<(Item, usize)>,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -161,6 +163,7 @@ impl App {
             undo: Vec::new(),
             moving: None,
             editor: None,
+            confirm_delete: None,
             should_quit: false,
         }
     }
@@ -266,6 +269,11 @@ impl App {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
         self.notice = None;
+        // 正在問要不要刪：`y` 刪，其他鍵只是取消
+        if self.confirm_delete.is_some() {
+            self.answer_delete(key.code);
+            return;
+        }
         // 編輯框開著：按鍵都是打字（Enter 存、Esc 取消）
         if self.editor.is_some() {
             self.handle_editor_key(key);
@@ -335,6 +343,7 @@ impl App {
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),
             KeyCode::Char('A') => self.start_adding_subtask(),
+            KeyCode::Char('d') => self.ask_delete(),
             _ => {}
         }
     }
