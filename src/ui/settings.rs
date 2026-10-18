@@ -575,7 +575,6 @@ mod tests {
             [
                 "╭ roh-cal ∙ 設定 ─────────────────────────╮",
                 "│  [colors]                               │",
-                "│    notice               yellow          │",
                 "│    error                red             │",
                 "│    grid                 surface0        │",
                 "│    other_month          overlay0        │",
@@ -583,6 +582,7 @@ mod tests {
                 "│    priority_high        red             │",
                 "│    priority_medium      peach           │",
                 "│    priority_low         yellow          │",
+                "│    overdue              red             │",
                 "│    help_section         blue            │",
                 "│    help_key             peach           │",
                 "│                                         │",
@@ -595,12 +595,12 @@ mod tests {
         assert_eq!(cell(&buffer, area, 42, 14).symbol(), "┃");
         assert_eq!(cell(&buffer, area, 42, 1).symbol(), "│");
         // Clicking the bottom list row: still help_key; the top one is `[colors]` (not a row), the one
-        // below it notice, the first color shown: mapped using both scroll positions
+        // below it error, the first color shown: mapped using both scroll positions
         assert_eq!(row_at(&app, app.screen, 20, 11), Some(last));
         assert_eq!(row_at(&app, app.screen, 20, 1), None);
         assert_eq!(
             row_at(&app, app.screen, 20, 2),
-            Some(index_of(Row::Color("notice")))
+            Some(index_of(Row::Color("error")))
         );
     }
 

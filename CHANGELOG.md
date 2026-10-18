@@ -11,6 +11,7 @@ v2, a rewrite from scratch. The first version (never released) lives on the [`v1
 - Writing back to the task file: check off, add, add a subtask, edit in a one-line editor, reschedule with the calendar as the date picker, delete, and undo the last 50 writes; only the changed lines are rewritten, through a temp file, and a file changed elsewhere is reloaded instead of overwritten
 - Task file format v0.2: events (items without a box), multi-day ranges `@2026-10-20..2026-10-25`, holiday calendars (`type:holiday`), Obsidian block ids at the end of a line
 - Priorities (task file format v0.4): `!`, `!!` or `!!!` in an item; the editor's check row says which one it read. An item not over yet is colored by it (yellow, orange, red; the roles `priority_low`, `priority_medium`, `priority_high`): its whole line in the agenda and the month grid, its title on the tasks page
+- Overdue: an unfinished task past its day shows how late it is before its title (`3d late` / `過期3天`, role `overdue`) in the agenda, the day popup and the tasks page
 - Calendar list on the left: show or hide each `#` group; on terminals narrower than 120 columns `s` calls it up over the screen; long lists scroll
 - Help page (`?`) with the keys for where the keyboard is, settings page (`,`) and the config file `config.toml`; a color picker (`e` on a color row) for any color, not only the theme's palette
 - Six built-in themes as TOML files (`catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `terminal`) and per-role color overrides

@@ -13,7 +13,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | :- | :- | :- |
 | `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
-| `src/tasks.rs` | 任務檔 parser：純文字 → `Item`，和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
+| `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（`Item::days_late`：沒做完的任務過了幾天，畫面上的「過期3天」），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
 | `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |

@@ -50,6 +50,8 @@ range = "dim_sapphire"
 priority_high = "red"
 priority_medium = "peach"
 priority_low = "yellow"
+# Overdue tasks: how late, before the title (red, like !!!)
+overdue = "red"
 # Help page: same as v1
 help_section = "blue"
 help_key = "peach"

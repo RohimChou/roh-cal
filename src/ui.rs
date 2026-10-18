@@ -800,9 +800,9 @@ mod tests {
                 "╭──────────────────────────────────╮╭─────────────────────────────────╮╭────────────────────────────────────────────────╮",
                 "│ 日曆                             ││2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                      2026/10/17（六） │",
                 "│──────────────────────────────────││──────────┼──────────────────────││────────────────────────────────────────────────│",
-                "│ ☑ 未分組                       2 ││  10月 40 │           1  2  3  4 ││ 10/10 Farmers market                           │",
+                "│ ☑ 未分組                       2 ││  10月 40 │           1  2  3  4 ││ 10/10 過期7天 Farmers market                   │",
                 "│ ☑ Personal                     5 ││       41 │  5  6  7  8  9 10 11 ││ 10/15 Fix the login bug                        ┃",
-                "│ ☑ Work                         1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/16 17:30 Send the weekly update             ┃",
+                "│ ☑ Work                         1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/16 17:30 過期1天 Send the weekly update     ┃",
                 "│   ☑ Year-end odds and ends and 2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/17 Dinner with friends                      ┃",
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││ 10/17 08:00 Coffee chat                        ┃",
                 "│                                  ││          │                      ││ 10/18 07:00 Go hiking                          │",
@@ -832,10 +832,10 @@ mod tests {
                 "╭─────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項                                                          2026/10/17（六） │",
                 "│──────────┼──────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││  10/5 Pay the phone bill                   10/17 08:00 Coffee chat                 │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 Farmers market                       10/18 07:00 Go hiking                   │",
+                "│  10月 40 │           1  2  3  4 ││  10/5 過期12天 Pay the phone bill          10/17 08:00 Coffee chat                 │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 過期7天 Farmers market               10/18 07:00 Go hiking                   │",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 Fix the login bug                    10/20 A really long title that just keep│",
-                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 Send the weekly update                                                 │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 過期1天 Send the weekly upda                                           │",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/17 Dinner with friends                                                          │",
                 "│──────────┼──────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
                 "│  11月 44 │                    1 ││  11/3 09:30 Release v2.3                                                           │",
@@ -860,7 +860,7 @@ mod tests {
                 "│ Calendars                        ││  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                        Sat Oct 17, 2026 │",
                 "│──────────────────────────────────││──────────┼──────────────────────││────────────────────────────────────────────────│",
                 "│ ☑ Ungrouped                    2 ││   Oct 40 │           1  2  3  4 ││ 10/15 Fix the login bug                        │",
-                "│ ☐ Personal                     5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 Send the weekly update             │",
+                "│ ☐ Personal                     5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 1d late Send the weekly update     │",
                 "│ ☑ Work                         1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/20 A really long title that just keeps going│",
                 "│   ☑ Year-end odds and ends and 2 ││       43 │ 19 20 21 22 23 24 25 ││                                                │",
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││                                                │",
@@ -965,10 +965,10 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││  10/5 Pay the phone bill        │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 Farmers market            │",
+                "│  10月 40 │           1  2  3  4 ││  10/5 過期12天 Pay the phone bil│",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 過期7天 Farmers market    │",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 Fix the login bug         │",
-                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 Send the weekly upda│",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 過期1天 Send the wee│",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/17 Dinner with friends       │",
                 "│          │                      ││ 10/17 08:00 Coffee chat         │",
                 "│          │                      ││ 10/18 07:00 Go hiking           │",
@@ -1000,10 +1000,10 @@ mod tests {
                 "╭─────────────────────────────────╮╭──────────────────────────────────────────────────────────╮",
                 "│  2026 Wk │ Mo Tu We Th Fr Sa Su ││ Agenda                                  Sat Oct 17, 2026 │",
                 "│──────────┼──────────────────────││──────────────────────────────────────────────────────────│",
-                "│   Oct 40 │           1  2  3  4 ││  10/5 Pay the phone bill      10/17 08:00 Coffee chat    │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 Farmers market          10/18 07:00 Go hiking      │",
+                "│   Oct 40 │           1  2  3  4 ││  10/5 12d late Pay the phon   10/17 08:00 Coffee chat    │",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 7d late Farmers marke   10/18 07:00 Go hiking      │",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 Fix the login bug       10/20 A really long title t│",
-                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 Send the weekly                              │",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 1d late Send th                              │",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/17 Dinner with friends                                │",
                 "│──────────┼──────────────────────││──────────────────────────────────────────────────────────│",
                 "│   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                                 │",
@@ -1113,9 +1113,11 @@ mod tests {
         // the right in the normal color (2026/10/17 starts at x 52)
         assert_eq!(cell(37, 1), ("重", theme.muted, false));
         assert_eq!(cell(52, 1), ("2", theme.text, false));
-        // 10/5 has an unfinished item: date and title in the normal color
+        // 10/5 has an unfinished item: date and title in the normal color; it is 12 days late, so
+        // 「過期12天」 (8 cells, the overdue color) and a blank come before the title
         assert_eq!(cell(38, 3), ("1", theme.text, false));
-        assert_eq!(cell(43, 3), ("P", theme.text, false));
+        assert_eq!(cell(43, 3), ("過", theme.overdue, false));
+        assert_eq!(cell(52, 3), ("P", theme.text, false));
         // 10/15's finished item: the whole line is gray (the date too), the title struck through
         assert_eq!(cell(37, 5), ("1", theme.muted, false));
         assert_eq!(cell(43, 5), ("F", theme.muted, true));
@@ -1165,10 +1167,10 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││  10/5 Pay the phone bill        │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 Farmers market            │",
+                "│  10月 40 │           1  2  3  4 ││  10/5 過期12天 Pay the phone bil│",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/10 過期7天 Farmers market    │",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/15 Fix the login bug         │",
-                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 Send the weekly upda│",
+                "│       43 │ 19 20 21 22 23 24 25 ││ 10/16 17:30 過期1天 Send the wee│",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/17 Dinner with friends       │",
                 "│          │                      ││[10/17]08:00 Coffee chat         │",
                 "│          │                      ││ 10/18 07:00 Go hiking           │",
@@ -1267,7 +1269,7 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 Send the weekly upda│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 過期1天 Send the wee│",
                 "│       41 │  5  6  7  8  9 10 11 ││ 10/17 Dinner with friends       │",
                 "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 08:00 Coffee chat         ┃",
                 "│       43 │ 19[20]21 22 23 24 25 ││ 10/18 07:00 Go hiking           ┃",
@@ -1306,7 +1308,7 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/20（二） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 Send the weekly upda│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 過期1天 Send the wee│",
                 "│       41 │  5  6  7  8  9 10 11 ││ 10/17 Dinner with friends       │",
                 "│       42 │ 12 13 14 15 16 17 18 ││ 10/17 08:00 Coffee chat         ┃",
                 "│       43 │ 19[20]21 22 23 24 25 ││ 10/18 07:00 Go hiking           ┃",
@@ -1377,7 +1379,7 @@ mod tests {
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
                 "│  10月 40 │           1  2  3  4 ││ 10/15 Fix the login bug         │",
-                "│       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 Send the weekly upda┃",
+                "│       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 過期1天 Send the wee┃",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/17 Dinner with friends       ┃",
                 "│       43 │ 19 20 21 22 23 24 25 ││ 10/17 08:00 Coffee chat         ┃",
                 "│       44 │ 26 27 28 29 30 31    ││ 10/18 07:00 Go hiking           │",
@@ -1680,7 +1682,7 @@ mod tests {
                 "╭─────────────────────────────────╮╭─────────────────────────────────╮",
                 "│2026年 週 │ 一 二 三 四 五 六 日 ││ 重要事項       2026/10/17（六） │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
-                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 Send the weekly upda│",
+                "│  10月 40 │           1  2  3  4 ││ 10/16 17:30 過期1天 Send the wee│",
                 "│       41 │  5  6  7  8  9 10 11 ││ 10/20~25 Business trip to NYC   │",
                 "│       42 │ 12 13 14 15 16[17]18 ││ 10/22 Buy gifts for the team    │",
                 "│       43 │ 19 20 21 22 23 24 25 ││ 10/28~11/3 Manager OOO          │",
@@ -1956,8 +1958,10 @@ mod tests {
         assert_eq!(cell(29, 4), ("0", theme.weekend, false));
         assert_eq!(cell(32, 5), ("8", theme.weekend, false));
         // Agenda (starts at x 36, one item per row): titles
-        // at x 43; Go hiking has a time in front, so it is at x 49
-        assert_eq!(cell(43, 3), ("S", theme.text, false));
+        // at x 43; Go hiking has a time in front, so it is at x 49; the weekly update is 8 days late, so
+        // 「過期8天」 (7 cells) and a blank come first and its title is at x 51
+        assert_eq!(cell(43, 3), ("過", theme.overdue, false));
+        assert_eq!(cell(51, 3), ("S", theme.text, false));
         assert_eq!(cell(43, 4), ("F", theme.muted, false));
         assert_eq!(cell(38, 4), ("0", theme.muted, false));
         assert_eq!(cell(49, 5), ("G", theme.text, false));
@@ -2585,10 +2589,10 @@ mod tests {
                 "│ Payments API v2                                                    │",
                 "│   [x] Align with PM on the refund flow spec             9/28       │",
                 "│   [x] Break down tickets and estimate                   9/30 10:00 │",
-                "│ ▸ [ ] Implement the refund API  1/4                    10/14       │",
-                "│   [ ] Code review: Amy's PR #482                       10/12 14:00 │",
-                "│   [ ] Confirm alerting with SRE                        10/13 15:00 │",
-                "│   [ ] Reply to Kevin about error codes                 10/14       │",
+                "│ ▸ [ ] 過期3天 Implement the refund API  1/4            10/14       │",
+                "│   [ ] 過期5天 Code review: Amy's PR #482               10/12 14:00 │",
+                "│   [ ] 過期4天 Confirm alerting with SRE                10/13 15:00 │",
+                "│   [ ] 過期3天 Reply to Kevin about error codes         10/14       │",
                 "│   [x] Fix the staging DB migration                      10/8       │",
                 "│    ∙  Code freeze                                      10/23       │",
                 "│   [ ] Prepare the release checklist @2026-10-23        10/22       │",
@@ -2598,9 +2602,9 @@ mod tests {
                 "│    ∙  Team sync                                        10/12 10:00 │",
                 "│    ∙  Team sync                                        10/19 10:00 │",
                 "│    ∙  Team sync                                        10/26 10:00 │",
-                "│   [ ] Send the weekly update                           10/16 17:30 │",
-                "│   [ ] Clean up this week's notes                       10/16       │",
-                "│   [ ] Draft the release notes                          10/16       │",
+                "│   [ ] 過期1天 Send the weekly update                   10/16 17:30 │",
+                "│   [ ] 過期1天 Clean up this week's notes               10/16       │",
+                "│   [ ] 過期1天 Draft the release notes                  10/16       │",
                 "│    ∙  Team happy hour                                  10/16 18:30 │",
                 "│    ∙  Requirements meeting with PM                      10/8 14:00 │",
                 "│    ∙  Engineering all-hands                             10/8 16:00 │",
@@ -2626,7 +2630,7 @@ mod tests {
                 "│ Learning Rust 🦀                                                   │",
                 "│   [x] Finish chapter 4 of The Book (ownership)          10/3       │",
                 "│   [ ] Read the Ratatui layout docs                                 │",
-                "│ ▾ [ ] Write the task file parser for roh-cal  0/1      10/11       │",
+                "│ ▾ [ ] 6d late Write the task file parser for roh-      10/11       │",
                 "│   ▾ [ ] Write a test for every rule  0/1                           │",
                 "│       [ ] Test that `@Rukis` is not a date                         │",
                 "│    ∙  RustConf livestream @Rukis                       10/29 23:00 │",
@@ -2669,9 +2673,11 @@ mod tests {
         // Heading: Work (label color, bold)
         assert_eq!(buffer[(2, 3)].fg, theme.label);
         assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
-        // Send the weekly update (y 4): not done → normal text, date (x 33-37) in its day's color (normal);
-        // the chosen row gets the highlight across the whole row
-        assert_eq!(cell(8, 4), ("S", theme.text, false));
+        // Send the weekly update (y 4): not done → normal text, 1 day late → 「過期1天」 (7 cells, the overdue
+        // color) and a blank before the title; date (x 33-37) in its day's color (normal); the chosen row
+        // gets the highlight across the whole row
+        assert_eq!(cell(8, 4), ("過", theme.overdue, false));
+        assert_eq!(cell(16, 4), ("S", theme.text, false));
         assert_eq!(cell(34, 4), ("0", theme.text, false));
         assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
         assert_eq!(buffer[(1, 5)].bg, Color::Reset);
@@ -2726,7 +2732,7 @@ mod tests {
                 "│    ∙  Dentist appointment                              10/14 10:30 │",
                 "│   [ ] Organize the bookshelf                                       │",
                 "│   [ ] Buy Mom's birthday gift                           11/2       │",
-                "│   [ ] Book the annual physical                         10/16       │",
+                "│   [ ] 過期1天 Book the annual physical                 10/16       │",
                 "│    ∙  Mom's birthday 🎂                                10/29       │",
                 "│   [ ] Pay property tax @2026-13-01                                 │",
                 "│   Moving                                                           │",
@@ -2770,7 +2776,7 @@ mod tests {
                 "│ ☑ Personal         5 ││    ∙  Dentist appointment                                                         10/14 10:30 │",
                 "│   ☑ Moving         4 ││   [ ] Organize the bookshelf                                                                  │",
                 "│ ☑ US holidays      2 ││   [ ] Buy Mom's birthday gift                                                      11/2       │",
-                "│ ☑ Learning Rust 🦀 4 ││   [ ] Book the annual physical                                                    10/16       │",
+                "│ ☑ Learning Rust 🦀 4 ││   [ ] 過期1天 Book the annual physical                                            10/16       │",
                 "│ ☑ Tokyo trip       5 ││    ∙  Mom's birthday 🎂                                                           10/29       │",
                 "│                      ││───────────────────────────────────────────────────────────────────────────────────────────────│",
                 "│                      ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",

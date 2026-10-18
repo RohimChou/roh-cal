@@ -483,7 +483,8 @@ pub(super) fn date_text(item: &Item) -> String {
 /// longer and pushes the title right; time only if it has one)
 ///
 /// Not over yet: see `open_item_color` (a priority or a holiday colors the whole line, otherwise the
-/// normal color with the time muted). Over: the whole line turns gray; done tasks also get a
+/// normal color with the time muted); an unfinished task past its day has how late it is before the title
+/// (「 10/16 過期1天 交週報」). Over: the whole line turns gray; done tasks also get a
 /// struck-through title, past events do not.
 /// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
@@ -512,6 +513,13 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
             Style::new().fg(if whole_line { color } else { theme.muted }),
+        ));
+    }
+    // An unfinished task past its day: how late it is, before the title
+    if let Some(days) = item.days_late(app.today) {
+        spans.push(Span::styled(
+            format!("{} ", app.lang.texts().late(days)),
+            Style::new().fg(theme.overdue),
         ));
     }
     let mut title_style = Style::new().fg(color);

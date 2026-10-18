@@ -64,6 +64,8 @@ pub struct Theme {
     pub priority_medium: Color,
     /// An item marked `!` (low priority) that is not over yet
     pub priority_low: Color,
+    /// How late an unfinished task past its day is (`過期3天` before its title)
+    pub overdue: Color,
     /// Section names on the help page (`Move`, `Edit`…)
     pub help_section: Color,
     /// Keys on the help page (`hjkl`, `Space`…)
@@ -94,7 +96,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 23] = [
+pub const ROLES: [&str; 24] = [
     "text",
     "muted",
     "line",
@@ -116,6 +118,7 @@ pub const ROLES: [&str; 23] = [
     "priority_high",
     "priority_medium",
     "priority_low",
+    "overdue",
     "help_section",
     "help_key",
 ];
@@ -284,6 +287,7 @@ impl Theme {
             "priority_high" => self.priority_high,
             "priority_medium" => self.priority_medium,
             "priority_low" => self.priority_low,
+            "overdue" => self.overdue,
             "help_section" => self.help_section,
             "help_key" => self.help_key,
             _ => return None,
