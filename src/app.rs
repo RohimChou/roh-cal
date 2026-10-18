@@ -158,7 +158,7 @@ pub struct App {
     pub month_top: Option<Date>,
     /// 畫面的顏色
     pub theme: Theme,
-    /// 設定檔裡的開關（格線、相對週數…）
+    /// 設定檔裡的設定（theme、顏色、格線、相對週數…）；設定頁改這裡
     pub settings: Settings,
     /// 設定檔的位置（設定頁關掉時存回去）；`None` = 不存（test、找不到放設定檔的地方）
     pub config_path: Option<PathBuf>,
@@ -308,7 +308,7 @@ impl App {
     }
 
     /// `day` 那天的事（日曆有勾選的；跨多天的蓋到那天就算）：比較早開始的在前，同一天開始的照時間
-    /// （沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子用
+    /// （沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子、月曆上按 `a` 找那天的組都用這個
     pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
@@ -375,8 +375,7 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` / `4` 換版型、`s` 收起 / 打開 side menu、`?` 說明頁、`,` 設定頁、
-    /// `q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
+    /// 按鍵：先給開著的跳窗、正在做的事（`mode`）；都沒開時見 `handle_normal_key`
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
         self.notice = None;
@@ -395,7 +394,9 @@ impl App {
         }
     }
 
-    /// 沒開跳窗時的按鍵（見 `handle_key` 的說明）
+    /// 沒開跳窗時的按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`u` 復原、`1` / `3` / `4` 換版型、
+    /// `s` 收起 / 打開 side menu、`?` 說明頁、`,` 設定頁、`q` / `Ctrl+C` 離開；`Esc` 回這個版型的主框，
+    /// 已經在主框：任務頁回到版型 1、月曆就離開。其他鍵看鍵盤在哪個框
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
@@ -403,6 +404,7 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            // 鍵盤不在主框（右邊、side menu）：回到主框
             KeyCode::Esc if self.focus != self.home_focus() => self.focus = self.home_focus(),
             // 任務頁：回到版型 1 的月曆；月曆：離開
             KeyCode::Esc if self.view == View::Tasks => self.set_view(View::Planner),
@@ -465,7 +467,8 @@ impl App {
         self.enter_agenda();
     }
 
-    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾、`r` 改期、`e` / `Enter` 編輯（寫回任務檔）
+    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾、`r` 改期、`e` / `Enter` 編輯、
+    /// `a` 新增、`A` 新增子任務、`d` 刪除（都寫回任務檔）
     fn handle_agenda_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
@@ -497,8 +500,7 @@ impl App {
         }
     }
 
-    /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件、
-    /// 點 side menu 的日曆 = 選那個（再點一次已經選到的 = 勾選 / 取消勾選）
+    /// 滑鼠：先給開著的跳窗、正在做的事（`mode`）；都沒開時見 `handle_normal_mouse`
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent) {
         // 上一次的提示看過了：按下滑鼠鍵、滾輪才算。放開、移動、拖曳不算：點一下會先後送「按下」和「放開」，
         // 「放開」也清的話，點出來的提示（例：行程不能打勾）馬上就不見了
@@ -537,7 +539,9 @@ impl App {
         }
     }
 
-    /// 沒開跳窗時的滑鼠（見 `handle_mouse` 的說明）
+    /// 沒開跳窗時的滑鼠：滾輪上下（月曆移一週、右邊、任務頁移一件事、side menu 移一個日曆）；
+    /// 左鍵點月曆上的日期 = 選那天（再點一次 = 進到那天的事）、點右邊的事 = 選那件（再點一次 = 打勾）、
+    /// 點任務頁的一列 = 選那列（再點一次 = 打勾，點 `▸` = 展開 / 收起）、點 side menu 的日曆 = 選那個（再點一次 = 勾選 / 取消勾選）
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
@@ -608,7 +612,8 @@ impl App {
         self.month_top = None;
     }
 
-    /// `Tab`：月曆 → 右邊的事項（一件事都沒有、或是版型 3 就跳過）→ side menu（有畫才去）→ 月曆
+    /// `Tab`：月曆 → 右邊的事項（一件事都沒有、或是版型 3 就跳過）→ side menu（有畫才去）→ 月曆；
+    /// 任務頁：任務頁 ⇄ side menu（有畫才去）
     fn next_focus(&mut self) {
         match self.focus {
             Focus::Calendar => {

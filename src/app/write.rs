@@ -42,7 +42,7 @@ pub(super) struct UndoStep {
 }
 
 impl App {
-    /// 鍵盤在右邊時，選到的那件事打勾 / 取消，寫回任務檔；結果（失敗、重新載入）放在 `notice`
+    /// 右邊（或任務頁）選到的那件事打勾 / 取消，寫回任務檔；結果（失敗、重新載入）放在 `notice`
     ///
     /// 沒有任務檔（test）、沒選到事就什麼都不做
     pub(super) fn toggle_chosen(&mut self) {

@@ -24,7 +24,7 @@ pub struct Moving {
 }
 
 impl App {
-    /// `r`：開始搬右邊選到的那件事（鍵盤換到月曆，選取的日期還是那件事的日子）
+    /// `r`：開始搬右邊（或任務頁）選到的那件事（鍵盤換到月曆，選取的日期還是那件事的日子；任務頁借版型 1 的月曆）
     pub(super) fn start_moving(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;

@@ -1,9 +1,10 @@
 //! 一行編輯框（像 tuxedo）：直接打那一行的文字，下面即時顯示這行會讀成什麼；`Enter` 存檔（寫錯的地方沒改好就存不了）、
 //! `Esc` 取消
 //!
-//! - `e` / `Enter`：編輯右邊選到的那件事的那一行
-//! - `a`：新增一件（右邊選到的那件那一組；在月曆上是選取那天第一件事的那一組，那天沒事就加在檔案最後），預先填好選取的日期
-//! - `A`：新增右邊選到的那件事的子任務
+//! - `e` / `Enter`：編輯右邊（或任務頁）選到的那件事的那一行
+//! - `a`：新增一件（選到的那件那一組；在月曆上是選取那天第一件事的那一組，那天沒事就加在檔案最後），預先填好選取的日期
+//!   （任務頁不填）
+//! - `A`：新增選到的那件事的子任務
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
@@ -37,7 +38,7 @@ impl Editor {
 }
 
 impl App {
-    /// `e` / `Enter`：打開編輯框，裡面是右邊選到的那件事的那一行（不含縮排），游標在最後面
+    /// `e` / `Enter`：打開編輯框，裡面是右邊（或任務頁）選到的那件事的那一行（不含縮排），游標在最後面
     pub(super) fn start_editing(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -74,7 +75,7 @@ impl App {
         });
     }
 
-    /// `A`：新增右邊選到的那件事的子任務（預先填好 `- [ ] `，子任務常常沒有自己的日期）
+    /// `A`：新增右邊（或任務頁）選到的那件事的子任務（預先填好 `- [ ] `，子任務常常沒有自己的日期）
     pub(super) fn start_adding_subtask(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -231,7 +232,7 @@ mod tests {
         press(&mut app, KeyCode::Char('e'));
         let editor = app.editor().expect("編輯框");
         assert_eq!(editor.input.value(), "- [ ] 交週報 @2026-10-16 17:30");
-        // 往前移到時間前面，把 17:30 改成 18:00：Backspace 5 次再打
+        // 把 17:30 改成 18:00：游標在最後面，Backspace 5 次再打
         for _ in 0..5 {
             press(&mut app, KeyCode::Backspace);
         }
