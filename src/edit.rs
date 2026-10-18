@@ -37,7 +37,11 @@ pub enum Place {
 /// 例：`- [ ] 交週報 @2026-10-16 17:30` → 那件事；`交週報` → `NotAnItem`；`- 出差 @2026-13-01` → `Mistake`
 pub fn check(line: &str) -> Result<Item, Problem> {
     let line = line.trim();
-    if !line.starts_with("- ") && line != "-" {
+    // 只打了 `- `（去掉頭尾空白剩 `-`）：是一件事，只是還沒有標題
+    if line == "-" {
+        return Err(Problem::EmptyTitle);
+    }
+    if !line.starts_with("- ") {
         return Err(Problem::NotAnItem);
     }
     let parsed = tasks::parse(line);
@@ -197,10 +201,10 @@ pub fn reschedule(text: &str, item: &Item, to: Date) -> Result<String, Changed> 
 /// 一行的日期換成 `to`（見 `reschedule`）
 fn rescheduled(line: &str, item: &Item, to: Date) -> String {
     let Some(from) = item.date else {
-        // 還沒排日期：加在行尾，`^id` 要留在最後面
-        let (body, block_id) = match line.rsplit_once(' ') {
+        // 還沒排日期：加在行尾，`^id` 要留在最後面（行尾的空白不算；`^id` 前面是 tab 也認得）
+        let (body, block_id) = match line.trim_end().rsplit_once(char::is_whitespace) {
             Some((body, last)) if tasks::is_block_id(last) => (body, format!(" {last}")),
-            _ => (line, String::new()),
+            _ => (line.trim_end(), String::new()),
         };
         return format!("{} @{to}{block_id}", body.trim_end());
     };
@@ -213,7 +217,7 @@ fn rescheduled(line: &str, item: &Item, to: Date) -> String {
         None => format!("@{to}"),
     };
     // 檔案裡原本的寫法：parser 認的是第一個合法的日期，寫出來一定是標準的 YYYY-MM-DD；
-    // 頭尾同一天的範圍（`@10-20..10-20`）parser 當成一天，兩種寫法都找
+    // 頭尾同一天的範圍（`@2026-10-20..2026-10-20`）parser 當成一天，兩種寫法都找
     let old_tokens = match item.end {
         Some(end) => vec![format!("@{from}..{end}")],
         None => vec![format!("@{from}"), format!("@{from}..{from}")],
@@ -318,6 +322,9 @@ mod tests {
     fn check_refuses_an_empty_title() {
         assert_eq!(check("- [ ]  @2026-10-17"), Err(Problem::EmptyTitle));
         assert_eq!(check("- [ ]"), Err(Problem::EmptyTitle));
+        // 只打了 `- `：也是標題空的（不是「要用 `- ` 開頭」）
+        assert_eq!(check("- "), Err(Problem::EmptyTitle));
+        assert_eq!(check("  -  "), Err(Problem::EmptyTitle));
     }
 
     /// 新增的 test 用的檔案：「工作」有一件帶子任務和空行，後面接「生活」
@@ -506,6 +513,14 @@ mod tests {
             reschedule(text, &item(text, 1), date(2026, 10, 18)),
             Ok("- [ ] 整理書櫃\n- [ ] 回信 @2026-10-18 ^r-02\n".into())
         );
+        // ^id 後面還有空白、^id 前面是 tab：一樣加在 ^id 前面（Obsidian 連到這一行的連結才不會斷）
+        for text in ["- [ ] 回信 ^r-02  \n", "- [ ] 回信\t^r-02\n"] {
+            assert_eq!(
+                reschedule(text, &item(text, 0), date(2026, 10, 18)),
+                Ok("- [ ] 回信 @2026-10-18 ^r-02\n".into()),
+                "{text:?}"
+            );
+        }
     }
 
     #[test]
