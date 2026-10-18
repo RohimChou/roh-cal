@@ -149,6 +149,8 @@ pub struct App {
     pub group_index: usize,
     /// side menu 捲到哪：最上面是第幾個日曆（`groups` 裡的位置）；日曆多到放不下時才會捲
     pub side_top: usize,
+    /// 不夠寬時按 `s` 叫出 side menu 之前，鍵盤在哪個框（收起時回到那裡）
+    side_back: Focus,
     /// 鍵盤在哪個框
     pub focus: Focus,
     /// 用哪個版型
@@ -205,6 +207,7 @@ impl App {
             side_hidden: false,
             group_index: 0,
             side_top: 0,
+            side_back: Focus::Calendar,
             items,
             warnings: Vec::new(),
             focus: Focus::Calendar,
@@ -367,6 +370,24 @@ impl App {
         }
     }
 
+    /// 不夠寬時叫出來的 side menu 收起來：鍵盤回到叫出來之前的框（右邊的事項、版型 3 的跳窗也是，選的位置不變；
+    /// 勾掉日曆後事變少了就選最後一件）；那個框現在沒有了（換了版型、事都沒了）就回到主框
+    fn put_side_away(&mut self) {
+        self.focus = self.home_focus();
+        match (self.side_back, self.view) {
+            (Focus::Agenda, View::Planner) => {
+                if let Some(last) = self.agenda().len().checked_sub(1) {
+                    self.choose(self.agenda_index.min(last));
+                }
+            }
+            (Focus::Day, View::Month) => {
+                self.focus = Focus::Day;
+                self.keep_day_choice();
+            }
+            _ => {}
+        }
+    }
+
     /// 這個版型的主框：月曆（版型 1、3）或任務頁；`Esc`、side menu 收起來時鍵盤回到這裡
     fn home_focus(&self) -> Focus {
         match self.view {
@@ -424,6 +445,8 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            // 不夠寬時叫出來的 side menu：收起，鍵盤回到叫出來之前的框
+            KeyCode::Esc if ui::side_overlay(self).is_some() => self.put_side_away(),
             // 鍵盤不在主框（右邊、side menu）：回到主框
             KeyCode::Esc if self.focus != self.home_focus() => self.focus = self.home_focus(),
             // 任務頁：回到版型 1 的月曆；月曆：離開
@@ -452,13 +475,11 @@ impl App {
                     self.focus = self.home_focus();
                 }
             }
-            // 不夠寬：side menu 蓋在畫面左邊叫出來 / 收起（鍵盤在 side menu = 叫出來了）
+            // 不夠寬：side menu 蓋在畫面左邊叫出來 / 收起（鍵盤在 side menu = 叫出來了）；收起時鍵盤回到叫出來之前的框
+            KeyCode::Char('s') if self.focus == Focus::Side => self.put_side_away(),
             KeyCode::Char('s') => {
-                self.focus = if self.focus == Focus::Side {
-                    self.home_focus()
-                } else {
-                    Focus::Side
-                };
+                self.side_back = self.focus;
+                self.focus = Focus::Side;
             }
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
@@ -582,7 +603,7 @@ impl App {
                 if ui::side_overlay(self)
                     .is_some_and(|area| !area.contains(Position::new(mouse.column, mouse.row))) =>
             {
-                self.focus = self.home_focus();
+                self.put_side_away();
             }
             // 版型 3 的跳窗開著：點跳窗裡的事、點框外關掉
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
@@ -1174,6 +1195,37 @@ mod tests {
         assert!(app.side_hidden);
         press(&mut app, KeyCode::Char('s'));
         assert!(!app.side_hidden);
+    }
+
+    #[test]
+    fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
+        // 60 格寬、鍵盤在右邊選著 c（第 3 件）：s 叫出 side menu，用 s / Esc / 點框外收起，都回到右邊、還選著 c
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 60, 20);
+        app.choose(2);
+        let left = MouseEventKind::Down(MouseButton::Left);
+        for close in 0..3 {
+            press(&mut app, KeyCode::Char('s'));
+            assert_eq!(app.focus, Focus::Side);
+            match close {
+                0 => press(&mut app, KeyCode::Char('s')),
+                1 => press(&mut app, KeyCode::Esc),
+                _ => app.handle_mouse(mouse(left, 50, 10)),
+            }
+            assert_eq!((app.focus, app.agenda_index), (Focus::Agenda, 2), "{close}");
+        }
+        // 版型 3、10/17 的跳窗選著第 2 件（c）：叫出來再收起，跳窗回來、還選著 c
+        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Enter);
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('s'));
+        press(&mut app, KeyCode::Char('s'));
+        assert_eq!((app.focus, app.day_index), (Focus::Day, 1));
+        // 叫出來時把唯一的日曆勾掉：那天沒事了，收起後回到月曆
+        press(&mut app, KeyCode::Char('s'));
+        press(&mut app, KeyCode::Char(' '));
+        press(&mut app, KeyCode::Char('s'));
+        assert_eq!(app.focus, Focus::Calendar);
     }
 
     #[test]
