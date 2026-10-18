@@ -6,6 +6,9 @@ mod config;
 mod edit;
 mod files;
 mod paths;
+// Only the tests use it so far
+#[cfg_attr(not(test), expect(dead_code))]
+mod search;
 mod tasks;
 mod texts;
 mod theme;
