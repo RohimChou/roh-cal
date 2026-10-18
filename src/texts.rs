@@ -702,8 +702,19 @@ impl Texts {
     }
 
     /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`,
-    /// `任務 · 優先度高 · 沒有日期 · 「Pay the fine」`
+    /// `任務 · 優先度高 · 沒有日期 · 「Pay the fine」` (`preview_parts` with ` · ` before the priority; the
+    /// screen draws the parts, tests check the whole)
+    #[cfg(test)]
     pub fn preview(&self, item: &Item) -> String {
+        match self.preview_parts(item) {
+            (kind, Some(priority), rest) => format!("{kind} · {priority}{rest}"),
+            (kind, None, rest) => format!("{kind}{rest}"),
+        }
+    }
+
+    /// `preview` in three parts, so the priority can get its own color: the kind (` 任務`), the priority
+    /// (`優先度高`; `None` without one) and the rest (` · 沒有日期 · 「Pay the fine」`)
+    pub fn preview_parts(&self, item: &Item) -> (String, Option<&'static str>, String) {
         let kind = match (self.lang, item.kind, item.done) {
             (Lang::En, Kind::Task, false) => "Task",
             (Lang::En, Kind::Task, true) => "Done task",
@@ -729,19 +740,19 @@ impl Texts {
             }
         };
         // With a priority: right after the kind, e.g. 「任務 · 優先度高 · …」
-        let priority = match (self.lang, item.priority) {
-            (_, None) => "",
-            (Lang::En, Some(Priority::High)) => " · high priority",
-            (Lang::En, Some(Priority::Medium)) => " · medium priority",
-            (Lang::En, Some(Priority::Low)) => " · low priority",
-            (Lang::ZhTw, Some(Priority::High)) => " · 優先度高",
-            (Lang::ZhTw, Some(Priority::Medium)) => " · 優先度中",
-            (Lang::ZhTw, Some(Priority::Low)) => " · 優先度低",
+        let priority = item.priority.map(|priority| match (self.lang, priority) {
+            (Lang::En, Priority::High) => "high priority",
+            (Lang::En, Priority::Medium) => "medium priority",
+            (Lang::En, Priority::Low) => "low priority",
+            (Lang::ZhTw, Priority::High) => "優先度高",
+            (Lang::ZhTw, Priority::Medium) => "優先度中",
+            (Lang::ZhTw, Priority::Low) => "優先度低",
+        });
+        let rest = match self.lang {
+            Lang::En => format!(" · {when} · \"{}\"", item.title),
+            Lang::ZhTw => format!(" · {when} · 「{}」", item.title),
         };
-        match self.lang {
-            Lang::En => format!(" {kind}{priority} · {when} · \"{}\"", item.title),
-            Lang::ZhTw => format!(" {kind}{priority} · {when} · 「{}」", item.title),
-        }
+        (format!(" {kind}"), priority, rest)
     }
 
     /// What the name typed for a calendar reads as, e.g. ` 日曆「Side projects」`, ` 假日日曆「US holidays」`

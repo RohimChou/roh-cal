@@ -22,7 +22,7 @@
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
 use crate::search::{self, Found};
-use crate::tasks::{Heading, HeadingLine, Item};
+use crate::tasks::{Heading, HeadingLine, Item, Priority};
 use crate::ui;
 use jiff::civil::Date;
 use ratatui::crossterm::event::{
@@ -196,6 +196,18 @@ impl Editor {
         match self.day {
             Some(day) => edit::show_day(text, day),
             None => text.to_string(),
+        }
+    }
+
+    /// The priority the typed line has so far (`!`, `!!`, `!!!`), even before it can be saved (e.g. no title
+    /// yet), so the typed text takes its color right away; `None` without one, or for a calendar's name
+    pub fn priority(&self) -> Option<Priority> {
+        match self.target {
+            Target::Edit { .. } | Target::Add(_) => crate::tasks::parse(&self.line())
+                .items
+                .first()
+                .and_then(|item| item.priority),
+            Target::AddCalendar { .. } | Target::RenameCalendar { .. } => None,
         }
     }
 

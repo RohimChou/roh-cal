@@ -1206,6 +1206,58 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
 }
 
 #[test]
+fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+    // Adding at 80 × 24: the box is (2, 8, 76, 7), the typed text on row 10 from x 5, what it reads as on
+    // row 12
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.handle_key(KeyEvent::from(KeyCode::Char('a')));
+    let type_text = |app: &mut App, text: &str| {
+        for c in text.chars() {
+            app.handle_key(KeyEvent::from(KeyCode::Char(c)));
+        }
+    };
+    let theme = Theme::default();
+    // The color of the first cell on `row` showing `symbol`
+    let color_of = |buffer: &Buffer, row: u16, symbol: &str| {
+        (0..80)
+            .map(|x| &buffer[(x, row)])
+            .find(|cell| cell.symbol() == symbol)
+            .map(|cell| cell.fg)
+    };
+    // No title yet (it cannot be saved), but `!!!` already: the typed text is red
+    type_text(&mut app, "!!!");
+    let terminal = draw_app(&mut app, 80, 24);
+    assert_eq!(terminal.backend().buffer()[(5, 10)].symbol(), "-");
+    assert_eq!(terminal.backend().buffer()[(5, 10)].fg, theme.priority_high);
+    // With a title: what it reads as says 優先度高 in red, the rest muted
+    type_text(&mut app, " Pay the fine");
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(5, 10)].fg, theme.priority_high);
+    assert_eq!(color_of(buffer, 12, "優"), Some(theme.priority_high));
+    assert_eq!(color_of(buffer, 12, "任"), Some(theme.muted));
+    assert_eq!(color_of(buffer, 12, "P"), Some(theme.muted));
+    // `!!` instead: orange; no `!`: the normal text color, no priority word
+    app.handle_key(KeyEvent::from(KeyCode::Home));
+    for _ in 0..6 {
+        app.handle_key(KeyEvent::from(KeyCode::Right));
+    }
+    app.handle_key(KeyEvent::from(KeyCode::Delete));
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(5, 10)].fg, theme.priority_medium);
+    assert_eq!(color_of(buffer, 12, "優"), Some(theme.priority_medium));
+    for _ in 0..2 {
+        app.handle_key(KeyEvent::from(KeyCode::Delete));
+    }
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(5, 10)].fg, theme.text);
+    assert_eq!(color_of(buffer, 12, "優"), None);
+}
+
+#[test]
 fn the_calendar_editor_says_where_a_new_calendar_goes() {
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
     // A in the calendar list on Work > SFAP: 「新增日曆 ∙ Work > SFAP」; a on the top level: no path

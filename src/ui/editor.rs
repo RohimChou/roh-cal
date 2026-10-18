@@ -178,12 +178,16 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     if inner.height == 0 {
         return;
     }
-    // Typed text: scrolls left when too long so the cursor stays visible (one blank cell in front)
+    // Typed text: scrolls left when too long so the cursor stays visible (one blank cell in front); in its
+    // priority's color as soon as it has one (`!` `!!` `!!!`), like the item on screen
     let input_area = input_area(inner);
     let scroll = input_scroll(editor, input_area);
+    let color = editor
+        .priority()
+        .map_or(theme.text, |priority| theme.priority(priority));
     frame.render_widget(
         Paragraph::new(editor.input.value())
-            .style(Style::new().fg(theme.text))
+            .style(Style::new().fg(color))
             .scroll((0, u16::try_from(scroll).unwrap_or(u16::MAX))),
         input_area,
     );
@@ -195,9 +199,21 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     // Check result: what it reads as (muted), or what is wrong (red); a blank row between it and the typed
     // text (left out when the terminal is too short for it)
     if inner.height > 1 {
+        let muted = Style::new().fg(theme.muted);
         let check = match editor.check() {
+            // What it reads as; the priority in its own color, e.g. 「任務 · 優先度高 · …」 with 優先度高 red
             Ok(Reading::Item(item)) => {
-                Line::styled(texts.preview(&item), Style::new().fg(theme.muted))
+                let (kind, priority, rest) = texts.preview_parts(&item);
+                let mut spans = vec![Span::styled(kind, muted)];
+                if let (Some(label), Some(priority)) = (priority, item.priority) {
+                    spans.push(Span::styled(" · ", muted));
+                    spans.push(Span::styled(
+                        label,
+                        Style::new().fg(theme.priority(priority)),
+                    ));
+                }
+                spans.push(Span::styled(rest, muted));
+                Line::from(spans)
             }
             Ok(Reading::Calendar(heading)) => Line::styled(
                 texts.calendar_preview(&heading),
