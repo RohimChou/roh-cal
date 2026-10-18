@@ -54,7 +54,9 @@ impl App {
             return;
         };
         match edit::toggle(&text, &item) {
-            Ok(after) => self.write_tasks(&path, text, after, item.title),
+            Ok(after) => {
+                self.write_tasks(&path, text, after, item.title);
+            }
             Err(edit::Changed) => self.reload(&text),
         }
     }
@@ -178,17 +180,17 @@ impl App {
     }
 
     /// 把 `after` 寫進任務檔，畫面的事跟著更新，記一步 undo（`before` = 寫之前的內容、`title` = 改到的那件事）；
-    /// 失敗就記下提示（檔案、畫面都不動）
+    /// 失敗就記下提示（檔案、畫面都不動）。回傳有沒有寫成
     pub(super) fn write_tasks(
         &mut self,
         path: &Path,
         before: String,
         after: String,
         title: String,
-    ) {
+    ) -> bool {
         if let Err(error) = files::write_atomically(path, &after) {
             self.notice = Some(Notice::Failed(error.kind()));
-            return;
+            return false;
         }
         // 畫面記著的行號（選到的那件、展開的子任務）跟著搬
         self.remap_lines(edit::line_map(&before, &after));
@@ -202,6 +204,7 @@ impl App {
         if self.undo.len() > UNDO_LEVELS {
             self.undo.remove(0);
         }
+        true
     }
 
     /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫；之前記的 undo 都對不上了，清掉

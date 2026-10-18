@@ -3,7 +3,7 @@
 //!
 //! 像拖曳：選取的日期移了幾天，那件事就往後（往前）搬幾天；跨多天的整段一起搬
 
-use super::{App, Focus, View, write::Notice};
+use super::{App, Focus, View};
 use crate::edit;
 use crate::tasks::Item;
 use jiff::{ToSpan, civil::Date};
@@ -86,25 +86,30 @@ impl App {
             Some(_) => None,
             None => Some(to),
         };
+        // 搬成了（或不用搬）：寫檔失敗、在別處改過就是 `false`
+        let mut moved = true;
         if let Some(new_first) = new_first {
             let Some((path, text)) = self.read_tasks() else {
                 self.go_back(back);
                 return;
             };
-            match edit::reschedule(&text, &item, new_first) {
+            moved = match edit::reschedule(&text, &item, new_first) {
                 Ok(after) => self.write_tasks(&path, text, after, item.title.clone()),
-                Err(edit::Changed) => self.reload(&text),
-            }
+                Err(edit::Changed) => {
+                    self.reload(&text);
+                    false
+                }
+            };
         }
         self.go_back(back);
-        // 右邊選著搬過去的那件（只改那一行，行號不變）；在別處改過、找不到就留在月曆
+        // 右邊選著搬過去的那件（只改那一行，行號不變）；沒搬成、找不到就留在月曆
         if back.1 == Focus::Agenda {
             let index = self
                 .agenda()
                 .iter()
                 .position(|entry| entry.item.line == item.line && entry.is_on(to));
             match index {
-                Some(index) if self.notice != Some(Notice::Reloaded) => self.agenda_index = index,
+                Some(index) if moved => self.agenda_index = index,
                 _ => self.focus = Focus::Calendar,
             }
         }
@@ -127,6 +132,7 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    use super::super::write::Notice;
     use super::super::write::tests::{app_with_task_file, clean_up, press};
     use super::*;
     use jiff::civil::date;

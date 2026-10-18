@@ -104,47 +104,54 @@ impl App {
         }
     }
 
-    /// 存檔：編輯 = 那一行換成打的字（縮排照舊）；新增 = 打的字放到該放的地方。寫回任務檔，右邊選著那件
+    /// 存檔：編輯 = 那一行換成打的字（縮排照舊）；新增 = 打的字放到該放的地方。寫回任務檔，右邊（任務頁）選著那件
     ///
-    /// 打的字有問題（不是一件事、日期寫錯、沒有標題）就不存，編輯框留著（畫面上有紅字說明）；編輯什麼都沒改就不寫
+    /// 打的字有問題（不是一件事、日期寫錯、沒有標題）就不存，編輯框留著（畫面上有紅字說明）；編輯什麼都沒改就不寫。
+    /// 讀不到、寫不進任務檔：編輯框也留著（打的字還在），最下面一列說為什麼；檔案在別處改過：重新載入、編輯框關掉
     fn save_editor(&mut self) {
-        if self
-            .editor
-            .as_ref()
-            .is_none_or(|editor| editor.check().is_err())
-        {
-            return;
-        }
-        let Some(Editor { input, target }) = self.editor.take() else {
+        let Some(editor) = &self.editor else {
             return;
         };
-        let new = input.value().trim();
+        // 存得了才存；`checked` = 打的這一行讀成的那件事
+        let Ok(checked) = editor.check() else {
+            return;
+        };
+        let new = editor.input.value().trim().to_string();
+        let target = editor.target.clone();
         match target {
             Target::Edit(item) => {
                 if new != item.line_text.trim() {
                     let Some((path, text)) = self.read_tasks() else {
                         return;
                     };
-                    match edit::replace(&text, &item, new) {
-                        Ok(after) => self.write_tasks(&path, text, after, item.title.clone()),
+                    match edit::replace(&text, &item, &new) {
+                        Ok(after) => {
+                            if !self.write_tasks(&path, text, after, item.title.clone()) {
+                                return;
+                            }
+                        }
                         Err(edit::Changed) => {
                             // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
+                            self.editor = None;
                             self.reload(&text);
                             self.focus = self.home_focus();
                             return;
                         }
                     }
                 }
+                self.editor = None;
                 self.choose_line(item.line);
             }
             Target::Add(place) => {
                 let Some((path, text)) = self.read_tasks_for_adding() else {
                     return;
                 };
-                let title = edit::check(new).map(|item| item.title).unwrap_or_default();
-                match edit::add(&text, new, &place) {
+                match edit::add(&text, &new, &place) {
                     Ok((after, line)) => {
-                        self.write_tasks(&path, text, after, title);
+                        if !self.write_tasks(&path, text, after, checked.title) {
+                            return;
+                        }
+                        self.editor = None;
                         // 右邊選著新的那件（任務頁一定看得到）；它不在右邊（例：沒有日期的子任務）就還是選著原本那件
                         // （它的行號沒變）
                         let shown = self.view == super::View::Tasks
@@ -160,6 +167,7 @@ impl App {
                         }
                     }
                     Err(edit::Changed) => {
+                        self.editor = None;
                         self.reload(&text);
                         self.focus = self.home_focus();
                     }
@@ -181,6 +189,39 @@ mod tests {
         for c in text.chars() {
             press(app, KeyCode::Char(c));
         }
+    }
+
+    #[test]
+    fn a_failed_write_keeps_the_editor_and_what_was_typed() {
+        use std::os::unix::fs::PermissionsExt;
+        let text = "- [ ] 早上 @2026-10-10\n";
+        let (mut app, path) = app_with_task_file("editor-failed", text);
+        press(&mut app, KeyCode::Char('e'));
+        type_text(&mut app, " 改");
+        // 資料夾設成唯讀：暫存檔寫不進去（讀還是讀得到）
+        let dir = path.parent().expect("dir");
+        let mode = |mode| std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode));
+        mode(0o555).expect("read-only");
+        press(&mut app, KeyCode::Enter);
+        // 編輯框還開著、打的字還在，最下面一列說為什麼
+        assert_eq!(
+            app.editor.as_ref().map(|editor| editor.input.value()),
+            Some("- [ ] 早上 @2026-10-10 改")
+        );
+        assert_eq!(
+            app.notice,
+            Some(Notice::Failed(std::io::ErrorKind::PermissionDenied))
+        );
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        // 改回可以寫：再按一次 Enter 就存了、編輯框關掉
+        mode(0o755).expect("writable");
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor.is_none());
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] 早上 @2026-10-10 改\n"
+        );
+        clean_up(&path);
     }
 
     #[test]
