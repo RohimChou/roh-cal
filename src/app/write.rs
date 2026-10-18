@@ -217,7 +217,8 @@ impl App {
         self.tasks_line = self.tasks_line.and_then(&map);
     }
 
-    /// 換一份新的事（寫檔、重新載入之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態
+    /// 換一份新的事（寫檔、重新載入、復原之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態。
+    /// 右邊的事變少了（例：復原了剛新增的那件）：鍵盤在右邊、選的位置超出範圍就選最後一件，一件都沒有了就回到月曆
     fn set_items(&mut self, Parsed { items, warnings }: Parsed) {
         let mut groups = super::Group::list(&items);
         for group in &mut groups {
@@ -229,6 +230,12 @@ impl App {
         self.group_index = self.group_index.min(self.groups.len().saturating_sub(1));
         self.items = items;
         self.warnings = warnings;
+        if self.focus == Focus::Agenda && self.agenda_index >= self.agenda().len() {
+            match self.agenda().len().checked_sub(1) {
+                Some(last) => self.choose(last),
+                None => self.focus = Focus::Calendar,
+            }
+        }
     }
 }
 
@@ -392,6 +399,33 @@ pub(crate) mod tests {
         // 再點一次：打勾
         app.handle_mouse(click);
         assert_eq!(read(), "- [x] 早上 @2026-10-10\n");
+        clean_up(&path);
+    }
+
+    #[test]
+    fn undoing_an_add_keeps_the_agenda_choice_on_an_item() {
+        // 右邊新增一件（選著新的那件、第 2 件）再 u：右邊只剩 1 件，改選最後一件（不會選到不存在的第 2 件，打勾才有反應）
+        let text = "- [ ] 早上 @2026-10-10\n";
+        let (mut app, path) = app_with_task_file("undo-add", text);
+        press(&mut app, KeyCode::Char('a'));
+        for c in "新的".chars() {
+            press(&mut app, KeyCode::Char(c));
+        }
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.agenda_index, 1);
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        assert_eq!(
+            (
+                app.focus,
+                app.chosen().map(|entry| entry.item.title.as_str())
+            ),
+            (Focus::Agenda, Some("早上"))
+        );
+        // 唯一的一件也刪掉：右邊沒有事了，回到月曆
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(app.focus, Focus::Calendar);
         clean_up(&path);
     }
 
