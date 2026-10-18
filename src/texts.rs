@@ -74,6 +74,8 @@ pub struct Texts {
     pub hints_side: &'static str,
     /// The title on the editor's top border when adding a calendar
     pub add_calendar_title: &'static str,
+    /// The calendar a new item goes into when the task file has no calendar yet (`# 預設`)
+    pub default_calendar: &'static str,
     /// The title on the editor's top border when renaming a calendar
     pub rename_calendar_title: &'static str,
     /// Side menu: items at the top of the file, before any heading
@@ -127,6 +129,7 @@ const EN: Texts = Texts {
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a add calendar  e rename  d delete  Esc back",
     add_calendar_title: " New calendar ",
+    default_calendar: "Default",
     rename_calendar_title: " Rename calendar ",
     ungrouped: "Ungrouped",
     help_short: HelpPage {
@@ -283,6 +286,7 @@ const ZH_TW: Texts = Texts {
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去",
     add_calendar_title: " 新增日曆 ",
+    default_calendar: "預設",
     rename_calendar_title: " 日曆改名 ",
     ungrouped: "未分組",
     help_short: HelpPage {

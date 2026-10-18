@@ -952,9 +952,10 @@ mod tests {
         use super::super::write::{Notice, tests::clean_up};
         // The file was changed elsewhere (a line added at the top) while editing, adding or deleting:
         // reload, and the keyboard stays on the tasks page instead of going to the hidden calendar
-        let text = "- [ ] Triage bugs\n- [ ] Weekly update @2026-10-16\n";
+        // (A calendar heading, so adding goes into the chosen item's calendar, not into a new 預設 one)
+        let text = "# Work\n- [ ] Triage bugs\n- [ ] Weekly update @2026-10-16\n";
         let (mut app, path) = tasks_app_with_file("tasks-conflict", text);
-        // Add a different line at the top each time: the chosen item (line 1) never matches
+        // Add a different line at the top each time: the chosen item (line 2) never matches
         let mut extra = String::new();
         let mut change_elsewhere = || {
             extra = format!("- Added elsewhere {}\n{extra}", extra.lines().count() + 1);

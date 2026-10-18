@@ -7,6 +7,7 @@
 //!   first item, or at the end of the file if that day has none), with the selected day filled in
 //!   (not on the tasks page)
 //! - `A`: add a subtask to the chosen item
+//! - with no calendar in the file yet, a new item goes into a new `# 預設` (`# Default`) calendar
 //! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading)
 //! - `e` in the calendar list: rename the chosen calendar
 
@@ -225,7 +226,19 @@ impl App {
                 let Some((path, text)) = self.read_tasks_for_adding() else {
                     return;
                 };
-                match edit::add(&text, &new, &place) {
+                // No calendar in the file yet (e.g. a brand-new task file): a new item (not a subtask) goes
+                // into a new 「預設」 calendar at the end, written in the same step
+                let (with_calendar, place) = match place {
+                    Place::InGroupOf(_) | Place::End
+                        if crate::tasks::parse(&text).headings.is_empty() =>
+                    {
+                        let texts = self.lang.texts();
+                        let (with_calendar, _) = edit::add_calendar(&text, texts.default_calendar);
+                        (with_calendar, Place::End)
+                    }
+                    place => (text.clone(), place),
+                };
+                match edit::add(&with_calendar, &new, &place) {
                     Ok((after, line)) => {
                         if !self.write_tasks(&path, text, after, checked.title) {
                             return;
@@ -540,6 +553,58 @@ mod tests {
     }
 
     #[test]
+    fn with_no_calendar_yet_a_new_item_goes_into_a_default_calendar() {
+        // An empty task file: 「預設」 is written first, the item under it, in one step (u takes both back)
+        let (mut app, path) = app_with_task_file("default-calendar", "");
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.focus = Focus::Calendar;
+        press(&mut app, KeyCode::Char('a'));
+        type_text(&mut app, "Get a flu shot");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(read(), "# 預設\n- [ ] Get a flu shot @2026-10-17\n");
+        let names: Vec<Option<&str>> = app
+            .groups
+            .iter()
+            .map(|group| group.name.as_deref())
+            .collect();
+        assert_eq!(names, [Some("預設")]);
+        // Once there is a calendar, adding works as usual (the end of the file is inside 預設)
+        app.focus = Focus::Calendar;
+        app.selected = date(2026, 10, 20);
+        press(&mut app, KeyCode::Char('a'));
+        type_text(&mut app, "Renew passport");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            read(),
+            "# 預設\n- [ ] Get a flu shot @2026-10-17\n- [ ] Renew passport @2026-10-20\n"
+        );
+        press(&mut app, KeyCode::Char('u'));
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), "");
+        clean_up(&path);
+        // Only items before any heading (no calendar yet): 預設 goes at the end; a subtask (A) does not
+        // make one
+        let (mut app, path) =
+            app_with_task_file("default-calendar-loose", "- [ ] Loose @2026-10-17\n");
+        press(&mut app, KeyCode::Char('A'));
+        type_text(&mut app, "Sub");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] Loose @2026-10-17\n  - [ ] Sub\n"
+        );
+        app.focus = Focus::Calendar;
+        press(&mut app, KeyCode::Char('a'));
+        type_text(&mut app, "New");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] Loose @2026-10-17\n  - [ ] Sub\n\n# 預設\n- [ ] New @2026-10-17\n"
+        );
+        clean_up(&path);
+    }
+
+    #[test]
     fn a_on_the_calendar_adds_on_the_selected_day() {
         // Selected 10/20 (nothing that day): added at the end of
         // the file; the keyboard moves to the agenda with it chosen
@@ -607,12 +672,12 @@ mod tests {
             Some(Err(edit::Problem::EmptyTitle))
         );
         assert!(!path.exists());
-        // Title typed: the file is created
+        // Title typed: the file is created, the item in a new 預設 calendar (the file had none)
         type_text(&mut app, "First task");
         press(&mut app, KeyCode::Enter);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] First task @2026-10-17\n"
+            "# 預設\n- [ ] First task @2026-10-17\n"
         );
         clean_up(&path);
     }
