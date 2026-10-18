@@ -426,6 +426,11 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
+/// Whether the item is in a holiday calendar (its heading has `type:holiday`)
+pub(super) fn is_holiday_item(item: &Item) -> bool {
+    item.group.as_ref().is_some_and(|group| group.holiday)
+}
+
 /// A day's date color: today > a day off (a weekend or a holiday) > normal; items do not change it
 /// (items that are all over, or in unchecked calendars, count as no items)
 pub(super) fn day_color(day: Date, app: &App) -> Color {
@@ -472,8 +477,14 @@ pub(super) fn date_text(item: &Item) -> String {
 /// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
-    let color = if item.is_open(app.today) {
-        item.date.map_or(theme.text, |date| day_color(date, app))
+    let open = item.is_open(app.today);
+    // The line follows the item itself, not its day: a holiday not over yet is all in the day-off blue
+    // (date, time, title), anything else not over yet in the normal text color, gray once over
+    let holiday = open && is_holiday_item(item);
+    let color = if holiday {
+        theme.weekend
+    } else if open {
+        theme.text
     } else {
         theme.muted
     };
@@ -494,7 +505,7 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
-            Style::new().fg(theme.muted),
+            Style::new().fg(if holiday { theme.weekend } else { theme.muted }),
         ));
     }
     let mut title_style = Style::new().fg(color);

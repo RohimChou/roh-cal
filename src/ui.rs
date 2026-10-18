@@ -1069,7 +1069,7 @@ mod tests {
     }
 
     #[test]
-    fn item_colors_follow_their_day() {
+    fn item_colors_follow_the_item() {
         // Screen: see `agenda_lists_each_months_items_next_to_it`;
         // the inside of the agenda box starts at x 36
         let mut app = agenda_app(Lang::ZhTw);
@@ -1089,18 +1089,18 @@ mod tests {
         // the right in the normal color (2026/10/17 starts at x 52)
         assert_eq!(cell(37, 1), ("重", theme.muted, false));
         assert_eq!(cell(52, 1), ("2", theme.text, false));
-        // 10/5 (Monday) has an unfinished item: date and title in that day's color, the normal one
+        // 10/5 has an unfinished item: date and title in the normal color
         assert_eq!(cell(38, 3), ("1", theme.text, false));
         assert_eq!(cell(43, 3), ("P", theme.text, false));
         // 10/15's finished item: the whole line is gray (the date too), the title struck through
         assert_eq!(cell(37, 5), ("1", theme.muted, false));
         assert_eq!(cell(43, 5), ("F", theme.muted, true));
-        // 10/17 today: green; the time is muted
-        assert_eq!(cell(43, 7), ("D", theme.today, false));
+        // 10/17 is today and 10/18 a Sunday, but the line follows the item, not its day: the normal color;
+        // the time is muted
+        assert_eq!(cell(43, 7), ("D", theme.text, false));
         assert_eq!(cell(43, 8), ("0", theme.muted, false));
-        assert_eq!(cell(49, 8), ("C", theme.today, false));
-        // 10/18 (Sun): the weekend color
-        assert_eq!(cell(49, 9), ("G", theme.weekend, false));
+        assert_eq!(cell(49, 8), ("C", theme.text, false));
+        assert_eq!(cell(49, 9), ("G", theme.text, false));
     }
 
     #[test]
@@ -1762,9 +1762,50 @@ mod tests {
     }
 
     #[test]
+    fn a_holiday_is_all_blue() {
+        // A holiday (in a type:holiday calendar) not over yet: its whole line in the day-off blue, the date
+        // and time too; a normal item on the same day is in the normal color. In English, so every
+        // character is one cell and a text's position in the row is its x
+        let text = "# US holidays type:holiday\n- Halloween @2026-10-31 18:00\n\
+                    - Long weekend @2026-10-24..2026-10-26\n# Home\n- [ ] Carve the pumpkin @2026-10-31\n";
+        let theme = Theme::catppuccin_mocha();
+        // The color of the first character of `text` on screen
+        let color = |buffer: &Buffer, text: &str| {
+            let (x, y) = text_rows(buffer)
+                .iter()
+                .enumerate()
+                .find_map(|(y, row)| row.find(text).map(|at| (row[..at].chars().count(), y)))
+                .expect(text);
+            let cell = &buffer[(u16::try_from(x).unwrap(), u16::try_from(y).unwrap())];
+            (cell.fg, cell.bg)
+        };
+        // Layout 1's agenda: 「 10/31 18:00 Halloween」 all blue, 「 10/31 Carve the pumpkin」 normal
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        let terminal = draw_app(&mut app, 70, 23);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(color(buffer, "10/31 18:00").0, theme.weekend);
+        assert_eq!(color(buffer, "18:00 Hall").0, theme.weekend);
+        assert_eq!(color(buffer, "Halloween").0, theme.weekend);
+        assert_eq!(color(buffer, "Carve").0, theme.text);
+        // The month grid (119 wide, so the cells hold 「 18:00 Hallowee」): the cell's item and the
+        // multi-day bar's title too, the bar keeps its background
+        let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+        let terminal = draw_app(&mut app, 119, 30);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(color(buffer, "Hallow").0, theme.weekend);
+        assert_eq!(color(buffer, "Long weekend"), (theme.weekend, theme.range));
+        assert_eq!(color(buffer, "Carve").0, theme.text);
+    }
+
+    #[test]
     fn events_gray_out_once_their_day_is_past() {
         // 10/9 (Fri): an overdue unfinished task; 10/10 (Sat): a past event (gray, not struck through);
-        // 10/18 (Sun): an upcoming event. Dates keep their usual colors, items not over yet follow them
+        // 10/18 (Sun): an upcoming event. Dates keep their usual colors; items not over yet are in the normal
+        // color whatever their day
         let text = "- [ ] Send the weekly update @2026-10-09\n- Farmers market @2026-10-10\n\
                     - Go hiking @2026-10-18 07:00\n";
         let mut app = App::new(
@@ -1792,7 +1833,7 @@ mod tests {
         assert_eq!(cell(43, 3), ("S", theme.text, false));
         assert_eq!(cell(43, 4), ("F", theme.muted, false));
         assert_eq!(cell(38, 4), ("0", theme.muted, false));
-        assert_eq!(cell(49, 5), ("G", theme.weekend, false));
+        assert_eq!(cell(49, 5), ("G", theme.text, false));
     }
 
     #[test]
@@ -2066,13 +2107,13 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 10/12 (Mon) unfinished item: time muted, title in the day's color (normal)
+        // 10/12 (Mon) unfinished item: time muted, title in the normal color
         assert_eq!(cell(8, 12), ("1", theme.muted, false));
         assert_eq!(cell(14, 12), ("C", theme.text, false));
         // 10/15 (Thu) finished item: whole line gray, title struck through
         assert_eq!(cell(41, 12), ("F", theme.muted, true));
-        // 10/17 (Sat) today: green
-        assert_eq!(cell(61, 12), ("D", theme.today, false));
+        // 10/17 (Sat) is today: its item is still in the normal color (only the date is green)
+        assert_eq!(cell(61, 12), ("D", theme.text, false));
         // 10/16 (Fri) overflows: 「+3」 is muted
         assert_eq!(cell(52, 13), ("3", theme.muted, false));
         // 9/29 (Tue, in the top week 9/28-10/4) is in another month: whole line gray

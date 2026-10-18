@@ -9,7 +9,7 @@
 
 use super::{
     Click,
-    planner::{day_color, in_multi_day},
+    planner::{day_color, in_multi_day, is_holiday_item},
 };
 use crate::{
     app::{App, Focus},
@@ -448,12 +448,15 @@ fn render_bars(
 }
 
 /// A multi-day item's band: 「 09:00 New Year trip」 on the `range` background (the whole band, set on the
-/// `Line`); `time` = write the time (only where the item starts). The title is the normal text color, gray
-/// once the item is over (struck through when a done task), and in the other-month color for other months
+/// `Line`); `time` = write the time (only where the item starts). The title is the normal text color (a
+/// holiday's in the day-off blue), gray once the item is over (struck through when a done task), and in the
+/// other-month color for other months
 fn bar_line(item: &Item, time: bool, other_month: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let (color, time_color) = if other_month {
         (theme.other_month, theme.other_month)
+    } else if item.is_open(app.today) && is_holiday_item(item) {
+        (theme.weekend, theme.weekend)
     } else if item.is_open(app.today) {
         (theme.text, theme.muted)
     } else {
@@ -568,20 +571,25 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
 
 /// One item in a cell: 「 14:00 標題」 (time only if it has one)
 ///
-/// Same as layout 1's agenda: items not over yet use that day's calendar color, with the time muted;
-/// items that are over are gray for the whole line (done tasks also get a struck-through title);
-/// items from other months are gray for the whole line
+/// Same as layout 1's agenda: items not over yet are in the normal text color with the time muted, a
+/// holiday all in the day-off blue; items that are over are gray for the whole line (done tasks also
+/// get a struck-through title); items from other months are gray for the whole line
 fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
+    let holiday = item.is_open(app.today) && is_holiday_item(item);
     let color = if other_month {
         theme.other_month
+    } else if holiday {
+        theme.weekend
     } else if item.is_open(app.today) {
-        item.date.map_or(theme.text, |date| day_color(date, app))
+        theme.text
     } else {
         theme.muted
     };
     let time_color = if other_month {
         theme.other_month
+    } else if holiday {
+        theme.weekend
     } else {
         theme.muted
     };
