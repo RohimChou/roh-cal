@@ -140,7 +140,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Key | Action |
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
-| `gg` / `G` | Choose the first / last calendar |
+| `gg` / `G` | Choose the first calendar / the 「Hide done」 switch at the bottom of the list |
 | `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden, and so are the calendars inside it (they turn gray) |
 | `j` past the last calendar | The 「Hide done」 switch at the bottom of the list: `Space`, `Enter` or a click switches hiding done tasks (and their subtasks) everywhere; saved to the config file right away |
 | `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved |

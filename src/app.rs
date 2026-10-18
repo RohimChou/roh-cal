@@ -762,7 +762,8 @@ impl App {
         }
     }
 
-    /// Keyboard in the side menu: up / down choose a calendar, `gg` / `G` the first / last one (like vim),
+    /// Keyboard in the side menu: up / down choose a calendar, `gg` / `G` the first / last row (like vim; the
+    /// last row is the 「隱藏做完的」 switch),
     /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar,
     /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
     /// (`after_g`: the key before this one was `g`)
@@ -772,8 +773,8 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
             KeyCode::Char('g') if after_g => self.group_index = 0,
             KeyCode::Char('g') => self.pending_g = true,
-            // The last calendar, not the 「隱藏做完的」 row below it
-            KeyCode::Char('G') => self.group_index = self.groups.len().saturating_sub(1),
+            // The last row: the 「隱藏做完的」 switch below the calendars
+            KeyCode::Char('G') => self.group_index = self.groups.len(),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
