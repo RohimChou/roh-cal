@@ -1,5 +1,6 @@
 //! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是版型 1（月曆框 + 事項框）或版型 3（大月曆），最下面一列操作說明
 
+mod editor;
 mod month;
 mod months;
 mod planner;
@@ -16,6 +17,11 @@ use ratatui::{
 
 /// terminal 至少這麼寬才畫 side menu
 const SIDE_MIN_WIDTH: u16 = 120;
+
+/// 編輯框的位置（滑鼠點框外 = 取消用）
+pub fn editor_area(screen: Rect) -> Rect {
+    editor::area(screen)
+}
 
 /// terminal（`screen`）夠不夠寬畫 side menu
 pub fn side_fits(screen: Rect) -> bool {
@@ -127,6 +133,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     match app.view {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
+    }
+    // 編輯框蓋在最上面
+    if let Some(editor) = &app.editor {
+        editor::render(frame, editor, app);
     }
 }
 
@@ -1007,6 +1017,59 @@ mod tests {
             (buffer[(68, 8)].symbol(), buffer[(68, 8)].fg),
             ("─", theme.line)
         );
+    }
+
+    #[test]
+    fn the_editor_shows_the_line_and_what_it_reads_as() {
+        use ratatui::crossterm::event::{KeyCode, KeyEvent};
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse("- [ ] 交週報 @2026-10-16 17:30\n").items,
+        );
+        app.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+        // 70 × 12：編輯框在最下面操作說明的上面（y 7～10），整個 terminal 那麼寬
+        let mut terminal = draw_app(&mut app, 70, 12);
+        let rows = text_rows(terminal.backend().buffer());
+        assert!(rows[7].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[7]);
+        assert!(rows[7].ends_with("─╮"));
+        assert_eq!(
+            rows[8].trim_end_matches([' ', '│']),
+            "│ - [ ] 交週報 @2026-10-16 17:30"
+        );
+        assert_eq!(
+            rows[9].trim_end_matches([' ', '│']),
+            "│ 任務 · 2026/10/16（五） 17:30 · 「交週報」"
+        );
+        assert!(
+            rows[10].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+            "{}",
+            rows[10]
+        );
+        // 游標在打的字最後面：框線 1 + 空白 1 + 「- [ ] 交週報 @2026-10-16 17:30」30 格
+        assert_eq!(
+            terminal.get_cursor_position().expect("cursor"),
+            Position::new(32, 8)
+        );
+        // 讀成什麼是淡色；改成不存在的時間：那一列換成紅字說明
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(terminal.backend().buffer()[(2, 9)].fg, theme.muted);
+        for code in [
+            KeyCode::Backspace,
+            KeyCode::Backspace,
+            KeyCode::Char('9'),
+            KeyCode::Char('9'),
+        ] {
+            app.handle_key(KeyEvent::from(code));
+        }
+        let terminal = draw_app(&mut app, 70, 12);
+        let rows = text_rows(terminal.backend().buffer());
+        assert_eq!(
+            rows[9].trim_end_matches([' ', '│']),
+            "│ 17:99：沒有這個時間"
+        );
+        assert_eq!(terminal.backend().buffer()[(2, 9)].fg, theme.error);
     }
 
     #[test]

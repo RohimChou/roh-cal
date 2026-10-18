@@ -37,6 +37,8 @@ pub struct Theme {
     pub checked: Color,
     /// 最下面一列暫時換成的提示（寫檔失敗、重新載入）
     pub notice: Color,
+    /// 寫錯的地方（編輯框裡存不了的原因、任務頁上寫錯格式的那一行）
+    pub error: Color,
     /// 大月曆（版型 3）格子之間的淡格線
     pub grid: Color,
     /// 大月曆（版型 3）不是選取那個月的日子：日期和事都變灰
@@ -79,6 +81,7 @@ impl Theme {
             focus: mauve,
             checked: mauve,
             notice: yellow,
+            error: red,
             // 格線、其他月份：跟 v1 一樣
             grid: surface0,
             other_month: overlay0,

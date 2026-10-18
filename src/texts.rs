@@ -1,6 +1,8 @@
 //! 畫面上的字：英文、繁體中文各一份；換語言 = 換一組 `Texts`
 
 use crate::app::Notice;
+use crate::edit::Problem;
+use crate::tasks::{Item, Kind, WarningKind};
 use jiff::civil::Date;
 
 /// 支援的語言
@@ -141,6 +143,81 @@ impl Texts {
         }
     }
 
+    /// 編輯框上框線的標題，例：` 編輯第 6 行 ` / ` Edit line 6 `
+    pub fn edit_title(&self, line: usize) -> String {
+        match self.lang {
+            Lang::En => format!(" Edit line {line} "),
+            Lang::ZhTw => format!(" 編輯第 {line} 行 "),
+        }
+    }
+
+    /// 編輯框下框線：怎麼存、怎麼取消
+    pub fn editor_keys(&self) -> &'static str {
+        match self.lang {
+            Lang::En => " Enter save  Esc cancel ",
+            Lang::ZhTw => " Enter 存檔  Esc 取消 ",
+        }
+    }
+
+    /// 編輯框裡打的那一行讀起來是什麼，例：`任務 · 2026/10/16（五） 17:30 · 「交週報」`
+    pub fn preview(&self, item: &Item) -> String {
+        let kind = match (self.lang, item.kind, item.done) {
+            (Lang::En, Kind::Task, false) => "Task",
+            (Lang::En, Kind::Task, true) => "Done task",
+            (Lang::En, Kind::Event, _) => "Event",
+            (Lang::ZhTw, Kind::Task, false) => "任務",
+            (Lang::ZhTw, Kind::Task, true) => "做完的任務",
+            (Lang::ZhTw, Kind::Event, _) => "行程",
+        };
+        let when = match item.date {
+            None => match self.lang {
+                Lang::En => "no date".to_string(),
+                Lang::ZhTw => "沒有日期".to_string(),
+            },
+            Some(date) => {
+                let mut when = self.date_title(date);
+                if let Some(time) = item.time {
+                    when.push_str(&format!(" {}", time.strftime("%H:%M")));
+                }
+                if let Some(end) = item.end {
+                    when.push_str(&format!("～{}", self.date_title(end)));
+                }
+                when
+            }
+        };
+        match self.lang {
+            Lang::En => format!(" {kind} · {when} · \"{}\"", item.title),
+            Lang::ZhTw => format!(" {kind} · {when} · 「{}」", item.title),
+        }
+    }
+
+    /// 編輯框裡打的那一行有什麼問題（存不了），例：`@2026-13-01：沒有這一天`
+    pub fn problem(&self, problem: &Problem) -> String {
+        match (self.lang, problem) {
+            (Lang::En, Problem::NotAnItem) => {
+                " Start with \"- \" (\"- [ ] \" for a task, \"- \" for an event)".into()
+            }
+            (Lang::ZhTw, Problem::NotAnItem) => {
+                " 要用「- 」開頭才是一件事（「- [ ] 」是任務、「- 」是行程）".into()
+            }
+            (_, Problem::Mistake(kind)) => format!(" {}", self.mistake(kind)),
+        }
+    }
+
+    /// 任務檔寫錯的地方，例：`@2026-13-01：沒有這一天` / `@2026-13-01: no such day`
+    pub fn mistake(&self, kind: &WarningKind) -> String {
+        match (self.lang, kind) {
+            (Lang::En, WarningKind::NoSuchDate(token)) => format!("{token}: no such day"),
+            (Lang::ZhTw, WarningKind::NoSuchDate(token)) => format!("{token}：沒有這一天"),
+            (Lang::En, WarningKind::NoSuchTime(token)) => format!("{token}: no such time"),
+            (Lang::ZhTw, WarningKind::NoSuchTime(token)) => format!("{token}：沒有這個時間"),
+            (Lang::En, WarningKind::EndBeforeStart(token)) => {
+                format!("{token}: ends before it starts")
+            }
+            (Lang::ZhTw, WarningKind::EndBeforeStart(token)) => format!("{token}：結束在開始之前"),
+        }
+    }
+
     /// 改期中（按了 `r`），最下面一列的說明，例：` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
     pub fn moving(&self, title: &str) -> String {
         match self.lang {
@@ -233,6 +310,35 @@ mod tests {
         assert_eq!(
             zh.notice(&Notice::Failed(ErrorKind::PermissionDenied)),
             " 寫不進任務檔（permission denied）"
+        );
+    }
+
+    #[test]
+    fn preview_says_what_a_line_reads_as() {
+        let item = |line: &str| crate::tasks::parse(line).items[0].clone();
+        let zh = Lang::ZhTw.texts();
+        assert_eq!(
+            zh.preview(&item("- [ ] 交週報 @2026-10-16 17:30")),
+            " 任務 · 2026/10/16（五） 17:30 · 「交週報」"
+        );
+        assert_eq!(
+            zh.preview(&item("- 出差 @2026-10-20..2026-10-25")),
+            " 行程 · 2026/10/20（二）～2026/10/25（日） · 「出差」"
+        );
+        assert_eq!(
+            zh.preview(&item("- [x] 整理書櫃")),
+            " 做完的任務 · 沒有日期 · 「整理書櫃」"
+        );
+        let en = Lang::En.texts();
+        assert_eq!(
+            en.preview(&item("- 看牙醫 @2026-10-14 10:30")),
+            " Event · Wed Oct 14, 2026 10:30 · \"看牙醫\""
+        );
+        assert_eq!(
+            en.problem(&Problem::Mistake(WarningKind::NoSuchDate(
+                "@2026-13-01".into()
+            ))),
+            " @2026-13-01: no such day"
         );
     }
 

@@ -3,12 +3,44 @@
 //! 只動要改的那一行，其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
 //! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
 
-use crate::tasks::{self, Item};
+use crate::tasks::{self, Item, WarningKind};
 use jiff::{ToSpan, civil::Date};
 
 /// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
 #[derive(Debug, PartialEq, Eq)]
 pub struct Changed;
+
+/// 編輯框裡打的一行有什麼問題（存不了）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Problem {
+    /// 不是 `- ` 開頭（不是一件事）
+    NotAnItem,
+    /// 寫錯的地方，例：`@2026-13-01`（parser 會把它當成一般文字，存了就看不到日期）
+    Mistake(WarningKind),
+}
+
+/// 編輯框裡打的一行（不含縮排）讀起來是什麼：正好是一件事、沒有寫錯的地方才算數
+///
+/// 例：`- [ ] 交週報 @2026-10-16 17:30` → 那件事；`交週報` → `NotAnItem`；`- 出差 @2026-13-01` → `Mistake`
+pub fn check(line: &str) -> Result<Item, Problem> {
+    let line = line.trim();
+    if !line.starts_with("- ") && line != "-" {
+        return Err(Problem::NotAnItem);
+    }
+    let parsed = tasks::parse(line);
+    if let Some(warning) = parsed.warnings.into_iter().next() {
+        return Err(Problem::Mistake(warning.kind));
+    }
+    parsed.items.into_iter().next().ok_or(Problem::NotAnItem)
+}
+
+/// 編輯：`item` 那一行換成 `new`（編輯框裡打的那一行，不含縮排），縮排照原本的；回傳改好的整個檔案
+///
+/// 呼叫的人要先用 `check` 確認 `new` 沒問題
+pub fn replace(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
+    let indent = &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
+    replace_line(text, item, &format!("{indent}{}", new.trim()))
+}
 
 /// 任務打勾 / 取消：`- [ ] 週會` ↔ `- [x] 週會`，回傳打勾後的整個檔案
 ///
@@ -119,6 +151,44 @@ mod tests {
     /// `text` 裡的第 `index` 個項目
     fn item(text: &str, index: usize) -> Item {
         parse(text).items[index].clone()
+    }
+
+    #[test]
+    fn check_accepts_exactly_one_item_without_mistakes() {
+        let item = check("  - [ ] 交週報 @2026-10-16 17:30  ").expect("一件事");
+        assert_eq!(
+            (item.title.as_str(), item.date),
+            ("交週報", Some(date(2026, 10, 16)))
+        );
+        // 不是 `- ` 開頭：標題、清單的別種寫法、空的
+        for line in ["交週報", "# 例行", "* 交週報", ""] {
+            assert_eq!(check(line), Err(Problem::NotAnItem), "{line:?}");
+        }
+        // 寫錯的日期、時間、範圍
+        assert_eq!(
+            check("- 出差 @2026-13-01"),
+            Err(Problem::Mistake(WarningKind::NoSuchDate(
+                "@2026-13-01".into()
+            )))
+        );
+        assert_eq!(
+            check("- 會議 @2026-10-12 25:00"),
+            Err(Problem::Mistake(WarningKind::NoSuchTime("25:00".into())))
+        );
+    }
+
+    #[test]
+    fn replace_keeps_the_indentation() {
+        let text = "- [ ] 打包\n  - [ ] 書房 @2026-11-14\n";
+        assert_eq!(
+            replace(text, &item(text, 1), "- [x] 書房和客廳 @2026-11-15 "),
+            Ok("- [ ] 打包\n  - [x] 書房和客廳 @2026-11-15\n".into())
+        );
+        // 那一行在別處改過：不改
+        assert_eq!(
+            replace("- [ ] 打包\n  - [ ] 臥室\n", &item(text, 1), "- [ ] x"),
+            Err(Changed)
+        );
     }
 
     #[test]

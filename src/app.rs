@@ -1,8 +1,10 @@
 //! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
 
+mod editor;
 mod moving;
 mod write;
 
+pub use editor::Editor;
 pub use moving::Moving;
 pub use write::Notice;
 
@@ -19,7 +21,7 @@ use ratatui::{
     crossterm::event::{
         self, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
-    layout::Rect,
+    layout::{Position, Rect},
 };
 use std::path::PathBuf;
 
@@ -129,6 +131,8 @@ pub struct App {
     undo: Vec<write::UndoStep>,
     /// 改期中（按了 `r`）：要搬哪件事；`None` = 沒在改期
     pub moving: Option<Moving>,
+    /// 編輯框（按了 `e`）；`None` = 沒開
+    pub editor: Option<Editor>,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -156,6 +160,7 @@ impl App {
             notice: None,
             undo: Vec::new(),
             moving: None,
+            editor: None,
             should_quit: false,
         }
     }
@@ -261,6 +266,11 @@ impl App {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
         self.notice = None;
+        // 編輯框開著：按鍵都是打字（Enter 存、Esc 取消）
+        if self.editor.is_some() {
+            self.handle_editor_key(key);
+            return;
+        }
         // 改期中：只收移動日期、確定、取消
         if self.moving.is_some() {
             self.handle_moving_key(key);
@@ -314,13 +324,14 @@ impl App {
         }
     }
 
-    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾（寫回任務檔）
+    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾、`r` 改期、`e` / `Enter` 編輯（寫回任務檔）
     fn handle_agenda_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('r') => self.start_moving(),
+            KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             _ => {}
         }
     }
@@ -348,6 +359,15 @@ impl App {
         // 上一次的提示看過了：點擊、滾輪也算
         if !matches!(mouse.kind, MouseEventKind::Moved) {
             self.notice = None;
+        }
+        // 編輯框開著：點框外 = 取消（Esc），其他不理
+        if self.editor.is_some() {
+            if mouse.kind == MouseEventKind::Down(MouseButton::Left)
+                && !ui::editor_area(self.screen).contains(Position::new(mouse.column, mouse.row))
+            {
+                self.editor = None;
+            }
+            return;
         }
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
@@ -468,6 +488,22 @@ impl App {
             self.selected = date;
         }
         self.focus = Focus::Agenda;
+    }
+
+    /// 寫檔之後，右邊選檔案第 `line` 行那件事（只改那一行，行號不變）：跨月的事選選取那天那個月的那一行；
+    /// 右邊沒有它了（例：日期拿掉了）就回到月曆
+    fn choose_line(&mut self, line: usize) {
+        let index = {
+            let agenda = self.agenda();
+            agenda
+                .iter()
+                .position(|entry| entry.item.line == line && entry.is_on(self.selected))
+                .or_else(|| agenda.iter().position(|entry| entry.item.line == line))
+        };
+        match index {
+            Some(index) => self.choose(index),
+            None => self.focus = Focus::Calendar,
+        }
     }
 
     /// 選往後（負的 = 往前）第 `step` 件事；到第一件 / 最後一件就停住

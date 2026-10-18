@@ -16,6 +16,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動那一行，那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
+| `src/app/editor.rs` | 一行編輯框（`e`）：直接改那一行的文字（tui-input），`edit::check` 即時檢查，有問題就存不了（`App::editor`） | |
+| `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫；在別處改過就重新載入；結果放在 `App::notice`（最下面一列） | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週 | |
