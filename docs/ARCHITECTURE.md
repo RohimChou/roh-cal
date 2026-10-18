@@ -37,7 +37,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色 | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
-| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼 | ✓ |
+| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼 | ✓ |
 | `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
@@ -139,4 +139,5 @@ App::run 的迴圈
 - `App::agenda()` 每次呼叫都重新排序：事很多（幾千件）時可能要先排好存起來
 - `App::tasks_rows()` 每按一個鍵、每畫一次都重算，找子任務是兩層迴圈：事很多時可以先算好每件的子任務
 - 任務頁選到的那件、展開的子任務是用行號記的：roh-cal 自己寫檔時會用 `edit::line_map` 跟著搬，但在別處改過、重新載入時沒辦法對，可能選到別件
+- 最下面一列是通知（例：剛打開時的「任務檔有 1 處寫錯」）時，點最左邊 3 格照樣會換版型：點的那一下先清掉通知，`click_at` 看到的是 `123`；要分得出來得在清掉通知之前記下它
 - `tools/expected_screen.py` 有 4 種畫面（版型 1、3、任務頁、side menu）擠在一個檔：可以一個版型一個檔，共用的（字寬、讀任務檔）放一起

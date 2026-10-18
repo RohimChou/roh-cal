@@ -53,9 +53,11 @@ impl Lang {
 pub struct Texts {
     /// Which language this set is in (needed to write years / months)
     lang: Lang,
-    /// The key hints on the bottom row (`s` = side menu: hides / shows it when wide enough, otherwise opens
-    /// it over the left side)
+    /// The key hints on the bottom row, after `123` and `views` (`s` = side menu: hides / shows it when wide
+    /// enough, otherwise opens it over the left side)
     pub hints: &'static str,
+    /// After the layout keys `123` at the left end of the bottom row (calendar views and the tasks page)
+    pub views: &'static str,
     /// Calendar header: the week number column (4 cells wide)
     pub header_week: &'static str,
     /// Monday to Sunday in the calendar header: each exactly 2 cells wide
@@ -68,7 +70,7 @@ pub struct Texts {
     pub hide_done: &'static str,
     /// The tasks page header
     pub header_tasks: &'static str,
-    /// The key hints on the tasks page's bottom row
+    /// The key hints on the tasks page's bottom row, after `123` and `views`
     pub hints_tasks: &'static str,
     /// The key hints on the bottom row while layout 2's day popup is open
     pub hints_day: &'static str,
@@ -146,14 +148,15 @@ impl HelpSection {
 /// English text
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
+    hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+    views: "view",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
     hide_done: "Hide done",
     header_tasks: " Tasks",
-    hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  123 view  ? help  , settings  q quit",
+    hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a add calendar  e rename  d delete  Esc back",
     hash_list_keys: " Enter pick  Esc close ",
@@ -356,14 +359,15 @@ const EN: Texts = Texts {
 /// Traditional Chinese text
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    hints: " hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+    hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+    views: "版型",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
     hide_done: "隱藏做完的",
     header_tasks: " 任務",
-    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
+    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去",
     hash_list_keys: " Enter 選定  Esc 收起 ",
