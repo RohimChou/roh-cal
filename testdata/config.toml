@@ -16,8 +16,6 @@ relative_weeks = true
 [month]
 # Draw faint grid lines between the cells (default true)
 grid_lines = false
-# Put a dot before each item (default true)
-item_icons = false
 # Keep the selected week fixed in the middle (default false)
 center_cursor = true
 

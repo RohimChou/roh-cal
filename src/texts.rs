@@ -682,8 +682,6 @@ impl Texts {
             (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：選取那週寫週數，其他週寫差幾週",
             (Lang::En, Row::GridLines) => "Month grid: faint lines between the cells",
             (Lang::ZhTw, Row::GridLines) => "大月曆：格子之間畫淡淡的格線",
-            (Lang::En, Row::ItemIcons) => "Month grid: a dot before each item",
-            (Lang::ZhTw, Row::ItemIcons) => "大月曆：每件事前面加一個點",
             (Lang::En, Row::CenterCursor) => "Month grid: the selected week stays in the middle",
             (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
             (Lang::En, Row::ListWidth) => "Calendar list: max width (h / l narrower / wider)",

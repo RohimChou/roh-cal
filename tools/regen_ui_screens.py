@@ -38,7 +38,6 @@ PLAN = {
     "month_view_lists_each_days_items_in_its_cell": [(["zh", "80", "30", "2026-10-17"], "month.md", {"LAYOUT": "2"}), (["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "2"}), (["zh", "80", "16", "2026-10-17"], "month.md", {"LAYOUT": "2"})],
     "month_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "2"}), (["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "2", "HIDDEN": "1"})],
     "month_view_without_grid_lines_gives_the_cells_more_room": [(["zh", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "2", "NO_GRID": "1"})],
-    "month_view_without_item_icons": [(["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "2", "NO_ICONS": "1"})],
     "month_view_keeps_the_selected_week_in_the_middle": [(["zh", "80", "16", "2026-10-17"], False, {"LAYOUT": "2", "CENTER": "1"}), (["zh", "80", "16", "2026-11-02"], False, {"LAYOUT": "2", "CENTER": "1"})],
     "relative_week_numbers_in_both_layouts": [(["zh", "35", "14", "2026-10-17"], False, {"RELATIVE": "1"}), (["zh", "80", "16", "2026-10-17"], False, {"LAYOUT": "2", "RELATIVE": "1"})],
     "month_view_lists_a_multi_day_item_on_each_of_its_days": [(["zh", "80", "30", "2026-10-17"], "ranges.md", {"LAYOUT": "2"})],

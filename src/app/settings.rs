@@ -37,8 +37,6 @@ pub enum Row {
     RelativeWeeks,
     /// `[month] grid_lines`
     GridLines,
-    /// `[month] item_icons`
-    ItemIcons,
     /// `[month] center_cursor`
     CenterCursor,
     /// `[calendar_list] max_width`: a number, not a switch
@@ -54,7 +52,6 @@ pub fn rows() -> Vec<Row> {
         Row::Theme,
         Row::RelativeWeeks,
         Row::GridLines,
-        Row::ItemIcons,
         Row::CenterCursor,
         Row::ListWidth,
     ];
@@ -69,7 +66,7 @@ impl Row {
         match self {
             Self::Theme => None,
             Self::RelativeWeeks => Some("calendar"),
-            Self::GridLines | Self::ItemIcons | Self::CenterCursor => Some("month"),
+            Self::GridLines | Self::CenterCursor => Some("month"),
             Self::ListWidth => Some("calendar_list"),
             Self::Color(_) => Some("colors"),
         }
@@ -81,7 +78,6 @@ impl Row {
             Self::Theme => "theme",
             Self::RelativeWeeks => "relative_weeks",
             Self::GridLines => "grid_lines",
-            Self::ItemIcons => "item_icons",
             Self::CenterCursor => "center_cursor",
             Self::ListWidth => "max_width",
             Self::Color(role) => role,
@@ -95,7 +91,6 @@ impl Row {
             Self::Theme | Self::ListWidth | Self::Color(_) => None,
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
             Self::GridLines => Some(&mut settings.month.grid_lines),
-            Self::ItemIcons => Some(&mut settings.month.item_icons),
             Self::CenterCursor => Some(&mut settings.month.center_cursor),
         }
     }
@@ -119,7 +114,6 @@ impl Row {
             }
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
             Self::GridLines => on_off(settings.month.grid_lines),
-            Self::ItemIcons => on_off(settings.month.item_icons),
             Self::CenterCursor => on_off(settings.month.center_cursor),
             Self::ListWidth => settings.calendar_list.max_width().to_string(),
         }
@@ -419,9 +413,9 @@ mod tests {
     #[test]
     fn color_rows_go_through_the_palette_and_keep_only_overrides() {
         let mut app = app_with_settings();
-        // Row 7 is text's color: l switches to the palette's next color
+        // Row 6 is text's color: l switches to the palette's next color
         // (subtext0), records it in [colors], and the screen changes right away
-        for _ in 0..6 {
+        for _ in 0..5 {
             press(&mut app, KeyCode::Char('j'));
         }
         press(&mut app, KeyCode::Char('l'));
@@ -523,12 +517,13 @@ mod tests {
             month:
                 MonthSettings {
                     grid_lines: _,
-                    item_icons: _,
                     center_cursor: _,
+                    // No longer a setting (only read so older files open): no row
+                    removed_item_icons: _,
                 },
             calendar_list: CalendarListSettings { max_width: _ },
         } = Settings::default();
-        assert_eq!(rows().len(), 6 + theme::ROLES.len());
+        assert_eq!(rows().len(), 5 + theme::ROLES.len());
     }
 
     #[test]

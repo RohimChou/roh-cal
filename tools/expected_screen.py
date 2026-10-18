@@ -24,7 +24,6 @@ Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in th
 WINDOW = how many rows the selected month's agenda is scrolled;
 SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
 NO_GRID = layout 2 draws no grid lines (config `[month] grid_lines = false`);
-NO_ICONS = no dot before items in layout 2 (`item_icons = false`);
 CENTER = layout 2 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
 RELATIVE = week-number column in layouts 1 and 3: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
@@ -61,7 +60,6 @@ CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
-NO_ICONS = "NO_ICONS" in os.environ
 CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
@@ -489,12 +487,11 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 # List them all if they fit; if not, list one fewer and put +N on the last line (free lines
                 # do not count); a bar's line stays empty here, the bar is drawn over it below
                 shown = len(slots[k]) if len(slots[k]) <= wh - 1 else wh - 2
-                icon = " " if NO_ICONS else " ∙ "
                 cell = [first]
                 for s in slots[k][:shown]:
                     if s and s[0] == "item":
                         _, time, title, _, _ = s[1]
-                        cell.append(icon + (time + " " if time else "") + title)
+                        cell.append(" " + (time + " " if time else "") + title)
                     else:
                         cell.append("")
                 if shown < len(slots[k]):

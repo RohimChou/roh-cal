@@ -91,19 +91,21 @@ pub struct MonthSettings {
     /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column);
     /// a new year's thick line is drawn either way
     pub grid_lines: bool,
-    /// Puts a dot before each item in a cell (`∙ 14:00 Team sync`)
-    pub item_icons: bool,
     /// Keeps the selected row fixed in the middle of the 6 rows (like vim's `scrolloff=999`);
     /// when off, it scrolls one row at a time, only when the selection moves out of the 6 rows
     pub center_cursor: bool,
+    /// `item_icons` no longer exists (it put a dot before each item in a cell): still read so an
+    /// older config file that has it opens, never written, and does nothing
+    #[serde(rename = "item_icons", skip_serializing)]
+    pub removed_item_icons: Option<bool>,
 }
 
 impl Default for MonthSettings {
     fn default() -> Self {
         Self {
             grid_lines: true,
-            item_icons: true,
             center_cursor: false,
+            removed_item_icons: None,
         }
     }
 }
@@ -360,6 +362,29 @@ mod tests {
     }
 
     #[test]
+    fn a_removed_setting_still_opens_and_saving_leaves_it_alone() {
+        // An older config file with `item_icons` (no longer a setting): opens, the other settings read
+        let text = "[month]\nitem_icons = false\ngrid_lines = false\n";
+        let settings = parse(text).expect("older file");
+        assert!(!settings.month.grid_lines);
+        // Saving a change does not touch the item_icons line
+        let mut changed = settings.clone();
+        changed.month.center_cursor = true;
+        assert_eq!(
+            updated(text, &settings, &changed).expect("updated"),
+            "[month]\nitem_icons = false\ngrid_lines = false\ncenter_cursor = true\n"
+        );
+        // Not written when the file does not have it
+        let mut fresh = Settings::default();
+        fresh.month.removed_item_icons = Some(false);
+        fresh.month.center_cursor = true;
+        assert_eq!(
+            updated("", &Settings::default(), &fresh).expect("updated"),
+            "[month]\ncenter_cursor = true\n"
+        );
+    }
+
+    #[test]
     fn mistakes_are_errors() {
         for text in [
             // Misspelled name (missing an s)
@@ -401,8 +426,8 @@ mod tests {
                 },
                 month: MonthSettings {
                     grid_lines: false,
-                    item_icons: false,
                     center_cursor: true,
+                    removed_item_icons: None,
                 },
                 calendar_list: CalendarListSettings { max_width: 30 },
                 colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),
@@ -425,18 +450,22 @@ mod tests {
 
     #[test]
     fn updated_changes_only_what_differs_and_keeps_comments() {
-        let text = "# My settings\n\n[month]\n# Grid lines\ngrid_lines = true   # too busy\ncenter_cursor = true\n";
+        let text = "# My settings\n\n[calendar]\nrelative_weeks = true\n\n[month]\n# Grid lines\ngrid_lines = true   # too busy\n";
         // grid_lines becomes false (the line exists: only the value changes, both comments stay);
-        // item_icons becomes false (no such line: added at the end of [month]);
-        // center_cursor unchanged (untouched)
-        let settings = with_month(|month| {
-            month.grid_lines = false;
-            month.item_icons = false;
-            month.center_cursor = true;
-        });
+        // center_cursor becomes true (no such line: added at the end of [month]);
+        // relative_weeks unchanged (untouched)
+        let settings = Settings {
+            calendar: CalendarSettings {
+                relative_weeks: true,
+            },
+            ..with_month(|month| {
+                month.grid_lines = false;
+                month.center_cursor = true;
+            })
+        };
         assert_eq!(
             updated_file(text, &settings).expect("valid file"),
-            "# My settings\n\n[month]\n# Grid lines\ngrid_lines = false   # too busy\ncenter_cursor = true\nitem_icons = false\n"
+            "# My settings\n\n[calendar]\nrelative_weeks = true\n\n[month]\n# Grid lines\ngrid_lines = false   # too busy\ncenter_cursor = true\n"
         );
     }
 
@@ -458,11 +487,11 @@ mod tests {
     fn updated_adds_new_lines_before_the_comments_at_the_end() {
         // Comments at the end of the file (e.g. settings commented
         // out for now) stay last; the new line goes before them
-        let text = "[month]\ngrid_lines = true\n# item_icons = true\n";
+        let text = "[month]\ngrid_lines = true\n# more later\n";
         let settings = with_month(|month| month.center_cursor = true);
         assert_eq!(
             updated_file(text, &settings).expect("valid file"),
-            "[month]\ngrid_lines = true\ncenter_cursor = true\n# item_icons = true\n"
+            "[month]\ngrid_lines = true\ncenter_cursor = true\n# more later\n"
         );
     }
 
@@ -552,7 +581,7 @@ mod tests {
         // A file with a misspelled name (broken elsewhere): even when the settings page
         // changed something, it is not saved; the original content stays for the user to fix
         let mut changed = Settings::default();
-        changed.month.item_icons = false;
+        changed.month.center_cursor = true;
         let error = save(&path, &Settings::default(), &changed).expect_err("broken file");
         assert_eq!(error.kind(), ErrorKind::InvalidData);
         // Nothing changed: the file is not touched, and it is not an error

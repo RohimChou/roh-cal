@@ -1894,7 +1894,7 @@ mod tests {
                 "│  週   一         二         三         四        五        六        日      │",
                 "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
                 "│  40 │ 28       │ 29       │ 30       │         │         │         │         │",
-                "│     │          │ ∙ Backyard BBQ      │         │         │         │         │",
+                "│     │          │ Backyard BBQ        │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  40 │          │          │          │ 1 10月  │ 2       │ 3       │ 4       │",
@@ -1902,15 +1902,15 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
-                "│     │ ∙ Pay the phone bill│          │         │         │ ∙ Farmers market  │",
+                "│     │ Pay the phone bill  │          │         │         │ Farmers market    │",
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-                "│     │ ∙ 14:00 C│ ∙ 15:00 Confirm aler│ ∙ Fix th│ ∙ Clean │ ∙ Dinner│ ∙ 07:00 │",
-                "│     │          │          │          │         │ +3      │ ∙ 08:00 Coffee cha│",
+                "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ Clean up│ Dinner w│ 07:00 Go│",
+                "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
-                "│     │          │ ∙ A really long title that spills over  │         │         │",
+                "│     │          │ A really long title that spills over    │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │         │",
@@ -1931,19 +1931,19 @@ mod tests {
                 "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
                 "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
                 "│  40 │ 28       │ 29       │ 30       │         │         │         │         │",
-                "│     │          │ ∙ Backyard BBQ      │         │         │         │         │",
+                "│     │          │ Backyard BBQ        │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  40 │          │          │          │ 1 Oct   │ 2       │ 3       │ 4       │",
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
-                "│     │ ∙ Pay the phone bill│          │         │         │ ∙ Farmers market  │",
+                "│     │ Pay the phone bill  │          │         │         │ Farmers market    │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-                "│     │ ∙ 14:00 C│ ∙ 15:00 Confirm aler│ ∙ Fix th│ +4      │ +2      │ ∙ 07:00 │",
+                "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ +4      │ +2      │ 07:00 Go│",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
-                "│     │          │ ∙ A really long title that spills over  │         │         │",
+                "│     │          │ A really long title that spills over    │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │         │",
                 "│     │          │          │          │         │         │         │         │",
@@ -1996,22 +1996,21 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 10/12 (Mon) unfinished item: dot and title orange, time muted
-        assert_eq!(cell(8, 16), ("∙", theme.has_item, false));
-        assert_eq!(cell(10, 16), ("1", theme.muted, false));
-        // 10/15 (Thu) finished item: whole line gray, title struck through (the dot is not)
-        assert_eq!(cell(41, 16), ("∙", theme.muted, false));
-        assert_eq!(cell(43, 16), ("F", theme.muted, true));
+        // 10/12 (Mon) unfinished item: time muted, title orange
+        assert_eq!(cell(8, 16), ("1", theme.muted, false));
+        assert_eq!(cell(14, 16), ("C", theme.has_item, false));
+        // 10/15 (Thu) finished item: whole line gray, title struck through
+        assert_eq!(cell(41, 16), ("F", theme.muted, true));
         // 10/17 (Sat) today: green
-        assert_eq!(cell(63, 16), ("D", theme.today, false));
+        assert_eq!(cell(61, 16), ("D", theme.today, false));
         // 10/16 (Fri) overflows: 「+3」 is muted
         assert_eq!(cell(52, 17), ("3", theme.muted, false));
         // 9/29 (Tue, in the top row 9/28-30) is in another month: whole line gray
-        assert_eq!(cell(19, 4), ("∙", theme.other_month, false));
-        assert_eq!(cell(21, 4), ("B", theme.other_month, false));
+        assert_eq!(cell(19, 4), ("B", theme.other_month, false));
+        assert_eq!(cell(20, 4), ("a", theme.other_month, false));
         // 10/20 (Tue)'s long title borrows cells up to 10/23 (Fri): text over the grid lines keeps its own
         // color (x 49 was a vertical line); the grid lines after the text keep the grid color
-        assert_eq!(cell(49, 20), ("l", theme.has_item, false));
+        assert_eq!(cell(49, 20), ("s", theme.has_item, false));
         assert_eq!(buffer[(59, 20)].symbol(), "│");
         assert_eq!(buffer[(59, 20)].fg, theme.grid);
         // Only 1 row per week: the dots follow the day's color (10/16 orange); all done (10/15) is muted
@@ -2040,19 +2039,19 @@ mod tests {
                 "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
                 "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
                 "│ ☑ 未分組         7 ││  40 │ 28          │ 29         │ 30         │            │            │            │            │",
-                "│ ☑ Personal       8 ││     │             │ ∙ Backyard BBQ          │            │            │            │            │",
+                "│ ☑ Personal       8 ││     │             │ Backyard BBQ            │            │            │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  40 │             │            │            │ 1 10月     │ 2          │ 3          │ 4          │",
                 "│                    ││     │             │            │            │            │            │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  41 │ 5           │ 6          │ 7          │ 8          │ 9          │ 10         │ 11         │",
-                "│                    ││     │ ∙ Pay the phone bill     │            │            │            │ ∙ Farmers market        │",
+                "│                    ││     │ Pay the phone bill       │            │            │            │ Farmers market          │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  42 │ 12          │ 13         │ 14         │ 15         │ 16         │ 17         │ 18         │",
-                "│                    ││     │ ∙ 14:00 Code│ ∙ 15:00 Confirm alerting│ ∙ Fix the l│ +4         │ +2         │ ∙ 07:00 Go │",
+                "│                    ││     │ 14:00 Code r│ 15:00 Confirm alerting w│ Fix the log│ +4         │ +2         │ 07:00 Go hi│",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  43 │ 19          │ 20         │ 21         │ 22         │ 23         │ 24         │ 25         │",
-                "│                    ││     │             │ ∙ A really long title that spills over            │            │            │",
+                "│                    ││     │             │ A really long title that spills over │            │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  44 │ 26          │ 27         │ 28         │ 29         │ 30         │ 31         │            │",
                 "│                    ││     │             │            │            │            │            │            │            │",
@@ -2080,7 +2079,7 @@ mod tests {
                 "│                    ││     │             │            │            │            │            │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  42 │ 12          │ 13         │ 14         │ 15         │ 16         │ 17         │ 18         │",
-                "│                    ││     │ ∙ 14:00 Code│ ∙ 15:00 Confirm alerting│ ∙ Fix the l│ +4         │            │            │",
+                "│                    ││     │ 14:00 Code r│ 15:00 Confirm alerting w│ Fix the log│ +4         │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
                 "│                    ││  43 │ 19          │ 20         │ 21         │ 22         │ 23         │ 24         │ 25         │",
                 "│                    ││     │             │            │            │            │            │            │            │",
@@ -2117,19 +2116,19 @@ mod tests {
                 "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
                 "│  週  一         二         三         四        五        六        日       │",
                 "│  40  28         29         30                                                │",
-                "│                 ∙ Backyard BBQ                                               │",
+                "│                 Backyard BBQ                                                 │",
                 "│                                                                              │",
                 "│  40                                   1 10月    2         3         4        │",
                 "│                                                                              │",
                 "│                                                                              │",
                 "│  41  5          6          7          8         9         10        11       │",
-                "│      ∙ Pay the phone bill                                 ∙ Farmers market   │",
+                "│      Pay the phone bill                                   Farmers market     │",
                 "│                                                                              │",
                 "│  42  12         13         14         15        16        17        18       │",
-                "│      ∙ 14:00 Co ∙ 15:00 Confirm alert ∙ Fix the ∙ Clean u ∙ Dinner  ∙ 07:00 G│",
-                "│                                                 +3        ∙ 08:00 Coffee chat│",
+                "│      14:00 Code 15:00 Confirm alertin Fix the l Clean up  Dinner wi 07:00 Go │",
+                "│                                                 +3        08:00 Coffee chat  │",
                 "│  43  19         20         21         22        23        24        25       │",
-                "│                 ∙ A really long title that spills over                       │",
+                "│                 A really long title that spills over                         │",
                 "│                                                                              │",
                 "│  44  26         27         28         29        30        31                 │",
                 "│                                                                              │",
@@ -2145,42 +2144,6 @@ mod tests {
         assert_eq!(click_at(&app, 17, 8), Some(Click::Day(date(2026, 10, 6))));
         assert_eq!(click_at(&app, 27, 10), Some(Click::Day(date(2026, 10, 6))));
         assert_eq!(click_at(&app, 28, 10), Some(Click::Day(date(2026, 10, 7))));
-    }
-
-    #[test]
-    fn month_view_without_item_icons() {
-        // Config `[month] item_icons = false`: no dot before the items in the cells, just one space
-        let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
-        app.settings.month.item_icons = false;
-        assert_eq!(
-            text_rows(draw_app(&mut app, 80, 24).backend().buffer()),
-            [
-                "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
-                "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
-                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
-                "│  40 │ 28       │ 29       │ 30       │         │         │         │         │",
-                "│     │          │ Backyard BBQ        │         │         │         │         │",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-                "│  40 │          │          │          │ 1 Oct   │ 2       │ 3       │ 4       │",
-                "│     │          │          │          │         │         │         │         │",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-                "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
-                "│     │ Pay the phone bill  │          │         │         │ Farmers market    │",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-                "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-                "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ +4      │ +2      │ 07:00 Go│",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-                "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
-                "│     │          │ A really long title that spills over    │         │         │",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-                "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
-            ]
-        );
     }
 
     #[test]
@@ -2313,12 +2276,12 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-                "│     │          │          │          │         │ ∙ 17:30 │         │         │",
+                "│     │          │          │          │         │ 17:30 Se│         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
                 "│     │          │ Business trip to NYC                                        │",
-                "│     │          │          │          │ ∙ Buy gifts for the team    │         │",
+                "│     │          │          │          │ Buy gifts for the team      │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │         │",
                 "│     │          │          │ Manager OOO                            │         │",
@@ -2871,7 +2834,7 @@ mod tests {
             assert_ne!(bg(x, y), theme.cursor_line, "({x}, {y})");
         }
         // 10/15's long title does not borrow into the selected cell: it stops at the grid line
-        assert_eq!(cell(41, 16).0, "∙");
+        assert_eq!(cell(41, 16).0, "S");
         assert_eq!(cell(50, 16).0, " ");
         // Today green, days with unfinished items orange, weekends blue
         assert_eq!(cell(62, 15), ("7", theme.today, true));

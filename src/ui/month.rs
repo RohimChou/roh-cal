@@ -576,8 +576,7 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
     lines
 }
 
-/// One item in a cell: 「 ∙ 14:00 標題」 (time only if it has one; with `[month] item_icons = false` in
-/// the config file there is no dot: 「 14:00 標題」)
+/// One item in a cell: 「 14:00 標題」 (time only if it has one)
 ///
 /// Same as layout 1's agenda: items not over yet use that day's calendar color, with the time muted;
 /// items that are over are gray for the whole line (done tasks also get a struck-through title);
@@ -596,12 +595,7 @@ fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     } else {
         theme.muted
     };
-    let icon = if app.settings.month.item_icons {
-        " ∙ "
-    } else {
-        " "
-    };
-    let mut spans = vec![Span::styled(icon, Style::new().fg(color))];
+    let mut spans = vec![Span::styled(" ", Style::new().fg(color))];
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
