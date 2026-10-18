@@ -1802,6 +1802,69 @@ mod tests {
     }
 
     #[test]
+    fn a_priority_colors_the_whole_line() {
+        // `!!!` / `!!` / `!` not over yet: the whole line (date, time, title) in that priority's color, a
+        // holiday's too; done or past: gray as usual. In English, so a text's position in the row is its x
+        let text = "# Work\n- [ ] Fix the audit log !!! @2026-10-21 14:00\n- [ ] Call the bank !! @2026-10-22\n\
+                    - [ ] Renew the passport ! @2026-10-23\n- [x] Pay the fine !!! @2026-10-20\n\
+                    - Old release !!! @2026-10-12\n- Offsite !! @2026-10-26..2026-10-28\n\
+                    - [ ] Book the hotel ! @2026-11-02\n- [ ] Broken !!! @2026-13-01\n\
+                    # US holidays type:holiday\n- Halloween !!! @2026-10-31\n";
+        let theme = Theme::catppuccin_mocha();
+        // The (foreground, background) of the first character of `text` on screen
+        let color = |buffer: &Buffer, text: &str| {
+            let (x, y) = text_rows(buffer)
+                .iter()
+                .enumerate()
+                .find_map(|(y, row)| row.find(text).map(|at| (row[..at].chars().count(), y)))
+                .expect(text);
+            let cell = &buffer[(u16::try_from(x).unwrap(), u16::try_from(y).unwrap())];
+            (cell.fg, cell.bg)
+        };
+        let parsed = crate::tasks::parse(text);
+        // Layout 1's agenda
+        let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items.clone());
+        let terminal = draw_app(&mut app, 70, 23);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(color(buffer, "10/21 14:00").0, theme.priority_high);
+        assert_eq!(color(buffer, "14:00 Fix").0, theme.priority_high);
+        assert_eq!(color(buffer, "Fix the").0, theme.priority_high);
+        assert_eq!(color(buffer, "Call the").0, theme.priority_medium);
+        assert_eq!(color(buffer, "Renew").0, theme.priority_low);
+        assert_eq!(color(buffer, "Offsite").0, theme.priority_medium);
+        assert_eq!(color(buffer, "Halloween").0, theme.priority_high);
+        assert_eq!(color(buffer, "Pay the").0, theme.muted);
+        assert_eq!(color(buffer, "Old rel").0, theme.muted);
+        // The month grid (119 wide): cells and the multi-day bar (which keeps its background); November's
+        // item is in the other-month gray
+        let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+        let terminal = draw_app(&mut app, 119, 30);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(color(buffer, "14:00 Fix").0, theme.priority_high);
+        assert_eq!(color(buffer, "Call").0, theme.priority_medium);
+        assert_eq!(color(buffer, "Renew").0, theme.priority_low);
+        assert_eq!(
+            color(buffer, "Offsite"),
+            (theme.priority_medium, theme.range)
+        );
+        assert_eq!(color(buffer, "Hallow").0, theme.priority_high);
+        assert_eq!(color(buffer, "Pay").0, theme.muted);
+        assert_eq!(color(buffer, "Book").0, theme.other_month);
+        // Tasks page: the title only (the date column keeps its day's color); a line with a mistake stays red
+        let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
+        app.warnings = parsed.warnings;
+        app.view = View::Tasks;
+        app.focus = Focus::Tasks;
+        let terminal = draw_app(&mut app, 70, 23);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(color(buffer, "Fix the").0, theme.priority_high);
+        assert_eq!(color(buffer, "Renew").0, theme.priority_low);
+        assert_eq!(color(buffer, "Pay the").0, theme.muted);
+        assert_eq!(color(buffer, "Broken").0, theme.error);
+        assert_eq!(color(buffer, "10/21").0, theme.text);
+    }
+
+    #[test]
     fn events_gray_out_once_their_day_is_past() {
         // 10/9 (Fri): an overdue unfinished task; 10/10 (Sat): a past event (gray, not struck through);
         // 10/18 (Sun): an upcoming event. Dates keep their usual colors; items not over yet are in the normal

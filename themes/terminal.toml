@@ -22,5 +22,9 @@ grid = "dark-gray"
 other_month = "dark-gray"
 # Multi-day bars in the month grid: dark-gray is taken by the selected row
 range = "blue"
+# Priorities (!!! / !! / !): the 16 colors have no orange, so the middle one is bright red
+priority_high = "red"
+priority_medium = "light-red"
+priority_low = "yellow"
 help_section = "blue"
 help_key = "yellow"

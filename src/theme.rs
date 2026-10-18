@@ -3,6 +3,7 @@
 //!
 //! A theme is one TOML file (the built-in ones are in the repo's `themes/`, compiled into the binary)
 
+use crate::tasks::Priority;
 use ratatui::style::Color;
 use serde::Deserialize;
 #[cfg(test)]
@@ -57,6 +58,12 @@ pub struct Theme {
     pub other_month: Color,
     /// Background of a multi-day item's bar in the month grid (layout 2)
     pub range: Color,
+    /// An item marked `!!!` (high priority) that is not over yet: its whole line (date, time, title)
+    pub priority_high: Color,
+    /// An item marked `!!` (medium priority) that is not over yet
+    pub priority_medium: Color,
+    /// An item marked `!` (low priority) that is not over yet
+    pub priority_low: Color,
     /// Section names on the help page (`Move`, `Edit`…)
     pub help_section: Color,
     /// Keys on the help page (`hjkl`, `Space`…)
@@ -87,7 +94,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 20] = [
+pub const ROLES: [&str; 23] = [
     "text",
     "muted",
     "line",
@@ -106,6 +113,9 @@ pub const ROLES: [&str; 20] = [
     "grid",
     "other_month",
     "range",
+    "priority_high",
+    "priority_medium",
+    "priority_low",
     "help_section",
     "help_key",
 ];
@@ -271,11 +281,23 @@ impl Theme {
             "grid" => self.grid,
             "other_month" => self.other_month,
             "range" => self.range,
+            "priority_high" => self.priority_high,
+            "priority_medium" => self.priority_medium,
+            "priority_low" => self.priority_low,
             "help_section" => self.help_section,
             "help_key" => self.help_key,
             _ => return None,
         };
         Some(color)
+    }
+
+    /// The color of a priority (`!!!` → `priority_high`…)
+    pub fn priority(&self, priority: Priority) -> Color {
+        match priority {
+            Priority::High => self.priority_high,
+            Priority::Medium => self.priority_medium,
+            Priority::Low => self.priority_low,
+        }
     }
 
     /// Turn a theme file (TOML) into a `Theme`: first override some roles with `colors`, then replace

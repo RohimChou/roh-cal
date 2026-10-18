@@ -122,7 +122,7 @@ App::run 的迴圈
 ## 可以改進的地方
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
 - 版型 1 的寬度散在幾個數字裡（`CALENDAR_WIDTH` 的 `6 + 4 + 1 + 22 + 2`、`day_cells` 的 3、`click_at` 的 `/ 3`）：改成一個 `DAY_WIDTH` 之類的常數，畫畫面和換算滑鼠就不會各改各的
-- `day_color`、`in_multi_day`、`date_text` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
+- `day_color`、`in_multi_day`、`date_text`、`open_item_color` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
 - test 的小工具抄了好幾份（`press` 4 份、`mouse` 3 份、`type_text` 3 份）：可以放一個共用的 test module
 - 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，再點一次就點到別件（版型 2 的跳窗、side menu 已經改成跑出框外才捲）

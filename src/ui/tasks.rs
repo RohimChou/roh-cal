@@ -209,7 +209,8 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
 /// leaves that cell blank (without a date, both are empty)
 ///
 /// Colors: items that are over (done tasks, past events) are gray, done titles struck through; a line
-/// with a mistake has a red title; the date uses that day's calendar color;
+/// with a mistake has a red title; an item with a priority not over yet has its title in that priority's
+/// color; the date uses that day's calendar color;
 /// `▸`, the subtask count and the time are muted
 fn render_item(
     frame: &mut Frame,
@@ -235,7 +236,12 @@ fn render_item(
     };
     // That line has a mistake: red title
     let mistake = app.warnings.iter().any(|warning| warning.line == item.line);
-    let mut title = Style::new().fg(if mistake { theme.error } else { color });
+    let title_color = match item.priority {
+        _ if mistake => theme.error,
+        Some(priority) if open => theme.priority(priority),
+        _ => color,
+    };
+    let mut title = Style::new().fg(title_color);
     if item.done {
         title = title.add_modifier(Modifier::CROSSED_OUT);
     }

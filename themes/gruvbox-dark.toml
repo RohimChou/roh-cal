@@ -40,5 +40,9 @@ grid = "dark1"
 other_month = "dark4"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_blue"
+# Priorities (!!! / !! / !): red, orange, yellow
+priority_high = "red"
+priority_medium = "orange"
+priority_low = "yellow"
 help_section = "blue"
 help_key = "orange"

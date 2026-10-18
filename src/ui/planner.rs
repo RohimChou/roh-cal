@@ -431,6 +431,17 @@ pub(super) fn is_holiday_item(item: &Item) -> bool {
     item.group.as_ref().is_some_and(|group| group.holiday)
 }
 
+/// The color of an item's line while it is not over yet: its priority's (`!!!` red, `!!` orange, `!`
+/// yellow), else a holiday's day-off blue, else the normal text color; `true` with it = the whole line
+/// (the time too) has this color, `false` = the time stays muted
+pub(super) fn open_item_color(item: &Item, theme: &Theme) -> (Color, bool) {
+    match item.priority {
+        Some(priority) => (theme.priority(priority), true),
+        None if is_holiday_item(item) => (theme.weekend, true),
+        None => (theme.text, false),
+    }
+}
+
 /// A day's date color: today > a day off (a weekend or a holiday) > normal; items do not change it
 /// (items that are all over, or in unchecked calendars, count as no items)
 pub(super) fn day_color(day: Date, app: &App) -> Color {
@@ -471,22 +482,17 @@ pub(super) fn date_text(item: &Item) -> String {
 /// One agenda item: 「 10/16 17:30 交週報」 (date at least 5 cells, right-aligned; a multi-day date is
 /// longer and pushes the title right; time only if it has one)
 ///
-/// Not over yet: date and title use that day's color on the calendar, so the two sides match; the time
-/// is muted. Over: the whole line turns gray; done tasks also get a struck-through title, past events
-/// do not.
+/// Not over yet: see `open_item_color` (a priority or a holiday colors the whole line, otherwise the
+/// normal color with the time muted). Over: the whole line turns gray; done tasks also get a
+/// struck-through title, past events do not.
 /// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
-    let open = item.is_open(app.today);
-    // The line follows the item itself, not its day: a holiday not over yet is all in the day-off blue
-    // (date, time, title), anything else not over yet in the normal text color, gray once over
-    let holiday = open && is_holiday_item(item);
-    let color = if holiday {
-        theme.weekend
-    } else if open {
-        theme.text
+    // The line follows the item itself, not its day; gray once over
+    let (color, whole_line) = if item.is_open(app.today) {
+        open_item_color(item, theme)
     } else {
-        theme.muted
+        (theme.muted, false)
     };
     let date = date_text(item);
     // The date part is at least 7 cells wide: 「 10/17 」; the chosen one is 「[10/17]」 (a shorter date
@@ -505,7 +511,7 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
-            Style::new().fg(if holiday { theme.weekend } else { theme.muted }),
+            Style::new().fg(if whole_line { color } else { theme.muted }),
         ));
     }
     let mut title_style = Style::new().fg(color);

@@ -427,7 +427,8 @@ mod tests {
         // the width is the larger of the longest description and the key hints on the bottom border
         // (42 cells + a blank on each side)
         let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-        assert_eq!(area, Rect::new(12, 2, 46, 40));
+        // 44 − 43 leaves one free row: ratatui's centering puts it above the box
+        assert_eq!(area, Rect::new(12, 1, 46, 43));
         assert_eq!(
             rows,
             [
@@ -464,6 +465,9 @@ mod tests {
                 "│    grid                 surface0           │",
                 "│    other_month          overlay0           │",
                 "│    range                dim_sapphire       │",
+                "│    priority_high        red                │",
+                "│    priority_medium      peach              │",
+                "│    priority_low         yellow             │",
                 "│    help_section         blue               │",
                 "│    help_key             peach              │",
                 "│                                            │",
@@ -555,9 +559,6 @@ mod tests {
             [
                 "╭ roh-cal ∙ 設定 ────────────────────────────╮",
                 "│                                            │",
-                "│    label                lavender           │",
-                "│    week_number          yellow             │",
-                "│    week_number_dim      dim_yellow         │",
                 "│    weekend              blue               │",
                 "│    today                green              │",
                 "│    selected             red                │",
@@ -569,6 +570,9 @@ mod tests {
                 "│    grid                 surface0           │",
                 "│    other_month          overlay0           │",
                 "│    range                dim_sapphire       │",
+                "│    priority_high        red                │",
+                "│    priority_medium      peach              │",
+                "│    priority_low         yellow             │",
                 "│    help_section         blue               │",
                 "│    help_key             peach              │",
                 "│                                            │",

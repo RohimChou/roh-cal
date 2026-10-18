@@ -9,7 +9,7 @@
 
 use super::{
     Click,
-    planner::{day_color, in_multi_day, is_holiday_item},
+    planner::{day_color, in_multi_day, open_item_color},
 };
 use crate::{
     app::{App, Focus},
@@ -21,7 +21,7 @@ use ratatui::{
     Frame,
     buffer::Buffer,
     layout::{Position, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     symbols::line,
     text::{Line, Span},
     widgets::{Block, BorderType, Clear},
@@ -448,20 +448,13 @@ fn render_bars(
 }
 
 /// A multi-day item's band: 「 09:00 New Year trip」 on the `range` background (the whole band, set on the
-/// `Line`); `time` = write the time (only where the item starts). The title is the normal text color (a
-/// holiday's in the day-off blue), gray once the item is over (struck through when a done task), and in the
-/// other-month color for other months
+/// `Line`); `time` = write the time (only where the item starts). The title is colored like layout 1's
+/// agenda (`open_item_color`: a priority's or a holiday's color for the whole band's text, otherwise the
+/// normal color with the time muted), gray once the item is over (struck through when a done task), and in
+/// the other-month color for other months
 fn bar_line(item: &Item, time: bool, other_month: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
-    let (color, time_color) = if other_month {
-        (theme.other_month, theme.other_month)
-    } else if item.is_open(app.today) && is_holiday_item(item) {
-        (theme.weekend, theme.weekend)
-    } else if item.is_open(app.today) {
-        (theme.text, theme.muted)
-    } else {
-        (theme.muted, theme.muted)
-    };
+    let (color, time_color) = item_colors(item, other_month, app);
     let mut spans = vec![Span::raw(" ")];
     if let Some(at) = item.time.filter(|_| time) {
         spans.push(Span::styled(
@@ -569,30 +562,30 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
     lines
 }
 
+/// (title color, time color) of an item in the month grid: other months gray; not over yet like layout 1's
+/// agenda (`open_item_color`: a priority or a holiday colors the time too, otherwise it is muted); over gray
+fn item_colors(item: &Item, other_month: bool, app: &App) -> (Color, Color) {
+    let theme = &app.theme;
+    if other_month {
+        (theme.other_month, theme.other_month)
+    } else if item.is_open(app.today) {
+        match open_item_color(item, theme) {
+            (color, true) => (color, color),
+            (color, false) => (color, theme.muted),
+        }
+    } else {
+        (theme.muted, theme.muted)
+    }
+}
+
 /// One item in a cell: 「 14:00 標題」 (time only if it has one)
 ///
-/// Same as layout 1's agenda: items not over yet are in the normal text color with the time muted, a
-/// holiday all in the day-off blue; items that are over are gray for the whole line (done tasks also
-/// get a struck-through title); items from other months are gray for the whole line
+/// Same as layout 1's agenda: items not over yet are in the normal text color with the time muted, an
+/// item with a priority or a holiday all in that color (`open_item_color`); items that are over are gray
+/// for the whole line (done tasks also get a struck-through title); items from other months are gray for
+/// the whole line
 fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
-    let theme = &app.theme;
-    let holiday = item.is_open(app.today) && is_holiday_item(item);
-    let color = if other_month {
-        theme.other_month
-    } else if holiday {
-        theme.weekend
-    } else if item.is_open(app.today) {
-        theme.text
-    } else {
-        theme.muted
-    };
-    let time_color = if other_month {
-        theme.other_month
-    } else if holiday {
-        theme.weekend
-    } else {
-        theme.muted
-    };
+    let (color, time_color) = item_colors(item, other_month, app);
     let mut spans = vec![Span::styled(" ", Style::new().fg(color))];
     if let Some(time) = item.time {
         spans.push(Span::styled(

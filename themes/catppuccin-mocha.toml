@@ -46,6 +46,10 @@ grid = "surface0"
 other_month = "overlay0"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_sapphire"
+# Priorities (!!! / !! / !): red, orange, yellow
+priority_high = "red"
+priority_medium = "peach"
+priority_low = "yellow"
 # Help page: same as v1
 help_section = "blue"
 help_key = "peach"

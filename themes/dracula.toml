@@ -40,5 +40,9 @@ grid = "current_line"
 other_month = "comment"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
+# Priorities (!!! / !! / !): red, orange, yellow
+priority_high = "red"
+priority_medium = "orange"
+priority_low = "yellow"
 help_section = "cyan"
 help_key = "orange"
