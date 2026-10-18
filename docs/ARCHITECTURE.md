@@ -16,7 +16,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
 | `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`[calendar]`、`[month]` 的開關，`App::settings`）；沒寫的用預設值，名字打錯算錯誤。設定頁關掉時存回去（`save`：toml_edit，只改有變的那幾行，註解留著） | |
-| `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動那一行，那一行在別處改過就回傳 `Changed` | |
+| `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除的那一塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
 | `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務（`Target`）；直接打那一行的文字（tui-input），`edit::check` 即時檢查，有問題就存不了（`App::editor`） | |
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |

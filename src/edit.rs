@@ -1,6 +1,6 @@
 //! 改任務檔的純 function：給檔案現在的內容，回傳改好的新內容（寫檔由呼叫的人用 `files::write_atomically`）
 //!
-//! 只動要改的那一行，其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
+//! 只動要改的地方（打勾、編輯、改期：那一行；刪除：那一塊；新增：插一行），其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
 //! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
 
 use crate::tasks::{self, Item, WarningKind};
@@ -119,7 +119,7 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
 
 /// 寫檔前後的行號對照（從 1 開始），畫面記著的行號（選到的那件、展開的子任務）跟著搬
 ///
-/// 每次寫檔只改連續的一段（打勾、編輯、新增、刪除都是）：前面沒動的行號不變、後面的跟著加減；
+/// 每次寫檔只改連續的一段（打勾、編輯、改期、新增、刪除、復原都是）：前面沒動的行號不變、後面的跟著加減；
 /// 改到的那一段：行數沒變（換掉一行）就照舊，變了（新增、刪除）就對不到（`None`）
 pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + use<> {
     let old: Vec<&str> = before.lines().collect();
@@ -136,12 +136,16 @@ pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + 
     let (old_len, new_len) = (old.len(), new.len());
     move |line| {
         if line <= prefix {
+            // 改到的那段前面：沒動
             Some(line)
         } else if line > old_len - suffix {
+            // 改到的那段後面：跟著多出來 / 少掉的行數加減
             (line + new_len).checked_sub(old_len)
         } else if old_len == new_len {
+            // 改到的那段裡面、行數沒變（換掉一行）：照舊
             Some(line)
         } else {
+            // 改到的那段裡面、行數變了：對不到
             None
         }
     }

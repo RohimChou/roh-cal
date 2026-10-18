@@ -41,24 +41,24 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | Item marker | Only `- ` starts an item (not `*` / `+`), so there is one way to write it |
 | Date token | `@` + a valid date or range, separated by whitespace. The **first** date token is used; it is removed from the displayed title. Convention: put it at the end of the line |
 | Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Rukis`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning: roh-cal says how many there are when it opens, and the tasks page (`4`) marks those lines in red and says what is wrong. So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
-| Items without a date | Unscheduled; not shown on the calendar (later: a list of their own) |
+| Items without a date | Unscheduled; not shown on the calendar, but listed on the tasks page (`4`) |
 | Children | Shown on the calendar only if they have their own date; otherwise they belong to the parent |
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
 | Encoding | UTF-8; LF or CRLF, preserved on write |
 | Block id | An Obsidian block id at the very end of an item (`^csfds-01`: `^` + letters, digits, `-`) is not part of the title; it stays in the file so links to the line keep working |
-| Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; v0 defines none, so URLs like `https://...` are just text |
+| Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; so far that is only `type:holiday` in a heading (rule 4b), so URLs like `https://...` are just text |
 
 ## Where it is stored
 Default `~/.local/share/roh-cal/tasks.md` (XDG data dir; `$XDG_DATA_HOME` respected). Point roh-cal at your own file — e.g. inside a notes vault or a git repo — with `--tasks <path>`.
 
 ## Writing
 
-roh-cal writes the file when you check an item off, delete, add or edit one. Every write follows these rules:
+roh-cal writes the file when you check an item off, reschedule, edit, add or delete one, and when you undo one of those. Every write follows these rules:
 
 | Topic | Rule |
 | :- | :- |
 | What it writes | Toggle a task `[ ]` ↔ `[x]` (events have no box and are never toggled). Delete an item together with the lines indented deeper below it (subtasks, notes, blank lines between them; not the blank lines after them). Add an item: the typed line goes after the last item (and its subtasks) of the chosen item's group; from the calendar, the group of the selected day's first item, or the end of the file when that day has none. A subtask goes right after its parent and the parent's subtasks, indented two spaces deeper. A missing file is created. Edit an item: the line becomes exactly what was typed in the one-line editor (its indentation kept); an edit that changes nothing leaves the line as it was. Reschedule an item: only its date token changes (the time stays; a multi-day range keeps its length; an unscheduled item gets ` @YYYY-MM-DD` at the end, before a trailing block id) |
-| Checked before saving | The editor shows, while typing, how the line will be read (task or event, date, title). It refuses to save a line that is not one item (`- ` first) or that has a mistake such as `@2026-13-01`, so nothing silently loses its date |
+| Checked before saving | The editor shows, while typing, how the line will be read (task or event, date, title). It refuses to save a line that is not one item (`- ` first), that has no title, or that has a mistake such as `@2026-13-01`, so nothing silently loses its date |
 | Identity | No IDs. roh-cal remembers each item's line number and original text; before writing it re-reads the file, and if that line changed it reloads instead of overwriting |
 | Only those lines | Only the changed line (or the deleted block) is touched; every other byte stays the same |
 | Safe write | Write to a temp file in the same folder, then rename, so a crash never leaves a half-written file |

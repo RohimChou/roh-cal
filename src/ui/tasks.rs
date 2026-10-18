@@ -192,24 +192,25 @@ fn render_item(
     if item.done {
         title = title.add_modifier(Modifier::CROSSED_OUT);
     }
-    // 子任務（任務才算）做完幾件 / 共幾件
-    let subtasks: Vec<&Item> = app
+    // 子任務（任務才算）：(做完幾件, 共幾件)
+    let (done, total) = app
         .items
         .iter()
         .filter(|other| other.parent == Some(index) && other.kind == Kind::Task)
-        .collect();
+        .fold((0, 0), |(done, total), subtask| {
+            (done + usize::from(subtask.done), total + 1)
+        });
     let mut left = vec![
         Span::styled(
             format!(" {}{marker} ", "  ".repeat(item.depth)),
             Style::new().fg(theme.muted),
         ),
         Span::styled(format!("{check} "), Style::new().fg(color)),
-        Span::styled(item.title.clone(), title),
+        Span::styled(item.title.as_str(), title),
     ];
-    if !subtasks.is_empty() {
-        let done = subtasks.iter().filter(|subtask| subtask.done).count();
+    if total > 0 {
         left.push(Span::styled(
-            format!("  {done}/{}", subtasks.len()),
+            format!("  {done}/{total}"),
             Style::new().fg(theme.muted),
         ));
     }

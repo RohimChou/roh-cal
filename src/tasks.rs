@@ -29,7 +29,7 @@ pub struct Item {
     pub kind: Kind,
     /// 任務完成了沒：`[x]` / `[X]` 是完成；`[ ]` 是還沒；行程一定是 `false`（行程不能打勾）
     pub done: bool,
-    /// 去掉 `- [ ] ` 和日期之後的文字，例：`實作退款 API`
+    /// 標題：去掉 `- [ ] `、日期（和時間）、行尾的 `^id` 之後的文字，連續的空白變成一個，例：`實作退款 API`
     pub title: String,
     /// 出現在月曆的哪一天；沒寫就是還沒排日期
     pub date: Option<Date>,
@@ -85,7 +85,7 @@ struct When {
 /// 分組標題，例：`# 付款 API 改版`、`# 國定假日 type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
-    /// 幾個 `#`；v0 不分層，但先記下來，之後做多層分組不用改檔案
+    /// 幾個 `#`：任務頁照這個縮排標題；分組還不分層，之後做多層分組不用改檔案
     pub level: usize,
     /// 標題文字（不含 `type:holiday`）
     pub name: String,

@@ -8,12 +8,20 @@ use ratatui::crossterm::event::KeyCode;
 /// 任務頁的一列
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TaskRow {
-    /// 日曆（分組）的標題：名字（`None` = 檔案開頭、還沒有標題的「未分組」）、幾個 `#`
-    Heading { name: Option<String>, level: usize },
-    /// 一件事：`App::items` 裡的位置、有沒有子任務、子任務有沒有展開
+    /// 日曆（分組）的標題
+    Heading {
+        /// 標題的名字；`None` = 檔案開頭、還沒有標題的「未分組」
+        name: Option<String>,
+        /// 幾個 `#`（縮排用）
+        level: usize,
+    },
+    /// 一件事
     Item {
+        /// `App::items` 裡的位置
         index: usize,
+        /// 有沒有子任務
         children: bool,
+        /// 子任務展開了沒（沒有子任務的一定是 `false`）
         expanded: bool,
     },
 }
@@ -261,6 +269,7 @@ mod tests {
             .collect()
     }
 
+    /// 任務頁的 test 用的檔案：沒分組的一件、「工作」有三層子任務、「生活」
     const TREE: &str = "- 沒分組\n# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n    - [ ] 查文獻\n  - [x] 列大綱\n- [ ] 整理書櫃\n# 生活\n- 爬山 @2026-10-18\n";
 
     #[test]
