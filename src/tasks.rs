@@ -84,16 +84,6 @@ impl Item {
         }
     }
 
-    /// How many days late an unfinished task is: from its last day to `today` (due yesterday = 1 day
-    /// late); `None` for a done task, an event, one without a date, or one not late
-    pub fn days_late(&self, today: Date) -> Option<i32> {
-        if self.kind != Kind::Task || self.done {
-            return None;
-        }
-        let days = self.last_day()?.until(today).ok()?.get_days();
-        (days > 0).then_some(days)
-    }
-
     /// The last day: the end day for a multi-day item, otherwise its one day; `None` without a date
     pub fn last_day(&self) -> Option<Date> {
         self.end.or(self.date)
@@ -518,33 +508,6 @@ mod tests {
         assert!(!one("- Farmers market @2026-10-10").is_open(today));
         // An event with no date: there is no day to compare, so it does not count
         assert!(!one("- Restaurants to try").is_open(today));
-    }
-
-    #[test]
-    fn days_late_counts_from_the_last_day_for_unfinished_tasks_only() {
-        let today = date(2026, 10, 17);
-        assert_eq!(
-            one("- [ ] Send the weekly update @2026-10-16").days_late(today),
-            Some(1)
-        );
-        assert_eq!(one("- [ ] Pay rent @2026-09-30").days_late(today), Some(17));
-        // A multi-day task counts from its last day; today and later are not late
-        assert_eq!(
-            one("- [ ] Training @2026-10-10..2026-10-14").days_late(today),
-            Some(3)
-        );
-        assert_eq!(
-            one("- [ ] Training @2026-10-10..2026-10-17").days_late(today),
-            None
-        );
-        assert_eq!(one("- [ ] Pack @2026-10-17").days_late(today), None);
-        // Done, an event, no date: never late
-        assert_eq!(
-            one("- [x] Send the weekly update @2026-10-16").days_late(today),
-            None
-        );
-        assert_eq!(one("- Farmers market @2026-10-10").days_late(today), None);
-        assert_eq!(one("- [ ] Organize the bookshelf").days_late(today), None);
     }
 
     #[test]

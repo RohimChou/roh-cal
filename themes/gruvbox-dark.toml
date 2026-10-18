@@ -44,7 +44,5 @@ range = "dim_blue"
 priority_high = "red"
 priority_medium = "orange"
 priority_low = "yellow"
-# Overdue tasks: how late, before the title (red, like !!!)
-overdue = "red"
 help_section = "blue"
 help_key = "orange"

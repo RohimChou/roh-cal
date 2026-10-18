@@ -670,14 +670,6 @@ impl Texts {
         }
     }
 
-    /// Before an unfinished task's title once its day is past: how late it is, e.g. `過期3天` / `3d late`
-    pub fn late(&self, days: i32) -> String {
-        match self.lang {
-            Lang::En => format!("{days}d late"),
-            Lang::ZhTw => format!("過期{days}天"),
-        }
-    }
-
     /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`,
     /// `任務 · 優先度高 · 沒有日期 · 「Pay the fine」`
     pub fn preview(&self, item: &Item) -> String {

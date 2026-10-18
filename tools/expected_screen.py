@@ -42,7 +42,7 @@ TEXTS = {
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
                hints=" hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
-               side=" Calendars", ungrouped="Ungrouped", hw=" Wk ", late=lambda n: f"{n}d late",
+               side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
@@ -50,7 +50,7 @@ TEXTS = {
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
                hints=" hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
-               side=" 日曆", ungrouped="未分組", hw=" 週 ", late=lambda n: f"過期{n}天",
+               side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
                date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）"),
@@ -159,20 +159,6 @@ def is_hidden(path, hidden):
     return any(path[:k] in hidden for k in range(1, len(path) + 1))
 
 
-TODAY = datetime.date(2026, 10, 17)
-# Line index → how many days late, for unfinished tasks (`- [ ]`) whose last day is before today; filled by
-# read_items, used by the agenda
-LATE = {}
-
-
-def days_late(open_task, first, last):
-    """How many days late an unfinished task is (its last day to today); None when not late"""
-    if not open_task or not first:
-        return None
-    days = (TODAY - (last or first)).days
-    return days if days > 0 else None
-
-
 def drop_priority(title):
     """The title without its priority: the first word that is exactly `!`, `!!` or `!!!` is not part of it"""
     words = title.split()
@@ -193,11 +179,7 @@ def read_items(text, hidden):
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
-            first = datetime.date.fromisoformat(m.group(2))
-            items.append((first, m.group(4), drop_priority(m.group(1)), i, end))
-            late = days_late(re.match(r"\s*- \[ \] ", line) is not None, first, end)
-            if late:
-                LATE[i] = late
+            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end))
     # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
@@ -300,9 +282,9 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     entries = agenda_entries(items)
 
     def item_text(e):
-        _, time, title, i, _ = e[2]
+        _, time, title, _, _ = e[2]
         d = range_text(e[2])
-        rest = (time + " " if time else "") + (t["late"](LATE[i]) + " " if i in LATE else "") + title
+        rest = (time + " " if time else "") + title
         if CHOSEN is not None and entries.index(e) == CHOSEN:
             s = " " * (5 - len(d)) + "[" + d + "]" + rest
         else:
@@ -780,8 +762,7 @@ def tasks_screen(lang, w, h, text, groups):
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
         check = ("[x]" if it["done"] else "[ ]") if it["task"] else " ∙ "
-        late = days_late(it["task"] and not it["done"], it["date"], it["end"])
-        left = " " + "  " * it["depth"] + marker + " " + check + " " + (t["late"](late) + " " if late else "") + it["title"]
+        left = " " + "  " * it["depth"] + marker + " " + check + " " + it["title"]
         subtasks = [c for c in children if c["task"]]
         if subtasks:
             left += f"  {sum(c['done'] for c in subtasks)}/{len(subtasks)}"

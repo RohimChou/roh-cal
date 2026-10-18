@@ -209,8 +209,7 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
 /// leaves that cell blank (without a date, both are empty)
 ///
 /// Colors: items that are over (done tasks, past events) are gray, done titles struck through; a line
-/// with a mistake has a red, underlined title; an unfinished task past its day has how late it is before
-/// the title (`overdue` color) (a `!!!` title is red too, but not underlined); an item with a priority not over yet has its title in that priority's
+/// with a mistake has a red, underlined title (a `!!!` title is red too, but not underlined); an item with a priority not over yet has its title in that priority's
 /// color; the date uses that day's calendar color;
 /// `▸`, the subtask count and the time are muted
 fn render_item(
@@ -263,15 +262,8 @@ fn render_item(
             Style::new().fg(theme.muted),
         ),
         Span::styled(format!("{check} "), Style::new().fg(color)),
+        Span::styled(item.title.as_str(), title),
     ];
-    // An unfinished task past its day: how late it is, before the title
-    if let Some(days) = item.days_late(app.today) {
-        left.push(Span::styled(
-            format!("{} ", app.lang.texts().late(days)),
-            Style::new().fg(theme.overdue),
-        ));
-    }
-    left.push(Span::styled(item.title.as_str(), title));
     if total > 0 {
         left.push(Span::styled(
             format!("  {done}/{total}"),
