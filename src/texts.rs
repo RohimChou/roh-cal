@@ -641,11 +641,11 @@ impl Texts {
         }
     }
 
-    /// The title on the editor's top border, e.g. ` 編輯第 6 行 ` / ` Edit line 6 `
-    pub fn edit_title(&self, line: usize) -> String {
+    /// The title on the editor's top border when editing an item: ` 編輯事項 ` / ` Edit item `
+    pub fn edit_title(&self) -> &'static str {
         match self.lang {
-            Lang::En => format!(" Edit line {line} "),
-            Lang::ZhTw => format!(" 編輯第 {line} 行 "),
+            Lang::En => " Edit item ",
+            Lang::ZhTw => " 編輯事項 ",
         }
     }
 

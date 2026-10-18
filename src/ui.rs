@@ -1422,7 +1422,7 @@ mod tests {
         let area = editor_area(Rect::new(0, 0, 70, 12));
         assert_eq!(area, Rect::new(2, 1, 66, 6));
         let rows = area_rows(terminal.backend().buffer(), area);
-        assert!(rows[0].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[0]);
+        assert!(rows[0].starts_with("╭ 編輯事項 ─"), "{}", rows[0]);
         assert!(rows[0].ends_with("─╮"));
         assert_eq!(rows[1].trim_end_matches([' ', '│']), "");
         assert_eq!(
