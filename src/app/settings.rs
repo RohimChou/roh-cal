@@ -1,10 +1,10 @@
-//! 設定頁（`,`）：設定檔的開關列成一張清單，蓋在畫面正中間；改了畫面馬上跟著變
+//! 設定頁（`,`）：設定檔的開關列成一張清單，蓋在畫面正中間；改了畫面馬上跟著變，關掉時存回設定檔
 //!
 //! `j` / `k` 選一列、`h` / `l`（`Space`、`Enter`）改那一列的值、`r` 還原那一列、`R` 全部還原（要再按 `y`）、
 //! `q` / `Esc` / `,` 或點框外關掉
 
-use super::App;
-use crate::config::Settings;
+use super::{App, Notice};
+use crate::config::{self, Settings};
 use crate::ui;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
@@ -112,7 +112,9 @@ impl App {
         }
         let row = ROWS[page.row.min(ROWS.len() - 1)];
         match key.code {
+            // 離開前一樣存回設定檔
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.close_settings();
                 self.should_quit = true;
             }
             KeyCode::Char('j') | KeyCode::Down => self.choose_setting(1),
@@ -163,9 +165,14 @@ impl App {
         }
     }
 
-    /// 關掉設定頁
+    /// 關掉設定頁，把開關存回設定檔（只改有變的那幾行；沒改東西就不寫）；存不了就在最下面一列說
     fn close_settings(&mut self) {
         self.settings_page = None;
+        if let Some(path) = &self.config_path
+            && let Err(error) = config::save(path, &self.settings)
+        {
+            self.notice = Some(Notice::SettingsFailed(error.kind()));
+        }
     }
 }
 
@@ -187,6 +194,52 @@ mod tests {
 
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
+    }
+
+    #[test]
+    fn closing_saves_only_what_changed_and_says_when_it_cannot() {
+        let dir = crate::files::test_dir("settings-save");
+        let path = dir.join("config-v2.toml");
+        // 打開看看、沒改就關掉：不建檔案
+        let mut app = app_with_settings();
+        app.config_path = Some(path.clone());
+        press(&mut app, KeyCode::Esc);
+        assert!(!path.exists());
+        // 改了 relative_weeks 再關掉：只寫那一行
+        press(&mut app, KeyCode::Char(','));
+        press(&mut app, KeyCode::Char('l'));
+        press(&mut app, KeyCode::Char('q'));
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "[calendar]\nrelative_weeks = true\n"
+        );
+        assert_eq!(app.notice, None);
+        // Ctrl+C 離開前也存
+        press(&mut app, KeyCode::Char(','));
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('l'));
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert!(app.should_quit);
+        assert!(
+            std::fs::read_to_string(&path)
+                .expect("read")
+                .contains("grid_lines = false")
+        );
+        // 設定檔在別處改壞了：不存，最下面一列說存不了，檔案原封不動
+        std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
+        let mut app = app_with_settings();
+        app.config_path = Some(path.clone());
+        press(&mut app, KeyCode::Char('l'));
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(
+            app.notice,
+            Some(Notice::SettingsFailed(std::io::ErrorKind::InvalidData))
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "[month]\ngrid_line = false\n"
+        );
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]

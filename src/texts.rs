@@ -436,6 +436,12 @@ impl Texts {
             (Lang::ZhTw, Notice::Undone(title)) => format!(" 已復原：{title}"),
             (Lang::En, Notice::NothingToUndo) => " Nothing to undo".into(),
             (Lang::ZhTw, Notice::NothingToUndo) => " 沒有可以復原的".into(),
+            (Lang::En, Notice::SettingsFailed(kind)) => {
+                format!(" Could not save the settings to the config file ({kind})")
+            }
+            (Lang::ZhTw, Notice::SettingsFailed(kind)) => {
+                format!(" 設定存不回設定檔（{kind}）")
+            }
         }
     }
 

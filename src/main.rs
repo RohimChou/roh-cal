@@ -42,8 +42,9 @@ fn main() -> Result<()> {
         None => Parsed::default(),
     };
     // 設定檔：不存在就全部用預設值；寫錯了就在這裡印出哪一行錯（還沒進 TUI）
-    let settings = match paths::config_file() {
-        Some(path) => config::load(&path)?,
+    let config_path = paths::config_file();
+    let settings = match &config_path {
+        Some(path) => config::load(path)?,
         None => config::Settings::default(),
     };
     // 今天：系統時區的日期
@@ -54,6 +55,8 @@ fn main() -> Result<()> {
         let _mouse = MouseCapture::enable()?;
         let mut app = App::new(lang, today, parsed.items);
         app.settings = settings;
+        // 設定頁改過的開關存回同一個檔案（還不存在的話，有改東西才會建立）
+        app.config_path = config_path;
         // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
         app.tasks_path = path;
         // 任務檔有寫錯的地方：一打開就在最下面一列說（任務頁看得到是哪幾行）

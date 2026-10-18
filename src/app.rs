@@ -137,6 +137,8 @@ pub struct App {
     pub theme: Theme,
     /// 設定檔裡的開關（格線、相對週數…）
     pub settings: Settings,
+    /// 設定檔的位置（設定頁關掉時存回去）；`None` = 不存（test、找不到放設定檔的地方）
+    pub config_path: Option<PathBuf>,
     /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
     pub screen: Rect,
     /// 任務檔的位置（打勾、編輯要寫回去）；`None` = 沒有任務檔（test），不寫
@@ -185,6 +187,7 @@ impl App {
             month_top: None,
             theme: Theme::catppuccin_mocha(),
             settings: Settings::default(),
+            config_path: None,
             screen: Rect::default(),
             tasks_path: None,
             notice: None,

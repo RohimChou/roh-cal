@@ -26,6 +26,8 @@ pub enum Notice {
     Undone(String),
     /// 沒有可以 undo 的（還沒寫過檔，或已經退到底）
     NothingToUndo,
+    /// 設定頁改的開關存不回設定檔（例：沒有權限、設定檔在別處改壞了）
+    SettingsFailed(ErrorKind),
 }
 
 /// 一次寫檔的紀錄（undo 用）：寫之前、寫之後的整個檔案，和改到的那件事的標題（提示用）
