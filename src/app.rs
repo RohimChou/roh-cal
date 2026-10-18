@@ -8,7 +8,7 @@ mod settings;
 mod tasks;
 mod write;
 
-pub use editor::{Editor, Target};
+pub use editor::{Editor, Reading, Target};
 pub use help::Help;
 pub use moving::Moving;
 pub use settings::{Row, SettingsPage, rows};
@@ -601,12 +601,13 @@ impl App {
     }
 
     /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
-    /// unchecked calendar's items are hidden)
+    /// unchecked calendar's items are hidden), `a` adds a calendar
     fn handle_side_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
+            KeyCode::Char('a') => self.start_adding_calendar(),
             _ => {}
         }
     }

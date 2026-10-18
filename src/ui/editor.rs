@@ -1,6 +1,6 @@
 //! One-line editor: drawn at the bottom (above the key hints), as wide as the whole terminal
 
-use crate::app::{App, Editor, Target};
+use crate::app::{App, Editor, Reading, Target};
 use crate::edit::Place;
 use ratatui::{
     Frame,
@@ -25,7 +25,8 @@ pub fn area(screen: Rect) -> Rect {
     )
 }
 
-/// Draws the editor: the top border shows which line is being edited (or 「新增」); row 1 is the typed text
+/// Draws the editor: the top border shows which line is being edited (or 「新增」, 「新增日曆」); row 1 is the
+/// typed text
 /// (cursor at the typing position); row 2 shows live what the line will be read as (red text when something
 /// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
@@ -41,6 +42,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
                 Target::Add(place) => texts
                     .add_title(matches!(place, Place::ChildOf(_)))
                     .to_string(),
+                Target::AddCalendar { .. } => texts.add_calendar_title.to_string(),
             },
             Style::new().fg(theme.label),
         ))
@@ -78,7 +80,13 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     // Check result: what it reads as (muted), or what is wrong (red)
     if inner.height > 1 {
         let check = match editor.check() {
-            Ok(item) => Line::styled(texts.preview(&item), Style::new().fg(theme.muted)),
+            Ok(Reading::Item(item)) => {
+                Line::styled(texts.preview(&item), Style::new().fg(theme.muted))
+            }
+            Ok(Reading::Calendar(heading)) => Line::styled(
+                texts.calendar_preview(&heading),
+                Style::new().fg(theme.muted),
+            ),
             Err(problem) => Line::styled(texts.problem(&problem), Style::new().fg(theme.error)),
         };
         frame.render_widget(

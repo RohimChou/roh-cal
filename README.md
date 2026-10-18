@@ -139,6 +139,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
 | `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden |
+| `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another calendar already has cannot be saved |
 
 **Mouse**
 

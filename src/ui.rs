@@ -240,9 +240,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     } else {
-        // The tasks page has its own key hints; while layout 3's popup is open, show the popup's keys
+        // The tasks page has its own key hints; while layout 3's popup or the calendar list has the keyboard,
+        // show its keys
         let hint_text = match app.view {
             _ if app.focus == Focus::Day => texts.hints_day,
+            _ if app.focus == Focus::Side => texts.hints_side,
             View::Tasks => texts.hints_tasks,
             View::Planner | View::Month => texts.hints,
         };
@@ -731,13 +733,21 @@ mod tests {
         );
         assert_eq!(buffer[(21, 13 - 1)].symbol(), "╯");
         assert_eq!(buffer[(22, 0)].symbol(), "─");
-        // The key hints have s even when narrow (60 cells wide, the end is cut off)
-        assert!(text_rows(buffer)[13].starts_with(" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆"));
-        // Keyboard not in the side menu: not drawn
+        // Keyboard in the side menu: the key hints are the calendar list's
+        assert_eq!(
+            text_rows(buffer)[13].trim_end(),
+            " jk 移動  Space 勾選  a 新增日曆  Esc 回去"
+        );
+        // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
+        // the end is cut off)
         app.focus = Focus::Calendar;
         let terminal = draw_app(&mut app, 60, 14);
         assert_eq!(terminal.backend().buffer()[(0, 3)].symbol(), "│");
         assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "W");
+        assert!(
+            text_rows(terminal.backend().buffer())[13]
+                .starts_with(" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆")
+        );
     }
 
     #[test]

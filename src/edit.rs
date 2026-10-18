@@ -7,7 +7,7 @@
 //! Every change checks first: if the line is not what was read (e.g. it was just edited in Obsidian),
 //! nothing is changed and `Changed` is returned
 
-use crate::tasks::{self, Item, WarningKind};
+use crate::tasks::{self, Heading, Item, WarningKind};
 use jiff::{ToSpan, civil::Date};
 
 /// The line differs from when it was read (edited elsewhere, a line added above, the file got shorter),
@@ -24,6 +24,10 @@ pub enum Problem {
     Mistake(WarningKind),
     /// The title is empty (e.g. only `- [ ] @2026-10-17` was typed)
     EmptyTitle,
+    /// A calendar's name is empty
+    EmptyName,
+    /// Another calendar already has this name (headings with the same name count as one calendar)
+    NameTaken,
 }
 
 /// Where in the file the added line goes
@@ -60,6 +64,51 @@ pub fn check(line: &str) -> Result<Item, Problem> {
         return Err(Problem::EmptyTitle);
     }
     Ok(item)
+}
+
+/// What the text typed as a calendar's name reads as: the heading it becomes (with `type:holiday` in it:
+/// a holiday calendar); empty → `EmptyName`; a name in `taken` (the calendars there already are) →
+/// `NameTaken`
+///
+/// E.g. `Side projects` → `# Side projects`; `US holidays type:holiday` → a holiday calendar named
+/// `US holidays`
+pub fn check_calendar(text: &str, taken: &[String]) -> Result<Heading, Problem> {
+    let heading = tasks::parse(&format!("# {}", text.trim()))
+        .headings
+        .into_iter()
+        .next()
+        .map(|line| line.heading)
+        .ok_or(Problem::EmptyName)?;
+    if heading.name.is_empty() {
+        return Err(Problem::EmptyName);
+    }
+    if taken.contains(&heading.name) {
+        return Err(Problem::NameTaken);
+    }
+    Ok(heading)
+}
+
+/// Add a calendar: the heading `# <name>` (`name` = what was typed in the editor, checked with
+/// `check_calendar` first) as the file's last line, after a blank line (no blank line in an empty file or
+/// after one that is already there); return the new file content and the heading's line number (from 1)
+///
+/// Line endings follow the file's own (`\n` or `\r\n`); if the last line has no newline, one is added first
+pub fn add_calendar(text: &str, name: &str) -> (String, usize) {
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut result = text.to_string();
+    if !result.is_empty() && !result.ends_with('\n') {
+        result.push_str(newline);
+    }
+    if result
+        .lines()
+        .last()
+        .is_some_and(|line| !line.trim().is_empty())
+    {
+        result.push_str(newline);
+    }
+    result.push_str(&format!("# {}{newline}", name.trim()));
+    let line = result.lines().count();
+    (result, line)
 }
 
 /// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
@@ -502,6 +551,56 @@ mod tests {
     /// The item at `index` in `text`
     fn item(text: &str, index: usize) -> Item {
         parse(text).items[index].clone()
+    }
+
+    #[test]
+    fn a_calendar_name_reads_as_a_heading() {
+        let taken = ["Work".to_string()];
+        let read = |text: &str| {
+            check_calendar(text, &taken)
+                .map(|heading| (heading.name, heading.level, heading.holiday))
+        };
+        assert_eq!(
+            read("  Side projects "),
+            Ok(("Side projects".into(), 1, false))
+        );
+        // type:holiday makes a holiday calendar and is not part of the name
+        assert_eq!(
+            read("US holidays type:holiday"),
+            Ok(("US holidays".into(), 1, true))
+        );
+        // Nothing typed, only spaces, only type:holiday: no name
+        for text in ["", "   ", "type:holiday"] {
+            assert_eq!(read(text), Err(Problem::EmptyName), "{text:?}");
+        }
+        // A calendar called Work is already there (also with extra spaces or type:holiday)
+        for text in ["Work", " Work ", "Work type:holiday"] {
+            assert_eq!(read(text), Err(Problem::NameTaken), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn a_new_calendar_goes_last_after_a_blank_line() {
+        // Empty file: just the heading
+        assert_eq!(
+            add_calendar("", "Side projects"),
+            ("# Side projects\n".into(), 1)
+        );
+        // After the last line, with a blank line between; the last line gets its missing newline first
+        for text in ["- a\n", "- a"] {
+            assert_eq!(
+                add_calendar(text, " Side projects "),
+                ("- a\n\n# Side projects\n".into(), 3),
+                "{text:?}"
+            );
+        }
+        // Already ends with a blank line: no second one
+        assert_eq!(add_calendar("- a\n\n", "B"), ("- a\n\n# B\n".into(), 3));
+        // \r\n files stay \r\n
+        assert_eq!(
+            add_calendar("# A\r\n- a\r\n", "B"),
+            ("# A\r\n- a\r\n\r\n# B\r\n".into(), 4)
+        );
     }
 
     #[test]

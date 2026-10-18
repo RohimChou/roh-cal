@@ -2,7 +2,7 @@
 
 use crate::app::{Notice, Row};
 use crate::edit::Problem;
-use crate::tasks::{Item, Kind, WarningKind};
+use crate::tasks::{Heading, Item, Kind, WarningKind};
 use jiff::civil::Date;
 
 /// Supported languages
@@ -70,6 +70,10 @@ pub struct Texts {
     pub hints_tasks: &'static str,
     /// The key hints on the bottom row while layout 3's day popup is open
     pub hints_day: &'static str,
+    /// The key hints on the bottom row while the keyboard is in the side menu (calendar list)
+    pub hints_side: &'static str,
+    /// The title on the editor's top border when adding a calendar
+    pub add_calendar_title: &'static str,
     /// Side menu: items at the top of the file, before any heading
     pub ungrouped: &'static str,
     /// The short version of the help page (`?`): the most used keys
@@ -119,6 +123,8 @@ const EN: Texts = Texts {
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
+    hints_side: " jk move  Space show / hide  a add calendar  Esc back",
+    add_calendar_title: " New calendar ",
     ungrouped: "Ungrouped",
     help_short: HelpPage {
         title: "keys",
@@ -236,7 +242,11 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "Calendar list",
-                keys: &[("j / k", "choose"), ("Space / Enter", "check / uncheck")],
+                keys: &[
+                    ("j / k", "choose"),
+                    ("Space / Enter", "check / uncheck"),
+                    ("a", "add a calendar"),
+                ],
             },
             HelpSection {
                 title: "Settings",
@@ -264,6 +274,8 @@ const ZH_TW: Texts = Texts {
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
+    hints_side: " jk 移動  Space 勾選  a 新增日曆  Esc 回去",
+    add_calendar_title: " 新增日曆 ",
     ungrouped: "未分組",
     help_short: HelpPage {
         title: "按鍵",
@@ -381,7 +393,11 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "日曆清單",
-                keys: &[("j / k", "選日曆"), ("Space / Enter", "勾選 / 取消")],
+                keys: &[
+                    ("j / k", "選日曆"),
+                    ("Space / Enter", "勾選 / 取消"),
+                    ("a", "新增日曆"),
+                ],
             },
             HelpSection {
                 title: "設定頁",
@@ -548,6 +564,16 @@ impl Texts {
         }
     }
 
+    /// What the name typed for a calendar reads as, e.g. ` 日曆「Side projects」`, ` 假日日曆「US holidays」`
+    pub fn calendar_preview(&self, heading: &Heading) -> String {
+        match (self.lang, heading.holiday) {
+            (Lang::En, false) => format!(" Calendar \"{}\"", heading.name),
+            (Lang::En, true) => format!(" Holiday calendar \"{}\"", heading.name),
+            (Lang::ZhTw, false) => format!(" 日曆「{}」", heading.name),
+            (Lang::ZhTw, true) => format!(" 假日日曆「{}」", heading.name),
+        }
+    }
+
     /// What is wrong with the line typed in the editor (it cannot be saved), e.g. `@2026-13-01：沒有這一天`
     pub fn problem(&self, problem: &Problem) -> String {
         match (self.lang, problem) {
@@ -559,6 +585,10 @@ impl Texts {
             }
             (Lang::En, Problem::EmptyTitle) => " The title is empty".into(),
             (Lang::ZhTw, Problem::EmptyTitle) => " 標題是空的".into(),
+            (Lang::En, Problem::EmptyName) => " The name is empty".into(),
+            (Lang::ZhTw, Problem::EmptyName) => " 名字是空的".into(),
+            (Lang::En, Problem::NameTaken) => " There is already a calendar with this name".into(),
+            (Lang::ZhTw, Problem::NameTaken) => " 已經有這個名字的日曆了".into(),
             (_, Problem::Mistake(kind)) => format!(" {}", self.mistake(kind)),
         }
     }

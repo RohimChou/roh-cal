@@ -7,10 +7,11 @@
 //!   first item, or at the end of the file if that day has none), with the selected day filled in
 //!   (not on the tasks page)
 //! - `A`: add a subtask to the chosen item
+//! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading)
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
-use crate::tasks::Item;
+use crate::tasks::{Heading, Item};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui_input::{Input, backend::crossterm::to_input_request};
 
@@ -30,12 +31,28 @@ pub enum Target {
     Edit(Item),
     /// Add a new item, placed here
     Add(Place),
+    /// Add a calendar; `taken` = the names the calendars already have (as the editor opened)
+    AddCalendar { taken: Vec<String> },
+}
+
+/// What the text typed so far reads as
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reading {
+    /// An item (editing or adding an item)
+    Item(Item),
+    /// A calendar's heading (adding a calendar)
+    Calendar(Heading),
 }
 
 impl Editor {
-    /// How the line typed so far reads (shown live on screen; if there is a problem it cannot be saved)
-    pub fn check(&self) -> Result<Item, edit::Problem> {
-        edit::check(self.input.value())
+    /// How the text typed so far reads (shown live on screen; if there is a problem it cannot be saved)
+    pub fn check(&self) -> Result<Reading, edit::Problem> {
+        match &self.target {
+            Target::AddCalendar { taken } => {
+                edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
+            }
+            Target::Edit(_) | Target::Add(_) => edit::check(self.input.value()).map(Reading::Item),
+        }
     }
 }
 
@@ -93,6 +110,19 @@ impl App {
         });
     }
 
+    /// `a` in the calendar list: opens an empty editor for the new calendar's name
+    pub(super) fn start_adding_calendar(&mut self) {
+        let taken = self
+            .groups
+            .iter()
+            .filter_map(|group| group.name.clone())
+            .collect();
+        self.mode = Mode::Editor(Editor {
+            input: Input::default(),
+            target: Target::AddCalendar { taken },
+        });
+    }
+
     /// Keys while the editor is open: `Enter` saves, `Esc` cancels, `Ctrl+C` quits;
     /// every other key is typing (cursor movement and deleting: see tui-input)
     pub(super) fn handle_editor_key(&mut self, key: KeyEvent) {
@@ -123,14 +153,17 @@ impl App {
         let Some(editor) = self.editor() else {
             return;
         };
-        // Save only if it can be saved; `checked` = the item this typed line reads as
-        let Ok(checked) = editor.check() else {
+        // Save only if it can be saved; `reading` = what the typed text reads as
+        let Ok(reading) = editor.check() else {
             return;
         };
         let new = editor.input.value().trim().to_string();
         let target = editor.target.clone();
-        match target {
-            Target::Edit(item) => {
+        match (target, reading) {
+            (Target::AddCalendar { .. }, Reading::Calendar(heading)) => {
+                self.save_new_calendar(&new, &heading.name);
+            }
+            (Target::Edit(item), _) => {
                 if new != item.line_text.trim() {
                     let Some((path, text)) = self.read_tasks() else {
                         return;
@@ -154,7 +187,7 @@ impl App {
                 self.mode = Mode::Normal;
                 self.choose_line(item.line);
             }
-            Target::Add(place) => {
+            (Target::Add(place), Reading::Item(checked)) => {
                 let Some((path, text)) = self.read_tasks_for_adding() else {
                     return;
                 };
@@ -186,6 +219,29 @@ impl App {
                     }
                 }
             }
+            // `check` reads the typed text as the kind the target asks for, so the others do not happen
+            _ => {}
+        }
+    }
+
+    /// Saves a new calendar: `# <new>` at the end of the task file; the calendar list chooses it (the
+    /// keyboard stays there). If the task file cannot be read or written, the editor stays open and the
+    /// bottom row says why
+    fn save_new_calendar(&mut self, new: &str, name: &str) {
+        let Some((path, text)) = self.read_tasks_for_adding() else {
+            return;
+        };
+        let (after, _) = edit::add_calendar(&text, new);
+        if !self.write_tasks(&path, text, after, name.to_string()) {
+            return;
+        }
+        self.mode = Mode::Normal;
+        if let Some(index) = self
+            .groups
+            .iter()
+            .position(|group| group.name.as_deref() == Some(name))
+        {
+            self.group_index = index;
         }
     }
 }
@@ -202,6 +258,46 @@ mod tests {
         for c in text.chars() {
             press(app, KeyCode::Char(c));
         }
+    }
+
+    #[test]
+    fn a_in_the_calendar_list_adds_a_calendar_at_the_end() {
+        let text = "# Work\n- [ ] Review PRs @2026-10-10\n";
+        let (mut app, path) = app_with_task_file("new-calendar", text);
+        app.focus = Focus::Side;
+        press(&mut app, KeyCode::Char('a'));
+        // A name some calendar already has cannot be saved: the editor stays open
+        type_text(&mut app, "Work");
+        assert_eq!(
+            app.editor().map(Editor::check),
+            Some(Err(edit::Problem::NameTaken))
+        );
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_some());
+        // A new name: written last, after a blank line; the calendar list shows it, chosen
+        for _ in 0..4 {
+            press(&mut app, KeyCode::Backspace);
+        }
+        type_text(&mut app, "Side projects");
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_none());
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "# Work\n- [ ] Review PRs @2026-10-10\n\n# Side projects\n"
+        );
+        let names: Vec<Option<&str>> = app
+            .groups
+            .iter()
+            .map(|group| group.name.as_deref())
+            .collect();
+        assert_eq!(names, [Some("Work"), Some("Side projects")]);
+        assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+        // u takes it back out
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        assert_eq!(app.groups.len(), 1);
+        assert_eq!(app.notice, Some(Notice::Undone("Side projects".into())));
+        clean_up(&path);
     }
 
     #[test]
