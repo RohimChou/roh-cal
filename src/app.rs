@@ -313,7 +313,8 @@ pub struct App {
     pub tasks_line: Option<usize>,
     /// Items on the tasks page with their subtasks expanded (file line numbers)
     pub expanded: BTreeSet<usize>,
-    /// Tasks page scroll: which row is at the top of the screen (index in `tasks_rows()`)
+    /// Tasks page scroll: which line is at the top of the screen (counting every row's lines: a long title
+    /// wraps onto more than one line)
     pub tasks_top: usize,
     /// `true` = leave the main loop after this round
     should_quit: bool,

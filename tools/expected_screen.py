@@ -701,6 +701,41 @@ def read_tree(text):
     return items, mistakes
 
 
+def wrap(text, n):
+    """Lines of at most n cells (at least one character each): a line breaks at spaces (which are dropped), before
+    or after a wide character, and inside a word only when that word alone is wider than a line (it then starts
+    on a new line); a continuation line does not start with spaces"""
+    n = max(n, 1)
+    # Tokens: runs of spaces, single wide characters, runs of other characters (a word)
+    tokens = re.findall(r" +|[^ ]", text)
+    merged = []
+    for tok in tokens:
+        if merged and tok != " " * len(tok) and width(tok) == 1 and merged[-1][-1] != " " and width(merged[-1][-1]) == 1:
+            merged[-1] += tok
+        else:
+            merged.append(tok)
+    lines = [""]
+    for tok in merged:
+        if tok.startswith(" "):
+            if width(lines[-1] + tok) <= n:
+                if lines[-1] or len(lines) == 1:
+                    lines[-1] += tok
+            else:
+                lines.append("")
+            continue
+        if width(lines[-1] + tok) <= n:
+            lines[-1] += tok
+            continue
+        if lines[-1].strip():
+            lines[-1] = lines[-1].rstrip(" ")
+            lines.append("")
+        for c in tok:
+            if lines[-1] and width(lines[-1] + c) > n:
+                lines.append("")
+            lines[-1] += c
+    return [line.rstrip(" ") for line in lines]
+
+
 def tasks_screen(lang, w, h, text, groups):
     """Tasks page: side menu (only when wide enough) + tasks box (header, each row of the tree, and at the
     bottom the original text of the chosen line)"""
@@ -735,14 +770,6 @@ def tasks_screen(lang, w, h, text, groups):
     item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
     chosen_line = int(os.environ["CHOSEN_LINE"]) if "CHOSEN_LINE" in os.environ else None
     cursor = next((r for r in item_rows if items[rows[r][1]]["line"] == chosen_line), item_rows[0] if item_rows else None)
-    # Scrolling: start from the top; keep at least 2 rows between the chosen item and the top or bottom
-    # edge; do not scroll past the end
-    top = 0
-    if cursor is not None:
-        margin = min(2, (body_h - 1) // 2)
-        if cursor >= top + body_h - margin:
-            top = cursor + margin + 1 - body_h
-        top = max(0, min(top, len(rows) - body_h))
 
     def date_label(it):
         # Text of the date column on the right; dates not in 2026 get the year in front
@@ -757,29 +784,49 @@ def tasks_screen(lang, w, h, text, groups):
     date_w = max((width(date_label(it)) for it in listed), default=0)
     time_w = 6 if any(it["time"] for it in listed) else 0
 
-    def item_line(k):
+    def item_lines(k):
+        # An item's lines: the prefix and the title (with the subtask count) wrapped in the room left of the
+        # date and time columns; the date and time only on the first line
         it = items[k]
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
         check = ("[x]" if it["done"] else "[ ]") if it["task"] else " ∙ "
-        left = " " + "  " * it["depth"] + marker + " " + check + " " + it["title"]
+        prefix = " " + "  " * it["depth"] + marker + " " + check + " "
+        text = it["title"]
         subtasks = [c for c in children if c["task"]]
         if subtasks:
-            left += f"  {sum(c['done'] for c in subtasks)}/{len(subtasks)}"
+            text += f"  {sum(c['done'] for c in subtasks)}/{len(subtasks)}"
         right = ""
         if it["date"]:
             time = " " + it["time"] if it["time"] else ""
             right = rjust(date_label(it), date_w) + ljust(time, time_w) + " "
-        left = cut(left, iw - width(right) - 1)
-        return left + " " * (iw - width(left) - width(right)) + right
+        parts = wrap(text, iw - width(right) - 1 - width(prefix))
+        first = prefix + parts[0]
+        out = [first + " " * (iw - width(first) - width(right)) + right]
+        out += [ljust(" " * width(prefix) + part, iw) for part in parts[1:]]
+        return out
 
-    body = []
-    for row in rows[top:top + body_h]:
+    # Every row's lines; the chosen item's lines stay on screen with up to 2 lines above and below (fewer when
+    # the item is tall), scrolling down only as far as needed and never past the end
+    row_lines = []
+    for row in rows:
         if row[0] == "heading":
             name, level = row[1] if row[1] else (None, 1)
-            body.append(ljust(cut(" " + "  " * (level - 1) + (t["ungrouped"] if name is None else name), iw), iw))
+            row_lines.append([ljust(cut(" " + "  " * (level - 1) + (t["ungrouped"] if name is None else name), iw), iw)])
         else:
-            body.append(item_line(row[1]))
+            row_lines.append(item_lines(row[1]))
+    all_lines = [line for lines in row_lines for line in lines]
+    top = 0
+    if cursor is not None:
+        first = sum(len(lines) for lines in row_lines[:cursor])
+        last = first + len(row_lines[cursor]) - 1
+        margin = max(0, min(2, (body_h - (last - first + 1)) // 2))
+        if last + margin >= top + body_h:
+            top = last + margin + 1 - body_h
+        if first - margin < top:
+            top = first - margin
+        top = max(0, min(top, len(all_lines) - body_h))
+    body = all_lines[top:top + body_h]
     body += [" " * iw] * (body_h - len(body))
     detail = ""
     if cursor is not None:

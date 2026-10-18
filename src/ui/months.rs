@@ -341,7 +341,7 @@ pub fn scrolled_top(top: i64, selected: i64, height: i64, margin: i64) -> i64 {
 /// The top row after scrolling: make rows `first` to `last` visible, with up to `margin` rows above
 /// and below (the margin shrinks if it does not fit with them);
 /// if they still do not fit, favor `first`
-fn scrolled_to_range(top: i64, first: i64, last: i64, height: i64, margin: i64) -> i64 {
+pub(super) fn scrolled_to_range(top: i64, first: i64, last: i64, height: i64, margin: i64) -> i64 {
     let margin = margin.min((height - (last - first + 1)) / 2).max(0);
     scrolled_top(
         scrolled_top(top, last, height, margin),

@@ -2608,7 +2608,8 @@ mod tests {
                 "│   [x] Fix the staging DB migration                      10/8       │",
                 "│    ∙  Code freeze                                      10/23       │",
                 "│   [ ] Prepare the release checklist @2026-10-23        10/22       │",
-                "│   [ ] Write the runbook, see https://wiki.example.com/payments/run │",
+                "│   [ ] Write the runbook, see                                       │",
+                "│       https://wiki.example.com/payments/runbook                    │",
                 "│    ∙  Release v2.3                                     10/27 09:30 │",
                 "│ Recurring                                                          │",
                 "│    ∙  Team sync                                        10/12 10:00 │",
@@ -2620,7 +2621,6 @@ mod tests {
                 "│    ∙  Team happy hour                                  10/16 18:30 │",
                 "│    ∙  Requirements meeting with PM                      10/8 14:00 │",
                 "│    ∙  Engineering all-hands                             10/8 16:00 │",
-                "│    ∙  Team offsite                                     10/29       │",
                 "│────────────────────────────────────────────────────────────────────│",
                 "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
                 "╰────────────────────────────────────────────────────────────────────╯",
@@ -2671,7 +2671,11 @@ mod tests {
         app.screen = Rect::new(0, 0, 40, 14);
         let terminal = draw_app(&mut app, 40, 14);
         let rows = text_rows(terminal.backend().buffer());
-        assert_eq!(rows[7], "│ ▸  ∙  Trip to Tokyo  0/1    2027/1/2 │");
+        // At 40 wide 「Send the weekly update」 does not fit before its date: 「update」 wraps onto the next line,
+        // under the title; the rows below move down one line (expected rows from tools/expected_screen.py)
+        assert_eq!(rows[4], "│   [ ] Send the weekly          10/16 │");
+        assert_eq!(rows[5], "│       update                         │");
+        assert_eq!(rows[8], "│ ▸  ∙  Trip to Tokyo  0/1    2027/1/2 │");
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         let cell = |x: u16, y: u16| {
@@ -2685,19 +2689,21 @@ mod tests {
         // Heading: Work (label color, bold)
         assert_eq!(buffer[(2, 3)].fg, theme.label);
         assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
-        // Send the weekly update (y 4): not done → normal text, date (x 33-37) in its day's color (normal);
-        // the chosen row gets the highlight across the whole row
+        // Send the weekly update (y 4-5): not done → normal text, also on the wrapped line; date (x 33-37) in
+        // its day's color (normal); the chosen item gets the highlight across both of its lines
         assert_eq!(cell(8, 4), ("S", theme.text, false));
+        assert_eq!(cell(8, 5), ("u", theme.text, false));
         assert_eq!(cell(34, 4), ("0", theme.text, false));
         assert_eq!(buffer[(1, 4)].bg, theme.selection);
-        assert_eq!(buffer[(1, 5)].bg, Color::Reset);
-        // Fix the login bug (y 5): done → gray, struck through; Hackathon (y 6): past event → gray, not
+        assert_eq!(buffer[(37, 5)].bg, theme.selection);
+        assert_eq!(buffer[(1, 6)].bg, Color::Reset);
+        // Fix the login bug (y 6): done → gray, struck through; Hackathon (y 7): past event → gray, not
         // struck through
-        assert_eq!(cell(8, 5), ("F", theme.muted, true));
-        assert_eq!(cell(8, 6), ("H", theme.muted, false));
+        assert_eq!(cell(8, 6), ("F", theme.muted, true));
+        assert_eq!(cell(8, 7), ("H", theme.muted, false));
         // ▸ is muted
-        assert_eq!(cell(2, 7), ("▸", theme.muted, false));
-        // Click the Trip to Tokyo row (y 7): it gets chosen; click ▸ (x 2): it expands
+        assert_eq!(cell(2, 8), ("▸", theme.muted, false));
+        // Click the Trip to Tokyo row (y 8): it gets chosen; click ▸ (x 2): it expands
         let click = |app: &mut App, column, row| {
             use ratatui::crossterm::event::{
                 KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -2709,19 +2715,53 @@ mod tests {
                 modifiers: KeyModifiers::NONE,
             });
         };
-        click(&mut app, 10, 7);
+        click(&mut app, 10, 8);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("Trip to Tokyo")
         );
         assert!(app.expanded.is_empty());
-        click(&mut app, 2, 7);
+        click(&mut app, 2, 8);
         assert!(app.expanded.contains(&5));
         // Clicking a heading row: ignored
         click(&mut app, 5, 3);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("Trip to Tokyo")
+        );
+        // Clicking the wrapped line of an item (y 5): that item
+        click(&mut app, 20, 5);
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("Send the weekly update")
+        );
+    }
+
+    #[test]
+    fn a_wrapped_item_is_kept_on_screen_whole() {
+        // 40 × 14 (7 lines for the list): the last item takes 4 lines; choosing it scrolls so all 4 show,
+        // not only its first line and the margin below it (expected rows from tools/expected_screen.py)
+        let text = "# Work\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n- [ ] one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen\n";
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        app.view = View::Tasks;
+        app.focus = Focus::Tasks;
+        app.tasks_line = Some(7);
+        let terminal = draw_app(&mut app, 40, 14);
+        assert_eq!(
+            text_rows(terminal.backend().buffer())[3..10],
+            [
+                "│   [ ] c                              │",
+                "│   [ ] d                              │",
+                "│   [ ] e                              │",
+                "│   [ ] one two three four five six    │",
+                "│       seven eight nine ten eleven    │",
+                "│       twelve thirteen fourteen       │",
+                "│       fifteen sixteen                │",
+            ]
         );
     }
 

@@ -1,9 +1,10 @@
 //! Tasks page (`3`): the whole area right of the side menu, listing the entire task file by calendar, with
-//! subtasks as a tree; the bottom row shows the chosen line's original text
+//! subtasks as a tree (a title too long for the row wraps onto the next lines); the bottom row shows the
+//! chosen line's original text
 
 use super::{
     Click,
-    months::scrolled_top,
+    months::scrolled_to_range,
     planner::{date_text, day_color},
 };
 use crate::{
@@ -57,22 +58,79 @@ fn inner_areas(area: Rect) -> [Rect; 5] {
     ]
 }
 
-/// Draws the tasks page: first scroll so the chosen item is visible (stored in `app.tasks_top`), then
-/// draw row by row
+/// One row of the tasks page laid out at the page's width (see `layout_rows`)
+enum RowLines {
+    /// A calendar's heading: one line
+    Heading,
+    /// An item: its left part line by line (the title wrapped), and its right part (date and time columns)
+    /// for the first line
+    Item {
+        left: Vec<Line<'static>>,
+        right: Line<'static>,
+    },
+}
+
+impl RowLines {
+    /// How many lines it takes
+    fn height(&self) -> usize {
+        match self {
+            Self::Heading => 1,
+            Self::Item { left, .. } => left.len().max(1),
+        }
+    }
+}
+
+/// Every row of `rows` laid out at `width` cells, and the line each one starts on (counting from the first
+/// row's first line)
+fn layout_rows(app: &App, rows: &[TaskRow], width: u16) -> (Vec<RowLines>, Vec<usize>) {
+    let columns = date_columns(app, rows);
+    let layouts: Vec<RowLines> = rows
+        .iter()
+        .map(|row| match row {
+            TaskRow::Heading { .. } => RowLines::Heading,
+            TaskRow::Item {
+                index,
+                children,
+                expanded,
+            } => app.items.get(*index).map_or(
+                RowLines::Item {
+                    left: Vec::new(),
+                    right: Line::default(),
+                },
+                |item| item_lines(app, item, *index, (*children, *expanded), columns, width),
+            ),
+        })
+        .collect();
+    let starts = layouts
+        .iter()
+        .scan(0, |line, layout| {
+            let start = *line;
+            *line += layout.height();
+            Some(start)
+        })
+        .collect();
+    (layouts, starts)
+}
+
+/// Draws the tasks page: first scroll so the chosen item's lines are all visible (stored in
+/// `app.tasks_top`, counted in lines), then draw line by line
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.tasks_rows();
     let [header, rule, body, bottom_rule, detail] = inner_areas(area);
     let height = i64::from(body.height);
     let cursor = app.tasks_cursor(&rows);
+    let (layouts, starts) = layout_rows(app, &rows, body.width);
+    let to_i64 = |n: usize| i64::try_from(n).unwrap_or(i64::MAX);
     if let Some(cursor) = cursor {
-        let top = scrolled_top(
-            i64::try_from(app.tasks_top).unwrap_or(0),
-            i64::try_from(cursor).unwrap_or(0),
-            height,
-            SCROLLOFF,
-        );
-        // Do not overscroll: the last row just touches the bottom
-        let max = i64::try_from(rows.len()).unwrap_or(0) - height;
+        let first = to_i64(starts[cursor]);
+        let last = first + to_i64(layouts[cursor].height()) - 1;
+        let top = scrolled_to_range(to_i64(app.tasks_top), first, last, height, SCROLLOFF);
+        // Do not overscroll: the last line just touches the bottom
+        let total = starts
+            .last()
+            .zip(layouts.last())
+            .map_or(0, |(start, layout)| start + layout.height());
+        let max = to_i64(total) - height;
         app.tasks_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
     }
     // Read-only from here on
@@ -108,49 +166,31 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             area,
         );
     }
-    let columns = date_columns(app, &rows);
-    let visible = rows.iter().enumerate().skip(app.tasks_top);
-    for ((index, row), y) in visible.zip(body.y..body.bottom()) {
-        let area = Rect {
-            y,
-            height: 1,
-            ..body
-        };
-        match row {
-            TaskRow::Heading { name, level } => {
-                let name = name.as_deref().unwrap_or(texts.ungrouped);
-                let indent = "  ".repeat(level.saturating_sub(1));
-                frame.render_widget(
-                    Line::styled(
-                        format!(" {indent}{name}"),
-                        Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
-                    ),
-                    area,
-                );
-            }
-            TaskRow::Item {
-                index: item_index,
-                children,
-                expanded,
-            } => {
-                let Some(item) = app.items.get(*item_index) else {
-                    continue;
-                };
-                render_item(
-                    frame,
-                    area,
-                    app,
-                    item,
-                    *item_index,
-                    (*children, *expanded),
-                    columns,
-                );
-                // The chosen item's whole row gets a background (when the keyboard is on the tasks page)
-                if focused && cursor == Some(index) {
-                    frame
-                        .buffer_mut()
-                        .set_style(area, Style::new().bg(theme.selection));
-                }
+    for (index, (row, (layout, start))) in rows.iter().zip(layouts.iter().zip(&starts)).enumerate()
+    {
+        for part in 0..layout.height() {
+            // Above the top of the box: skip; below its bottom: done
+            let Some(offset) = (start + part).checked_sub(app.tasks_top) else {
+                continue;
+            };
+            let Some(y) = u16::try_from(offset)
+                .ok()
+                .map(|offset| body.y + offset)
+                .filter(|&y| y < body.bottom())
+            else {
+                break;
+            };
+            let area = Rect {
+                y,
+                height: 1,
+                ..body
+            };
+            render_line(frame, area, app, (row, layout), part);
+            // The chosen item's lines get a background (when the keyboard is on the tasks page)
+            if focused && cursor == Some(index) {
+                frame
+                    .buffer_mut()
+                    .set_style(area, Style::new().bg(theme.selection));
             }
         }
     }
@@ -202,25 +242,144 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
         })
 }
 
-/// One item: 「 ▸ [ ] 實作退款 API  1/4            10/14       」. On the left: the indent (2 cells
-/// per level), `▸` / `▾` (has subtasks: collapsed / expanded),
-/// `[ ]` / `[x]` (task) or ` ∙ ` (event), the title, and how many subtasks are done. On the right:
-/// a date column (right-aligned) and a time column, sized by `date_columns`; an item without a time
-/// leaves that cell blank (without a date, both are empty)
-///
-/// Colors: items that are over (done tasks, past events) are gray, done titles struck through; a line
-/// with a mistake has a red, underlined title (a `!!!` title is red too, but not underlined); an item with a priority not over yet has its title in that priority's
-/// color; the date uses that day's calendar color;
-/// `▸`, the subtask count and the time are muted
-fn render_item(
+/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is its name (indented by
+/// its level, the label color, bold); an item's line is that line of its left part, and on the first line its
+/// date and time columns on the right
+fn render_line(
     frame: &mut Frame,
     area: Rect,
+    app: &App,
+    (row, layout): (&TaskRow, &RowLines),
+    part: usize,
+) {
+    let theme = &app.theme;
+    match (row, layout) {
+        (TaskRow::Heading { name, level }, _) => {
+            let name = name.as_deref().unwrap_or(app.lang.texts().ungrouped);
+            let indent = "  ".repeat(level.saturating_sub(1));
+            frame.render_widget(
+                Line::styled(
+                    format!(" {indent}{name}"),
+                    Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
+                ),
+                area,
+            );
+        }
+        (TaskRow::Item { .. }, RowLines::Item { left, right }) => {
+            // The left part stops one blank cell before the right part (on every line, so the wrapped lines
+            // line up)
+            let right_width = u16::try_from(right.width()).unwrap_or(u16::MAX);
+            let left_area = Rect {
+                width: area.width.saturating_sub(right_width + 1),
+                ..area
+            };
+            if let Some(line) = left.get(part) {
+                frame.render_widget(line, left_area);
+            }
+            if part == 0 {
+                frame.render_widget(right, area);
+            }
+        }
+        (TaskRow::Item { .. }, RowLines::Heading) => {}
+    }
+}
+
+/// Splits styled text into lines at most `width` cells wide (at least one character each). A line breaks at a
+/// space (which is dropped), after a wide character (so Chinese breaks between any two characters; a wide
+/// character that does not fit simply starts the next line), and inside a word only when the word alone is
+/// wider than a line; continuation lines start without spaces.
+/// Each character keeps its span's style
+///
+/// E.g. width 10: `Send the weekly update` → `Send the`, `weekly`, `update`
+fn wrap(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'static>>> {
+    let width = width.max(1);
+    let wide = |c: char| Span::raw(c.to_string()).width() > 1;
+    let mut lines: Vec<Vec<(char, Style)>> = vec![Vec::new()];
+    let mut used = 0;
+    // Where the current line may break: the index in it where the next line would start
+    let mut breakable: Option<usize> = None;
+    let chars = spans
+        .iter()
+        .flat_map(|span| span.content.chars().map(move |c| (c, span.style)));
+    for (c, style) in chars {
+        let cells = if wide(c) { 2 } else { 1 };
+        let continuing = lines.len() > 1;
+        let Some(line) = lines.last_mut() else {
+            break;
+        };
+        if c == ' ' {
+            if line.is_empty() && continuing {
+                continue;
+            }
+            if used + 1 > width {
+                // Break at this space; it is not drawn
+                lines.push(Vec::new());
+                used = 0;
+                breakable = None;
+            } else {
+                line.push((c, style));
+                used += 1;
+                breakable = Some(line.len());
+            }
+            continue;
+        }
+        if used + cells > width && !line.is_empty() {
+            // Move what comes after the last place to break onto a new line (nothing to move: break here)
+            let rest = breakable.map_or_else(Vec::new, |at| line.split_off(at));
+            while line.last().is_some_and(|&(c, _)| c == ' ') {
+                line.pop();
+            }
+            used = rest.iter().map(|&(c, _)| if wide(c) { 2 } else { 1 }).sum();
+            lines.push(rest);
+            breakable = None;
+        }
+        let Some(line) = lines.last_mut() else {
+            break;
+        };
+        line.push((c, style));
+        used += cells;
+        if cells > 1 {
+            breakable = Some(line.len());
+        }
+    }
+    lines
+        .into_iter()
+        .map(|mut line| {
+            while line.last().is_some_and(|&(c, _)| c == ' ') {
+                line.pop();
+            }
+            // Back to spans: consecutive characters with the same style make one span
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            for (c, style) in line {
+                match spans.last_mut() {
+                    Some(span) if span.style == style => span.content.to_mut().push(c),
+                    _ => spans.push(Span::styled(c.to_string(), style)),
+                }
+            }
+            spans
+        })
+        .collect()
+}
+
+/// One item laid out at `width` cells: 「 ▸ [ ] 實作退款 API  1/4            10/14       」. On the left: the indent
+/// (2 cells per level), `▸` / `▾` (has subtasks: collapsed / expanded), `[ ]` / `[x]` (task) or ` ∙ ` (event),
+/// the title, and how many subtasks are done; when that does not fit, the title (with the count) wraps onto
+/// the next lines, which start under the title. On the right of the first line: a date column
+/// (right-aligned) and a time column, sized by `date_columns`; an item without a time leaves that cell blank
+/// (without a date, both are empty)
+///
+/// Colors: items that are over (done tasks, past events) are gray, done titles struck through; a line
+/// with a mistake has a red, underlined title (a `!!!` title is red too, but not underlined); an item with a
+/// priority not over yet has its title in that priority's color; the date uses that day's calendar color;
+/// `▸`, the subtask count and the time are muted
+fn item_lines(
     app: &App,
     item: &Item,
     index: usize,
     (children, expanded): (bool, bool),
     (date_width, time_width): (usize, usize),
-) {
+    width: u16,
+) -> RowLines {
     let theme = &app.theme;
     let open = item.is_open(app.today);
     let color = if open { theme.text } else { theme.muted };
@@ -256,16 +415,16 @@ fn render_item(
         .fold((0, 0), |(done, total), subtask| {
             (done + usize::from(subtask.done), total + 1)
         });
-    let mut left = vec![
+    let prefix = vec![
         Span::styled(
             format!(" {}{marker} ", "  ".repeat(item.depth)),
             Style::new().fg(theme.muted),
         ),
         Span::styled(format!("{check} "), Style::new().fg(color)),
-        Span::styled(item.title.as_str(), title),
     ];
+    let mut text = vec![Span::styled(item.title.clone(), title)];
     if total > 0 {
-        left.push(Span::styled(
+        text.push(Span::styled(
             format!("  {done}/{total}"),
             Style::new().fg(theme.muted),
         ));
@@ -291,35 +450,104 @@ fn render_item(
         ));
         right.push(Span::raw(" "));
     }
-    let right = Line::from(right);
-    // Title too long: cut it off so the date is always visible (at least one blank cell between)
-    let right_width = u16::try_from(right.width()).unwrap_or(u16::MAX);
-    let left_area = Rect {
-        width: area.width.saturating_sub(right_width + 1),
-        ..area
-    };
-    frame.render_widget(Line::from(left), left_area);
-    frame.render_widget(right.right_aligned(), area);
+    let right = Line::from(right).right_aligned();
+    // The title wraps in what is left between the prefix and the right part (one blank cell before it)
+    let prefix_width = Line::from(prefix.clone()).width();
+    let room = usize::from(width).saturating_sub(right.width() + 1 + prefix_width);
+    let mut wrapped = wrap(&text, room).into_iter();
+    let mut left = vec![Line::from(
+        prefix
+            .into_iter()
+            .chain(wrapped.next().unwrap_or_default())
+            .collect::<Vec<_>>(),
+    )];
+    left.extend(wrapped.map(|line| {
+        Line::from(
+            std::iter::once(Span::raw(" ".repeat(prefix_width)))
+                .chain(line)
+                .collect::<Vec<_>>(),
+        )
+    }));
+    RowLines::Item { left, right }
 }
 
-/// Which row a mouse click at (`column`, `row`) on the tasks page (`area`) hits; `on_marker` = the
-/// click is on the `▸` / `▾` cell.
+/// Which row a mouse click at (`column`, `row`) on the tasks page (`area`) hits (any line of a wrapped
+/// item); `on_marker` = the click is on the `▸` / `▾` cell.
 /// `None` on the header, the rules, the bottom row or the outer border
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, body, _, _] = inner_areas(area);
     if !body.contains(Position::new(column, row)) {
         return None;
     }
-    let index = app.tasks_top + usize::from(row - body.y);
+    // Which line of the list, then which row has that line (a wrapped item has several)
+    let line = app.tasks_top + usize::from(row - body.y);
     let rows = app.tasks_rows();
+    let (layouts, starts) = layout_rows(app, &rows, body.width);
+    let index = starts
+        .iter()
+        .zip(&layouts)
+        .position(|(&start, layout)| (start..start + layout.height()).contains(&line))?;
     let depth = match rows.get(index)? {
         TaskRow::Item { index, .. } => app.items.get(*index)?.depth,
         TaskRow::Heading { .. } => return None,
     };
-    // `▸` sits at cell 1 + 2 × depth inside the box
+    // `▸` sits at cell 1 + 2 × depth inside the box, on the item's first line
     let marker = usize::from(body.x) + 1 + 2 * depth;
     Some(Click::TaskRow {
         row: index,
-        on_marker: usize::from(column) == marker,
+        on_marker: line == starts[index] && usize::from(column) == marker,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::style::Color;
+
+    /// The text of each wrapped line
+    fn texts(lines: &[Vec<Span<'static>>]) -> Vec<String> {
+        lines
+            .iter()
+            .map(|line| line.iter().map(|span| span.content.as_ref()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn wrap_breaks_at_spaces_and_between_chinese_characters() {
+        // Expected lines from the separate Python version in tools/expected_screen.py
+        let wrapped = |text: &str, width| texts(&wrap(&[Span::raw(text.to_string())], width));
+        assert_eq!(
+            wrapped("Send the weekly update", 10),
+            ["Send the", "weekly", "update"]
+        );
+        assert_eq!(
+            wrapped("批次 audit log 調整（10/21 下班前交）", 12),
+            ["批次 audit", "log 調整（", "10/21 下班前", "交）"]
+        );
+        // A word wider than a line: it starts on a new line, then breaks where the line is full
+        assert_eq!(
+            wrapped("see https://wiki.example.com/payments/runbook", 20),
+            ["see", "https://wiki.example", ".com/payments/runboo", "k"]
+        );
+        // The spaces before the subtask count do not start the next line; width 1 still makes progress
+        assert_eq!(wrapped("Pay  1/4", 6), ["Pay", "1/4"]);
+        assert_eq!(wrapped("ab", 1), ["a", "b"]);
+    }
+
+    #[test]
+    fn wrap_keeps_each_characters_style() {
+        // The title in red, the count muted: a line that holds both has two spans
+        let red = Style::new().fg(Color::Red);
+        let muted = Style::new().fg(Color::DarkGray);
+        let lines = wrap(
+            &[
+                Span::styled("Pay the fine", red),
+                Span::styled("  1/4", muted),
+            ],
+            9,
+        );
+        assert_eq!(texts(&lines), ["Pay the", "fine  1/4"]);
+        assert_eq!(lines[1][0], Span::styled("fine", red));
+        assert_eq!(lines[1][1], Span::styled("  1/4", muted));
+    }
 }
