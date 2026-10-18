@@ -1,5 +1,5 @@
-//! One-line editor: a box in the upper middle of the screen, with some blank space inside the border when
-//! there is room; the `#` list of calendars opens right under the typed text
+//! One-line editor: a box in the middle of the main view (like the day popup), with some blank space inside
+//! the border when there is room; the `#` list of calendars opens right under the typed text
 
 use crate::app::{App, Editor, Reading, Target};
 use crate::edit::Place;
@@ -27,18 +27,18 @@ const PADDING: Margin = Margin::new(1, 1);
 /// The most calendars the `#` list shows at once (more: it scrolls)
 const LIST_ROWS: usize = 8;
 
-/// The editor's area: centered left to right, 2 cells from each side, at most `MAX_WIDTH` wide; in the
-/// upper middle top to bottom (a third of the free rows above it, two thirds below; the key-hint row
-/// at the bottom does not count). Used for drawing and for the mouse (a click outside the box = cancel)
-pub fn area(screen: Rect) -> Rect {
-    layout(screen).0
+/// The editor's area on the main view (`main`: right of the side menu, above the key-hint row): in the
+/// middle both ways, like the day popup; 2 cells from each side, at most `MAX_WIDTH` wide.
+/// Used for drawing and for the mouse (a click outside the box = cancel)
+pub fn area(main: Rect) -> Rect {
+    layout(main).0
 }
 
 /// The editor's area (see `area`) and where the text goes inside it: the border taken off, and the
 /// padding too when there is room for it
-fn layout(screen: Rect) -> (Rect, Rect) {
-    let rows = screen.height.saturating_sub(1);
-    let wide = screen.width >= NARROW;
+fn layout(main: Rect) -> (Rect, Rect) {
+    let rows = main.height;
+    let wide = main.width >= NARROW;
     let padding = Margin::new(
         if wide { PADDING.horizontal } else { 0 },
         if rows >= HEIGHT + 2 * PADDING.vertical {
@@ -49,13 +49,13 @@ fn layout(screen: Rect) -> (Rect, Rect) {
     );
     let height = (HEIGHT + 2 * padding.vertical).min(rows);
     let width = if wide {
-        (screen.width - 4).min(MAX_WIDTH)
+        (main.width - 4).min(MAX_WIDTH)
     } else {
-        screen.width
+        main.width
     };
     let area = Rect::new(
-        screen.x + (screen.width - width) / 2,
-        screen.y + (rows - height) / 3,
+        main.x + (main.width - width) / 2,
+        main.y + (rows - height) / 2,
         width,
         height,
     );
@@ -84,10 +84,10 @@ fn input_scroll(editor: &Editor, input_area: Rect) -> usize {
 /// (moved left when it would go past the right edge), as wide as the longest calendar or the keys on its
 /// bottom border, at most `LIST_ROWS` calendars tall (it may cover the key hints at the bottom); it
 /// scrolls so the chosen calendar shows
-pub fn list_area(screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usize)> {
+pub fn list_area(app: &App, screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usize)> {
     let found = editor.suggestions()?;
     let (start, _) = editor.hash_word()?;
-    let input_area = input_area(layout(screen).1);
+    let input_area = input_area(layout(super::areas(screen, app).main).1);
     // Where the `#` is on screen: the cells before it, less what the typed text is scrolled
     let before: String = editor.input.value().chars().take(start).collect();
     let column = Span::raw(before)
@@ -123,7 +123,7 @@ pub fn list_area(screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usi
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let (area, inner) = layout(frame.area());
+    let (area, inner) = layout(super::areas(frame.area(), app).main);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
@@ -207,9 +207,10 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
 fn render_list(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
     let keys = app.lang.texts().hash_list_keys;
-    let (Some((area, top)), Some(found)) =
-        (list_area(frame.area(), editor, keys), editor.suggestions())
-    else {
+    let (Some((area, top)), Some(found)) = (
+        list_area(app, frame.area(), editor, keys),
+        editor.suggestions(),
+    ) else {
         return;
     };
     let names = editor.calendar_names();

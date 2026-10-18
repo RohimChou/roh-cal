@@ -361,7 +361,7 @@ impl App {
     /// Mouse while the editor is open: a click on a calendar in the `#` list picks it and the wheel moves
     /// up / down the list; a click outside the box and the list = cancel (`Esc`); everything else is ignored
     pub(super) fn handle_editor_mouse(&mut self, mouse: MouseEvent) {
-        let screen = self.screen;
+        let editor_area = ui::editor_area(self);
         let list = self
             .editor()
             .and_then(|editor| ui::hash_list_area(self, editor));
@@ -379,7 +379,7 @@ impl App {
                     if mouse.row > area.top() && mouse.row + 1 < area.bottom() {
                         editor.pick_calendar(top + usize::from(mouse.row - area.top() - 1));
                     }
-                } else if !ui::editor_area(screen).contains(at) {
+                } else if !editor_area.contains(at) {
                     self.mode = Mode::Normal;
                 }
             }

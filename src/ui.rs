@@ -41,14 +41,14 @@ pub fn agenda_columns(app: &App) -> usize {
 }
 
 /// Where the edit box is (so a mouse click outside it can cancel)
-pub fn editor_area(screen: Rect) -> Rect {
-    editor::area(screen)
+pub fn editor_area(app: &App) -> Rect {
+    editor::area(areas(app.screen, app).main)
 }
 
 /// Where the editor's `#` list is and which calendar is on its first row (so a click can pick one); `None`
 /// when it is closed
 pub fn hash_list_area(app: &App, editor: &Editor) -> Option<(Rect, usize)> {
-    editor::list_area(app.screen, editor, app.lang.texts().hash_list_keys)
+    editor::list_area(app, app.screen, editor, app.lang.texts().hash_list_keys)
 }
 
 /// Where layout 2's day popup (that day's items) is on screen (so a mouse click outside it can close it)
