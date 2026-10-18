@@ -559,6 +559,30 @@ fn side_menu_keys_choose_and_check_calendars() {
 }
 
 #[test]
+fn gg_and_capital_g_jump_to_the_first_and_last_calendar() {
+    let mut app = wide_app_with(GROUPS);
+    app.focus = Focus::Side;
+    // G: the last calendar ("Work", index 2), not the 「隱藏做完的」 row below it
+    press(&mut app, KeyCode::Char('G'));
+    assert_eq!(app.group_index, 2);
+    // One g only waits; the second one jumps to the first calendar
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(app.group_index, 2);
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(app.group_index, 0);
+    // g, another key, g: not gg (the other key works as usual)
+    press(&mut app, KeyCode::Char('G'));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(app.group_index, 1);
+    // The wheel between the two g's: not gg either (the last g above is still waiting)
+    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(app.group_index, 2);
+}
+
+#[test]
 fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
     // Hide it with `s`
     let mut app = wide_app_with(GROUPS);

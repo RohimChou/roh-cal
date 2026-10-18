@@ -102,21 +102,21 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
     assert_eq!(
         rows,
         [
-            "╭ roh-cal ∙ 按鍵 ∙ 日曆清單 ───────────────────────────╮",
-            "│                                                      │",
-            "│  日曆清單                    畫面                    │",
-            "│    j / k   選                  1       月曆 + 事項   │",
-            "│    Space   勾選                2       大月曆        │",
-            "│    a       新增日曆            3       任務頁        │",
-            "│    e       改名                s       日曆清單      │",
-            "│    d       刪除                Tab     換框          │",
-            "│    L / H   往內 / 往外一層                           │",
-            "│                              系統                    │",
-            "│                                ?       說明          │",
-            "│                                ,       設定          │",
-            "│                                q       離開          │",
-            "│                                                      │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──────────────────────────╯",
+            "╭ roh-cal ∙ 按鍵 ∙ 日曆清單 ───────────────────────────────╮",
+            "│                                                          │",
+            "│  日曆清單                       畫面                     │",
+            "│    j / k    選                    1        月曆 + 事項   │",
+            "│    gg / G   第一個 / 最後一個     2        大月曆        │",
+            "│    Space    勾選                  3        任務頁        │",
+            "│    a        新增日曆              s        日曆清單      │",
+            "│    e        改名                  Tab      換框          │",
+            "│    d        刪除                                         │",
+            "│    L / H    往內 / 往外一層     系統                     │",
+            "│                                   ?        說明          │",
+            "│                                   ,        設定          │",
+            "│                                   q        離開          │",
+            "│                                                          │",
+            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Agenda, Lang::ZhTw, 70, 23, Help::default());
@@ -228,8 +228,8 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
                 scroll: 0,
             },
         );
-        // The longer column (left) is 33 lines + padding 2 + border 2: it fits, no scrolling
-        assert_eq!(area.height, 37, "{lang:?}");
+        // The longer column (right) is 34 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 38, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);

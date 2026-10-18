@@ -210,6 +210,7 @@ const EN: Texts = Texts {
                 title: "Calendar list",
                 keys: &[
                     ("j / k", "choose"),
+                    ("gg / G", "first / last"),
                     ("Space", "show / hide"),
                     ("a", "add a calendar"),
                     ("e", "rename"),
@@ -323,6 +324,7 @@ const EN: Texts = Texts {
                 title: "Calendar list",
                 keys: &[
                     ("j / k", "choose"),
+                    ("gg / G", "first / last one"),
                     ("Space / Enter", "check / uncheck"),
                     ("a", "add a calendar"),
                     ("e", "rename it"),
@@ -418,6 +420,7 @@ const ZH_TW: Texts = Texts {
                 title: "日曆清單",
                 keys: &[
                     ("j / k", "選"),
+                    ("gg / G", "第一個 / 最後一個"),
                     ("Space", "勾選"),
                     ("a", "新增日曆"),
                     ("e", "改名"),
@@ -531,6 +534,7 @@ const ZH_TW: Texts = Texts {
                 title: "日曆清單",
                 keys: &[
                     ("j / k", "選日曆"),
+                    ("gg / G", "第一個 / 最後一個"),
                     ("Space / Enter", "勾選 / 取消"),
                     ("a", "新增日曆"),
                     ("e", "改名"),

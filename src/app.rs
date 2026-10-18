@@ -264,6 +264,8 @@ pub struct App {
     pub side_top: usize,
     /// Which pane had the keyboard before `s` called up the side menu when narrow (it goes back there on hide)
     side_back: Focus,
+    /// The last key was `g` in the side menu: one more `g` right after it jumps to the first calendar (`gg`)
+    pending_g: bool,
     /// Which pane has the keyboard
     pub focus: Focus,
     /// Which layout is shown
@@ -334,6 +336,7 @@ impl App {
             group_index: 0,
             side_top: 0,
             side_back: Focus::Calendar,
+            pending_g: false,
             items,
             warnings: Vec::new(),
             headings: Vec::new(),
@@ -626,6 +629,8 @@ impl App {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // The last notice has been seen: any key clears it
         self.notice = None;
+        // A `g` waits for the very next key only (`gg`)
+        let after_g = std::mem::take(&mut self.pending_g);
         match self.mode {
             // Help page: only scrolling, switching version, closing
             Mode::Help(_) => self.handle_help_key(key),
@@ -638,7 +643,7 @@ impl App {
             Mode::Editor(_) => self.handle_editor_key(key),
             // Rescheduling: only moving the date, confirming, cancelling
             Mode::Moving(_) => self.handle_moving_key(key),
-            Mode::Normal => self.handle_normal_key(key),
+            Mode::Normal => self.handle_normal_key(key, after_g),
         }
     }
 
@@ -647,8 +652,9 @@ impl App {
     /// `q` / `Ctrl+C` quit. `Esc` goes back to this layout's main pane;
     /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 2's
     /// popup or the side menu called up when narrow is open, `Esc` / `q` only close it.
-    /// Other keys depend on which pane has the keyboard
-    fn handle_normal_key(&mut self, key: KeyEvent) {
+    /// Other keys depend on which pane has the keyboard (`after_g`: the key before this one was a `g` in the
+    /// side menu)
+    fn handle_normal_key(&mut self, key: KeyEvent, after_g: bool) {
         match key.code {
             // While the popup or the side menu called up when narrow is open, q only closes it
             // (like the help page) and does not quit
@@ -701,7 +707,7 @@ impl App {
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
-                Focus::Side => self.handle_side_key(key.code),
+                Focus::Side => self.handle_side_key(key.code, after_g),
                 Focus::Tasks => self.handle_tasks_key(key.code),
                 Focus::Day => self.handle_day_key(key.code),
             },
@@ -748,13 +754,18 @@ impl App {
         }
     }
 
-    /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
-    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one, `d` deletes it,
-    /// `L` / `H` move it one level in / out
-    fn handle_side_key(&mut self, code: KeyCode) {
+    /// Keyboard in the side menu: up / down choose a calendar, `gg` / `G` the first / last one (like vim),
+    /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar,
+    /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
+    /// (`after_g`: the key before this one was `g`)
+    fn handle_side_key(&mut self, code: KeyCode, after_g: bool) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
+            KeyCode::Char('g') if after_g => self.group_index = 0,
+            KeyCode::Char('g') => self.pending_g = true,
+            // The last calendar, not the 「隱藏做完的」 row below it
+            KeyCode::Char('G') => self.group_index = self.groups.len().saturating_sub(1),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
@@ -797,6 +808,8 @@ impl App {
             MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
         ) {
             self.notice = None;
+            // A click or the wheel between two `g`s: no longer `gg`
+            self.pending_g = false;
         }
         match self.mode {
             // Help page: the wheel scrolls it, a click outside closes it
