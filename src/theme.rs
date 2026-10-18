@@ -1,9 +1,14 @@
 //! 顏色：畫面只講「角色」（今天、週末、週數…），不講顏色名；換 theme = 整組換掉
+//!
+//! 一套 theme 是一個 TOML 檔（內建的在 repo 的 `themes/`，編進執行檔）
 
 use ratatui::style::Color;
+use serde::Deserialize;
+use std::collections::BTreeMap;
 
-/// 一套 theme：每個角色各配一個顏色
-#[derive(Debug)]
+/// 一套 theme：每個角色各配一個顏色；從 theme 檔（TOML）的 `[roles]` 讀（見 `Theme::parse`），欄位名 = 角色名
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Theme {
     /// 一般的字：平日的日期
     pub text: Color,
@@ -49,49 +54,97 @@ pub struct Theme {
     pub help_key: Color,
 }
 
+/// 內建的 theme：(名字, theme 檔的內容)；檔案在 repo 的 `themes/`，編進執行檔
+pub const BUILTIN: [(&str, &str); 1] = [(
+    "catppuccin-mocha",
+    include_str!("../themes/catppuccin-mocha.toml"),
+)];
+
+/// theme 檔（TOML）的樣子：`[palette]` 色票（名字自己取，可以不寫）、`[roles]` 每個角色用哪個顏色
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThemeFile {
+    #[serde(default)]
+    palette: BTreeMap<String, String>,
+    roles: toml::Table,
+}
+
 impl Theme {
     /// [Catppuccin Mocha](https://catppuccin.com/palette)：暗色背景用的柔和配色（跟 v1 的預設一樣）
     pub fn catppuccin_mocha() -> Self {
-        // 色票：https://github.com/catppuccin/palette 的 mocha
-        let text = Color::Rgb(205, 214, 244);
-        let subtext0 = Color::Rgb(166, 173, 200);
-        let surface2 = Color::Rgb(88, 91, 112);
-        let lavender = Color::Rgb(180, 190, 254);
-        let blue = Color::Rgb(137, 180, 250);
-        let green = Color::Rgb(166, 227, 161);
-        let yellow = Color::Rgb(249, 226, 175);
-        // 黃色和底色（base 30, 30, 46）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
-        let dim_yellow = Color::Rgb(183, 167, 136);
-        let red = Color::Rgb(243, 139, 168);
-        let surface0 = Color::Rgb(49, 50, 68);
-        let overlay0 = Color::Rgb(108, 112, 134);
-        let mauve = Color::Rgb(203, 166, 247);
-        let peach = Color::Rgb(250, 179, 135);
+        Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("內建的 theme"))
+    }
 
-        Self {
-            text,
-            muted: subtext0,
-            line: surface2,
-            year_line: lavender,
-            label: lavender,
-            week_number: yellow,
-            week_number_dim: dim_yellow,
-            weekend: blue,
-            has_item: peach,
-            holiday: red,
-            today: green,
-            selected: red,
-            cursor_line: surface0,
-            focus: mauve,
-            checked: mauve,
-            notice: yellow,
-            error: red,
-            // 格線、其他月份：跟 v1 一樣
-            grid: surface0,
-            other_month: overlay0,
-            // 說明頁：跟 v1 一樣
-            help_section: blue,
-            help_key: peach,
+    /// 內建的 theme 裡叫 `name` 的那一套；沒有這個名字是 `None`
+    pub fn builtin(name: &str) -> Option<Self> {
+        let (_, text) = BUILTIN.iter().find(|(builtin, _)| *builtin == name)?;
+        // 內建的 theme 檔編進執行檔，test 確認每一套都讀得進來；讀不進來是寫程式的錯，不是使用者的錯
+        Some(Self::parse(text).unwrap_or_else(|error| unreachable!("內建的 theme {name}：{error}")))
+    }
+
+    /// 把 theme 檔（TOML）轉成 `Theme`：`[roles]` 裡寫色票名字的先換成 `[palette]` 裡的顏色，
+    /// 再一個角色一個角色讀成顏色（`"#rrggbb"`、`"blue"` 這種 terminal 的顏色名字、256 色的編號都可以）。
+    /// 少了角色、不認識的角色、不是顏色都是錯誤
+    pub fn parse(text: &str) -> Result<Self, toml::de::Error> {
+        let ThemeFile { palette, mut roles } = toml::from_str(text)?;
+        for (_, value) in roles.iter_mut() {
+            if let Some(color) = value.as_str().and_then(|name| palette.get(name)) {
+                *value = toml::Value::String(color.clone());
+            }
+        }
+        toml::Value::Table(roles).try_into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_builtin_theme_reads() {
+        for (name, text) in BUILTIN {
+            assert!(Theme::parse(text).is_ok(), "{name}");
+        }
+        assert_eq!(Theme::builtin("no-such-theme"), None);
+    }
+
+    #[test]
+    fn roles_take_palette_names_or_colors() {
+        // 從 mocha 改一行來試：色票名字、#rrggbb、terminal 的顏色名字、256 色的編號
+        let mocha = BUILTIN[0].1;
+        let with = |role: &str| mocha.replace("today = \"green\"", &format!("today = {role}"));
+        assert_eq!(
+            Theme::parse(&with("\"red\"")).map(|theme| theme.today),
+            Ok(Color::Rgb(243, 139, 168))
+        );
+        assert_eq!(
+            Theme::parse(&with("\"#010203\"")).map(|theme| theme.today),
+            Ok(Color::Rgb(1, 2, 3))
+        );
+        assert_eq!(
+            Theme::parse(&with("\"light-blue\"")).map(|theme| theme.today),
+            Ok(Color::LightBlue)
+        );
+        assert_eq!(
+            Theme::parse(&with("\"236\"")).map(|theme| theme.today),
+            Ok(Color::Indexed(236))
+        );
+    }
+
+    #[test]
+    fn mistakes_in_a_theme_file_are_errors() {
+        let mocha = BUILTIN[0].1;
+        for text in [
+            // 少一個角色
+            mocha.replace("today = \"green\"\n", ""),
+            // 角色名字打錯
+            mocha.replace("today = ", "todya = "),
+            // 不是顏色、也不是色票的名字
+            mocha.replace("today = \"green\"", "today = \"greeen\""),
+            // 不認識的表
+            format!("{mocha}\n[colours]\n"),
+        ] {
+            assert!(Theme::parse(&text).is_err(), "{text}");
         }
     }
 }

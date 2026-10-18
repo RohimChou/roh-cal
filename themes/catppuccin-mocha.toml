@@ -1,0 +1,46 @@
+# Catppuccin Mocha：暗色背景用的柔和配色（跟 v1 的預設一樣）
+# 色票：https://catppuccin.com/palette 的 mocha
+#
+# [palette] 是這套 theme 的色票（名字自己取）；[roles] 是畫面上每個角色用哪個顏色：
+# 寫色票的名字，或直接寫顏色（"#rrggbb"、terminal 的 16 色名字像 "blue"、"dark-gray"，或 256 色的編號）
+
+[palette]
+text = "#cdd6f4"
+subtext0 = "#a6adc8"
+overlay0 = "#6c7086"
+surface2 = "#585b70"
+surface0 = "#313244"
+lavender = "#b4befe"
+blue = "#89b4fa"
+green = "#a6e3a1"
+yellow = "#f9e2af"
+# 黃色和底色（base #1e1e2e）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+dim_yellow = "#b7a788"
+peach = "#fab387"
+red = "#f38ba8"
+mauve = "#cba6f7"
+
+[roles]
+text = "text"
+muted = "subtext0"
+line = "surface2"
+year_line = "lavender"
+label = "lavender"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "blue"
+has_item = "peach"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "surface0"
+focus = "mauve"
+checked = "mauve"
+notice = "yellow"
+error = "red"
+# 格線、其他月份：跟 v1 一樣
+grid = "surface0"
+other_month = "overlay0"
+# 說明頁：跟 v1 一樣
+help_section = "blue"
+help_key = "peach"
