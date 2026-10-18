@@ -89,6 +89,12 @@ pub struct Texts {
     pub settings_hint: &'static str,
     /// After `R` on the settings page: the bottom border switches to this, asking whether to reset everything
     pub settings_reset_all: &'static str,
+    /// The color picker's top border, before the role's name (`自訂顏色 ∙ today`)
+    pub picker_title: &'static str,
+    /// The color picker's key hints on its bottom border
+    pub picker_hint: &'static str,
+    /// The color picker's last line: a color code can be typed too
+    pub picker_typing: &'static str,
 }
 
 /// The help page: the short version (what `?` opens: the sections of `short` that work where the keyboard
@@ -318,6 +324,7 @@ const EN: Texts = Texts {
                 keys: &[
                     ("j / k", "choose a row"),
                     ("h / l", "change it"),
+                    ("e", "custom color"),
                     ("r / R", "reset it / all"),
                 ],
                 places: &[],
@@ -327,6 +334,9 @@ const EN: Texts = Texts {
     settings_title: "settings",
     settings_hint: "jk pick  hl change  r/R reset  Esc close",
     settings_reset_all: "Reset all? y yes, other keys cancel",
+    picker_title: "Custom color",
+    picker_hint: "jk pick  hl HL change  Enter keep  Esc undo",
+    picker_typing: "Or type a color code: a6e3a1",
 };
 
 /// Traditional Chinese text
@@ -514,6 +524,7 @@ const ZH_TW: Texts = Texts {
                 keys: &[
                     ("j / k", "選一列"),
                     ("h / l", "改值"),
+                    ("e", "自訂顏色"),
                     ("r / R", "還原一列 / 全部"),
                 ],
                 places: &[],
@@ -523,6 +534,9 @@ const ZH_TW: Texts = Texts {
     settings_title: "設定",
     settings_hint: "jk 選  hl 改  r 還原  R 全部  Esc 關閉",
     settings_reset_all: "全部還原成預設？y 還原，其他鍵取消",
+    picker_title: "自訂顏色",
+    picker_hint: "jk 選  hl HL 調  Enter 存  Esc 取消",
+    picker_typing: "也可以直接打色碼：a6e3a1",
 };
 
 /// English month abbreviations; `[0]` is January
@@ -824,8 +838,8 @@ impl Texts {
             (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
             (Lang::En, Row::ListWidth) => "Calendar list max width: h -1, l +1",
             (Lang::ZhTw, Row::ListWidth) => "日曆清單最寬幾格：h 窄一格、l 寬一格",
-            (Lang::En, Row::Color(_)) => "Color: l next in the palette, r reset",
-            (Lang::ZhTw, Row::Color(_)) => "顏色：l 換下一個，r 回到 theme 的",
+            (Lang::En, Row::Color(_)) => "Color: l next, e custom, r reset",
+            (Lang::ZhTw, Row::Color(_)) => "顏色：l 換下一個，e 自訂，r 還原",
         }
     }
 

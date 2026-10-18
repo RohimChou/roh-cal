@@ -3,8 +3,8 @@
 //! changes show on screen right away, and are saved to the config file on close
 //!
 //! `j` / `k` choose a row, `h` / `l` (`Space`, `Enter`) change that row's
-//! value, `r` resets that row, `R` resets everything (press `y` to confirm),
-//! `q` / `Esc` / `,` or a click outside the box closes it
+//! value, `e` on a color row opens the color picker (`picker.rs`), `r` resets that row, `R` resets
+//! everything (press `y` to confirm), `q` / `Esc` / `,` or a click outside the box closes it
 
 use super::{App, Mode, Notice, View};
 use crate::config::{self, CalendarListSettings, Settings};
@@ -242,6 +242,7 @@ impl App {
         self.mode = Mode::Settings {
             page: SettingsPage::default(),
             opened: self.settings.clone(),
+            picker: None,
         };
     }
 
@@ -258,6 +259,11 @@ impl App {
         let Some(page) = self.settings_page() else {
             return;
         };
+        // The color picker is open over it: the keys are the picker's
+        if self.picker().is_some() {
+            self.handle_picker_key(key);
+            return;
+        }
         // Asking whether to reset everything: `y` resets, any other key just cancels
         if page.confirm_reset {
             if key.code == KeyCode::Char('y') {
@@ -283,6 +289,11 @@ impl App {
             KeyCode::Char('h') | KeyCode::Left => self.change_setting(row, -1),
             KeyCode::Char('l' | ' ') | KeyCode::Right | KeyCode::Enter => {
                 self.change_setting(row, 1);
+            }
+            KeyCode::Char('e') => {
+                if let Row::Color(role) = row {
+                    self.open_picker(role);
+                }
             }
             KeyCode::Char('r') => {
                 row.reset(&mut self.settings);
@@ -312,6 +323,10 @@ impl App {
         let Some(page) = self.settings_page() else {
             return;
         };
+        if self.picker().is_some() {
+            self.handle_picker_mouse(mouse);
+            return;
+        }
         match mouse.kind {
             MouseEventKind::ScrollDown => self.choose_setting(1),
             MouseEventKind::ScrollUp => self.choose_setting(-1),
@@ -340,7 +355,7 @@ impl App {
 
     /// Closes the settings page and saves the settings changed since it opened to the config file (only
     /// those lines; nothing changed means no write); if it cannot save, says so in the bottom row
-    fn close_settings(&mut self) {
+    pub(super) fn close_settings(&mut self) {
         let before = match std::mem::take(&mut self.mode) {
             Mode::Settings { opened, .. } => opened,
             // The settings page is not open: do nothing (put it back)

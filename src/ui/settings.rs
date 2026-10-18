@@ -428,6 +428,7 @@ mod tests {
         app.mode = Mode::Settings {
             page,
             opened: app.settings.clone(),
+            picker: None,
         };
         let mut terminal = Terminal::new(TestBackend::new(70, height)).unwrap();
         terminal
@@ -532,7 +533,7 @@ mod tests {
         assert_eq!(at(VALUE + 3, y_of(text)).bg, theme.cursor_line);
         assert_eq!(
             rows[rows.len() - 3],
-            "│  顏色：l 換下一個，r 回到 theme 的      │"
+            "│  顏色：l 換下一個，e 自訂，r 還原       │"
         );
     }
 
@@ -585,7 +586,7 @@ mod tests {
                 "│    help_section         blue            │",
                 "│    help_key             peach           │",
                 "│                                         │",
-                "│  顏色：l 換下一個，r 回到 theme 的      │",
+                "│  顏色：l 換下一個，e 自訂，r 還原       │",
                 "│                                         │",
                 "╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ─╯",
             ]

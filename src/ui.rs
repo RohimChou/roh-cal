@@ -8,6 +8,7 @@ mod editor;
 mod help;
 mod month;
 mod months;
+mod picker;
 mod planner;
 mod settings;
 mod side;
@@ -56,6 +57,20 @@ pub fn help_max_scroll(app: &App, full: bool) -> u16 {
 /// Where the settings page box is on screen (so a mouse click outside it can close it)
 pub fn settings_area(app: &App) -> Rect {
     settings::area(app, app.screen)
+}
+
+/// Where the color picker's box is on screen (so a mouse click outside it can cancel); an empty area when
+/// it is not open
+pub fn picker_area(app: &App) -> Rect {
+    app.picker().map_or_else(Rect::default, |picker| {
+        picker::area(app, app.screen, picker)
+    })
+}
+
+/// What a mouse click at (`column`, `row`) hits in the color picker: a channel, and the value of the bar
+/// cell when it is on the bar
+pub fn picker_at(app: &App, column: u16, row: u16) -> Option<(usize, Option<u8>)> {
+    picker::at(app, app.screen, column, row)
 }
 
 /// Which settings row a mouse click at (`column`, `row`) hits (its index in `app::rows()`)
@@ -297,6 +312,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
                 *stored = page;
             }
             settings::render(frame, app, page);
+            if let Some(picker) = app.picker() {
+                picker::render(frame, app, picker);
+            }
         }
         // Delete confirmation and rescheduling: shown on the bottom row (already drawn above)
         Mode::ConfirmDelete(..)

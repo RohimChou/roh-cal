@@ -4,6 +4,7 @@ mod day;
 mod editor;
 mod help;
 mod moving;
+mod picker;
 mod settings;
 mod tasks;
 mod write;
@@ -11,6 +12,7 @@ mod write;
 pub use editor::{Editor, Reading, Target};
 pub use help::Help;
 pub use moving::Moving;
+pub use picker::Picker;
 pub use settings::{Row, SettingsPage, rows};
 pub use tasks::TaskRow;
 pub use write::Notice;
@@ -217,6 +219,8 @@ pub enum Mode {
     Settings {
         page: SettingsPage,
         opened: Settings,
+        /// The color picker (`e` on a color row), open over the settings page
+        picker: Option<Picker>,
     },
     /// After `d`, asking whether to delete: the item to delete and how many items that removes (with subtasks)
     ConfirmDelete(Item, usize),
