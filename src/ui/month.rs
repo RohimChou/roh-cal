@@ -1,7 +1,9 @@
-//! 版型 3：大月曆（照 v1 的 month view）：side menu 右邊整塊，6 週等高的格子，格子裡列那天的事
+//! Layout 3: the month grid (like v1's month view): the whole area right of the side menu, 6 weeks of
+//! equal-height cells, each cell listing that day's items
 //!
-//! 一次 6 週；選取的日期移出畫面才一週一週捲（設定檔 `[month] center_cursor` 開著：選取的那週固定在第 3 列）。
-//! 格子的大小每次畫都從現在的空間算（terminal 拉大縮小就跟著變）
+//! 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen (with
+//! `[month] center_cursor` on in the config file, the selected week stays on row 3).
+//! Cell sizes are computed from the current space on every draw (they follow the terminal as it resizes)
 
 use super::{
     Click,
@@ -23,29 +25,35 @@ use ratatui::{
     widgets::{Block, BorderType},
 };
 
-/// 一次顯示幾週
+/// How many weeks to show at once
 const WEEKS: u16 = 6;
-/// 左邊週數欄的寬度：「  42 」
+/// Width of the week-number column on the left: 「  42 」
 const WEEK_COLUMN_WIDTH: u16 = 5;
 
-/// 大月曆的格子在畫面上的位置（不含格線）；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
+/// Where the month grid's cells are on screen (grid lines excluded). Used both for drawing and for mapping
+/// mouse positions, so the two always agree
 #[derive(Debug, PartialEq)]
 struct Grid {
-    /// 週數欄和 7 天每一欄的 (x, 寬度)：`[週數欄, 一, 二, …, 日]`；有格線時欄和欄之間各留 1 格畫直線
+    /// (x, width) of the week-number column and each of the 7 days: `[週數欄, 一, 二, …, 日]`; with grid
+    /// lines, 1 cell is left between columns for the vertical line
     columns: [(u16, u16); 8],
-    /// 表頭（星期幾）那一列；有格線時下一列是表頭的線
+    /// The header row (weekday names); with grid lines, the next row is the header's line
     header_y: u16,
-    /// 每週幾列高：6 週一樣高，除不盡的零頭留在最下面
+    /// Rows per week: all 6 weeks are equally tall; the leftover rows stay at the bottom
     week_height: u16,
-    /// 格線佔幾格：有格線 = 1（欄和欄之間、表頭下面、週和週之間），沒有 = 0（格子緊貼著）
+    /// Cells taken by a grid line: 1 with grid lines (between columns, below the header, between weeks),
+    /// 0 without (cells touch)
     gap: u16,
 }
 
 impl Grid {
-    /// 把框裡面（`inner`）切成格子；`lines` = 有沒有格線（設定檔的 `[month] grid_lines`）
+    /// Splits the inside of the box (`inner`) into cells; `lines` = whether to draw grid lines
+    /// (`[month] grid_lines` in the config file)
     ///
-    /// 寬：週數欄 5 格，剩下的扣掉 7 條直線、7 天平分；除不盡的零頭從星期一開始一欄多 1 格。
-    /// 高：表頭 1 列 + 表頭的線 1 列，剩下的扣掉週和週之間 5 條線、6 週平分。沒有格線就不扣線
+    /// Width: the week-number column takes 5 cells; the rest, minus 7 vertical lines, is split evenly over
+    /// 7 days. The leftover cells go one each to the columns starting from Monday.
+    /// Height: header 1 row + header line 1 row; the rest, minus the 5 lines between weeks, is split evenly
+    /// over 6 weeks. Without grid lines, no lines are subtracted
     fn new(inner: Rect, lines: bool) -> Self {
         let gap = u16::from(lines);
         let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7 * gap);
@@ -65,30 +73,33 @@ impl Grid {
         }
     }
 
-    /// 格子太小、畫不出日期（每天至少要 1 格寬、每週至少 1 列）；零頭從星期一開始分，所以星期日最窄
+    /// Cells too small to draw the dates (each day needs at least 1 cell of width, each week at least
+    /// 1 row); leftovers go from Monday on, so Sunday is the narrowest
     fn too_small(&self) -> bool {
         self.week_height == 0 || self.columns[7].1 == 0
     }
 
-    /// 第 `week` 週（從 0 開始）的第一列
+    /// The first row of week `week` (from 0)
     fn week_y(&self, week: u16) -> u16 {
         self.header_y + 1 + self.gap + week * (self.week_height + self.gap)
     }
 
-    /// 第 `week` 週、第 `column` 欄（0 = 週數欄、1 = 星期一 … 7 = 星期日）的格子
+    /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday)
     fn cell(&self, week: u16, column: usize) -> Rect {
         let (x, width) = self.columns[column];
         Rect::new(x, self.week_y(week), width, self.week_height)
     }
 
-    /// 直線的 x：週數欄右邊、星期一到星期六的右邊
+    /// x of the vertical lines: right of the week-number column and right of Monday through Saturday
     fn vertical_xs(&self) -> impl Iterator<Item = u16> + '_ {
         self.columns[..7].iter().map(|&(x, width)| x + width)
     }
 }
 
-/// 畫面最上面那週的星期一：從 `top` 開始，選取的那週移出 6 週才捲（一週一週捲，跟 v1 一樣）；
-/// `center`（設定檔的 `[month] center_cursor`）= 不管 `top`，選取的那週固定在 6 週的第 3 列（偶數週偏上一列，下面多看一週）
+/// Monday of the top week on screen: starting from `top`, scroll only when the selected week leaves the
+/// 6 weeks (one week at a time, like v1). `center` (`[month] center_cursor` in the config file) = ignore
+/// `top`; the selected week stays on row 3 of the 6 (with an even count it leans one row up, so one more
+/// week shows below)
 fn scrolled(top: Date, selected: Date, center: bool) -> Date {
     let week = calendar::monday_of(selected);
     if center {
@@ -104,14 +115,16 @@ fn scrolled(top: Date, selected: Date, center: bool) -> Date {
     }
 }
 
-/// 剛打開、按了 `t` / `[` / `]`、換到版型 3 時，最上面那週：`date` 那個月 1 號的前一週（看得到上個月月底）
+/// The top week right after opening, after `t` / `[` / `]`, or when switching to layout 3: the week
+/// before the one with the 1st of `date`'s month (so the end of the previous month shows)
 fn month_top(date: Date) -> Date {
     calendar::monday_of(date.first_of_month()).saturating_sub(1.week())
 }
 
-/// 畫大月曆：圓角框（鍵盤在月曆時框線亮起來），右上角寫選取的日期；裡面是表頭（星期幾）+ 6 週的格子
+/// Draws the month grid: a rounded box (the border lights up when the keyboard is on the calendar) with
+/// the selected day in the top-right corner; inside are the header (weekday names) + 6 weeks of cells
 ///
-/// 先捲到選取的那週看得到（記在 `app.month_top`），再畫
+/// First scroll so the selected week is visible (stored in `app.month_top`), then draw
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let top = scrolled(
         app.month_top.unwrap_or_else(|| month_top(app.selected)),
@@ -119,7 +132,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         app.settings.month.center_cursor,
     );
     app.month_top = Some(top);
-    // 接下來只讀
+    // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -143,7 +156,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         render_grid_lines(frame.buffer_mut(), inner, &grid, theme.grid, border);
     }
 
-    // 表頭：週數欄寫「週」，每一天的名字放在那欄的最左邊，跟下面的日期對齊；六、日用週末的顏色
+    // Header: the week-number column says 「週」; each day's name sits at the far left of its column, lined
+    // up with the dates below; Saturday and Sunday use the weekend color
     let muted = Style::new().fg(theme.muted);
     let header = |column: usize| {
         let (x, width) = grid.columns[column];
@@ -162,13 +176,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         frame.render_widget(Line::styled(format!(" {name}"), style), header(column));
     }
 
-    // 選取的那個月：其他月份的日子變灰
+    // The selected month: days of other months are grayed out
     let month = app.selected.first_of_month();
     for week in 0..WEEKS {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
-        // 週數：那週裡屬於選取那個月的日子（跨年那週才看得出差別）；選取那週 `week_number`、其他週 `week_number_dim` 的顏色。
-        // `[calendar] relative_weeks` 時其他週寫差幾週
+        // Week number: from a day of that week inside the selected month (only differs for the week spanning
+        // the new year); the selected week gets the `week_number` color, other weeks `week_number_dim`.
+        // With `[calendar] relative_weeks`, other weeks show the difference in weeks
         let numbered = days
             .iter()
             .find(|day| day.first_of_month() == month)
@@ -204,10 +219,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
-/// 畫一週的 7 格，一行一行畫
+/// Draws the 7 cells of one week, line by line
 ///
-/// 第一行（日期）以外的字太長時**往右借**隔壁格（像試算表）：隔壁格同一行沒有東西就借它的寬度（中間的格線一起蓋過去），
-/// 一路借到同一行有東西的格子、或星期日為止；再長就切掉
+/// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
+/// (like a spreadsheet): if the neighbor has nothing on that line, its width is borrowed (drawing over
+/// the grid line between), and so on until a cell with something on that line, or Sunday; anything
+/// longer is cut off
 fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>]) {
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
@@ -225,19 +242,22 @@ fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>]) {
     }
 }
 
-/// 一格的每一行：第一行日期（見 `date_line`），下面一行一件事，例：「 ∙ 14:00 Code review」
+/// The lines of one cell: the date first (see `date_line`), then one item per line,
+/// e.g. 「 ∙ 14:00 Code review」
 ///
-/// - 事放得下就全列；放不下就少列一件，最後一行寫 `+N`（N = 沒列出來的件數）
-/// - 格子只有 1 行（terminal 很矮）：不列事，日期後面畫點點，幾件事就幾個點（最多 4 個）
+/// - List all items if they fit; otherwise list one fewer and put `+N` on the last line
+///   (N = the number of items not listed)
+/// - Cell only 1 line tall (very short terminal): no items; dots after the date, one per item (at most 4)
 ///
-/// 每一段字的顏色都放在 `Span` 上（不用 `Line::styled`）：標題太長、往右借隔壁的空格時，才不會把隔壁的格線也染色
+/// Each piece of text carries its color on its `Span` (not `Line::styled`), so when a long title borrows
+/// the empty neighbor cells to the right, the neighbor's grid line does not get colored too
 fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let other_month = day.first_of_month() != month;
     let mut first = date_line(day, month, app);
     let rows = usize::from(rows);
     if rows <= 1 {
-        // 點點：有還沒結束的事用那天的顏色，都結束了淡色；其他月份灰
+        // Dots: the day's color if some item is not over yet, muted if all are over; gray for other months
         let color = if other_month {
             theme.other_month
         } else if items.iter().any(|item| item.is_open(app.today)) {
@@ -274,10 +294,12 @@ fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> 
     lines
 }
 
-/// 格子裡的一件事：「 ∙ 14:00 標題」（有時間才寫時間；設定檔 `[month] item_icons = false` 時沒有點：「 14:00 標題」）
+/// One item in a cell: 「 ∙ 14:00 標題」 (time only if it has one; with `[month] item_icons = false` in
+/// the config file there is no dot: 「 14:00 標題」)
 ///
-/// 跟版型 1 右邊的事一樣：還沒結束的用那天在月曆上的顏色、時間淡色；結束了的整行灰（做完的任務標題再劃線）；
-/// 其他月份的整行灰
+/// Same as layout 1's agenda: items not over yet use that day's calendar color, with the time muted;
+/// items that are over are gray for the whole line (done tasks also get a struck-through title);
+/// items from other months are gray for the whole line
 fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let color = if other_month {
@@ -312,7 +334,7 @@ fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 那天有幾件事就畫幾個點（最多 4 個）：`⠂` `⠒` `⠖` `⠶`（點字符號的寬度都是 1 格）
+/// One dot per item that day (at most 4): `⠂` `⠒` `⠖` `⠶` (these braille symbols are all 1 cell wide)
 fn dots(count: usize) -> &'static str {
     match count {
         0 => "",
@@ -323,10 +345,12 @@ fn dots(count: usize) -> &'static str {
     }
 }
 
-/// 格子的第一行：日期靠左（選取的加括號 `[17]`），1 號後面寫月份，例：「 1 10月」
+/// A cell's first line: the date on the left (the selected one in brackets `[17]`), with the month after
+/// the 1st, e.g. 「 1 10月」
 ///
-/// 顏色：今天 > 其他月份（灰）> 跟版型 1 的月曆一樣（`day_color`：假日、有沒做完的事、週末）；選取那個月的日期加粗、
-/// 跨多天的事的日子加底線
+/// Color: today > other months (gray) > same as layout 1's calendar (`day_color`: holiday, unfinished
+/// items, weekend). Dates in the selected month are bold;
+/// days covered by a multi-day item are underlined
 fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let other_month = day.first_of_month() != month;
@@ -341,7 +365,7 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     if !other_month || day == app.today {
         number = number.add_modifier(Modifier::BOLD);
     }
-    // 跨多天的事的日子加底線（跟版型 1 的月曆一樣）
+    // Underline days covered by a multi-day item (same as layout 1's calendar)
     if in_multi_day(day, app) {
         number = number.add_modifier(Modifier::UNDERLINED);
     }
@@ -366,11 +390,13 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 畫淡淡的格線：欄和欄之間 `│`、表頭下面和週和週之間 `─`、交叉的地方 `┬` / `┼`；
-/// 橫線碰到外框接成 `├` / `┤`、直線碰到下框接成 `┴`（外框的顏色）。
-/// 除不盡的零頭（最後一週下面空的列）直線照樣畫到下框，看起來是最後一週多幾列空白，不會有兩條線疊在一起
+/// Draws faint grid lines: `│` between columns, `─` below the header and between weeks, `┬` / `┼` at
+/// crossings; horizontal lines meet the outer border as `├` / `┤`, vertical lines meet the bottom border
+/// as `┴` (in the border color).
+/// For the leftover rows (empty rows below the last week), vertical lines still run to the bottom border,
+/// so the last week just looks a few rows taller and no two lines stack up
 ///
-/// 直接一格一格寫進 `Buffer`（不用 widget）；超出畫面的位置略過
+/// Writes cell by cell straight into the `Buffer` (no widget); positions off screen are skipped
 fn render_grid_lines(
     buffer: &mut Buffer,
     inner: Rect,
@@ -391,7 +417,7 @@ fn render_grid_lines(
         }
         put(x, inner.bottom(), line::HORIZONTAL_UP, border);
     }
-    // 表頭下面那條、週和週之間的 5 條
+    // The line below the header and the 5 between weeks
     let mut rules = vec![(top, line::HORIZONTAL_DOWN)];
     rules.extend((0..WEEKS - 1).map(|week| (grid.week_y(week) + grid.week_height, line::CROSS)));
     for (y, cross) in rules {
@@ -406,9 +432,11 @@ fn render_grid_lines(
     }
 }
 
-/// 滑鼠點在大月曆（`area`）的 (`column`, `row`) 點到哪一天；點在表頭、週數欄、格線、外框上回傳 `None`
+/// Which day a mouse click at (`column`, `row`) on the month grid (`area`) hits; `None` on the header,
+/// the week-number column, grid lines or the outer border
 ///
-/// 捲動的位置用上一次畫的時候記下的 `app.month_top`；最後一週下面空的那幾列（除不盡的零頭）也算最後一週
+/// The scroll position is `app.month_top`, stored at the last draw; the empty leftover rows below the
+/// last week count as the last week
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let inner = Block::bordered().inner(area);
     let grid = Grid::new(inner, app.settings.month.grid_lines);
@@ -439,21 +467,24 @@ mod tests {
 
     #[test]
     fn grid_splits_the_days_evenly_and_the_weeks_equally() {
-        // 框裡面 78 × 28（80 × 30 的框）：天的寬度 78 − 5 − 7 = 66，平分 7 欄 = 9 餘 3 → 一、二、三 10 格，其他 9 格
+        // Inside 78 × 28 (an 80 × 30 box): day width 78 − 5 − 7 = 66, split over 7 columns = 9 remainder 3
+        // → Mon, Tue, Wed get 10 cells, the others 9
         let grid = Grid::new(Rect::new(1, 1, 78, 28), true);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 10, 10, 10, 9, 9, 9, 9]);
-        // 欄和欄之間各留 1 格直線：星期一從 1 + 5 + 1 = 7 開始，星期日最後一格貼著框裡面的右邊（78）
+        // 1 cell for a vertical line between columns: Monday starts at 1 + 5 + 1 = 7, Sunday's last cell
+        // touches the right edge of the inside (78)
         assert_eq!(grid.columns[1].0, 7);
         let (x, width) = grid.columns[7];
         assert_eq!(x + width, 1 + 78);
-        // 高：28 − 表頭 2 − 線 5 = 21，6 週各 3 列；第一週從 1 + 2 = 3 開始，下一週隔一條線
+        // Height: 28 − header 2 − lines 5 = 21, 3 rows for each of 6 weeks; week 1 starts at 1 + 2 = 3,
+        // the next week one line further
         assert_eq!(grid.week_height, 3);
         assert_eq!(grid.week_y(0), 3);
         assert_eq!(grid.week_y(1), 7);
-        // 除不盡：27 列 → 20 ÷ 6 = 3 餘 2，零頭留在最下面
+        // Not evenly divisible: 27 rows → 20 ÷ 6 = 3 remainder 2; the leftover stays at the bottom
         assert_eq!(Grid::new(Rect::new(1, 1, 78, 27), true).week_height, 3);
-        // 太小：畫不出來
+        // Too small: cannot be drawn
         assert!(Grid::new(Rect::new(1, 1, 18, 28), true).too_small());
         assert!(Grid::new(Rect::new(1, 1, 78, 12), true).too_small());
         assert!(!Grid::new(Rect::new(1, 1, 19, 13), true).too_small());
@@ -461,35 +492,37 @@ mod tests {
 
     #[test]
     fn without_grid_lines_the_cells_touch() {
-        // 78 × 28 沒有格線：天的寬度 78 − 5 = 73，平分 7 欄 = 10 餘 3 → 一、二、三 11 格，其他 10 格；欄緊貼著
+        // 78 × 28 without grid lines: day width 78 − 5 = 73, split over 7 columns = 10 remainder 3
+        // → Mon, Tue, Wed get 11 cells, the others 10; columns touch
         let grid = Grid::new(Rect::new(1, 1, 78, 28), false);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 11, 11, 11, 10, 10, 10, 10]);
         assert_eq!(grid.columns[1].0, 1 + 5);
         let (x, width) = grid.columns[7];
         assert_eq!(x + width, 1 + 78);
-        // 高：28 − 表頭 1 = 27，6 週各 4 列；第一週緊接在表頭下面，下一週緊接著
+        // Height: 28 − header 1 = 27, 4 rows for each of 6 weeks; week 1 sits right below the header,
+        // the next week right after
         assert_eq!(grid.week_height, 4);
         assert_eq!(grid.week_y(0), 2);
         assert_eq!(grid.week_y(1), 6);
-        // 有格線時太矮的高度，沒有格線就畫得出來：12 − 1 = 11 → 每週 1 列
+        // A height too short with grid lines can be drawn without them: 12 − 1 = 11 → 1 row per week
         assert!(!Grid::new(Rect::new(1, 1, 78, 12), false).too_small());
     }
 
     #[test]
     fn scrolling_moves_a_week_only_when_the_selection_leaves_the_six_weeks() {
-        // 最上面是 9/21：選取的日期在 9/21 ～ 11/1 這 6 週裡就不捲
+        // Top is 9/21: no scrolling while the selected day is within the 6 weeks 9/21 to 11/1
         let top = date(2026, 9, 21);
         assert_eq!(scrolled(top, date(2026, 9, 21), false), top);
         assert_eq!(scrolled(top, date(2026, 11, 1), false), top);
-        // 往下一週：最上面也往下一週；往上一週：選取那週變成最上面
+        // One week further down: the top moves down a week too; one week up: the selected week becomes the top
         assert_eq!(scrolled(top, date(2026, 11, 2), false), date(2026, 9, 28));
         assert_eq!(scrolled(top, date(2026, 9, 20), false), date(2026, 9, 14));
-        // 置中：選取的那週（10/12）永遠在第 3 列，跟原本的 top 無關
+        // Centered: the selected week (10/12) is always on row 3, whatever the previous top was
         for top in [date(2026, 9, 21), date(2026, 10, 12), date(2027, 1, 4)] {
             assert_eq!(scrolled(top, date(2026, 10, 17), true), date(2026, 9, 28));
         }
-        // 剛打開：10 月 1 號那週的前一週在最上面
+        // Just opened: the week before the one with Oct 1 is at the top
         assert_eq!(month_top(date(2026, 10, 17)), date(2026, 9, 21));
         assert_eq!(month_top(date(2027, 1, 31)), date(2026, 12, 21));
     }

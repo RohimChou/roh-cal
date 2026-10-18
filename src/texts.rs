@@ -1,23 +1,23 @@
-//! 畫面上的字：英文、繁體中文各一份；換語言 = 換一組 `Texts`
+//! On-screen text: one set in English, one in Traditional Chinese; switching language = switching `Texts`
 
 use crate::app::{Notice, Row};
 use crate::edit::Problem;
 use crate::tasks::{Item, Kind, WarningKind};
 use jiff::civil::Date;
 
-/// 支援的語言
+/// Supported languages
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
-    /// 英文
+    /// English
     En,
-    /// 繁體中文（台灣）
+    /// Traditional Chinese (Taiwan)
     ZhTw,
 }
 
 impl Lang {
-    /// 從語言代碼判斷語言，不分大小寫，`_` 和 `-` 都可以；不支援的回傳 `None`
+    /// Work out the language from a language code, ignoring case, with `_` or `-`; `None` if unsupported
     ///
-    /// 例：`en`、`en-US` → 英文；`zh-TW`、`zh_TW`、`zh-Hant`、`zh-Hant-TW`、`zh-HK` → 繁體中文
+    /// E.g. `en`, `en-US` → English; `zh-TW`, `zh_TW`, `zh-Hant`, `zh-Hant-TW`, `zh-HK` → Traditional Chinese
     pub fn from_code(code: &str) -> Option<Self> {
         let code = code.to_lowercase().replace('_', "-");
         if code == "en" || code.starts_with("en-") {
@@ -32,14 +32,14 @@ impl Lang {
         }
     }
 
-    /// 系統的語言；讀不到或不支援就用英文
+    /// The system language; English if it cannot be read or is not supported
     pub fn from_system() -> Self {
         sys_locale::get_locale()
             .and_then(|code| Self::from_code(&code))
             .unwrap_or(Self::En)
     }
 
-    /// 這個語言的那組字
+    /// The text set for this language
     pub fn texts(self) -> &'static Texts {
         match self {
             Self::En => &EN,
@@ -48,64 +48,67 @@ impl Lang {
     }
 }
 
-/// 一種語言的所有字
+/// All the text for one language
 #[derive(Debug)]
 pub struct Texts {
-    /// 這組字是哪個語言（年 / 月的寫法要用）
+    /// Which language this set is in (needed to write years / months)
     lang: Lang,
-    /// 最下面一列的操作說明（`s` = side menu：夠寬時收起 / 打開，不夠寬時叫出來蓋在左邊）
+    /// The key hints on the bottom row (`s` = side menu: hides / shows it when wide enough, otherwise opens
+    /// it over the left side)
     pub hints: &'static str,
-    /// 月曆表頭：週數那欄（4 格寬）
+    /// Calendar header: the week number column (4 cells wide)
     pub header_week: &'static str,
-    /// 月曆表頭的星期一到星期日：每個剛好 2 格寬
+    /// Monday to Sunday in the calendar header: each exactly 2 cells wide
     pub weekdays: [&'static str; 7],
-    /// 右邊事項框的表頭
+    /// The agenda's header
     pub header_items: &'static str,
-    /// side menu（日曆清單）的表頭
+    /// The side menu (calendar list) header
     pub header_side: &'static str,
-    /// 任務頁的表頭
+    /// The tasks page header
     pub header_tasks: &'static str,
-    /// 任務頁最下面一列的操作說明
+    /// The key hints on the tasks page's bottom row
     pub hints_tasks: &'static str,
-    /// 版型 3「那天的事」跳窗開著時，最下面一列的操作說明
+    /// The key hints on the bottom row while layout 3's day popup is open
     pub hints_day: &'static str,
-    /// side menu：檔案開頭、還沒有標題的項目
+    /// Side menu: items at the top of the file, before any heading
     pub ungrouped: &'static str,
-    /// 說明頁（`?`）的精簡版：最常用的鍵
+    /// The short version of the help page (`?`): the most used keys
     pub help_short: HelpPage,
-    /// 說明頁的完整版（`Tab`）：所有的鍵，包括編輯框、改期、滑鼠
+    /// The full version of the help page (`Tab`): every key, including the editor, rescheduling and the mouse
     pub help_full: HelpPage,
-    /// 設定頁上框線的 `roh-cal ∙ 設定` 的 `設定`
+    /// The `設定` in `roh-cal ∙ 設定` on the settings page's top border
     pub settings_title: &'static str,
-    /// 設定頁下框線的操作說明
+    /// The key hints on the settings page's bottom border
     pub settings_hint: &'static str,
-    /// 設定頁按了 `R`：下框線換成這句，問要不要全部還原
+    /// After `R` on the settings page: the bottom border switches to this, asking whether to reset everything
     pub settings_reset_all: &'static str,
 }
 
-/// 說明頁的一版：上下框線的字、左右兩欄的段落
+/// One version of the help page: the text on the top and bottom borders, and the sections in the two columns
 #[derive(Debug, Clone, Copy)]
 pub struct HelpPage {
-    /// 上框線 `roh-cal ∙ 按鍵` 的 `按鍵`（兩版不一樣，看得出現在是哪一版）
+    /// The `按鍵` in `roh-cal ∙ 按鍵` on the top border (differs between the two versions, so you can tell
+    /// which one is showing)
     pub title: &'static str,
-    /// 下框線的操作說明
+    /// The key hints on the bottom border
     pub hint: &'static str,
-    /// 左欄的段落
+    /// Sections in the left column
     pub left: &'static [HelpSection],
-    /// 右欄的段落
+    /// Sections in the right column
     pub right: &'static [HelpSection],
 }
 
-/// 說明頁的一段：段落名 + 每個按鍵做什麼
+/// One help page section: its name + what each key does
 #[derive(Debug, Clone, Copy)]
 pub struct HelpSection {
-    /// 段落名，例：`Calendar` / `月曆`
+    /// The section name, e.g. `Calendar` / `月曆`
     pub title: &'static str,
-    /// (按鍵, 做什麼)，例：`("t", "today")`；按鍵那欄每種語言都一樣（有 test 釘住）
+    /// (key, what it does), e.g. `("t", "today")`; the key column is the same in every language
+    /// (pinned by a test)
     pub keys: &'static [(&'static str, &'static str)],
 }
 
-/// 英文的字
+/// English text
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
@@ -249,7 +252,7 @@ const EN: Texts = Texts {
     settings_reset_all: "Reset everything? y resets, any other key cancels",
 };
 
-/// 繁體中文的字
+/// Traditional Chinese text
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
@@ -393,15 +396,15 @@ const ZH_TW: Texts = Texts {
     settings_reset_all: "全部還原成預設？y 還原，其他鍵取消",
 };
 
-/// 英文的月份縮寫，`[0]` 是一月
+/// English month abbreviations; `[0]` is January
 const EN_MONTHS: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-/// 英文的星期縮寫（標題列用；表頭用 2 個字母的 `weekdays`），`[0]` 是星期一
+/// English weekday abbreviations (for title rows; the header uses the 2-letter `weekdays`); `[0]` is Monday
 const EN_WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 impl Texts {
-    /// 月曆左邊欄的年份，例：`2027年` / `2027`
+    /// The year in the calendar's left column, e.g. `2027年` / `2027`
     pub fn year_label(&self, date: Date) -> String {
         match self.lang {
             Lang::En => date.year().to_string(),
@@ -409,7 +412,7 @@ impl Texts {
         }
     }
 
-    /// 月曆左邊欄的月份，例：`Oct` / `10月`
+    /// The month in the calendar's left column, e.g. `Oct` / `10月`
     pub fn month_label(&self, date: Date) -> String {
         match self.lang {
             Lang::En => EN_MONTHS[month_index(date)].to_string(),
@@ -417,7 +420,7 @@ impl Texts {
         }
     }
 
-    /// 一個月的事放不下時，那個月下面那條線上的提示，例：`23 more` / `還有 23 件`
+    /// The hint on the line below a month when its items do not fit, e.g. `23 more` / `還有 23 件`
     pub fn more_items(&self, count: usize) -> String {
         match self.lang {
             Lang::En => format!("{count} more"),
@@ -425,7 +428,8 @@ impl Texts {
         }
     }
 
-    /// 最下面一列暫時換成的提示（寫檔的結果），例：`寫不進任務檔（permission denied）`
+    /// The notice that briefly replaces the bottom row (the result of writing the file),
+    /// e.g. `寫不進任務檔（permission denied）`
     pub fn notice(&self, notice: &Notice) -> String {
         match (self.lang, notice) {
             (Lang::En, Notice::Reloaded) => {
@@ -459,7 +463,7 @@ impl Texts {
         }
     }
 
-    /// 任務頁表頭右邊：任務檔有幾處寫錯，例：`1 處寫錯` / `1 mistake(s)`
+    /// Right of the tasks page header: how many mistakes the task file has, e.g. `1 處寫錯` / `1 mistake(s)`
     pub fn mistakes(&self, count: usize) -> String {
         match self.lang {
             Lang::En => format!("{count} mistake(s) "),
@@ -467,7 +471,7 @@ impl Texts {
         }
     }
 
-    /// 任務頁最下面一列：選到的那一行寫錯了什麼，例：` 第 44 行：@2026-13-01：沒有這一天`
+    /// The tasks page's bottom row: what is wrong with the chosen line, e.g. ` 第 44 行：@2026-13-01：沒有這一天`
     pub fn tasks_mistake(&self, line: usize, kind: &WarningKind) -> String {
         match self.lang {
             Lang::En => format!(" Line {line}: {}", self.mistake(kind)),
@@ -475,7 +479,8 @@ impl Texts {
         }
     }
 
-    /// 任務頁最下面一列：選到的那一行在檔案的第幾行、原本的文字，例：` 第 6 行  - [ ] 實作退款 API @2026-10-14`
+    /// The tasks page's bottom row: the chosen line's line number in the file and its original text,
+    /// e.g. ` 第 6 行  - [ ] 實作退款 API @2026-10-14`
     pub fn tasks_detail(&self, line: usize, text: &str) -> String {
         match self.lang {
             Lang::En => format!(" Line {line}  {text}"),
@@ -483,7 +488,7 @@ impl Texts {
         }
     }
 
-    /// 編輯框上框線的標題，例：` 編輯第 6 行 ` / ` Edit line 6 `
+    /// The title on the editor's top border, e.g. ` 編輯第 6 行 ` / ` Edit line 6 `
     pub fn edit_title(&self, line: usize) -> String {
         match self.lang {
             Lang::En => format!(" Edit line {line} "),
@@ -491,7 +496,7 @@ impl Texts {
         }
     }
 
-    /// 新增時編輯框上框線的標題：` 新增 ` / ` 新增子任務 `
+    /// The title on the editor's top border when adding: ` 新增 ` / ` 新增子任務 `
     pub fn add_title(&self, subtask: bool) -> &'static str {
         match (self.lang, subtask) {
             (Lang::En, false) => " New item ",
@@ -501,7 +506,7 @@ impl Texts {
         }
     }
 
-    /// 編輯框下框線：怎麼存、怎麼取消
+    /// The editor's bottom border: how to save, how to cancel
     pub fn editor_keys(&self) -> &'static str {
         match self.lang {
             Lang::En => " Enter save  Esc cancel ",
@@ -509,7 +514,7 @@ impl Texts {
         }
     }
 
-    /// 編輯框裡打的那一行讀起來是什麼，例：`任務 · 2026/10/16（五） 17:30 · 「交週報」`
+    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「交週報」`
     pub fn preview(&self, item: &Item) -> String {
         let kind = match (self.lang, item.kind, item.done) {
             (Lang::En, Kind::Task, false) => "Task",
@@ -541,7 +546,7 @@ impl Texts {
         }
     }
 
-    /// 編輯框裡打的那一行有什麼問題（存不了），例：`@2026-13-01：沒有這一天`
+    /// What is wrong with the line typed in the editor (it cannot be saved), e.g. `@2026-13-01：沒有這一天`
     pub fn problem(&self, problem: &Problem) -> String {
         match (self.lang, problem) {
             (Lang::En, Problem::NotAnItem) => {
@@ -556,7 +561,7 @@ impl Texts {
         }
     }
 
-    /// 任務檔寫錯的地方，例：`@2026-13-01：沒有這一天` / `@2026-13-01: no such day`
+    /// A mistake in the task file, e.g. `@2026-13-01：沒有這一天` / `@2026-13-01: no such day`
     pub fn mistake(&self, kind: &WarningKind) -> String {
         match (self.lang, kind) {
             (Lang::En, WarningKind::NoSuchDate(token)) => format!("{token}: no such day"),
@@ -570,7 +575,8 @@ impl Texts {
         }
     }
 
-    /// 按了 `d`，最下面一列問要不要刪，例：` 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消`
+    /// After `d`, the bottom row asks whether to delete,
+    /// e.g. ` 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消`
     pub fn confirm_delete(&self, title: &str, count: usize) -> String {
         let subtasks = count.saturating_sub(1);
         match (self.lang, subtasks) {
@@ -588,7 +594,8 @@ impl Texts {
         }
     }
 
-    /// 改期中（按了 `r`），最下面一列的說明，例：` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
+    /// While rescheduling (after `r`), the hint on the bottom row,
+    /// e.g. ` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
     pub fn moving(&self, title: &str) -> String {
         match self.lang {
             Lang::En => {
@@ -598,7 +605,7 @@ impl Texts {
         }
     }
 
-    /// 設定頁最下面：選到的那一列在做什麼
+    /// Bottom of the settings page: what the chosen row does
     pub fn setting_description(&self, row: Row) -> &'static str {
         match (self.lang, row) {
             (Lang::En, Row::Theme) => "Colors: l the next theme, h the previous one",
@@ -618,9 +625,9 @@ impl Texts {
         }
     }
 
-    /// 選取的日期（右邊事項框表頭的右邊），例：`Sat Oct 17, 2026` / `2026/10/17（六）`
+    /// The selected date (on the right of the agenda's header), e.g. `Sat Oct 17, 2026` / `2026/10/17（六）`
     pub fn date_title(&self, date: Date) -> String {
-        // 星期一 = 0、星期日 = 6
+        // Monday = 0, Sunday = 6
         let weekday = date.weekday().to_monday_zero_offset() as usize;
         match self.lang {
             Lang::En => format!(
@@ -641,7 +648,8 @@ impl Texts {
     }
 }
 
-/// 月份在陣列裡的位置：月份是 1～12，換成 0～11（`month()` 是 i8，轉成 usize 才能當位置）
+/// The month's index in an array: months are 1-12, turned into 0-11 (`month()` is i8; it must become
+/// usize to be used as an index)
 fn month_index(date: Date) -> usize {
     usize::try_from(date.month() - 1).unwrap_or(0)
 }
@@ -663,7 +671,7 @@ mod tests {
 
     #[test]
     fn from_code_rejects_unsupported() {
-        // 簡體中文、日文、空字串、像 en 但不是 en 的
+        // Simplified Chinese, Japanese, an empty string, something like en that is not en
         for code in ["zh-CN", "zh-Hans", "ja-JP", "", "eng"] {
             assert_eq!(Lang::from_code(code), None, "{code}");
         }
@@ -755,7 +763,8 @@ mod tests {
 
     #[test]
     fn help_pages_list_the_same_keys_in_both_languages() {
-        // 按鍵那欄每種語言都一樣（只有說明翻譯）：哪一種語言少寫、多寫一個鍵都抓得到
+        // The key column is the same in every language (only the descriptions are translated): a key missing
+        // from or extra in either language is caught
         let keys = |page: HelpPage| -> Vec<Vec<&str>> {
             page.left
                 .iter()

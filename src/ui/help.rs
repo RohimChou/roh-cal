@@ -1,7 +1,9 @@
-//! 說明頁（`?`）：蓋在畫面正中間，大小剛好包住內容（排法照 v1、tuxedo）；打開時是精簡版，`Tab` 換完整版
+//! Help page (`?`): drawn over the middle of the screen, just big enough for its content (laid out like v1
+//! and tuxedo). It opens as the short version; `Tab` switches to the full version
 //!
-//! 左右兩欄列按鍵；畫面不夠寬放兩欄時，改成一欄由上往下排；畫面不夠高時可以上下捲，右框線上有捲軸。
-//! 內容在 `Texts::help_short`、`Texts::help_full`
+//! Keys are listed in left and right columns. When the screen is too narrow for two columns, they stack into
+//! one column, top to bottom. When it is too short, the page scrolls, with a scrollbar on the right border.
+//! The content lives in `Texts::help_short` and `Texts::help_full`
 
 use crate::app::{App, Help};
 use crate::texts::{HelpPage, HelpSection};
@@ -14,22 +16,24 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Padding, Paragraph},
 };
 
-/// 按鍵和它的說明之間至少空幾格（按鍵那欄的寬度 = 兩欄裡最長的按鍵 + 這麼多格）
+/// Minimum gap between a key and its description (key column width = longest key in both columns + this)
 const KEY_GAP: usize = 3;
-/// 兩欄之間至少空幾格（右欄自己還有縮排：段落名 2 格、按鍵 4 格，所以 1 格就分得開）
+/// Minimum gap between the two columns (the right column has its own indent: section names 2, keys 4,
+/// so 1 cell is enough to keep them apart)
 const GAP: usize = 1;
-/// 精簡版的內容和右框線之間空幾格：跟兩欄之間看起來一樣寬（`GAP` + 段落名的縮排 2），左、中、右的留白才平均；
-/// 完整版只留 1 格
+/// Gap between the short version's content and the right border: looks as wide as the gap between the
+/// columns (`GAP` + the section-name indent of 2), so the left, middle and right margins are even;
+/// the full version leaves only 1 cell
 const SHORT_RIGHT_MARGIN: usize = GAP + 2;
-/// 框線和內容之間：上下各空 1 行（左邊靠段落名的縮排留空）
+/// Between border and content: 1 blank line at top and bottom (the section-name indent spaces the left side)
 const PADDING: Padding = Padding::vertical(1);
 
-/// 畫說明頁：大小剛好包住內容，放在畫面正中間；terminal 太矮放不下時，從往下捲了 `help.scroll` 行的地方開始畫，
-/// 右框線上畫捲軸
+/// Draws the help page: just big enough for its content, in the middle of the screen. When the terminal is
+/// too short to fit it, drawing starts `help.scroll` lines down and a scrollbar is drawn on the right border
 pub fn render(frame: &mut Frame, app: &App, help: Help) {
     let theme = &app.theme;
     let (lines, area) = layout(app, frame.area(), help.full);
-    // 捲過頭（例：捲到底之後把 terminal 拉高）就停在最後一頁
+    // Overscrolled (e.g. scrolled to the bottom, then the terminal got taller): stop at the last page
     let max = overflow(lines.len(), area);
     let scroll = help.scroll.min(max);
     let (title, hint) = border_lines(page(app, help.full), theme);
@@ -39,7 +43,7 @@ pub fn render(frame: &mut Frame, app: &App, help: Help) {
         .padding(PADDING)
         .title_top(title)
         .title_bottom(hint);
-    // 先清掉底下的畫面，框才不會跟月曆的字疊在一起
+    // Clear the screen underneath first so the box does not overlap the calendar's text
     super::clear_wide_left_of(frame.buffer_mut(), area);
     frame.render_widget(Clear, area);
     frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
@@ -48,30 +52,30 @@ pub fn render(frame: &mut Frame, app: &App, help: Help) {
     }
 }
 
-/// 說明頁的框（含框線）在 `screen` 上的範圍（滑鼠點框外 = 關掉）
+/// The help box's area (incl. border) on `screen` (a mouse click outside the box = close)
 pub fn area(app: &App, screen: Rect, full: bool) -> Rect {
     layout(app, screen, full).1
 }
 
-/// 說明頁最多能往下捲幾行（照 `screen` 的大小算）；放得下 = 0
+/// How many lines the help page can scroll down at most (based on the size of `screen`); 0 when it fits
 pub fn max_scroll(app: &App, screen: Rect, full: bool) -> u16 {
     let (lines, area) = layout(app, screen, full);
     overflow(lines.len(), area)
 }
 
-/// 框裡放得下幾行內容：扣掉上下框線和 padding
+/// How many content lines fit in the box: minus the top and bottom border and padding
 fn visible_rows(area: Rect) -> u16 {
     area.height.saturating_sub(PADDING.top + PADDING.bottom + 2)
 }
 
-/// `lines` 行的內容放進 `area` 的框，有幾行放不下（= 最多能往下捲幾行）
+/// How many of `lines` lines do not fit in the box at `area` (= the most it can scroll down)
 fn overflow(lines: usize, area: Rect) -> u16 {
     u16::try_from(lines)
         .unwrap_or(u16::MAX)
         .saturating_sub(visible_rows(area))
 }
 
-/// 現在顯示的那一版：精簡版，或 `full` 時的完整版
+/// The version shown now: the short one, or the full one when `full`
 fn page(app: &App, full: bool) -> HelpPage {
     let texts = app.lang.texts();
     if full {
@@ -81,13 +85,15 @@ fn page(app: &App, full: bool) -> HelpPage {
     }
 }
 
-/// 說明頁的內容（一行一行）和框放在哪（`render`、`area`、`max_scroll` 共用）
+/// The help page's content (line by line) and where the box goes (shared by `render`, `area`, `max_scroll`)
 fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     let help = page(app, full);
-    // 精簡版的段落名水平對齊；完整版段落多、長短差很多，兩欄各自往下排（對齊會多出很多空行）
+    // The short version aligns section names horizontally. The full version has many sections of very different
+    // lengths, so each column runs down on its own (aligning would add many blank lines)
     let lines = arrange(help.left, help.right, &app.theme, screen.width, !full);
-    // 大小：最寬那行 + 右邊的留白 + 框線 2（也要放得下上下框線的字，不然會被切掉）；
-    // 行數 + 上下 padding + 框線 2（超過畫面會被縮到畫面大小）
+    // Size: widest line + right margin + 2 for the border (also wide enough for the top and bottom border
+    // text, or it gets cut off); line count + top and bottom padding + 2 for the border (shrunk to the
+    // screen if larger)
     let (title, hint) = border_lines(help, &app.theme);
     let right_margin = if full { 1 } else { SHORT_RIGHT_MARGIN };
     let inside = (width(&lines) + right_margin)
@@ -97,7 +103,7 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     let box_height = u16::try_from(lines.len())
         .unwrap_or(u16::MAX)
         .saturating_add(PADDING.top + PADDING.bottom + 2);
-    // 說明頁不屬於哪一天、哪一個框：放在整個畫面的正中間
+    // The help page belongs to no day and no box: put it in the middle of the whole screen
     let area = screen.centered(
         Constraint::Length(box_width.min(screen.width)),
         Constraint::Length(box_height.min(screen.height)),
@@ -105,7 +111,8 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     (lines, area)
 }
 
-/// 上下框線的字：上框線 `roh-cal ∙ 按鍵`（app 名稱醒目，後面淡淡的）、下框線是操作說明
+/// Text on the top and bottom border: top is `roh-cal ∙ 按鍵` (app name stands out, the rest is muted),
+/// bottom is the key hints
 fn border_lines(help: HelpPage, theme: &Theme) -> (Line<'static>, Line<'static>) {
     let title = Line::from(vec![
         Span::raw(" "),
@@ -119,8 +126,9 @@ fn border_lines(help: HelpPage, theme: &Theme) -> (Line<'static>, Line<'static>)
     (title, hint)
 }
 
-/// 兩欄的段落排成一行一行：寬度（扣掉框線）放得下就左右並排（`align` 時同一個位置的兩段段落名在同一行），
-/// 放不下就改成一欄，右欄接在左欄下面
+/// Lays out the two columns' sections as lines: if the width (minus the border) fits, side by side (with
+/// `align`, the section names at the same position share a line); if not, one column, with the right column
+/// below the left one
 fn arrange(
     left: &[HelpSection],
     right: &[HelpSection],
@@ -128,7 +136,7 @@ fn arrange(
     screen_width: u16,
     align: bool,
 ) -> Vec<Line<'static>> {
-    // 按鍵那欄兩欄一樣寬：兩欄所有按鍵裡最長的 + `KEY_GAP`
+    // The key column is equally wide in both columns: the longest key in either column + `KEY_GAP`
     let key_width = left
         .iter()
         .chain(right)
@@ -140,7 +148,7 @@ fn arrange(
     let left = section_blocks(left, key_width, theme);
     let right = section_blocks(right, key_width, theme);
     let block_width = |blocks: &[Vec<Line>]| blocks.iter().map(|block| width(block)).max();
-    // 右欄從 `split` 那格開始
+    // The right column starts at cell `split`
     let split = block_width(&left).unwrap_or(0) + GAP;
     if split + block_width(&right).unwrap_or(0) + 2 <= usize::from(screen_width) {
         let (left, right) = if align {
@@ -150,7 +158,7 @@ fn arrange(
         };
         side_by_side(left, right, split)
     } else {
-        // 一欄：右欄接在左欄下面，中間空一行
+        // One column: the right column goes below the left one, with a blank line between
         let mut lines = stacked(left);
         lines.push(Line::default());
         lines.extend(stacked(right));
@@ -158,7 +166,8 @@ fn arrange(
     }
 }
 
-/// 一欄的每一段排成幾行：段落名（縮排 2）、每個按鍵一行（縮排 4，按鍵那欄 `key_width` 格寬）
+/// Lays out each section of one column as lines: the section name (indent 2), then one line per key
+/// (indent 4, key column `key_width` cells wide)
 fn section_blocks(
     sections: &[HelpSection],
     key_width: usize,
@@ -168,7 +177,8 @@ fn section_blocks(
     sections
         .iter()
         .map(|section| {
-            // 顏色放在字上，不放在整行：兩欄並排時這一行會接上另一欄的字，整行的顏色會染到另一欄
+            // Put the color on the text, not the whole line: side by side, this line gets the other column's
+            // text appended, and a whole-line color would bleed into it
             let title = Span::styled(
                 format!("  {}", section.title),
                 Style::new().fg(theme.help_section).add_modifier(bold),
@@ -190,7 +200,7 @@ fn section_blocks(
         .collect()
 }
 
-/// 一欄的段落由上往下接起來，段落之間空一行
+/// Joins one column's sections top to bottom, with a blank line between sections
 fn stacked(blocks: Vec<Vec<Line<'static>>>) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     for (index, block) in blocks.into_iter().enumerate() {
@@ -202,7 +212,8 @@ fn stacked(blocks: Vec<Vec<Line<'static>>>) -> Vec<Line<'static>> {
     lines
 }
 
-/// 兩欄的段落一段一段對齊：同一個位置的兩段，比較短的那段下面補空行，下一段的段落名才會在同一行；段落之間空一行
+/// Aligns the two columns section by section: of the two sections at the same position, the shorter one
+/// gets blank lines below so the next section names share a line; a blank line between sections
 fn aligned(
     left: Vec<Vec<Line<'static>>>,
     right: Vec<Vec<Line<'static>>>,
@@ -226,12 +237,13 @@ fn aligned(
     (left_lines, right_lines)
 }
 
-/// 最寬那行佔幾格（中文字算 2 格）
+/// How many cells the widest line takes (a Chinese character counts as 2)
 fn width(lines: &[Line]) -> usize {
     lines.iter().map(Line::width).max().unwrap_or(0)
 }
 
-/// 左右兩欄並排：左欄每一行補空白到 `split` 格，再接上右欄同一行；比較短的那欄下面留空
+/// Puts the two columns side by side: pad each left line with spaces to `split` cells, then append the same
+/// line of the right column; the shorter column is left blank below
 fn side_by_side(
     left: Vec<Line<'static>>,
     right: Vec<Line<'static>>,
@@ -261,7 +273,8 @@ mod tests {
     use jiff::civil::date;
     use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
-    /// 打開說明頁（`help`）畫一次 `width` × `height` 的整個畫面（底下是版型 1），回傳框的位置和框裡每一列的字
+    /// Opens the help page (`help`) and draws the whole `width` × `height` screen once (layout 1 underneath);
+    /// returns the box's area and the text of each row in the box
     fn draw(lang: Lang, width: u16, height: u16, help: Help) -> (Rect, Vec<String>, Buffer) {
         let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, width, height);
@@ -277,10 +290,12 @@ mod tests {
 
     #[test]
     fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
-        // 預期的框用另一支 Python 算：按鍵那欄 = 最長的鍵（Space、[ / ]，5 格）+ 3；右欄從左欄最寬那行 + 1 開始；
-        // 段落名對齊（編輯 6 個鍵，移動那段下面補 2 行空白）
+        // Expected box computed by a separate Python script: key column = longest key (Space, [ / ],
+        // 5 cells) + 3; the right column starts at the left column's widest line + 1; section names aligned
+        // (編輯 has 6 keys, so 移動 gets 2 blank lines below)
         let (area, rows, buffer) = draw(Lang::ZhTw, 70, 23, Help::default());
-        // 置中除不盡的那格放在左邊（ratatui 的 `Flex::Center`）：(70 − 49) / 2 = 10.5 → 11
+        // When centering does not divide evenly, the extra cell goes on the left (ratatui's `Flex::Center`):
+        // (70 − 49) / 2 = 10.5 → 11
         assert_eq!(area, Rect::new(11, 3, 49, 17));
         assert_eq!(
             rows,
@@ -304,19 +319,21 @@ mod tests {
                 "╰ Tab 全部按鍵  ?/q/Esc 關閉 ───────────────────╯",
             ]
         );
-        // 顏色：框線亮起來（鍵盤在這裡）、段落名、按鍵、說明各一種顏色
+        // Colors: the border is lit (keyboard focus is here); section names, keys and descriptions each have
+        // their own color
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(11, 3)].fg, theme.focus);
         assert_eq!(buffer[(14, 5)].fg, theme.help_section);
         assert_eq!(buffer[(16, 6)].fg, theme.help_key);
         assert_eq!(buffer[(24, 6)].fg, theme.text);
-        // 框外面還是底下的月曆（版型 1 的左上角）
+        // Outside the box is still the calendar underneath (layout 1's top-left corner)
         assert_eq!(buffer[(0, 0)].symbol(), "╭");
     }
 
     #[test]
     fn a_narrow_screen_stacks_the_columns() {
-        // 44 格放不下兩欄（左欄 28 + 右欄 16 + 框線 2 = 46）：右欄接在左欄下面，中間空一行
+        // 44 cells cannot fit two columns (left 28 + right 16 + border 2 = 46): the right column goes below the
+        // left one, with a blank line between
         let (area, rows, _) = draw(Lang::ZhTw, 44, 30, Help::default());
         assert_eq!(area, Rect::new(6, 1, 32, 28));
         assert_eq!(
@@ -356,7 +373,8 @@ mod tests {
 
     #[test]
     fn a_short_screen_scrolls_with_a_bar_on_the_right_border() {
-        // 44 × 20：一欄 24 行，框最高 20、裡面放得下 16 行 → 能捲 8 行；捲軸畫在右框線上
+        // 44 × 20: one column of 24 lines; the box is at most 20 tall and holds 16 lines → can scroll 8 lines;
+        // the scrollbar is drawn on the right border
         let (area, rows, _) = draw(Lang::ZhTw, 44, 20, Help::default());
         assert_eq!(area, Rect::new(6, 0, 32, 20));
         let bar = |rows: &[String]| -> Vec<usize> {
@@ -366,10 +384,12 @@ mod tests {
                 .map(|(y, _)| y)
                 .collect()
         };
-        // 最上面：第一段的段落名看得到，捲軸在最上面（圓角下面那一列開始）
+        // At the top: the first section name is visible and the scrollbar is at the top
+        // (starting on the row below the rounded corner)
         assert_eq!(rows[2], "│  移動                        ┃");
         assert_eq!(bar(&rows).first(), Some(&1));
-        // 捲到底（捲過頭也停在最後一頁）：最後一個鍵看得到，捲軸在最下面
+        // Scrolled to the bottom (overscrolling also stops at the last page): the last key is visible and
+        // the scrollbar is at the bottom
         let scrolled = Help {
             full: false,
             scroll: 99,
@@ -395,22 +415,24 @@ mod tests {
                     scroll: 0,
                 },
             );
-            // 長的那欄（左欄）30 行 + padding 2 + 框線 2，放得下不用捲
+            // The longer column (left) is 30 lines + padding 2 + border 2: it fits, no scrolling
             assert_eq!(area.height, 34, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {
                 assert!(text.contains(section.title), "{}", section.title);
             }
-            // 兩欄並排：兩欄的第一段在同一列
+            // Side by side: the first section of both columns is on the same row
             let row_of = |text: &str| rows.iter().position(|row| row.contains(text));
             assert_eq!(row_of(page.left[0].title), row_of(page.right[0].title));
-            // 不對齊段落名：左欄第二段緊接在第一段下面（中間空一行），不等右欄比較長的第一段
+            // Section names not aligned: the left column's second section follows right after its first
+            // (one blank line between), without waiting for the right column's longer first section
             assert_eq!(
                 row_of(page.left[1].title),
                 row_of(page.left[0].title).map(|row| row + page.left[0].keys.len() + 2),
                 "{lang:?}"
             );
-            // 完整版右邊只留 1 格：右欄最寬那行（說明）和右框線之間
+            // The full version leaves only 1 cell on the right: between the right column's widest line
+            // (a description) and the right border
             let widest = page
                 .right
                 .iter()

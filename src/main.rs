@@ -1,4 +1,4 @@
-//! roh-cal：terminal 月曆，讀純文字的任務檔
+//! roh-cal: a terminal calendar that reads a plain-text task file
 
 mod app;
 mod calendar;
@@ -25,15 +25,16 @@ use std::path::{Path, PathBuf};
 use tasks::Parsed;
 use texts::Lang;
 
-/// 讀命令列參數、任務檔、設定檔，進 TUI 跑到離開為止；設定檔、`--tasks` 指定的任務檔讀不進來就印出哪裡錯（不進 TUI）
+/// Reads the command-line arguments, task file, and config file, then runs the TUI until quit. If the config
+/// file or the task file given by `--tasks` cannot be read, prints what is wrong (without starting the TUI)
 fn main() -> Result<()> {
-    // 出錯時印出好讀的錯誤訊息與 backtrace
+    // On errors, print a readable error message and backtrace
     color_eyre::install()?;
-    // 讀命令列參數：參數錯了、--help、--version 都在這裡印出來就結束（還沒進 TUI）
+    // Read the command-line arguments: bad arguments, --help, --version print here and exit (before the TUI)
     let args = Args::parse();
-    // 語言：--lang 參數 → 系統語言 → 英文
+    // Language: --lang → the system language → English
     let lang = args.lang.unwrap_or_else(Lang::from_system);
-    // 任務檔：有給 --tasks 就一定要讀得到；用預設位置時，檔案不存在就當作沒有任務
+    // Task file: one given by --tasks must be readable; at the default location, missing means no tasks
     let (path, required) = match args.tasks {
         Some(path) => (Some(path), true),
         None => (paths::tasks_file(), false),
@@ -42,30 +43,33 @@ fn main() -> Result<()> {
         Some(path) => load_tasks(path, required)?,
         None => Parsed::default(),
     };
-    // 設定檔：不存在就全部用預設值；寫錯了就在這裡印出哪一行錯（還沒進 TUI）
+    // Config file: if missing, use all defaults; if it has a mistake, print which line here (before the TUI)
     let config_path = paths::config_file();
     let mut settings = match &config_path {
         Some(path) => config::load(path)?,
         None => config::Settings::default(),
     };
-    // --theme 比設定檔優先，只有這次打開用：設定頁關掉時只存頁面上改過的，不會把它存進設定檔
+    // --theme beats the config file for this run only: closing the settings page saves only what changed on
+    // the page, so --theme is not written to the config file
     if let Some(theme) = args.theme {
         settings.set_theme(&theme);
     }
-    // 今天：系統時區的日期
+    // Today: the date in the system time zone
     let today = Zoned::now().date();
-    // 進入 TUI 模式（raw mode + alternate screen），closure 結束後自動還原 terminal
+    // Enter TUI mode (raw mode + alternate screen); the terminal is restored when the closure ends
     ratatui::run(|terminal| {
-        // 開著滑鼠的期間：_mouse 在 closure 結束時被 drop，滑鼠就自動關掉
+        // The mouse is on meanwhile: _mouse is dropped when the closure ends, which turns the mouse off
         let _mouse = MouseCapture::enable()?;
         let mut app = App::new(lang, today, parsed.items);
         app.settings = settings;
         app.apply_theme();
-        // 設定頁改過的設定存回同一個檔案（還不存在的話，有改東西才會建立）
+        // Changes made on the settings page are saved back to this same file
+        // (if it does not exist yet, it is created only when something changed)
         app.config_path = config_path;
-        // 打勾、編輯寫回同一個檔案（預設位置的檔案還不存在也記著，之後新增時會建立）
+        // Checking and editing write back to this same file (the default file is kept even if it does not exist
+        // yet; adding an item creates it)
         app.tasks_path = path;
-        // 任務檔有寫錯的地方：一打開就在最下面一列說（任務頁看得到是哪幾行）
+        // Mistakes in the task file: say so on the bottom row right away (the tasks page shows which lines)
         app.warnings = parsed.warnings;
         if !app.warnings.is_empty() {
             app.notice = Some(Notice::Mistakes(app.warnings.len()));
@@ -74,8 +78,8 @@ fn main() -> Result<()> {
     })
 }
 
-/// 讀任務檔（事和寫錯的地方）；`required` = 使用者自己指定的檔案（`--tasks`），不存在要報錯；
-/// 預設位置的檔案不存在就當作沒有任務
+/// Reads the task file (items and mistakes). `required` = the user named this file (`--tasks`), so a
+/// missing file is an error; a missing file at the default location just means no tasks
 fn load_tasks(path: &Path, required: bool) -> Result<Parsed> {
     match std::fs::read_to_string(path) {
         Ok(text) => Ok(tasks::parse(&text)),
@@ -86,14 +90,14 @@ fn load_tasks(path: &Path, required: bool) -> Result<Parsed> {
     }
 }
 
-/// 開著滑鼠事件的期間；drop 時自動關掉（正常結束、出錯、panic 都一樣）
+/// Keeps mouse events on while it lives; drop turns them off (on a normal exit, an error, or a panic alike)
 ///
-/// `ratatui::run` 只會還原 raw mode 和 alternate screen，滑鼠要自己關，
-/// 不然離開後 terminal 還會一直收到滑鼠的控制碼
+/// `ratatui::run` only restores raw mode and the alternate screen; we must turn the mouse off ourselves,
+/// or the terminal keeps receiving mouse escape codes after we exit
 struct MouseCapture;
 
 impl MouseCapture {
-    /// 開啟滑鼠事件（滾輪、點擊）
+    /// Turns on mouse events (wheel, clicks)
     fn enable() -> Result<Self> {
         execute!(stdout(), EnableMouseCapture)?;
         Ok(Self)
@@ -101,16 +105,17 @@ impl MouseCapture {
 }
 
 impl Drop for MouseCapture {
-    /// 關掉滑鼠事件
+    /// Turns off mouse events
     fn drop(&mut self) {
-        // drop 不能回傳錯誤；關不掉也沒辦法再做什麼，所以忽略
+        // drop cannot return an error, and nothing more can be done if turning it off fails, so ignore it
         let _ = execute!(stdout(), DisableMouseCapture);
     }
 }
 
-/// 命令列參數，例：`roh-cal --lang zh-TW --tasks ~/notes/tasks.md`；`--help` 由 clap 自動產生。
-/// `--help` 印出的英文：第一行是 `Cargo.toml` 的 `description`（`about` 沒給值），參數的說明寫在 `help` 裡；
-/// clap 預設拿 `///` 當說明，但這裡的 `///` 是給讀 code 的人看的
+/// Command-line arguments, e.g. `roh-cal --lang zh-TW --tasks ~/notes/tasks.md`; clap generates `--help`.
+/// The English that `--help` prints: the first line is `description` in `Cargo.toml` (`about` has no value),
+/// and the argument texts are in `help`. clap uses `///` as help by default, but these `///` are for people
+/// reading the code
 #[derive(Debug, Default, PartialEq, Parser)]
 #[command(
     version,
@@ -119,7 +124,7 @@ impl Drop for MouseCapture {
     long_about = None
 )]
 struct Args {
-    /// `--lang`：沒給就跟著系統語言
+    /// `--lang`: if not given, follow the system language
     #[arg(
         long,
         value_name = "en|zh-TW",
@@ -127,7 +132,8 @@ struct Args {
         help = "Screen language [default: the system language, else en]"
     )]
     lang: Option<Lang>,
-    /// `--theme`：用哪一套內建的 theme（只收 `theme::BUILTIN` 的名字，clap 會在 `--help` 列出來）；沒給就照設定檔
+    /// `--theme`: which built-in theme to use (only names in `theme::BUILTIN`; clap lists them in `--help`);
+    /// if not given, use the config file's
     #[arg(
         long,
         value_name = "NAME",
@@ -135,15 +141,16 @@ struct Args {
         help = "Color theme [default: the config file's, else catppuccin-mocha]"
     )]
     theme: Option<String>,
-    /// `--tasks`：任務檔的路徑；沒給就用預設位置
+    /// `--tasks`: path of the task file; if not given, use the default location
     #[arg(
         long,
         value_name = "PATH",
         help = "Task file to show [default: ~/.local/share/roh-cal/tasks.md]"
     )]
     tasks: Option<PathBuf>,
-    /// `-v` / `-V` / `--version`：印出版本就結束。clap 內建的版本參數只收 `-V`，
-    /// 所以關掉內建的（`disable_version_flag`），自己加一個多收小寫 `-v`（`-V` 不顯示在 `--help`）
+    /// `-v` / `-V` / `--version`: print the version and exit. clap's built-in version flag only takes `-V`,
+    /// so the built-in one is turned off (`disable_version_flag`) and this one also takes lowercase `-v`
+    /// (`-V` is not shown in `--help`)
     #[arg(
         short = 'v',
         short_alias = 'V',
@@ -154,7 +161,8 @@ struct Args {
     version: (),
 }
 
-/// `--lang` 的值換成 `Lang`；不支援的語言回傳錯誤（clap 會在前面加上是哪個參數、哪個值）
+/// Turns the `--lang` value into a `Lang`; an unsupported language returns an error (clap adds which
+/// argument and which value in front)
 fn parse_lang(code: &str) -> Result<Lang, String> {
     Lang::from_code(code).ok_or_else(|| "supported: en, zh-TW".to_string())
 }
@@ -165,14 +173,15 @@ mod tests {
     use clap::CommandFactory;
     use clap::error::ErrorKind;
 
-    /// 把 `"--lang en"` 這樣的字串切成參數讀進來（test 用；前面補上第 0 個的程式名稱）
+    /// Parses a string like `"--lang en"` as arguments (for tests; the program name is added as argument 0)
     fn args(line: &str) -> Result<Args, clap::Error> {
         Args::try_parse_from(std::iter::once("roh-cal").chain(line.split_whitespace()))
     }
 
     #[test]
     fn args_definition_is_valid() {
-        // clap 建議每個 app 都有的檢查：參數的設定有沒有互相衝突（例：兩個參數同名）
+        // The check clap recommends for every app: do the argument definitions conflict
+        // (e.g. two arguments with the same name)
         Args::command().debug_assert();
     }
 
@@ -204,7 +213,8 @@ mod tests {
 
     #[test]
     fn help_and_version_print_instead_of_running() {
-        // --help / -h、--version / -v / -V：clap 印出說明或版本就結束（用 Err 回報，main 裡的 parse() 會印出來再結束）
+        // --help / -h, --version / -v / -V: clap prints the help or version and exits
+        // (reported as an Err; parse() in main prints it, then exits)
         for (line, kind) in [
             ("--help", ErrorKind::DisplayHelp),
             ("-h", ErrorKind::DisplayHelp),
@@ -214,26 +224,30 @@ mod tests {
         ] {
             assert_eq!(args(line).expect_err(line).kind(), kind, "{line}");
         }
-        // 說明是英文：第一行是 Cargo.toml 的 description，有 --lang 的說明，沒有中文的 `///` 註解
+        // The help comes from Cargo.toml's description and the `help` texts, never from the `///` comments
+        // (those are for people reading the code)
         let help = Args::command().render_long_help().to_string();
         assert!(
             help.starts_with("A simple, keyboard-driven terminal calendar for plain-text tasks\n")
         );
         assert!(help.contains("Screen language") && help.contains("Task file to show"));
-        assert!(!help.contains("系統語言") && !help.contains("命令列參數"));
+        assert!(
+            !help.contains("follow the system language")
+                && !help.contains("Command-line arguments")
+        );
     }
 
     #[test]
     fn missing_task_file_is_an_error_only_when_asked_for() {
-        // 自己用 --tasks 指定的檔案不存在 → 錯誤
+        // A file named with --tasks does not exist → error
         let missing = Path::new("testdata/no-such-file.md");
         assert!(load_tasks(missing, true).is_err());
-        // 預設位置的檔案不存在 → 沒有任務
+        // The file at the default location does not exist → no tasks
         assert_eq!(
             load_tasks(missing, false).expect("no tasks"),
             Parsed::default()
         );
-        // 範例檔讀得到（有一處故意寫錯的日期）
+        // The sample file can be read (it has one date that is wrong on purpose)
         let parsed = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
         assert_eq!((parsed.items.len(), parsed.warnings.len()), (57, 1));
     }

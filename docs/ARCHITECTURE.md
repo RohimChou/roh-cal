@@ -93,7 +93,7 @@ App::run 的迴圈
 4. 顏色不在 Python 裡：用 test 量關鍵格子的顏色（例：`colors_by_role`）
 
 ## 寫法規矩
-- 註解用繁體中文、技術詞留英文（`render`、`borrow`、`scroll`…）；function 上面用 `///` 寫用途
+- 程式的註解用英文（直白、精簡；2026-10-18 起，給國外的人也看得懂）；function 上面用 `///` 寫用途。這份文件和其他給自己看的筆記照樣用中文
 - 畫面的字放 `texts.rs`、顏色放 `theme.rs`（畫面只講角色，例：`theme.today`），`ui/` 裡不寫死
 - 錯誤處理用 `color_eyre::Result` + `?`，不用 `unwrap()`（test 例外）
 - commit 前 `cargo fmt`、`cargo clippy --all-targets -- -D warnings`、`cargo test` 都要乾淨；改到邏輯就補 test，寫完故意改壞一兩處，確認 test 抓得到

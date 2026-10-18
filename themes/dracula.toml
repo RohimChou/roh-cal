@@ -1,16 +1,17 @@
-# Dracula：高對比、偏紫粉的暗色配色（各家編輯器、terminal 都有）
-# 色票：https://draculatheme.com 的 Color Palette（底色 Background #282a36）
+# Dracula: a high-contrast dark theme leaning purple and pink (available for most editors and terminals)
+# Palette: the Color Palette on https://draculatheme.com (background: Background #282a36)
 
 [palette]
 foreground = "#f8f8f2"
-# 字和底色 7:3 混出來的淡灰：比一般的字淡，次要的字用
+# Light gray: text and background mixed 7:3. Fainter than normal text, for secondary text
 fg_dim = "#bababa"
 comment = "#6272a4"
 current_line = "#44475a"
 cyan = "#8be9fd"
 green = "#50fa7b"
 yellow = "#f1fa8c"
-# 黃色和底色 7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+# Dim yellow: yellow and the background mixed 7:3. Still reads as yellow,
+# but darker than the selected week's number
 dim_yellow = "#b5bc72"
 orange = "#ffb86c"
 red = "#ff5555"

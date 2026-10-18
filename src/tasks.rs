@@ -1,59 +1,67 @@
-//! 任務檔的 parser：純文字進去、項目出來（格式見 `docs/task-file-format.md`）
+//! The task file parser: plain text in, items out (format in `docs/task-file-format.md`)
 //!
-//! 每個項目都記下行號和那一行原本的文字，之後寫回檔案時才知道要改哪一行、那一行有沒有被別人改過
+//! Each item records its line number and the line's original text, so that when writing back to the file
+//! we know which line to change and whether someone else has changed that line
 
 use jiff::civil::{Date, Time};
 
-/// 解析的結果
+/// The result of parsing
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Parsed {
-    /// 所有項目，照檔案裡的順序
+    /// All items, in file order
     pub items: Vec<Item>,
-    /// 寫錯但不影響讀取的地方，例：`@2026-13-01`
+    /// Mistakes that do not stop the file from being read, e.g. `@2026-13-01`
     pub warnings: Vec<Warning>,
 }
 
-/// 項目的種類：有沒有框（規格的規則 1、2）
+/// The kind of item: with or without a box (rules 1 and 2 of the spec)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// `- [ ] 文字` / `- [x] 文字`：任務，要自己打勾
+    /// `- [ ] 文字` / `- [x] 文字`: a task, which you check off yourself
     Task,
-    /// `- 文字`（沒有框）：行程（會議、假日、里程碑），不能打勾；那天過了就算過去了
+    /// `- 文字` (no box): an event (meeting, holiday, milestone); it cannot be checked off,
+    /// and it is over once its day has passed
     Event,
 }
 
-/// 任務檔裡的一個項目（`- ` 開頭的那一行）
+/// One item in the task file (a line starting with `- `)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
-    /// 任務（有框）還是行程（沒有框）
+    /// Task (with a box) or event (no box)
     pub kind: Kind,
-    /// 任務完成了沒：`[x]` / `[X]` 是完成；`[ ]` 是還沒；行程一定是 `false`（行程不能打勾）
+    /// Whether the task is done: `[x]` / `[X]` is done, `[ ]` is not yet; always `false` for an event
+    /// (events cannot be checked off)
     pub done: bool,
-    /// 標題：去掉 `- [ ] `、日期（和時間）、行尾的 `^id` 之後的文字，連續的空白變成一個，例：`實作退款 API`
+    /// Title: the text left after removing `- [ ] `, the date (and time) and a trailing `^id`, with runs of
+    /// spaces collapsed to one, e.g. `實作退款 API`
     pub title: String,
-    /// 出現在月曆的哪一天；沒寫就是還沒排日期
+    /// The day it shows on in the calendar; none means not scheduled yet
     pub date: Option<Date>,
-    /// 跨多天的事的最後一天（頭尾都算），例：`@2026-10-20..2026-10-25` 的 10/25；只有一天的是 `None`
+    /// The last day of a multi-day item (both ends included), e.g. 10/25 for `@2026-10-20..2026-10-25`;
+    /// `None` for a single day
     pub end: Option<Date>,
-    /// 幾點（只有寫了日期才會有；跨多天的是開始那天的時間）
+    /// The time (only when a date is written; for a multi-day item, the time on the first day)
     pub time: Option<Time>,
-    /// 屬於哪個分組（上面最近的標題）；檔案開頭還沒有標題時是 `None`
+    /// Which group it belongs to (the nearest heading above); `None` before the file's first heading
     pub group: Option<Heading>,
-    /// 在檔案裡第幾個標題底下（開頭還沒有標題的是 0）：同名的兩段標題 `group` 一樣，這個不一樣
+    /// The number of the heading it is under in the file (0 before the first heading): two headings with the
+    /// same name give the same `group` but differ here
     pub section: usize,
-    /// 第幾層：0 = 最外層，子任務 1、子任務的子任務 2…
+    /// Nesting level: 0 = outermost, 1 = subtask, 2 = subtask of a subtask…
     pub depth: usize,
-    /// 父項目在 `items` 裡的位置；最外層是 `None`
+    /// The parent's index in `items`; `None` at the outermost level
     pub parent: Option<usize>,
-    /// 在檔案的第幾行（從 1 開始，跟編輯器顯示的一樣）
+    /// The line number in the file (from 1, as editors show it)
     pub line: usize,
-    /// 那一行原本的文字（整行，含縮排，不含換行），例：`  - [ ] 寫 integration test @2026-10-13`
+    /// The line's original text (the whole line, with indent, without the newline),
+    /// e.g. `  - [ ] 寫 integration test @2026-10-13`
     pub line_text: String,
 }
 
 impl Item {
-    /// 還沒結束的事：沒做完的任務，或還沒過的行程（今天的也算；跨多天的看最後一天）。月曆上那天是橘色、
-    /// 右邊用那天的顏色；結束了的（做完的任務、過去的行程）變灰
+    /// Not over yet: an unfinished task, or an event not yet past (today counts; a multi-day one goes by
+    /// its last day). Its day is orange in the calendar,
+    /// and it uses that day's color in the agenda; finished ones (done tasks, past events) turn gray
     pub fn is_open(&self, today: Date) -> bool {
         match self.kind {
             Kind::Task => !self.done,
@@ -61,89 +69,93 @@ impl Item {
         }
     }
 
-    /// 最後一天：跨多天的是結束那天，其他的就是那一天；沒日期是 `None`
+    /// The last day: the end day for a multi-day item, otherwise its one day; `None` without a date
     pub fn last_day(&self) -> Option<Date> {
         self.end.or(self.date)
     }
 
-    /// `day` 是不是這件事的日子（跨多天的：頭尾和中間每一天都是）
+    /// Whether `day` is one of this item's days (multi-day: the first, the last and every day between)
     pub fn covers(&self, day: Date) -> bool {
         self.date.is_some_and(|first| first <= day)
             && self.last_day().is_some_and(|last| day <= last)
     }
 }
 
-/// 從項目的文字裡拿出來的日期、時間（第一個 `@日期` 或 `@日期..日期`，和緊接的時間）
+/// The date and time taken from an item's text (the first `@日期` or `@日期..日期`,
+/// and the time right after it)
 #[derive(Debug, Default)]
 struct When {
-    /// 哪天（跨多天的是第一天）
+    /// The day (the first day for a multi-day item)
     date: Option<Date>,
-    /// 跨多天的最後一天；只有一天是 `None`
+    /// The last day of a multi-day item; `None` for a single day
     end: Option<Date>,
-    /// 幾點
+    /// The time
     time: Option<Time>,
 }
 
-/// 分組標題，例：`# 付款 API 改版`、`# 國定假日 type:holiday`
+/// A group heading, e.g. `# 付款 API 改版`, `# 國定假日 type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
-    /// 幾個 `#`：任務頁照這個縮排標題；分組還不分層，之後做多層分組不用改檔案
+    /// How many `#`: the tasks page indents the heading by this. Groups are not nested yet;
+    /// when nested groups come later, existing task files won't need to change
     pub level: usize,
-    /// 標題文字（不含 `type:holiday`）
+    /// The heading text (without `type:holiday`)
     pub name: String,
-    /// 假日日曆：標題寫了 `type:holiday`，底下的事的日子都是假日
+    /// Holiday calendar: the heading has `type:holiday`, so the days of the items under it are holidays
     pub holiday: bool,
 }
 
-/// 解析時發現、但不影響讀取的問題
+/// A problem found while parsing that does not stop the file from being read
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Warning {
-    /// 在檔案的第幾行（從 1 開始）
+    /// The line number in the file (from 1)
     pub line: usize,
-    /// 哪一種問題
+    /// Which kind of problem
     pub kind: WarningKind,
 }
 
-/// 問題的種類；訊息文字由畫面依語言決定，這裡只記是什麼問題
+/// Kinds of problem; the screen picks the message text by language, this only records what the problem is
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WarningKind {
-    /// 長得像日期但不存在，例：`@2026-13-01`、`@2026-02-30`；當成一般文字
+    /// Looks like a date but does not exist, e.g. `@2026-13-01`, `@2026-02-30`; treated as plain text
     NoSuchDate(String),
-    /// 長得像時間但不存在，例：`@2026-10-12 25:00` 的 `25:00`；當成一般文字
+    /// Looks like a time but does not exist, e.g. `25:00` in `@2026-10-12 25:00`; treated as plain text
     NoSuchTime(String),
-    /// 跨多天的結束在開始之前，例：`@2026-10-25..2026-10-20`；當成一般文字
+    /// A multi-day range that ends before it starts, e.g. `@2026-10-25..2026-10-20`; treated as plain text
     EndBeforeStart(String),
 }
 
-/// 檔案開頭的 front matter（Obsidian 筆記的屬性）到第幾行：第一行是 `---`、到下一個 `---` 為止（含）；
-/// 沒有 front matter（第一行不是 `---`、或沒有結尾的 `---`）是 `None`。裡面的 `- work` 是 YAML 的清單，不是事
+/// The line where the front matter (an Obsidian note's properties) at the top of the file ends: from a
+/// first line of `---` to the next `---` (inclusive);
+/// `None` without front matter (the first line is not `---`, or there is no closing `---`).
+/// A `- work` inside is a YAML list, not an item
 ///
-/// 例：`---` / `tags:` / `  - work` / `---` / `- [ ] 交週報` → `Some(4)`，第 5 行才開始讀
+/// E.g. `---` / `tags:` / `  - work` / `---` / `- [ ] 交週報` → `Some(4)`; reading starts at line 5
 fn front_matter_end(text: &str) -> Option<usize> {
     let mut lines = text.lines();
     if lines.next()?.trim_end() != "---" {
         return None;
     }
-    // 第 1 行是開頭的 `---`，結尾的 `---` 在它後面第幾個
+    // Line 1 is the opening `---`; find how many lines after it the closing `---` is
     lines
         .position(|line| line.trim_end() == "---")
         .map(|index| index + 2)
 }
 
-/// 解析整個任務檔
+/// Parse the whole task file
 pub fn parse(text: &str) -> Parsed {
     let mut parsed = Parsed::default();
     let mut group = None;
-    // 現在是第幾個標題底下（開頭還沒有標題是 0）
+    // The number of the heading we are under (0 before the first heading)
     let mut section = 0;
-    // 目前這一串項目的 (縮排寬度, 在 items 的位置)，用來找父項目
+    // (indent width, index in items) of the current chain of items, used to find the parent
     let mut ancestors: Vec<(usize, usize)> = Vec::new();
-    // 是否在 ``` code block 裡面（裡面的東西都不算）
+    // Whether we are inside a ``` code block (nothing inside counts)
     let mut in_code_block = false;
-    // 檔案開頭的 front matter 到第幾行（裡面的東西都不算）
+    // The line where the front matter at the top of the file ends (nothing inside counts)
     let front_matter = front_matter_end(text).unwrap_or(0);
 
-    // lines() 會把 \n 和 \r\n 都當成換行
+    // lines() treats both \n and \r\n as line breaks
     for (index, raw) in text.lines().enumerate() {
         let line = index + 1;
         let trimmed = raw.trim_start();
@@ -151,7 +163,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         }
 
-        // ``` 或 ~~~ 開始 / 結束 code block
+        // ``` or ~~~ starts / ends a code block
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_code_block = !in_code_block;
             continue;
@@ -160,7 +172,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         }
 
-        // 標題：換分組；新的分組裡，項目重新從最外層算起
+        // A heading: switch group; in the new group, items start again from the outermost level
         if let Some(heading) = parse_heading(raw) {
             group = Some(heading);
             section += 1;
@@ -172,7 +184,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         };
 
-        // 找父項目：往回丟掉縮排沒有比自己少的，剩下最後一個就是父項目
+        // Find the parent: pop the ones not indented less than this item; the last one left is the parent
         let indent = indent_width(raw);
         while ancestors.last().is_some_and(|&(width, _)| width >= indent) {
             ancestors.pop();
@@ -200,15 +212,15 @@ pub fn parse(text: &str) -> Parsed {
     parsed
 }
 
-/// `# 名稱` ～ `###### 名稱`（`#` 要在行首、後面要有空白）；不是標題回傳 `None`
+/// `# 名稱` to `###### 名稱` (`#` at the line start, followed by a space); `None` if it is not a heading
 fn parse_heading(line: &str) -> Option<Heading> {
     let level = line.chars().take_while(|&c| c == '#').count();
     if !(1..=6).contains(&level) {
         return None;
     }
-    // `#` 都是 1 個 byte，所以可以直接用 level 切字串
+    // Each `#` is 1 byte, so level can be used directly to slice the string
     let text = line[level..].strip_prefix(' ')?;
-    // `type:holiday` 不算名字，拿掉之後剩下的字用一個空白接起來
+    // `type:holiday` is not part of the name; after removing it, join the remaining words with one space
     let words: Vec<&str> = text.split_whitespace().collect();
     let holiday = words.contains(&HOLIDAY);
     let name = words
@@ -223,25 +235,28 @@ fn parse_heading(line: &str) -> Option<Heading> {
     })
 }
 
-/// 標題裡標示假日日曆的字（規格的 `key:value` 寫法）
+/// The word in a heading that marks a holiday calendar (the spec's `key:value` form)
 const HOLIDAY: &str = "type:holiday";
 
-/// 看這行是不是項目：回傳（任務還是行程, 完成了沒, 剩下的文字）；不是 `- ` 開頭就回傳 `None`
+/// Whether this line is an item: returns (task or event, done or not, the remaining text);
+/// `None` if it does not start with `- `
 ///
-/// 例：`- [x] 打包` → (任務, true, `打包`)；`- [ ] 打包` → (任務, false, ...)；`- 看牙醫` → (行程, false, ...)
+/// E.g. `- [x] 打包` → (task, true, `打包`); `- [ ] 打包` → (task, false, ...); `- 看牙醫` → (event, false, ...)
 fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
-    // 要「- 」加空白；`-這樣` 不算
+    // Must be "- " with the space; `-這樣` does not count
     let rest = trimmed.strip_prefix("- ")?;
     match checkbox(rest) {
         Some((done, after)) => Some((Kind::Task, done, after.trim_start())),
-        // 沒有框：行程
+        // No box: an event
         None => Some((Kind::Event, false, rest)),
     }
 }
 
-/// `- ` 後面的 checkbox：回傳（完成了沒, checkbox 後面的文字，空白照留）；沒有 checkbox 回傳 `None`
+/// The checkbox after `- `: returns (done or not, the text after the checkbox with its spaces kept);
+/// `None` if there is no checkbox
 ///
-/// `[ ]`、`[x]`、`[X]` 後面要接空白或直接結束。例：`[x] 打包` → (true, ` 打包`)；`[ ]打包` 不算 checkbox
+/// `[ ]`, `[x]`, `[X]` must be followed by a space or the end. E.g. `[x] 打包` → (true, ` 打包`);
+/// `[ ]打包` is not a checkbox
 pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
     let marks = [("[ ]", false), ("[x]", true), ("[X]", true)];
     for (mark, done) in marks {
@@ -254,7 +269,7 @@ pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
     None
 }
 
-/// 縮排寬度：空白算 1、tab 算 4（混用時才比得出誰比較深）
+/// Indent width: a space counts 1, a tab 4 (so mixed indents can still be compared for depth)
 pub(crate) fn indent_width(line: &str) -> usize {
     line.chars()
         .take_while(|c| c.is_whitespace())
@@ -262,17 +277,18 @@ pub(crate) fn indent_width(line: &str) -> usize {
         .sum()
 }
 
-/// 從項目的文字裡拿出第一個 `@日期` 或 `@日期..日期`（和緊接的時間），剩下的就是標題
+/// Take the first `@日期` or `@日期..日期` (and the time right after it) out of an item's text;
+/// what is left is the title
 ///
-/// 例：`實作退款 API @2026-10-14` → (`實作退款 API`, 10/14, 沒有時間)；
-/// `東京出差 @2026-10-20..2026-10-25 09:00` → (`東京出差`, 10/20 到 10/25, 9 點)
+/// E.g. `實作退款 API @2026-10-14` → (`實作退款 API`, 10/14, no time);
+/// `東京出差 @2026-10-20..2026-10-25 09:00` → (`東京出差`, 10/20 to 10/25, 9 o'clock)
 fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String, When) {
     let mut words = Vec::new();
     let mut when = When::default();
     let mut tokens = text.split_whitespace().peekable();
 
     while let Some(token) = tokens.next() {
-        // 已經有日期了（只認第一個），或不是 `@日期` / `@日期..日期` 的樣子 → 一般文字
+        // Already has a date (only the first counts), or not shaped like `@日期` / `@日期..日期` → plain text
         let candidate = token
             .strip_prefix('@')
             .filter(|rest| looks_like_date(rest) || looks_like_range(rest));
@@ -280,7 +296,7 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
             words.push(token);
             continue;
         };
-        // 一天的就當作頭尾同一天
+        // A single day is treated as a range with the same first and last day
         let (first, last) = candidate.split_once("..").unwrap_or((candidate, candidate));
         let (Ok(first), Ok(last)) = (first.parse::<Date>(), last.parse::<Date>()) else {
             warnings.push(Warning {
@@ -299,9 +315,9 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
             continue;
         }
         when.date = Some(first);
-        // 頭尾同一天（`@2026-10-20..2026-10-20`）就是一天的事
+        // Same first and last day (`@2026-10-20..2026-10-20`) means a one-day item
         when.end = (last > first).then_some(last);
-        // 日期後面緊接 `HH:MM` 就是時間
+        // `HH:MM` right after the date is the time
         if let Some(&next) = tokens.peek()
             && looks_like_time(next)
         {
@@ -318,21 +334,22 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
             }
         }
     }
-    // 行尾的 Obsidian block id（`^csfds-01`，連結到這一行用的）留在檔案裡，不算標題
+    // An Obsidian block id at the end of the line (`^csfds-01`, used to link to this line) stays in the file
+    // but is not part of the title
     if words.last().is_some_and(|word| is_block_id(word)) {
         words.pop();
     }
     (words.join(" "), when)
 }
 
-/// 是不是 Obsidian 的 block id：`^` 後面接英文字母、數字、`-`，例：`^csfds-01`
+/// Whether it is an Obsidian block id: `^` followed by ASCII letters, digits, `-`, e.g. `^csfds-01`
 pub(crate) fn is_block_id(word: &str) -> bool {
     word.strip_prefix('^').is_some_and(|id| {
         !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
     })
 }
 
-/// 是不是 `YYYY-MM-DD` 的樣子（只看格式，不管日期存不存在）
+/// Whether it looks like `YYYY-MM-DD` (checks the format only, not whether the date exists)
 fn looks_like_date(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.len() == 10
@@ -342,13 +359,13 @@ fn looks_like_date(text: &str) -> bool {
         })
 }
 
-/// 是不是 `YYYY-MM-DD..YYYY-MM-DD` 的樣子（跨多天；只看格式，不管日期存不存在）
+/// Whether it looks like `YYYY-MM-DD..YYYY-MM-DD` (multi-day; format only, not whether the dates exist)
 fn looks_like_range(text: &str) -> bool {
     text.split_once("..")
         .is_some_and(|(first, last)| looks_like_date(first) && looks_like_date(last))
 }
 
-/// 是不是 `HH:MM` 的樣子（只看格式，不管時間存不存在）
+/// Whether it looks like `HH:MM` (checks the format only, not whether the time exists)
 fn looks_like_time(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.len() == 5
@@ -363,7 +380,7 @@ mod tests {
     use super::*;
     use jiff::civil::{date, time};
 
-    /// 解析單一行，回傳那個項目（測試用）
+    /// Parse a single line and return its item (for tests)
     fn one(line: &str) -> Item {
         let parsed = parse(line);
         assert_eq!(parsed.items.len(), 1, "{line}");
@@ -372,12 +389,13 @@ mod tests {
 
     #[test]
     fn front_matter_at_the_top_is_skipped() {
-        // Obsidian 的屬性：tags 底下的 `- work` 不是事；結尾的 `---` 之後照常讀，行號照檔案算
+        // Obsidian properties: `- work` under tags is not an item; reading goes on as usual after the closing
+        // `---`, and line numbers follow the file
         let text = "---\ntags:\n  - work\n---\n- [ ] 交週報 @2026-10-16\n";
         let items = parse(text).items;
         assert_eq!(items.len(), 1);
         assert_eq!((items[0].title.as_str(), items[0].line), ("交週報", 5));
-        // 不在第一行的 `---`（Markdown 的分隔線）、沒有結尾的 `---`：不是 front matter，照常讀
+        // `---` not on line 1 (a Markdown divider), or no closing `---`: not front matter, read as usual
         assert_eq!(parse("- a\n---\n- b\n---\n").items.len(), 2);
         assert_eq!(parse("---\n- a\n- b\n").items.len(), 2);
     }
@@ -387,7 +405,7 @@ mod tests {
         assert!(!one("- [ ] 打包").done);
         assert!(one("- [x] 打包").done);
         assert!(one("- [X] 打包").done);
-        // checkbox 後面沒有內容也算（空的任務）
+        // Nothing after the checkbox still counts (an empty task)
         assert_eq!(one("- [ ]").title, "");
     }
 
@@ -398,7 +416,7 @@ mod tests {
         assert_eq!(item.title, "看牙醫");
         assert_eq!(one("- [ ] 打包").kind, Kind::Task);
         assert_eq!(one("- [x] 打包").kind, Kind::Task);
-        // `[ ]` 後面沒有空白就不是 checkbox：整段當文字，是行程
+        // No space after `[ ]` means no checkbox: the whole thing is text, and it is an event
         let item = one("- [ ]打包");
         assert_eq!(item.kind, Kind::Event);
         assert_eq!(item.title, "[ ]打包");
@@ -407,15 +425,15 @@ mod tests {
     #[test]
     fn open_means_an_unfinished_task_or_an_event_not_yet_past() {
         let today = date(2026, 10, 17);
-        // 任務：沒做完的才算（日期過了也算，那是過期沒做完）
+        // Tasks: only unfinished ones count (even past their date; that is overdue)
         assert!(one("- [ ] 交週報 @2026-10-16").is_open(today));
         assert!(!one("- [x] 交週報 @2026-10-16").is_open(today));
         assert!(one("- [ ] 整理書櫃").is_open(today));
-        // 行程：今天和以後的才算；過了就結束了
+        // Events: only today's and later ones count; once past, they are over
         assert!(one("- 聚餐 @2026-10-17").is_open(today));
         assert!(one("- 爬山 @2026-10-18").is_open(today));
         assert!(!one("- 國慶日 @2026-10-10").is_open(today));
-        // 沒日期的行程：沒有「哪天」可以比，不算
+        // An event with no date: there is no day to compare, so it does not count
         assert!(!one("- 想去的餐廳").is_open(today));
     }
 
@@ -425,13 +443,13 @@ mod tests {
         assert_eq!(item.title, "Code review");
         assert_eq!(item.date, Some(date(2026, 10, 12)));
         assert_eq!(item.time, Some(time(14, 0, 0, 0)));
-        // 日期放中間也可以
+        // The date can also be in the middle
         let item = one("- 交 @2026-10-16 週報");
         assert_eq!(
             (item.title.as_str(), item.date),
             ("交 週報", Some(date(2026, 10, 16)))
         );
-        // 沒寫日期 = 還沒排
+        // No date = not scheduled yet
         assert_eq!(one("- [ ] 整理書櫃").date, None);
     }
 
@@ -444,7 +462,8 @@ mod tests {
 
     #[test]
     fn a_block_id_at_the_end_is_not_part_of_the_title() {
-        // Obsidian 的 `^id` 在行尾：不算標題（檔案裡照樣留著）；日期在它前面照樣讀得到
+        // An Obsidian `^id` at the end of the line: not part of the title (it stays in the file);
+        // a date before it is still read
         let item = one("- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01");
         assert_eq!(item.title, "跟中信確認 LDAP 帳號");
         assert_eq!(item.date, Some(date(2026, 10, 20)));
@@ -452,7 +471,7 @@ mod tests {
             item.line_text,
             "- [ ] 跟中信確認 LDAP 帳號 @2026-10-20 ^csfds-01"
         );
-        // 不在行尾、`^` 後面沒東西、有別的符號：都是一般文字
+        // Not at the end of the line, nothing after `^`, other symbols: all plain text
         assert_eq!(one("- 讀 ^abc 那段").title, "讀 ^abc 那段");
         assert_eq!(one("- 指數 2^").title, "指數 2^");
         assert_eq!(one("- 次方 ^2.5").title, "次方 ^2.5");
@@ -465,13 +484,13 @@ mod tests {
             (item.title.as_str(), item.date),
             ("跟前端 @Kevin 對 error code", None)
         );
-        // URL、key:value、#編號都只是文字
+        // A URL, key:value, #number are all just text
         let item = one("- [ ] 參考 https://example.com due:2026-10-15 PR #482");
         assert_eq!(
             item.title,
             "參考 https://example.com due:2026-10-15 PR #482"
         );
-        // 時間要緊接在日期後面才算
+        // The time counts only right after the date
         assert_eq!(one("- 會議 14:00 @2026-10-12").time, None);
     }
 
@@ -491,7 +510,7 @@ mod tests {
             },
         ];
         assert_eq!(parsed.warnings, expected);
-        // 不存在的時間：日期照算，時間當文字
+        // A time that does not exist: the date still counts, the time is text
         let parsed = parse("- 會議 @2026-10-12 25:00");
         assert_eq!(parsed.items[0].date, Some(date(2026, 10, 12)));
         assert_eq!(
@@ -508,7 +527,7 @@ mod tests {
     fn rule3_multi_day_items_from_the_first_day_to_the_last() {
         let item = one("- 東京出差 @2026-10-20..2026-10-25");
         assert_eq!(item.title, "東京出差");
-        // 頭尾和中間每一天都算；前一天、後一天不算
+        // The first, the last and every day between count; the day before and the day after do not
         assert!(item.covers(date(2026, 10, 20)) && item.covers(date(2026, 10, 25)));
         assert!(item.covers(date(2026, 10, 22)));
         assert!(!item.covers(date(2026, 10, 19)) && !item.covers(date(2026, 10, 26)));
@@ -520,14 +539,14 @@ mod tests {
                 Some(date(2026, 10, 25))
             )
         );
-        // 後面接時間 = 開始那天的時間；跨月、跨年都可以
+        // A time after it = the time on the first day; ranges may cross months and years
         let item = one("- [ ] 受訓 @2026-12-30..2027-01-02 09:00");
         assert_eq!(item.time, Some(time(9, 0, 0, 0)));
         assert_eq!(item.end, Some(date(2027, 1, 2)));
-        // 頭尾同一天 = 一天的事
+        // Same first and last day = a one-day item
         let item = one("- 開會 @2026-10-20..2026-10-20");
         assert_eq!((item.date, item.end), (Some(date(2026, 10, 20)), None));
-        // 一天的事：最後一天就是那天
+        // A one-day item: its last day is that day
         assert_eq!(
             one("- 週會 @2026-10-12").last_day(),
             Some(date(2026, 10, 12))
@@ -536,7 +555,7 @@ mod tests {
 
     #[test]
     fn rule3_bad_ranges_stay_text_with_warning() {
-        // 結束在開始之前、有一頭不存在：整段當文字，記一個警告
+        // Ends before it starts, or one end does not exist: the whole token is text, with one warning
         let parsed = parse(
             "- 出差 @2026-10-25..2026-10-20
 - 出差 @2026-10-20..2026-13-01",
@@ -556,7 +575,7 @@ mod tests {
                 },
             ]
         );
-        // 不像日期範圍的（少了一頭、只寫日）：一般文字，沒有警告
+        // Not shaped like a date range (one end missing, only the day written): plain text, no warning
         let parsed = parse(
             "- 出差 @2026-10-20..
 - 出差 @2026-10-20..25",
@@ -585,14 +604,15 @@ mod tests {
             })
         };
         assert_eq!(groups, vec![None, heading(1, "個人"), heading(2, "搬家")]);
-        // `#tag`（沒有空白）、7 個 # 都不是標題
+        // `#tag` (no space) and 7 #s are not headings
         assert_eq!(parse("#tag\n- a").items[0].group, None);
         assert_eq!(parse("####### x\n- a").items[0].group, None);
     }
 
     #[test]
     fn rule4b_type_holiday_makes_a_holiday_calendar() {
-        // `type:holiday` 放哪裡都可以，不算名字；別的 `key:value` 照樣是名字的一部分
+        // `type:holiday` can go anywhere and is not part of the name;
+        // any other `key:value` is still part of the name
         let group = |text: &str| parse(text).items[0].group.clone().expect("有標題");
         let heading = group("# 國定假日 type:holiday\n- 國慶日 @2026-10-10");
         assert_eq!((heading.name.as_str(), heading.holiday), ("國定假日", true));
@@ -606,14 +626,14 @@ mod tests {
             (heading.name.as_str(), heading.holiday),
             ("工作 type:work", false)
         );
-        // 大寫、少了冒號都不算
+        // Upper case or a missing colon does not count
         assert!(!group("# 假日 Type:Holiday\n- a").holiday);
         assert!(!group("# 假日 holiday\n- a").holiday);
     }
 
     #[test]
     fn section_counts_headings_so_same_named_ones_differ() {
-        // 開頭沒標題是 0；同名的兩段「工作」group 一樣、section 不一樣
+        // 0 before any heading; the two 「工作」 sections have the same group but a different section
         let items = parse("- a\n# 工作\n- b\n# 生活\n# 工作\n- c\n").items;
         let sections: Vec<_> = items.iter().map(|item| item.section).collect();
         assert_eq!(sections, [0, 1, 3]);
@@ -635,12 +655,12 @@ mod tests {
                 (0, None)
             ]
         );
-        // 原本那一行連縮排一起記
+        // The original line is kept with its indent
         assert_eq!(items[2].line_text, "    - [ ] 比價");
-        // tab 也算縮排
+        // A tab counts as indent too
         let items = parse("- [ ] 打包\n\t- [ ] 書房").items;
         assert_eq!(items[1].parent, Some(0));
-        // 新的標題底下重新從最外層算
+        // Under a new heading, counting starts again from the outermost level
         let items = parse("- a\n# g\n  - b").items;
         assert_eq!(items[1].parent, None);
     }
@@ -664,7 +684,7 @@ mod tests {
             (items[0].title.as_str(), items[1].title.as_str()),
             ("a", "b")
         );
-        // 原本那一行不含 \r
+        // The original line does not include \r
         assert_eq!(items[1].line_text, "- [x] b");
     }
 
@@ -673,20 +693,21 @@ mod tests {
         let parsed = parse(include_str!("../testdata/tasks.md"));
         let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
         assert_eq!(parsed.items.len(), 57);
-        // 任務：6 個 `[x]` / `[X]`、32 個 `[ ]`；19 個沒框的行程（會議、假日、生日、里程碑、出差）
+        // Tasks: 6 `[x]` / `[X]`, 32 `[ ]`;
+        // 19 events without a box (meetings, holidays, birthdays, milestones, trips)
         assert_eq!(count(|item| item.kind == Kind::Task && item.done), 6);
         assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 32);
         assert_eq!(count(|item| item.kind == Kind::Event), 19);
         assert_eq!(count(|item| item.date.is_none()), 11);
-        // 3 件跨多天（主管出差、東京 5 天、國慶連假）
+        // 3 multi-day items (主管出差, 東京 5 天, 國慶連假)
         assert_eq!(count(|item| item.end.is_some()), 3);
-        // 1 個假日日曆，2 件
+        // 1 holiday calendar with 2 items
         assert_eq!(
             count(|item| item.group.as_ref().is_some_and(|group| group.holiday)),
             2
         );
-        // 數字是用另一支小程式獨立數出來的，不是看 parser 的輸出抄的
-        // 唯一一個寫錯的日期
+        // These numbers were counted separately by another small program, not copied from the parser's output
+        // The only wrong date
         assert_eq!(parsed.warnings.len(), 1);
         assert_eq!(
             parsed.warnings[0].kind,

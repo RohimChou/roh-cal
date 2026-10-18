@@ -1,4 +1,5 @@
-//! 版型 3 的「那天的事」跳窗：疊在大月曆正中間，一件事一列（跟版型 1 右邊的事項框同一種寫法），上框線寫選取的日期
+//! Layout 3's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
+//! agenda), with the selected day on the top border
 
 use super::{clear_wide_left_of, months::scrolled_top, planner::item_line, render_scrollbar};
 use crate::app::App;
@@ -10,11 +11,12 @@ use ratatui::{
     widgets::{Block, BorderType, Clear},
 };
 
-/// 跳窗最窄幾格（含框線）：上框線的日期放得下
+/// Narrowest popup width (incl. border): enough room for the date on the top border
 const MIN_WIDTH: u16 = 30;
 
-/// 跳窗（含框線）在大月曆（`main`）上的位置：正中間；寬度跟著最長的那件（最窄 `MIN_WIDTH`），
-/// 高度 = 那天有幾件 + 上下框線；都不超過大月曆。畫畫面和滑鼠換算位置都用這個
+/// The popup's area (incl. border) on the month grid (`main`): centered. Width follows the longest item
+/// (at least `MIN_WIDTH`); height = that day's item count + top and bottom border; neither exceeds the month
+/// grid. Used both for drawing and for mapping mouse positions
 pub fn area(app: &App, main: Rect) -> Rect {
     let items = app.items_on(app.selected);
     let widest = items
@@ -22,7 +24,7 @@ pub fn area(app: &App, main: Rect) -> Rect {
         .map(|item| item_line(item, app, false).width())
         .max()
         .unwrap_or(0);
-    // 左右框線 + 最後留一格空白
+    // Left and right border + one blank cell at the end
     let width = u16::try_from(widest + 3)
         .unwrap_or(u16::MAX)
         .max(MIN_WIDTH)
@@ -38,8 +40,10 @@ pub fn area(app: &App, main: Rect) -> Rect {
     )
 }
 
-/// 畫跳窗：先捲到選到的那件看得到（選到的跑出框外才捲，點看得到的那件不會捲走；記在 `app.day_top`），
-/// 清掉底下的大月曆，再一件一列；選到的那件日期加括號 `[10/17]`（跟版型 1 右邊一樣）；放不下時右框線上有捲軸
+/// Draws the popup: first scroll so the chosen item is visible (only scroll when it falls outside the box, so
+/// clicking a visible item does not scroll it away; stored in `app.day_top`), clear the month grid underneath,
+/// then one item per row. The chosen item's date gets brackets `[10/17]` (same as layout 1's agenda). When the
+/// items do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let area = area(app, main);
     let visible = i64::from(Block::bordered().inner(area).height);
@@ -49,10 +53,10 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
         visible,
         0,
     );
-    // 不捲過頭：最後一件貼著底就好
+    // Do not overscroll: the last item just touches the bottom
     let max = i64::try_from(app.items_on(app.selected).len()).unwrap_or(0) - visible;
     app.day_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
-    // 接下來只讀
+    // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -94,7 +98,8 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     }
 }
 
-/// 滑鼠點在 (`column`, `row`) 的是跳窗裡第幾件（`items_on(selected)` 裡的位置）；點在框線、框外、最後一件下面是 `None`
+/// Which popup item the mouse click at (`column`, `row`) hits (its index in `items_on(selected)`);
+/// `None` on the border, outside the box, or below the last item
 pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     let inner = Block::bordered().inner(area(app, main));
     if !inner.contains(Position::new(column, row)) {

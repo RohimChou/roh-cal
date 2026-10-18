@@ -1,43 +1,49 @@
-//! 改任務檔的純 function：給檔案現在的內容，回傳改好的新內容（寫檔由呼叫的人用 `files::write_atomically`）
+//! Pure functions that change the task file: given the file's current content, return the new content
+//! (the caller writes the file with `files::write_atomically`)
 //!
-//! 只動要改的地方（打勾、編輯、改期：那一行；刪除、縮排：那一塊；上下搬：那兩塊；新增：插一行），其他每個字（包括換行是 `\n` 還是 `\r\n`）都不動。
-//! 改之前先比對：那一行跟讀進來時不一樣（例：剛在 Obsidian 改過）就不改，回傳 `Changed`
+//! Only the part being changed is touched (check off, edit, reschedule: that line; delete, indent: that
+//! block; move up / down: those two blocks; add: one inserted line). Every other character stays as it is,
+//! including whether line endings are `\n` or `\r\n`.
+//! Every change checks first: if the line is not what was read (e.g. it was just edited in Obsidian),
+//! nothing is changed and `Changed` is returned
 
 use crate::tasks::{self, Item, WarningKind};
 use jiff::{ToSpan, civil::Date};
 
-/// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
+/// The line differs from when it was read (edited elsewhere, a line added above, the file got shorter),
+/// so it cannot be changed; read the file again first
 #[derive(Debug, PartialEq, Eq)]
 pub struct Changed;
 
-/// 編輯框裡打的一行有什麼問題（存不了）
+/// What is wrong with the line typed in the editor (it cannot be saved)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Problem {
-    /// 不是 `- ` 開頭（不是一件事）
+    /// Does not start with `- ` (not an item)
     NotAnItem,
-    /// 寫錯的地方，例：`@2026-13-01`（parser 會把它當成一般文字，存了就看不到日期）
+    /// A mistake, e.g. `@2026-13-01` (the parser treats it as plain text, so once saved the date is gone)
     Mistake(WarningKind),
-    /// 標題是空的（例：只打了 `- [ ] @2026-10-17`）
+    /// The title is empty (e.g. only `- [ ] @2026-10-17` was typed)
     EmptyTitle,
 }
 
-/// 新增的那一行放在檔案的哪裡
+/// Where in the file the added line goes
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Place {
-    /// `item` 那一組（同一個標題底下）的最後一件和它的子任務下面
+    /// Below the last item of `item`'s group (under the same heading) and that item's subtasks
     InGroupOf(Item),
-    /// `item` 的子任務：放在它和它原本的子任務下面，縮排比它多 2 格
+    /// A subtask of `item`: below it and its existing subtasks, indented 2 spaces more than it
     ChildOf(Item),
-    /// 檔案最後面
+    /// At the end of the file
     End,
 }
 
-/// 編輯框裡打的一行（不含縮排）讀起來是什麼：正好是一件事、沒有寫錯的地方才算數
+/// What the line typed in the editor (without indent) reads as: it counts only if it is exactly one item
+/// with no mistakes
 ///
-/// 例：`- [ ] 交週報 @2026-10-16 17:30` → 那件事；`交週報` → `NotAnItem`；`- 出差 @2026-13-01` → `Mistake`
+/// E.g. `- [ ] 交週報 @2026-10-16 17:30` → that item; `交週報` → `NotAnItem`; `- 出差 @2026-13-01` → `Mistake`
 pub fn check(line: &str) -> Result<Item, Problem> {
     let line = line.trim();
-    // 只打了 `- `（去掉頭尾空白剩 `-`）：是一件事，只是還沒有標題
+    // Only `- ` was typed (`-` after trimming): it is an item, it just has no title yet
     if line == "-" {
         return Err(Problem::EmptyTitle);
     }
@@ -55,17 +61,19 @@ pub fn check(line: &str) -> Result<Item, Problem> {
     Ok(item)
 }
 
-/// 新增：`new`（編輯框裡打的那一行）放到 `place`，回傳新的檔案內容和新的那一行是第幾行（從 1 開始）
+/// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
+/// line number (from 1)
 ///
-/// 換行照檔案原本用的（`\n` 或 `\r\n`）；檔案最後一行沒有換行就先補一個。呼叫的人要先用 `check` 確認 `new` 沒問題
+/// Line endings follow the file's own (`\n` or `\r\n`); if the last line has no newline, one is added first.
+/// The caller must check `new` with `check` first
 pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Changed> {
     let lines: Vec<&str> = text.lines().collect();
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
-    // 新的一行插在第幾段前面、縮排多少
+    // Which segment the new line goes before, and its indent
     let (at, indent) = match place {
         Place::InGroupOf(item) => {
             find_line(&lines, item)?;
-            // 同一組的最後一件（檔案現在的內容重新 parse，跟畫面認的一樣）
+            // The group's last item (re-parse the current file content, so it matches what the screen sees)
             let items = tasks::parse(text).items;
             let mut last = items
                 .iter()
@@ -73,12 +81,13 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
                 .take_while(|other| other.group == item.group)
                 .last()
                 .ok_or(Changed)?;
-            // 最後一件是子任務：往上找到它最外層的那件，從那件算整塊（子任務、底下的備註都在裡面），
-            // 新的才不會插在備註前面、把備註搶過去
+            // The last item is a subtask: go up to its outermost item and count that item's whole block
+            // (with its subtasks and the note lines below), so the new line does not go in front of a note
+            // line and take it over
             while let Some(parent) = last.parent {
                 last = &items[parent];
             }
-            // 跟那一組最外層的事一樣，不縮排
+            // No indent, same as the group's outermost items
             (block_end(text, &lines, last.line - 1), String::new())
         }
         Place::ChildOf(item) => {
@@ -91,7 +100,7 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
     };
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut result = segments[..at].concat();
-    // 前一行是檔案最後一行、沒有換行：先補一個
+    // The line before is the file's last line and has no newline: add one first
     if !result.is_empty() && !result.ends_with('\n') {
         result.push_str(newline);
     }
@@ -100,32 +109,36 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
     Ok((result, at + 1))
 }
 
-/// 刪除：`item` 連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算；後面的空行不算）一起刪掉；
-/// 回傳刪掉之後的整個檔案，和刪掉幾件（含它自己）
+/// Delete: remove `item` together with the following lines indented deeper than it (subtasks, note lines,
+/// blank lines in between too; trailing blank lines are not included);
+/// return the whole file after deleting and how many items were deleted (itself included)
 ///
-/// 例：刪 `- 東京 5 天` → 底下的 `  - [ ] 訂機票`、`    - [ ] 比價` 一起刪，共 3 件
+/// E.g. deleting `- 東京 5 天` → `  - [ ] 訂機票` and `    - [ ] 比價` under it go too, 3 items in total
 pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     let lines: Vec<&str> = text.lines().collect();
-    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
     let end = block_end(text, &lines, start);
-    // 刪掉的那幾行裡有幾件（用 parser 數，跟畫面認的一樣）
+    // How many items the deleted lines hold (counted by the parser, so it matches what the screen sees)
     let count = tasks::parse(&segments[start..end].concat()).items.len();
     let mut result = segments[..start].concat();
     result.push_str(&segments[end..].concat());
     Ok((result, count))
 }
 
-/// 縮排 / 取消縮排：`item` 那一塊（連子任務、備註）每一行開頭 `item` 的縮排換成 `to`，回傳改好的整個檔案；
-/// 子任務多出來的縮排照留
+/// Indent / outdent: in `item`'s block (with subtasks and note lines), replace `item`'s indent at the
+/// start of each line with `to`, and return the whole changed file;
+/// the subtasks' extra indent is kept
 ///
-/// 例：`to` = `  `：`- 東京 5 天`、`  - [ ] 訂機票` → `  - 東京 5 天`、`    - [ ] 訂機票`。
-/// 那一塊有一行開頭跟 `item` 的縮排寫法不一樣（tab、空白混用）：照寬度換成空白，上下層的關係不變。
-/// `to` 是照 `anchor`（上面那件、父項目）那一行算的：它也要跟讀進來時一樣，不然回傳 `Changed`
+/// E.g. `to` = `  `: `- 東京 5 天`, `  - [ ] 訂機票` → `  - 東京 5 天`, `    - [ ] 訂機票`.
+/// If a line in the block starts with an indent written differently from `item`'s (tabs and spaces mixed),
+/// it is replaced with spaces by width, so the parent / child relations stay the same.
+/// `to` is worked out from the `anchor` line (the item above, or the parent): that line must also match
+/// what was read, otherwise `Changed` is returned
 pub fn reindent(text: &str, item: &Item, anchor: &Item, to: &str) -> Result<String, Changed> {
     let lines: Vec<&str> = text.lines().collect();
-    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
     find_line(&lines, anchor)?;
@@ -140,8 +153,10 @@ pub fn reindent(text: &str, item: &Item, anchor: &Item, to: &str) -> Result<Stri
     Ok(result)
 }
 
-/// 一塊（連換行的整段）每一行開頭的縮排 `from` 換成 `to`，子任務多出來的縮排照留；中間的空行照留。
-/// 開頭不是 `from` 的行（tab、空白混用）照寬度換成空白，上下層的關係不變
+/// In a block (whole segments with newlines), replace the indent `from` at the start of each line with `to`;
+/// the subtasks' extra indent is kept, and so are blank lines in between.
+/// Lines that do not start with `from` (tabs and spaces mixed) get spaces by width, so the parent / child
+/// relations stay the same
 fn reindented(segments: &[&str], from: &str, to: &str) -> String {
     let mut result = String::new();
     for segment in segments {
@@ -165,20 +180,23 @@ fn reindented(segments: &[&str], from: &str, to: &str) -> String {
     result
 }
 
-/// 上下搬：`upper` 那一塊和它下面同一層的 `lower` 那一塊（都連子任務、備註）換位置，回傳改好的整個檔案；
-/// 兩塊中間隔著的（空行、備註）留在中間。縮排留在原本的位置：搬到上面的那塊換成 `upper` 的縮排、搬到下面的換成
-/// `lower` 的（兩件的縮排寫法不一樣時，例：一件 tab、一件兩格空白，照原樣搬可能變成另一件的子任務）
+/// Move up / down: swap the block of `upper` with the block of `lower`, on the same level below it (both
+/// with subtasks and note lines), and return the whole changed file; whatever lies between the two blocks
+/// (blank lines, note lines) stays in the middle. Indents stay where they were: the block moved up gets
+/// `upper`'s indent, the block moved down gets `lower`'s (when the two items write their indent
+/// differently, e.g. one with a tab and one with two spaces, moving them as they are could turn one into
+/// a subtask of the other)
 ///
-/// 例：`- a`、`  - a1`、`- b` → `- b`、`- a`、`  - a1`
+/// E.g. `- a`, `  - a1`, `- b` → `- b`, `- a`, `  - a1`
 pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<(String, Swap), Changed> {
     let lines: Vec<&str> = text.lines().collect();
-    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let upper_start = find_line(&lines, upper)?;
     let lower_start = find_line(&lines, lower)?;
     let upper_end = block_end(text, &lines, upper_start);
     let lower_end = block_end(text, &lines, lower_start);
-    // 下面那塊要在上面那塊結束之後（不是的話是檔案跟畫面對不上）
+    // The lower block must start after the upper block ends (if not, the file does not match the screen)
     if lower_start < upper_end {
         return Err(Changed);
     }
@@ -193,7 +211,8 @@ pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<(String, Swap), Ch
         lower_indent,
         upper_indent,
     );
-    // 下面那塊是檔案最後一行、沒有換行：換到上面要補換行；換到最後面的那塊就不留換行（跟原本一樣）
+    // The lower block is the file's last line with no newline: it needs one when moved up, and the block
+    // moved to the end gets no newline (same as before)
     if !lower_block.ends_with('\n') {
         lower_block.push_str(if text.contains("\r\n") { "\r\n" } else { "\n" });
         upper_block.truncate(upper_block.trim_end_matches(['\r', '\n']).len());
@@ -215,25 +234,27 @@ pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<(String, Swap), Ch
     Ok((result, swap))
 }
 
-/// 上下搬換了哪兩塊（行號從 1 開始）：寫檔後畫面記著的行號照 `map` 搬，復原時用 `reversed`
+/// Which two blocks a move up / down swapped (line numbers from 1): after writing, the line numbers the
+/// screen keeps are moved with `map`; undo uses `reversed`
 ///
-/// 照實際搬的行算，不看每一行的字（兩件的字一模一樣時也對得上）
+/// Counts the lines actually moved, not their text (so it works even when two items read the same)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Swap {
-    /// 上面那塊的第一行
+    /// First line of the upper block
     pub start: usize,
-    /// 上面那塊有幾行
+    /// Number of lines in the upper block
     pub upper: usize,
-    /// 兩塊中間隔著幾行（空行、備註）
+    /// Number of lines between the two blocks (blank lines, note lines)
     pub gap: usize,
-    /// 下面那塊有幾行
+    /// Number of lines in the lower block
     pub lower: usize,
 }
 
 impl Swap {
-    /// 換之前的第 `line` 行，換完在第幾行：上面那塊往下搬、下面那塊往上搬、中間的跟著挪，其他不動
+    /// Where line `line` (before the swap) ends up after it: the upper block moves down, the lower block
+    /// moves up, the lines between shift along, the rest stay
     ///
-    /// 例：第 1～2 行和第 3 行換（`start` 1、`upper` 2、`gap` 0、`lower` 1）：1 → 2、2 → 3、3 → 1
+    /// E.g. lines 1-2 swapped with line 3 (`start` 1, `upper` 2, `gap` 0, `lower` 1): 1 → 2, 2 → 3, 3 → 1
     pub fn map(self, line: usize) -> usize {
         let upper_end = self.start + self.upper;
         let lower_start = upper_end + self.gap;
@@ -249,7 +270,7 @@ impl Swap {
         }
     }
 
-    /// 換回來的那一次（復原用）：原本下面那塊現在在上面
+    /// The swap back (for undo): the block that was below is now on top
     pub fn reversed(self) -> Self {
         Self {
             upper: self.lower,
@@ -259,19 +280,22 @@ impl Swap {
     }
 }
 
-/// 一行開頭的縮排（空白、tab）
+/// The indent at the start of a line (spaces, tabs)
 pub fn indent_of(line: &str) -> &str {
     &line[..line.len() - line.trim_start().len()]
 }
 
-/// 寫檔前後的行號對照（從 1 開始），畫面記著的行號（選到的那件、展開的子任務）跟著搬
+/// Maps line numbers (from 1) from before a write to after it, so the line numbers the screen keeps
+/// (the chosen item, expanded subtasks) move along
 ///
-/// 每次寫檔只改連續的一段（打勾、編輯、改期、新增、刪除、縮排、復原都是）：前面沒動的行號不變、後面的跟著加減；
-/// 改到的那一段：行數沒變（換掉一行）就照舊，變了（新增、刪除）就對不到（`None`）。上下搬不用這個，用 `Swap::map`
+/// Each write changes only one run of lines (check off, edit, reschedule, add, delete, indent, undo all do):
+/// line numbers before it stay, those after it shift by the change;
+/// inside the changed run: if the line count did not change (one line replaced), they stay; if it did
+/// (add, delete), they have no match (`None`). Move up / down does not use this; it uses `Swap::map`
 pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + use<> {
     let old: Vec<&str> = before.lines().collect();
     let new: Vec<&str> = after.lines().collect();
-    // 前面一樣的有幾行、後面一樣的有幾行（不跟前面那段重疊）
+    // How many lines match at the start, and how many at the end (not overlapping the start)
     let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
     let suffix = old
         .iter()
@@ -283,22 +307,22 @@ pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + 
     let (old_len, new_len) = (old.len(), new.len());
     move |line| {
         if line <= prefix {
-            // 改到的那段前面：沒動
+            // Before the changed run: unchanged
             Some(line)
         } else if line > old_len - suffix {
-            // 改到的那段後面：跟著多出來 / 少掉的行數加減
+            // After the changed run: shift by the lines added / removed
             (line + new_len).checked_sub(old_len)
         } else if old_len == new_len {
-            // 改到的那段裡面、行數沒變（換掉一行）：照舊
+            // Inside the changed run, same line count (one line replaced): unchanged
             Some(line)
         } else {
-            // 改到的那段裡面、行數變了：對不到
+            // Inside the changed run, line count changed: no match
             None
         }
     }
 }
 
-/// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
+/// Which line `item` is on (from 0); `Changed` if the line differs from when it was read (or is gone)
 fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     let index = item.line.checked_sub(1).ok_or(Changed)?;
     if lines.get(index) == Some(&item.line_text.as_str()) {
@@ -308,16 +332,19 @@ fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     }
 }
 
-/// 第 `start` 行（從 0 開始）那件事的一整塊結束在哪：連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算），
-/// 回傳最後一行有內容的下一行；最後面的空行不算（那是跟下一件之間的空行）。中間夾著縮排沒有比它深的備註行
-/// （Obsidian 當成同一項的文字），後面 parser 還算成它子任務的，也包到那裡（`text` = 整個檔案，給 parser 讀）
+/// Where the whole block of the item on line `start` (from 0) ends: with the following lines indented
+/// deeper than it (subtasks, note lines, blank lines in between too),
+/// it returns the line after the last non-blank one; trailing blank lines are not included (they separate
+/// it from the next item). If a note line that is not indented deeper sits in between
+/// (Obsidian treats it as text of the same item) and the parser still counts later items as its subtasks,
+/// the block reaches those too (`text` = the whole file, for the parser)
 ///
-/// 例：`- 寫報告`、`備註：週五前`、`  - 找資料`、`- 交週報` → 寫報告那一塊是前 3 行
+/// E.g. `- 寫報告`, `備註：週五前`, `  - 找資料`, `- 交週報` → the block of 寫報告 is the first 3 lines
 fn block_end(text: &str, lines: &[&str], start: usize) -> usize {
     let items = tasks::parse(text).items;
     let mut end = indented_end(lines, start);
     if let Some(index) = items.iter().position(|item| item.line == start + 1) {
-        // 子任務 = 接在它後面、比它深的那幾件；最後一件連它自己的那塊
+        // Subtasks = the items right after it that are deeper; take the last one together with its own block
         let depth = items[index].depth;
         let descendants = items[index + 1..]
             .iter()
@@ -329,12 +356,13 @@ fn block_end(text: &str, lines: &[&str], start: usize) -> usize {
     end
 }
 
-/// 第 `start` 行（從 0 開始）連同底下縮排比它深的連續幾行（中間的空行也算）結束在哪：回傳最後一行有內容的下一行
+/// Where line `start` (from 0) and the following lines indented deeper than it (blank lines in between
+/// too) end: returns the line after the last non-blank one
 fn indented_end(lines: &[&str], start: usize) -> usize {
     let indent = tasks::indent_width(lines[start]);
     let mut end = start + 1;
     for (index, line) in lines.iter().enumerate().skip(start + 1) {
-        // 空行先跳過；遇到縮排沒有比它深的那行就停
+        // Skip blank lines; stop at the first line not indented deeper
         if line.trim().is_empty() {
             continue;
         }
@@ -346,40 +374,44 @@ fn indented_end(lines: &[&str], start: usize) -> usize {
     end
 }
 
-/// 編輯：`item` 那一行換成 `new`（編輯框裡打的那一行，不含縮排），縮排照原本的；回傳改好的整個檔案
+/// Edit: replace `item`'s line with `new` (the line typed in the editor, without indent), keeping the
+/// original indent; return the whole changed file
 ///
-/// 呼叫的人要先用 `check` 確認 `new` 沒問題
+/// The caller must check `new` with `check` first
 pub fn replace(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
     let indent = &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
     replace_line(text, item, &format!("{indent}{}", new.trim()))
 }
 
-/// 任務打勾 / 取消：`- [ ] 週會` ↔ `- [x] 週會`，回傳打勾後的整個檔案
+/// Check / uncheck a task: `- [ ] 週會` ↔ `- [x] 週會`; return the whole file after the change
 ///
-/// `text` = 任務檔現在的內容、`item` = 之前讀到的那個項目。行程沒有框、不能打勾：那一行照原樣（呼叫的人要先擋掉）
+/// `text` = the task file's current content, `item` = the item read earlier. An event has no box and
+/// cannot be checked off: its line stays as is (the caller must block it first)
 pub fn toggle(text: &str, item: &Item) -> Result<String, Changed> {
     replace_line(text, item, &toggled(&item.line_text))
 }
 
-/// 改期：只換掉那一行的日期，其他字一字不動，回傳改好的整個檔案
+/// Reschedule: replace only the date on that line, nothing else; return the whole changed file
 ///
-/// 時間照留；跨多天的整段一起搬、天數不變（例：`@2026-10-20..2026-10-25` 改到 11/2 → `@2026-11-02..2026-11-07`）。
-/// 還沒排日期的：日期加在行尾（行尾有 Obsidian 的 `^id` 就加在它前面）
+/// The time is kept; a multi-day range moves as a whole with the same number of days
+/// (e.g. `@2026-10-20..2026-10-25` moved to 11/2 → `@2026-11-02..2026-11-07`).
+/// Not yet scheduled: the date is added at the end of the line (before an Obsidian `^id` if there is one)
 pub fn reschedule(text: &str, item: &Item, to: Date) -> Result<String, Changed> {
     replace_line(text, item, &rescheduled(&item.line_text, item, to))
 }
 
-/// 一行的日期換成 `to`（見 `reschedule`）
+/// Change a line's date to `to` (see `reschedule`)
 fn rescheduled(line: &str, item: &Item, to: Date) -> String {
     let Some(from) = item.date else {
-        // 還沒排日期：加在行尾，`^id` 要留在最後面（行尾的空白不算；`^id` 前面是 tab 也認得）
+        // Not yet scheduled: add it at the end of the line, keeping `^id` last (trailing spaces do not count;
+        // a tab before `^id` is recognized too)
         let (body, block_id) = match line.trim_end().rsplit_once(char::is_whitespace) {
             Some((body, last)) if tasks::is_block_id(last) => (body, format!(" {last}")),
             _ => (line.trim_end(), String::new()),
         };
         return format!("{} @{to}{block_id}", body.trim_end());
     };
-    // 新的日期：跨多天的最後一天一起搬
+    // The new date: for a multi-day item, the last day moves along
     let new_token = match item.end {
         Some(end) => {
             let days = (to - from).get_days();
@@ -387,8 +419,10 @@ fn rescheduled(line: &str, item: &Item, to: Date) -> String {
         }
         None => format!("@{to}"),
     };
-    // 檔案裡原本的寫法：parser 認的是第一個合法的日期，寫出來一定是標準的 YYYY-MM-DD；
-    // 頭尾同一天的範圍（`@2026-10-20..2026-10-20`）parser 當成一天，兩種寫法都找
+    // How it is written in the file: the parser takes the first valid date, which always prints as the
+    // standard YYYY-MM-DD;
+    // a range with the same first and last day (`@2026-10-20..2026-10-20`) is one day to the parser,
+    // so look for both forms
     let old_tokens = match item.end {
         Some(end) => vec![format!("@{from}..{end}")],
         None => vec![format!("@{from}"), format!("@{from}..{from}")],
@@ -402,11 +436,11 @@ fn rescheduled(line: &str, item: &Item, to: Date) -> String {
             );
         }
     }
-    // 找不到（不會發生：parser 讀得到日期就一定在這一行裡）：照原樣
+    // Not found (cannot happen: a date the parser read must be on this line): leave the line as is
     line.to_string()
 }
 
-/// `word` 第一次以「整個字」出現在 `line` 的哪裡（前後是空白或行頭行尾）
+/// Where `word` first appears in `line` as a whole word (whitespace or line start / end on both sides)
 fn whole_word(line: &str, word: &str) -> Option<usize> {
     line.match_indices(word)
         .map(|(start, _)| start)
@@ -417,15 +451,15 @@ fn whole_word(line: &str, word: &str) -> Option<usize> {
         })
 }
 
-/// 一行打勾 / 取消，縮排和後面的文字一字不動（`line` 是 parser 認過的項目那一行）
+/// Check / uncheck a line; the indent and the rest of the text stay as is (`line` is a parsed item's line)
 ///
-/// `- [ ] 週會` → `- [x] 週會`；`- [x]`、`- [X]` → `- [ ]`；沒有框的（行程）照原樣
+/// `- [ ] 週會` → `- [x] 週會`; `- [x]`, `- [X]` → `- [ ]`; lines without a box (events) stay as is
 fn toggled(line: &str) -> String {
     let trimmed = line.trim_start();
     let indent = &line[..line.len() - trimmed.len()];
     let rest = trimmed.strip_prefix("- ").unwrap_or(trimmed);
     match tasks::checkbox(rest) {
-        // 有框：只換 `[ ]` / `[x]` 那 3 個字
+        // Has a box: replace only the 3 characters of `[ ]` / `[x]`
         Some((done, after)) => {
             let mark = if done { "[ ]" } else { "[x]" };
             format!("{indent}- {mark}{after}")
@@ -434,11 +468,12 @@ fn toggled(line: &str) -> String {
     }
 }
 
-/// 把 `item` 那一行換成 `new`；那一行現在跟 `item.line_text` 不一樣（或已經沒有那一行）就回傳 `Changed`
+/// Replace `item`'s line with `new`; `Changed` if that line now differs from `item.line_text` (or is gone)
 fn replace_line(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
     let mut result = String::with_capacity(text.len() + new.len());
     let mut replaced = false;
-    // lines() 拿內容（跟 parser 同一種切法），split_inclusive 拿連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    // lines() gives the content (split the same way as the parser); split_inclusive gives whole segments
+    // with the newline, so the newlines (\n or \r\n) stay as they were
     for (index, (content, segment)) in text.lines().zip(text.split_inclusive('\n')).enumerate() {
         if index + 1 != item.line {
             result.push_str(segment);
@@ -460,7 +495,7 @@ mod tests {
     use crate::tasks::parse;
     use jiff::civil::date;
 
-    /// `text` 裡的第 `index` 個項目
+    /// The item at `index` in `text`
     fn item(text: &str, index: usize) -> Item {
         parse(text).items[index].clone()
     }
@@ -472,11 +507,11 @@ mod tests {
             (item.title.as_str(), item.date),
             ("交週報", Some(date(2026, 10, 16)))
         );
-        // 不是 `- ` 開頭：標題、清單的別種寫法、空的
+        // Not starting with `- `: a heading, another list style, empty
         for line in ["交週報", "# 例行", "* 交週報", ""] {
             assert_eq!(check(line), Err(Problem::NotAnItem), "{line:?}");
         }
-        // 寫錯的日期、時間、範圍
+        // A wrong date, time, range
         assert_eq!(
             check("- 出差 @2026-13-01"),
             Err(Problem::Mistake(WarningKind::NoSuchDate(
@@ -493,17 +528,18 @@ mod tests {
     fn check_refuses_an_empty_title() {
         assert_eq!(check("- [ ]  @2026-10-17"), Err(Problem::EmptyTitle));
         assert_eq!(check("- [ ]"), Err(Problem::EmptyTitle));
-        // 只打了 `- `：也是標題空的（不是「要用 `- ` 開頭」）
+        // Only `- ` typed: also an empty title (not "start with `- `")
         assert_eq!(check("- "), Err(Problem::EmptyTitle));
         assert_eq!(check("  -  "), Err(Problem::EmptyTitle));
     }
 
-    /// 新增的 test 用的檔案：「工作」有一件帶子任務和空行，後面接「生活」
+    /// The file for the add tests: 「工作」 has one item with subtasks and blank lines, followed by 「生活」
     const GROUPS: &str = "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n  - [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n";
 
     #[test]
     fn add_goes_after_the_last_item_of_the_group() {
-        // 「工作」的最後一件（寫報告）連子任務、中間的空行一起算；後面的空行不算
+        // The last item of 「工作」 (寫報告) counts together with its subtasks and the blank line between them;
+        // the trailing blank line does not
         let (after, line) = add(
             GROUPS,
             "- [ ] 交週報 @2026-10-16",
@@ -515,10 +551,10 @@ mod tests {
             "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n  - [x] 列大綱\n- [ ] 交週報 @2026-10-16\n\n# 生活\n- 爬山 @2026-10-18\n"
         );
         assert_eq!(line, 6);
-        // 選的是子任務也一樣：加在那一組最後面，不縮排
+        // Same when a subtask is chosen: added at the end of that group, not indented
         let (after, _) = add(GROUPS, "- x", &Place::InGroupOf(item(GROUPS, 1))).expect("add");
         assert!(after.contains("  - [x] 列大綱\n- x\n\n# 生活"));
-        // 「生活」是最後一組：加在檔案最後
+        // 「生活」 is the last group: added at the end of the file
         let (after, line) = add(
             GROUPS,
             "- 聚餐 @2026-10-17",
@@ -531,7 +567,8 @@ mod tests {
 
     #[test]
     fn add_keeps_the_last_items_notes_with_it() {
-        // 寫報告的備註（跟子任務一樣縮排）在最後一個子任務後面：新的一件放在備註後面，備註還是寫報告的
+        // The note line of 寫報告 (indented like its subtasks) comes after the last subtask: the new item goes
+        // after the note line, which still belongs to 寫報告
         let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  備註：下週交\n# 生活\n";
         let (after, line) = add(text, "- [ ] 新的", &Place::InGroupOf(item(text, 0))).expect("add");
         assert_eq!(
@@ -543,12 +580,12 @@ mod tests {
 
     #[test]
     fn add_a_subtask_right_under_its_parent() {
-        // 寫報告的子任務：加在它原本的子任務下面，縮排多 2 格
+        // A subtask of 寫報告: added below its existing subtasks, indented 2 more spaces
         let (after, line) =
             add(GROUPS, "- [ ] 校稿", &Place::ChildOf(item(GROUPS, 0))).expect("add");
         assert!(after.contains("  - [x] 列大綱\n  - [ ] 校稿\n\n# 生活"));
         assert_eq!(line, 6);
-        // 子任務的子任務：再多 2 格
+        // A subtask of a subtask: 2 more spaces again
         let (after, _) =
             add(GROUPS, "- [ ] 查文獻", &Place::ChildOf(item(GROUPS, 1))).expect("add");
         assert!(after.contains("  - [ ] 找資料\n    - [ ] 查文獻\n\n  - [x] 列大綱"));
@@ -556,15 +593,15 @@ mod tests {
 
     #[test]
     fn add_at_the_end_keeps_the_newlines() {
-        // 最後一行沒有換行：先補一個；\r\n 的檔案用 \r\n
+        // The last line has no newline: add one first; a \r\n file gets \r\n
         assert_eq!(add("- a", "- b", &Place::End), Ok(("- a\n- b\n".into(), 2)));
         assert_eq!(
             add("- a\r\n", "- b", &Place::End),
             Ok(("- a\r\n- b\r\n".into(), 2))
         );
-        // 空的檔案（還不存在的任務檔）
+        // An empty file (a task file that does not exist yet)
         assert_eq!(add("", "- b", &Place::End), Ok(("- b\n".into(), 1)));
-        // 選的那件在別處改過：不加
+        // The chosen item was changed elsewhere: nothing added
         assert_eq!(
             add("- [ ] 別的\n", "- b", &Place::InGroupOf(item(GROUPS, 0))),
             Err(Changed)
@@ -573,12 +610,13 @@ mod tests {
 
     #[test]
     fn delete_takes_the_subtasks_along() {
-        // 寫報告 + 2 件子任務（中間的空行也刪）= 3 件；後面跟下一組之間的空行留著
+        // 寫報告 + 2 subtasks (the blank line between is deleted too) = 3 items;
+        // the blank line before the next group stays
         assert_eq!(
             delete(GROUPS, &item(GROUPS, 0)),
             Ok(("# 工作\n\n# 生活\n- 爬山 @2026-10-18\n".into(), 3))
         );
-        // 刪子任務：只有它自己
+        // Deleting a subtask: only itself
         assert_eq!(
             delete(GROUPS, &item(GROUPS, 2)),
             Ok((
@@ -586,18 +624,19 @@ mod tests {
                 1
             ))
         );
-        // 最後一行沒有換行、\r\n：其他行照原樣
+        // No newline on the last line, \r\n: the other lines stay as they are
         assert_eq!(
             delete("- a\r\n- b", &item("- a\r\n- b", 1)),
             Ok(("- a\r\n".into(), 1))
         );
-        // 在別處改過：不刪
+        // Changed elsewhere: nothing deleted
         assert_eq!(delete("- [ ] 別的\n", &item(GROUPS, 0)), Err(Changed));
     }
 
     #[test]
     fn reindent_moves_the_whole_block() {
-        // 寫報告往裡縮 2 格：子任務跟著多 2 格，中間的空行照留；後面的空行、下一組不動
+        // Indent 寫報告 by 2 spaces: its subtasks get 2 more as well, the blank line between stays;
+        // the trailing blank line and the next group do not change
         assert_eq!(
             reindent(GROUPS, &item(GROUPS, 0), &item(GROUPS, 0), "  "),
             Ok(
@@ -605,7 +644,7 @@ mod tests {
                     .into()
             )
         );
-        // 列大綱往外：對齊父項目（不縮排）
+        // Outdent 列大綱: line up with the parent (no indent)
         assert_eq!(
             reindent(GROUPS, &item(GROUPS, 2), &item(GROUPS, 0), ""),
             Ok(
@@ -613,18 +652,19 @@ mod tests {
                     .into()
             )
         );
-        // tab 縮排：子任務多出來的 tab 照留；開頭不是 tab 的那行照寬度換成空白（6 - 4 = 2 格）；\r\n 照留
+        // Tab indent: the subtask's extra tab is kept; the line not starting with a tab gets spaces by width
+        // (6 - 4 = 2 spaces); \r\n is kept
         let tabs = "- a\r\n\t- b\r\n\t\t- c\r\n      - d\r\n";
         assert_eq!(
             reindent(tabs, &item(tabs, 1), &item(tabs, 0), ""),
             Ok("- a\r\n- b\r\n\t- c\r\n  - d\r\n".into())
         );
-        // 在別處改過：不改
+        // Changed elsewhere: not changed
         assert_eq!(
             reindent("- [ ] 別的\n", &item(GROUPS, 0), &item(GROUPS, 0), "  "),
             Err(Changed)
         );
-        // 算縮排用的那件（父項目寫報告）在別處改過：也不改
+        // The item the indent is based on (the parent 寫報告) was changed elsewhere: not changed either
         let changed = item("# 工作\n- [ ] 寫報告（改過）\n", 0);
         assert_eq!(
             reindent(GROUPS, &item(GROUPS, 2), &changed, ""),
@@ -634,16 +674,16 @@ mod tests {
 
     #[test]
     fn line_map_follows_the_lines_that_moved() {
-        // 換掉一行：每一行都照舊
+        // One line replaced: every line keeps its number
         let map = line_map("a\nb\nc\n", "a\nB\nc\n");
         assert_eq!([1, 2, 3].map(&map), [Some(1), Some(2), Some(3)]);
-        // 在第 2 行插一行：後面的往下一行
+        // A line inserted at line 2: the ones after move down one line
         let map = line_map("a\nb\nc\n", "a\nnew\nb\nc\n");
         assert_eq!([1, 2, 3].map(&map), [Some(1), Some(3), Some(4)]);
-        // 刪掉第 2、3 行：刪掉的對不到，後面的往上兩行
+        // Lines 2 and 3 deleted: the deleted ones have no match, the ones after move up two lines
         let map = line_map("a\nb\nc\nd\n", "a\nd\n");
         assert_eq!([1, 2, 3, 4].map(&map), [Some(1), None, None, Some(2)]);
-        // 加在最後面、刪掉最後面
+        // Added at the end, deleted at the end
         let map = line_map("a\nb\n", "a\nb\nc\n");
         assert_eq!([1, 2].map(&map), [Some(1), Some(2)]);
         let map = line_map("a\nb\n", "a\n");
@@ -652,19 +692,20 @@ mod tests {
 
     #[test]
     fn a_shallow_note_line_does_not_cut_the_subtasks_off_the_block() {
-        // 寫報告底下先是一行沒縮排的備註，再來才是子任務找資料（parser 照樣算找資料是寫報告的子任務）
+        // Under 寫報告 comes an unindented note line first, then the subtask 找資料 (the parser still counts
+        // 找資料 as a subtask of 寫報告)
         let text = "- [ ] 寫報告\n備註：週五前\n  - [ ] 找資料\n- [ ] 交週報\n";
-        // 上下搬：備註、找資料跟著寫報告走
+        // Move up / down: the note line and 找資料 go along with 寫報告
         assert_eq!(
             swap(text, &item(text, 0), &item(text, 2)).map(|(text, _)| text),
             Ok("- [ ] 交週報\n- [ ] 寫報告\n備註：週五前\n  - [ ] 找資料\n".into())
         );
-        // 刪除：連找資料一起，共 2 件
+        // Delete: 找資料 goes too, 2 items in total
         assert_eq!(
             delete(text, &item(text, 0)),
             Ok(("- [ ] 交週報\n".into(), 2))
         );
-        // 縮排：b 底下的備註、b1 一起縮進去，b1 還是 b 的子任務
+        // Indent: the note line under b and b1 are indented along with it; b1 is still a subtask of b
         let text = "- a\n- b\nnote\n  - b1\n";
         assert_eq!(
             reindent(text, &item(text, 1), &item(text, 0), "  "),
@@ -674,14 +715,15 @@ mod tests {
 
     #[test]
     fn swap_leaves_each_places_indent_where_it_was() {
-        // 兩個兄弟縮排寫法不一樣（tab、兩格空白）：換完各自換成那個位置原本的縮排，子任務多出來的縮排照留
+        // Two siblings write their indent differently (a tab, two spaces): after the swap each one gets
+        // the indent its new position had, and the subtasks' extra indent is kept
         let text = "- [ ] 寫報告\n\t- [ ] 找資料\n\t\t- [ ] 查文獻\n  - [ ] 交週報\n";
         let (swapped, _) = swap(text, &item(text, 1), &item(text, 3)).expect("swap");
         assert_eq!(
             swapped,
             "- [ ] 寫報告\n\t- [ ] 交週報\n  - [ ] 找資料\n  \t- [ ] 查文獻\n"
         );
-        // 讀回來：交週報、找資料都還是寫報告的子任務，查文獻還是找資料的
+        // Read back: 交週報 and 找資料 are still subtasks of 寫報告, and 查文獻 is still under 找資料
         let parents: Vec<_> = parse(&swapped)
             .items
             .iter()
@@ -692,16 +734,17 @@ mod tests {
 
     #[test]
     fn swap_map_follows_the_moved_lines_even_when_they_read_the_same() {
-        // 兩件都叫「運動」：第 1～2 行（運動、跑步）和第 3～4 行（運動、游泳）換位置
+        // Both items are called 「運動」: lines 1-2 (運動, 跑步) and lines 3-4 (運動, 游泳) swap places
         let text = "- [ ] 運動\n  - [ ] 跑步\n- [ ] 運動\n  - [ ] 游泳\n- [ ] 睡覺\n";
         let (after, swap) = swap(text, &item(text, 0), &item(text, 2)).expect("swap");
         assert_eq!(
             after,
             "- [ ] 運動\n  - [ ] 游泳\n- [ ] 運動\n  - [ ] 跑步\n- [ ] 睡覺\n"
         );
-        // 原本的第 1、2 行搬到第 3、4 行，第 3、4 行搬到第 1、2 行；後面的不動
+        // The original lines 1, 2 move to lines 3, 4, and lines 3, 4 move to lines 1, 2; the rest stay
         assert_eq!([1, 2, 3, 4, 5].map(|line| swap.map(line)), [3, 4, 1, 2, 5]);
-        // 中間隔著空行、兩塊不一樣長：第 1 行（1 行）和第 3～5 行（3 行）換，空行從第 2 行到第 4 行
+        // A blank line between, blocks of different lengths: line 1 (1 line) swaps with lines 3-5 (3 lines),
+        // and the blank line moves from line 2 to line 4
         let swap = Swap {
             start: 1,
             upper: 1,
@@ -712,13 +755,13 @@ mod tests {
             [1, 2, 3, 4, 5, 6].map(|line| swap.map(line)),
             [5, 4, 1, 2, 3, 6]
         );
-        // 復原：反過來搬，每一行都回到原本的位置
+        // Undo: moving back puts every line in its original place
         assert!((1..=6).all(|line| swap.reversed().map(swap.map(line)) == line));
     }
 
     #[test]
     fn swap_moves_the_blocks_with_their_subtasks() {
-        // 有子任務的兩塊換位置，後面的不動
+        // Two blocks with subtasks swap places; the rest stay
         let text = "- a\n  - a1\n- b\n  - b1\n- c\n";
         assert_eq!(
             swap(text, &item(text, 0), &item(text, 2)),
@@ -732,7 +775,7 @@ mod tests {
                 }
             ))
         );
-        // 中間的空行留在中間；後面跟下一組之間的空行也不動
+        // The blank line between stays between; the one before the next group does not move either
         assert_eq!(
             swap(GROUPS, &item(GROUPS, 1), &item(GROUPS, 2)).map(|(text, _)| text),
             Ok(
@@ -740,13 +783,14 @@ mod tests {
                     .into()
             )
         );
-        // 下面那件是最後一行、沒有換行，\r\n：換完最後一行一樣沒有換行
+        // The lower item is the last line, without a newline, \r\n:
+        // after the swap the last line has no newline either
         assert_eq!(
             swap("- a\r\n- b", &item("- a\r\n- b", 0), &item("- a\r\n- b", 1))
                 .map(|(text, _)| text),
             Ok("- b\r\n- a".into())
         );
-        // 在別處改過：不搬
+        // Changed elsewhere: not moved
         assert_eq!(
             swap("- [ ] 別的\n", &item(GROUPS, 0), &item(GROUPS, 1)),
             Err(Changed)
@@ -760,7 +804,7 @@ mod tests {
             replace(text, &item(text, 1), "- [x] 書房和客廳 @2026-11-15 "),
             Ok("- [ ] 打包\n  - [x] 書房和客廳 @2026-11-15\n".into())
         );
-        // 那一行在別處改過：不改
+        // The line was changed elsewhere: not changed
         assert_eq!(
             replace("- [ ] 打包\n  - [ ] 臥室\n", &item(text, 1), "- [ ] x"),
             Err(Changed)
@@ -770,12 +814,12 @@ mod tests {
     #[test]
     fn reschedule_changes_only_the_date() {
         let text = "# 例行\n- [ ] 交週報 @2026-10-16 17:30 ^w-01\n- 開會 @2026-10-12 跟客戶\n";
-        // 時間、行尾的 ^id 都照留
+        // The time and the ^id at the end of the line are both kept
         assert_eq!(
             reschedule(text, &item(text, 0), date(2026, 10, 19)),
             Ok("# 例行\n- [ ] 交週報 @2026-10-19 17:30 ^w-01\n- 開會 @2026-10-12 跟客戶\n".into())
         );
-        // 日期在中間：只換那個字，位置不動
+        // The date in the middle: only that word changes, in the same place
         assert_eq!(
             reschedule(text, &item(text, 1), date(2026, 11, 2)),
             Ok("# 例行\n- [ ] 交週報 @2026-10-16 17:30 ^w-01\n- 開會 @2026-11-02 跟客戶\n".into())
@@ -784,7 +828,8 @@ mod tests {
 
     #[test]
     fn reschedule_moves_a_multi_day_item_as_a_whole() {
-        // 6 天的出差改到 10/29 開始：最後一天跟著搬到 11/3（跨月）；往前搬也一樣
+        // A 6-day trip moved to start on 10/29: the last day moves along to 11/3 (into the next month);
+        // moving it earlier works the same
         let text = "- 東京出差 @2026-10-20..2026-10-25 09:00\n";
         assert_eq!(
             reschedule(text, &item(text, 0), date(2026, 10, 29)),
@@ -794,7 +839,7 @@ mod tests {
             reschedule(text, &item(text, 0), date(2026, 10, 1)),
             Ok("- 東京出差 @2026-10-01..2026-10-06 09:00\n".into())
         );
-        // 頭尾同一天的寫法（parser 當成一天）：換成一般的日期
+        // Same first and last day (one day to the parser): becomes a plain date
         let text = "- 開會 @2026-10-20..2026-10-20\n";
         assert_eq!(
             reschedule(text, &item(text, 0), date(2026, 10, 21)),
@@ -804,7 +849,8 @@ mod tests {
 
     #[test]
     fn reschedule_skips_text_that_only_looks_like_the_date() {
-        // 第一個 @2026-13-01 不存在（parser 當文字）、`x@2026-10-16` 不是整個字：換的是真正的那個日期
+        // The first @2026-13-01 does not exist (text to the parser) and `x@2026-10-16` is not a whole word:
+        // the real date is the one that changes
         let text = "- [ ] 繳稅 @2026-13-01 x@2026-10-16 @2026-10-16\n";
         assert_eq!(
             reschedule(text, &item(text, 0), date(2026, 10, 20)),
@@ -819,12 +865,13 @@ mod tests {
             reschedule(text, &item(text, 0), date(2026, 10, 18)),
             Ok("- [ ] 整理書櫃 @2026-10-18\n- [ ] 回信 ^r-02\n".into())
         );
-        // 行尾有 ^id：日期加在它前面
+        // A ^id at the end of the line: the date goes before it
         assert_eq!(
             reschedule(text, &item(text, 1), date(2026, 10, 18)),
             Ok("- [ ] 整理書櫃\n- [ ] 回信 @2026-10-18 ^r-02\n".into())
         );
-        // ^id 後面還有空白、^id 前面是 tab：一樣加在 ^id 前面（Obsidian 連到這一行的連結才不會斷）
+        // Spaces after ^id, a tab before ^id: still added before ^id
+        // (so Obsidian links to this line do not break)
         for text in ["- [ ] 回信 ^r-02  \n", "- [ ] 回信\t^r-02\n"] {
             assert_eq!(
                 reschedule(text, &item(text, 0), date(2026, 10, 18)),
@@ -841,7 +888,7 @@ mod tests {
             toggle(text, &item(text, 0)),
             Ok("# 例行\n- [x] 週報 @2026-10-16\n  - [x] 子任務\n- [X] 大寫 @2026-10-17\n".into())
         );
-        // 縮排照留；`[x]` 和 `[X]` 都變回 `[ ]`
+        // The indent is kept; both `[x]` and `[X]` go back to `[ ]`
         assert_eq!(
             toggle(text, &item(text, 1)),
             Ok("# 例行\n- [ ] 週報 @2026-10-16\n  - [ ] 子任務\n- [X] 大寫 @2026-10-17\n".into())
@@ -875,7 +922,7 @@ mod tests {
     fn toggle_refuses_when_the_line_changed() {
         let text = "- [ ] a\n- [ ] b\n";
         let b = item(text, 1);
-        // 在別處：上面多了一行（b 往下移）、b 被改了字、檔案被砍短
+        // Elsewhere: a line added above (b moves down), b's text changed, the file cut short
         for changed in [
             "- [ ] new\n- [ ] a\n- [ ] b\n",
             "- [ ] a\n- [ ] b!\n",

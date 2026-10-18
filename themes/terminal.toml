@@ -1,5 +1,6 @@
-# terminal：只用 terminal 自己的 16 色（顏色跟著 terminal 的設定走），什麼底色的 terminal 都看得清楚
-# "reset" = terminal 預設的字色；"dark-gray" = terminal 的「亮黑色」
+# terminal: only the terminal's own 16 colors (they follow the terminal's settings), so it stays readable
+# on a terminal with any background
+# "reset" = the terminal's default text color; "dark-gray" = the terminal's "bright black"
 
 [roles]
 text = "reset"

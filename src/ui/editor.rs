@@ -1,4 +1,4 @@
-//! 一行編輯框：畫在最下面（操作說明的上面），整個 terminal 那麼寬
+//! One-line editor: drawn at the bottom (above the key hints), as wide as the whole terminal
 
 use crate::app::{App, Editor, Target};
 use crate::edit::Place;
@@ -10,10 +10,11 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Paragraph},
 };
 
-/// 編輯框的高度：上框線、打字那一列、檢查結果那一列、下框線
+/// Editor height: top border, the typing row, the check-result row, bottom border
 const HEIGHT: u16 = 4;
 
-/// 編輯框的位置：最下面操作說明的上面、整個 terminal 那麼寬；畫畫面和滑鼠（點框外 = 取消）都用這個
+/// The editor's area: above the key hints at the bottom, as wide as the terminal. Used for drawing and for
+/// the mouse (a click outside the box = cancel)
 pub fn area(screen: Rect) -> Rect {
     let height = HEIGHT.min(screen.height.saturating_sub(1));
     Rect::new(
@@ -24,8 +25,9 @@ pub fn area(screen: Rect) -> Rect {
     )
 }
 
-/// 畫編輯框：上框線寫在編第幾行（或「新增」）、第 1 列是打的字（游標在打字的位置）、第 2 列即時顯示這行會讀成什麼
-/// （有問題就是紅字，說明哪裡不對、存不了）、下框線寫怎麼存
+/// Draws the editor: the top border shows which line is being edited (or 「新增」); row 1 is the typed text
+/// (cursor at the typing position); row 2 shows live what the line will be read as (red text when something
+/// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -47,13 +49,13 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             Style::new().fg(theme.muted),
         ));
     let inner = block.inner(area);
-    // 先清掉底下的畫面，再畫框
+    // Clear the screen underneath first, then draw the box
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if inner.height == 0 {
         return;
     }
-    // 打的字：太長時往左捲，游標一直看得到（前面留一格空白）
+    // Typed text: scrolls left when too long so the cursor stays visible (one blank cell in front)
     let input_area = Rect {
         x: inner.x + 1,
         width: inner.width.saturating_sub(1),
@@ -73,7 +75,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         input_area.x + u16::try_from(cursor).unwrap_or(0),
         input_area.y,
     ));
-    // 檢查結果：讀成什麼（淡色），或哪裡不對（紅字）
+    // Check result: what it reads as (muted), or what is wrong (red)
     if inner.height > 1 {
         let check = match editor.check() {
             Ok(item) => Line::styled(texts.preview(&item), Style::new().fg(theme.muted)),

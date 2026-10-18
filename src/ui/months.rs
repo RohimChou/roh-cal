@@ -1,8 +1,10 @@
-//! 版型 1 的排版：每個月佔幾列、每一列的編號、捲動到哪（只算數字，不碰畫面）
+//! Layout 1's layout math: how many rows each month takes, each row's number, and the scroll position
+//! (numbers only, no drawing)
 //!
-//! 一個月那一塊 = 週數和這個月的事排成幾列（分欄之後）比較多的那個，但最多 `max_height` 列（至少是週數），
-//! 再加上後面那條線；放不下的事在那個月的右邊自己捲（`window`）。
-//! 每一列有一個編號：今天那個月的第一列是第 0 列，往下 1、2、3…，往上 -1、-2…
+//! A month's block = the larger of its week count and the rows its items need (after splitting into
+//! columns), but at most `max_height` rows (never fewer than its weeks),
+//! plus the line after it; items that do not fit scroll on their own in that month's agenda (`window`).
+//! Every row has a number: the first row of today's month is row 0, going down 1, 2, 3…, going up -1, -2…
 
 use crate::{
     app::{App, Entry},
@@ -10,59 +12,65 @@ use crate::{
 };
 use jiff::{ToSpan, civil::Date};
 
-/// 左邊欄寫什麼
+/// What the left column shows
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Label {
-    /// 年份，例：`2027年`
+    /// The year, e.g. `2027年`
     Year,
-    /// 月份，例：`10月`
+    /// The month, e.g. `10月`
     Month,
 }
 
-/// 畫面上的一列（左右兩個框的同一列）
+/// One row on screen (the same row in both the left and right box)
 #[derive(Debug, PartialEq)]
 pub enum Row<'a> {
-    /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線；
-    /// `hidden` = 上面那個月的右邊，下面還有幾件沒顯示出來（要捲才看得到）
+    /// The line between months; `year` = the next month is January (new year), drawn as a thick line;
+    /// `hidden` = how many of the month above's agenda items are still hidden below (scroll to see them)
     Separator {
-        /// 下一個月是 1 月（跨年）：畫粗線
+        /// The next month is January (new year): draw a thick line
         year: bool,
-        /// 上面那個月右邊還有幾件沒顯示出來
+        /// How many agenda items of the month above are not shown
         hidden: usize,
     },
-    /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一行（可能沒有）、
-    /// 右框線的捲軸
+    /// One row inside a month: the year / month on the left (may be absent), this week's days that belong
+    /// to this month, one line for each agenda column (may be absent),
+    /// and the scrollbar on the right border
     ///
-    /// 這個月的事比週數多時，後面幾列只有右邊的事，`days` 是 `None`；
-    /// 這個月的事放不下（右邊要捲）時才有捲軸：`thumb` 是 `Some(true)` = 這一列是捲軸的亮塊
+    /// When a month has more items than weeks, the extra rows only have agenda items, and `days` is `None`;
+    /// there is a scrollbar only when the month's items do not fit (the agenda has to scroll): `thumb` is
+    /// `Some(true)` = this row is part of the scrollbar thumb
     Week {
-        /// 左邊的年 / 月（這個月的第一、二列才有）
+        /// The year / month on the left (only on the month's first and second rows)
         label: Option<Label>,
-        /// 這一週屬於這個月的日子；只有右邊的事的列是 `None`
+        /// This week's days that belong to this month; `None` on rows with only agenda items
         days: Option<WeekRow>,
-        /// 右邊每一欄的一行（那一欄這一列沒有事是 `None`）
+        /// One line per agenda column (`None` when that column has no item on this row)
         items: Vec<Option<Entry<'a>>>,
-        /// 右框線的捲軸：`None` = 這個月不用捲、`Some(true)` = 這一列是捲軸的亮塊
+        /// Scrollbar on the right border: `None` = this month needs no scrolling, `Some(true)` = this row
+        /// is part of the thumb
         thumb: Option<bool>,
     },
 }
 
-/// 排版要用的資料：哪個月是第 0 列、有日期的事（照日期、時間排好）、右邊分幾欄、一個月最多幾列、右邊捲到哪
+/// Data for the layout: which month holds row 0, the dated items (sorted by date and time), how many
+/// agenda columns, the most rows per month, and where the agenda is scrolled to
 pub struct Months<'a> {
-    /// 第 0 列所在的月（今天那個月）
+    /// The month that holds row 0 (today's month)
     origin: Date,
-    /// 右邊的每一行（`App::agenda()`），照列在哪天、時間排好
+    /// Every agenda line (`App::agenda()`), sorted by the day it is listed on, then time
     items: Vec<Entry<'a>>,
-    /// 右邊的事分幾欄
+    /// How many columns the agenda items are split into
     columns: usize,
-    /// 一個月最多幾列（比那個月的週數少時，以週數為準）
+    /// The most rows a month can take (if fewer than the month's weeks, the week count wins)
     max_height: usize,
-    /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；其他月從第一列開始
+    /// Where the agenda is scrolled: (the 1st of which month, which laid-out row is at the top of that
+    /// month's agenda); other months start from their first row
     pub window: Option<(Date, usize)>,
 }
 
 impl<'a> Months<'a> {
-    /// 照 `app` 排版：今天那個月是第 0 列；右邊分 `columns` 欄、一個月最多 `max_height` 列；右邊捲到哪照 `app.agenda_window`
+    /// Lays out from `app`: today's month is row 0; the agenda has `columns` columns, a month takes at most
+    /// `max_height` rows; the agenda's scroll position follows `app.agenda_window`
     pub fn new(app: &'a App, columns: usize, max_height: usize) -> Self {
         Self {
             origin: app.today,
@@ -73,7 +81,7 @@ impl<'a> Months<'a> {
         }
     }
 
-    /// `month` 那個月列的事（`items` 已經照列在哪天排好，所以是連續的一段）
+    /// The items listed in `month` (`items` is already sorted by listed day, so they form one contiguous slice)
     fn month_items(&self, month: Date) -> &[Entry<'a>] {
         let first = month.first_of_month();
         let last = month.last_of_month();
@@ -82,7 +90,8 @@ impl<'a> Months<'a> {
         &self.items[start..end]
     }
 
-    /// `date` 那天的事（跨多天的：蓋到那天就算，列在那個月的那一行）
+    /// The items on `date` (a multi-day item counts if it covers that day; it is the line listed in
+    /// that month)
     pub fn day_items(&self, date: Date) -> Vec<Entry<'a>> {
         self.month_items(date)
             .iter()
@@ -91,19 +100,22 @@ impl<'a> Months<'a> {
             .collect()
     }
 
-    /// 這個月的事排成幾列（不限高；分欄時是每一欄的高度）：週數和事排成幾列，比較多的那個
+    /// How many rows this month's layout needs (no cap; with columns, the height of each column): the
+    /// larger of the week count and the rows the items need
     fn layout_height(&self, month: Date) -> usize {
         let weeks = calendar::month_rows(month).len();
         weeks.max(self.month_items(month).len().div_ceil(self.columns))
     }
 
-    /// 一個月那一塊有幾列（不算後面那條線）：排成幾列，但最多 `max_height` 列（至少是週數）
+    /// Rows in a month's block (not counting the line after it): the layout rows, but at most `max_height`
+    /// (never fewer than its weeks)
     fn month_height(&self, month: Date) -> usize {
         let weeks = calendar::month_rows(month).len();
         self.layout_height(month).min(weeks.max(self.max_height))
     }
 
-    /// `month` 的右邊捲到第幾列：選取的那個月照 `window`，其他月從 0 開始；最多捲到最後一列貼著那一塊的底
+    /// Which row `month`'s agenda is scrolled to: the selected month follows `window`, other months start
+    /// at 0; at most until the last row touches the bottom of the block
     fn offset(&self, month: Date) -> usize {
         let max = self.layout_height(month) - self.month_height(month);
         self.window
@@ -111,17 +123,17 @@ impl<'a> Months<'a> {
             .map_or(0, |(_, offset)| offset.min(max))
     }
 
-    /// 一個月那一塊有幾列，加上後面那條線
+    /// Rows in a month's block, plus the line after it
     fn block_height(&self, month: Date) -> i64 {
         i64::try_from(self.month_height(month)).unwrap_or(0) + 1
     }
 
-    /// `month` 那一塊的第一列是第幾列
+    /// The row number of the first row of `month`'s block
     pub fn block_start(&self, month: Date) -> i64 {
         let mut start = 0;
         let mut current = self.origin.first_of_month();
         let month = month.first_of_month();
-        // 往後：一路加上前面每個月的高度；往前：一路減掉
+        // Forward: add up the height of each month before it; backward: subtract them
         while current < month {
             start += self.block_height(current);
             current = current.saturating_add(1.month());
@@ -133,9 +145,9 @@ impl<'a> Months<'a> {
         start
     }
 
-    /// `date` 那一週是第幾列
+    /// The row number of the week containing `date`
     fn row_of(&self, date: Date) -> i64 {
-        // 這一週是那個月的第幾週（從 0 開始）；週一定排在那個月最上面幾列
+        // Which week of the month this is (from 0); weeks always take the month's top rows
         let week = calendar::month_rows(date)
             .iter()
             .position(|row| row.contains(&Some(date)))
@@ -143,7 +155,8 @@ impl<'a> Months<'a> {
         self.block_start(date) + i64::try_from(week).unwrap_or(0)
     }
 
-    /// 第 `row` 列落在哪個月那一塊：回傳那個月（1 號）和那一塊的第一列是第幾列
+    /// Which month's block row `row` falls in: returns that month (its 1st) and the row number of the
+    /// block's first row
     fn block_at(&self, row: i64) -> (Date, i64) {
         let mut month = self.origin.first_of_month();
         let mut start = 0;
@@ -158,11 +171,12 @@ impl<'a> Months<'a> {
         (month, start)
     }
 
-    /// 從 `first` 那個月開始一個月一個月往下排，排到至少 `height` 列（最後一個月可能超出去）
+    /// Lays out month by month from `first`'s month down until there are at least `height` rows (the
+    /// last month may run past it)
     fn rows(&self, first: Date, height: usize) -> Vec<Row<'a>> {
         let mut rows = Vec::new();
         let mut month = first.first_of_month();
-        // 上一個月下面還有幾件沒顯示出來（寫在這個月上面那條線上）
+        // How many items of the previous month are still hidden below (written on the line above this month)
         let mut hidden = 0;
         while rows.len() < height {
             if !rows.is_empty() {
@@ -177,7 +191,8 @@ impl<'a> Months<'a> {
             let layout_height = self.layout_height(month);
             let offset = self.offset(month);
             let thumb = thumb_rows(layout_height, self.month_height(month), offset);
-            // 1 月：第一列寫年份、第二列寫月份；其他月只在第一列寫月份
+            // January: the year on the first row and the month on the second;
+            // other months only have the month on the first row
             let january = month.month() == 1;
             for i in 0..self.month_height(month) {
                 let label = match (january, i) {
@@ -188,8 +203,9 @@ impl<'a> Months<'a> {
                 rows.push(Row::Week {
                     label,
                     days: weeks.get(i).copied(),
-                    // 先排滿第一欄再排第二欄（每欄 `layout_height` 列），右邊捲了 `offset` 列：
-                    // 第 c 欄的第 i 列 = 這個月的第 c × 每欄列數 + offset + i 件事
+                    // Fill the first column before the second (`layout_height` rows each); the agenda is
+                    // scrolled by `offset` rows:
+                    // row i of column c = the month's item at c × rows per column + offset + i
                     items: (0..self.columns)
                         .map(|c| items.get(c * layout_height + offset + i).copied())
                         .collect(),
@@ -201,22 +217,23 @@ impl<'a> Months<'a> {
         rows
     }
 
-    /// `month` 的右邊，捲過之後下面還有幾件沒顯示出來（每一欄都算）
+    /// How many of `month`'s agenda items are still hidden below after scrolling (counting every column)
     fn hidden_below(&self, month: Date) -> usize {
         let count = self.month_items(month).len();
         let layout_height = self.layout_height(month);
-        // 看得到的最後一列的下一列
+        // The row after the last visible row
         let end = self.offset(month) + self.month_height(month);
         (0..self.columns)
             .map(|c| {
-                // 第 c 欄有幾件（每欄最多 `layout_height` 件）
+                // How many items column c has (at most `layout_height` per column)
                 let in_column = count.saturating_sub(c * layout_height).min(layout_height);
                 in_column.saturating_sub(end)
             })
             .sum()
     }
 
-    /// `entry` 排在它那個月的哪一列（還沒捲；分欄時是在它那一欄的第幾列）：回傳那個月（1 號）和第幾列
+    /// Which row of its month `entry` is laid out on (before scrolling; with columns, the row within
+    /// its column): returns that month (its 1st) and the row
     fn layout_row(&self, entry: Entry) -> Option<(Date, usize)> {
         let month = entry.date.first_of_month();
         let index = self
@@ -226,8 +243,10 @@ impl<'a> Months<'a> {
         Some((month, index % self.layout_height(month)))
     }
 
-    /// `month` 的右邊要捲到第幾列，才看得到 `targets` 那幾件事：從 `previous` 開始，
-    /// 前後盡量多留 1 列（看得到前後還有什麼）；看得到就不捲，免得右邊跳來跳去；放不下時先顧最上面那件
+    /// Which row `month`'s agenda must scroll to so the `targets` items are visible: starting from
+    /// `previous`, keep 1 extra row before and after if possible (to see what comes before and after);
+    /// do not scroll if they are already visible, so the agenda does not jump around; if they do not
+    /// fit, favor the top one
     pub fn window_for(&self, month: Date, previous: usize, targets: &[Entry]) -> usize {
         let month = month.first_of_month();
         let height = i64::try_from(self.month_height(month)).unwrap_or(0);
@@ -246,8 +265,9 @@ impl<'a> Months<'a> {
         usize::try_from(window.clamp(0, max)).unwrap_or(0)
     }
 
-    /// 捲動後畫面最上面是第幾列：選取那週離上下邊緣至少留 `margin` 列（見 `scrolled_top`），
-    /// 再讓 `targets` 那幾件事（照 `window` 捲過之後的位置）也看得到（不用留邊）；放不下時先顧最上面那個
+    /// The top row after scrolling: keep the selected week at least `margin` rows from the top and
+    /// bottom edges (see `scrolled_top`), then make the `targets` items visible too (at their position
+    /// after the `window` scroll, no margin); if they do not fit, favor the top one
     pub fn scrolled_to(
         &self,
         top: i64,
@@ -260,7 +280,7 @@ impl<'a> Months<'a> {
         let top = scrolled_top(top, week, height, margin);
         let mut rows = vec![week];
         for (month, row) in targets.iter().filter_map(|&entry| self.layout_row(entry)) {
-            // 那件事在那一塊裡畫在第幾列（右邊捲走、看不到的就不算）
+            // Which row of the block that item is drawn on (items scrolled out of the agenda do not count)
             let shown = row.checked_sub(self.offset(month));
             if let Some(shown) = shown.filter(|&shown| shown < self.month_height(month)) {
                 rows.push(self.block_start(month) + i64::try_from(shown).unwrap_or(0));
@@ -271,9 +291,10 @@ impl<'a> Months<'a> {
         scrolled_to_range(top, first, last, height, 0)
     }
 
-    /// 畫面上看得到的列：從第 `top` 列開始的 `height` 列（畫畫面和滑鼠換算都用這個）
+    /// The rows visible on screen: `height` rows starting at row `top` (used both for drawing and
+    /// for mouse mapping)
     pub fn visible_rows(&self, top: i64, height: usize) -> Vec<Row<'a>> {
-        // 從最上面那列所在的那個月開始排，前 `skip` 列在畫面上面
+        // Lay out from the month that holds the top row; the first `skip` rows are above the screen
         let (month, start) = self.block_at(top);
         let skip = usize::try_from(top - start).unwrap_or(0);
         let mut rows = self.rows(month, skip + height);
@@ -283,9 +304,11 @@ impl<'a> Months<'a> {
     }
 }
 
-/// 捲軸的亮塊在那一塊的哪幾列：排起來 `layout` 列、看得到 `height` 列、捲了 `offset` 列；全部看得到就沒有捲軸
+/// Which rows of the block hold the scrollbar thumb: `layout` rows laid out, `height` rows visible,
+/// scrolled `offset` rows; no scrollbar when everything is visible
 ///
-/// 亮塊長度 = `height` × 看得到的比例（至少 1 列）；捲到底時亮塊剛好貼底。例：8 件放 5 列、捲了 3 列 → 第 2～4 列
+/// Thumb length = `height` × the visible fraction (at least 1 row); scrolled to the end, the thumb
+/// just touches the bottom. E.g. 8 items in 5 rows, scrolled 3 rows → rows 2 to 4
 fn thumb_rows(layout: usize, height: usize, offset: usize) -> Option<std::ops::Range<usize>> {
     if layout <= height {
         return None;
@@ -295,14 +318,16 @@ fn thumb_rows(layout: usize, height: usize, offset: usize) -> Option<std::ops::R
     Some(start..start + length)
 }
 
-/// 捲動後畫面最上面是第幾列：畫面有 `height` 列、現在最上面是 `top`、選取的是第 `selected` 列
+/// The top row after scrolling: the screen has `height` rows, the current top is `top`, the selected
+/// row is `selected`
 ///
-/// 選取的那列離上下邊緣至少留 `margin` 列，不夠才捲；例：10 列、留 2 列 → 選取的只能在畫面的第 3～8 列
+/// Keep the selected row at least `margin` rows from the top and bottom edges, scrolling only when
+/// needed; e.g. 10 rows with a margin of 2 → the selected row can only be on screen rows 3 to 8
 pub fn scrolled_top(top: i64, selected: i64, height: i64, margin: i64) -> i64 {
     if height <= 0 {
         return selected;
     }
-    // 畫面太矮時，留的列數最多到一半
+    // On a very short screen, the margin is at most half
     let margin = margin.min((height - 1) / 2);
     if selected < top + margin {
         selected - margin
@@ -313,8 +338,9 @@ pub fn scrolled_top(top: i64, selected: i64, height: i64, margin: i64) -> i64 {
     }
 }
 
-/// 捲動後畫面最上面是第幾列：讓第 `first`～`last` 列都看得到，上下盡量各留 `margin` 列
-/// （連邊一起放不下就把邊縮小）；還是放不下就先顧 `first`
+/// The top row after scrolling: make rows `first` to `last` visible, with up to `margin` rows above
+/// and below (the margin shrinks if it does not fit with them);
+/// if they still do not fit, favor `first`
 fn scrolled_to_range(top: i64, first: i64, last: i64, height: i64, margin: i64) -> i64 {
     let margin = margin.min((height - (last - first + 1)) / 2).max(0);
     scrolled_top(
@@ -331,7 +357,7 @@ mod tests {
     use crate::texts::Lang;
     use jiff::civil::date;
 
-    /// 今天 2026/10/17、任務檔是 `text` 的 app
+    /// An app whose today is 2026/10/17 and whose task file is `text`
     fn app_with(text: &str) -> App {
         App::new(
             Lang::En,
@@ -342,7 +368,8 @@ mod tests {
 
     #[test]
     fn row_numbers_count_from_this_month() {
-        // 今天是 2026/10：10 月第一列是第 0 列；沒有事時，每個月那一塊 = 週數 + 1 條線
+        // Today is in 2026/10: October's first row is row 0;
+        // with no items, each month's block = its weeks + 1 line
         let app = app_with("");
         let months = Months::new(&app, 1, 100);
         assert_eq!(months.block_start(date(2026, 10, 1)), 0);
@@ -355,7 +382,7 @@ mod tests {
         assert_eq!(months.row_of(date(2026, 11, 7)), 7);
         assert_eq!(months.row_of(date(2027, 1, 3)), 19);
         assert_eq!(months.row_of(date(2026, 9, 26)), -3);
-        // 每一塊最後一列是線：10 月的線是第 5 列、9 月的線是第 -1 列
+        // Each block's last row is the line: October's line is row 5, September's is row -1
         assert_eq!(months.block_at(5), (date(2026, 10, 1), 0));
         assert_eq!(months.block_at(6), (date(2026, 11, 1), 6));
         assert_eq!(months.block_at(-1), (date(2026, 9, 1), -6));
@@ -365,7 +392,8 @@ mod tests {
 
     #[test]
     fn months_grow_with_their_items() {
-        // 10 月 5 週、7 件事：一欄要 7 列，兩欄要 4 列（比 5 週少，所以還是 5 列）；9 月的事不算在 10 月
+        // October has 5 weeks and 7 items: one column needs 7 rows, two columns need 4 (fewer than 5 weeks,
+        // so still 5 rows); September's item does not count toward October
         let text = (1..=7)
             .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
             .collect::<String>()
@@ -377,13 +405,13 @@ mod tests {
         assert_eq!(one.block_start(date(2026, 11, 1)), 8);
         let two = Months::new(&app, 2, 100);
         assert_eq!(two.block_height(date(2026, 10, 1)), 6);
-        // 選取的那週還是在那個月最上面幾列
+        // The selected week is still among the month's top rows
         assert_eq!(one.row_of(date(2026, 11, 7)), 9);
     }
 
     #[test]
     fn items_are_sorted_by_date_then_time_untimed_first() {
-        // 同一天：沒時間的在前、有時間的照時間；日期時間一樣的照檔案順序
+        // Same day: untimed items first, then timed ones by time; same date and time keeps file order
         let app = app_with(
             "- b @2026-10-16 17:30\n- a @2026-10-16 09:00\n- c @2026-10-16\n- d @2026-10-15\n\
              - e @2026-10-16 09:00\n",
@@ -399,7 +427,7 @@ mod tests {
 
     #[test]
     fn rows_fill_the_first_column_before_the_second() {
-        // 10 月 7 件事、兩欄：高度 5（週數比較多），第一欄 5 件、第二欄 2 件
+        // October, 7 items, two columns: height 5 (weeks win), 5 items in the first column, 2 in the second
         let text = (1..=7)
             .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
             .collect::<String>();
@@ -428,7 +456,8 @@ mod tests {
         );
     }
 
-    /// 每列的種類，方便比對：`-` = 細線、`=` = 粗線、`w` = 有日期的列、`.` = 只有事的列
+    /// Each row's kind, for easy comparison: `-` = thin line, `=` = thick line, `w` = row with dates,
+    /// `.` = row with only items
     fn shape(rows: &[Row]) -> String {
         rows.iter()
             .map(|row| match row {
@@ -442,8 +471,9 @@ mod tests {
 
     #[test]
     fn months_with_more_items_than_weeks_get_rows_without_dates() {
-        // 一欄：10 月 7 件事 → 5 週 + 2 列只有事；11 月沒事 → 6 週；12 月 → 5 週；跨年粗線；
-        // 要 22 列時，最後的 1 月也整個排完（5 週）
+        // One column: October has 7 items → 5 weeks + 2 item-only rows; November has none → 6 weeks;
+        // December → 5 weeks; thick line at the new year;
+        // asking for 22 rows still lays out all of the last month, January (5 weeks)
         let text = (1..=7)
             .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
             .collect::<String>();
@@ -457,7 +487,8 @@ mod tests {
 
     #[test]
     fn months_are_capped_and_scroll_inside() {
-        // 10 月 20 件事（一欄）：排起來 20 列；最多 8 列 → 那一塊 8 列，11 月從第 9 列開始
+        // October with 20 items (one column): 20 laid-out rows; at most 8 → the block has 8 rows,
+        // November starts at row 9
         let text = (1..=20)
             .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
             .collect::<String>();
@@ -465,24 +496,25 @@ mod tests {
         let mut months = Months::new(&app, 1, 8);
         assert_eq!(months.month_height(date(2026, 10, 1)), 8);
         assert_eq!(months.block_start(date(2026, 11, 1)), 9);
-        // 上限比週數少：至少是週數（10 月 5 週）
+        // A cap below the week count: still at least the weeks (October has 5)
         assert_eq!(Months::new(&app, 1, 3).month_height(date(2026, 10, 1)), 5);
         let agenda = app.agenda();
         let october = date(2026, 10, 1);
-        // 要看第 15 件（排在第 14 列）：右邊捲到第 8 列，下面留 1 列
+        // To see the 15th item (laid out on row 14): the agenda scrolls to row 8, leaving 1 row below
         assert_eq!(months.window_for(october, 0, &[agenda[14]]), 8);
-        // 已經看得到就不捲；沒有要看的就照舊；最多捲到最後一件貼著底（20 - 8 = 12）
+        // Already visible: no scroll; nothing to show: unchanged; at most until the last item touches
+        // the bottom (20 - 8 = 12)
         assert_eq!(months.window_for(october, 8, &[agenda[10]]), 8);
         assert_eq!(months.window_for(october, 8, &[]), 8);
         assert_eq!(months.window_for(october, 50, &[]), 12);
-        // 捲了 8 列：10 月第一列右邊是第 9 件；別的月不受影響
+        // Scrolled 8 rows: October's first row shows the 9th item in the agenda; other months are not affected
         months.window = Some((october, 8));
         let rows = months.rows(october, 9);
         let Row::Week { items, .. } = &rows[0] else {
             panic!("第一列應該是 10 月");
         };
         assert_eq!(items[0].map(|entry| entry.item.title.as_str()), Some("9"));
-        // 10 月下面那條線：還有 20 - 8 - 8 = 4 件沒顯示出來
+        // The line below October: 20 - 8 - 8 = 4 items are still hidden
         assert_eq!(
             rows[8],
             Row::Separator {
@@ -494,15 +526,17 @@ mod tests {
 
     #[test]
     fn the_scrollbar_thumb_shows_how_much_and_where() {
-        // 全部看得到：沒有捲軸
+        // Everything visible: no scrollbar
         assert_eq!(thumb_rows(5, 5, 0), None);
-        // 8 件放 5 列：亮塊 5 × 5 / 8 = 3 列；沒捲在最上面、捲到底（3 列）貼底、捲一半在中間
+        // 8 items in 5 rows: thumb 5 × 5 / 8 = 3 rows; at the top when not scrolled, touching the bottom
+        // when scrolled to the end (3 rows), in the middle when scrolled halfway
         assert_eq!(thumb_rows(8, 5, 0), Some(0..3));
         assert_eq!(thumb_rows(8, 5, 3), Some(2..5));
         assert_eq!(thumb_rows(20, 8, 6), Some(2..5));
-        // 很多件：亮塊至少 1 列
+        // Many items: the thumb is at least 1 row
         assert_eq!(thumb_rows(100, 5, 95), Some(4..5));
-        // 排出來的列也帶著捲軸：10 月 20 件、最多 8 列、沒捲 → 前 3 列是亮塊；11 月沒有捲軸
+        // The laid-out rows carry the scrollbar too: October has 20 items, at most 8 rows, not scrolled
+        // → the first 3 rows are the thumb; November has no scrollbar
         let text = (1..=20)
             .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
             .collect::<String>();
@@ -525,8 +559,9 @@ mod tests {
 
     #[test]
     fn block_at_finds_the_month_of_every_row() {
-        // 用另一個方向核對：每一天的列，找回來都是它自己那個月；前後 5 年（每 3 天一筆，星期幾都會輪到）
-        // 用範例任務檔，有些月比週數高
+        // Check from the other direction: each day's row maps back to its own month; 5 years each way
+        // (one day every 3 days, so every weekday comes up)
+        // Uses the sample task file, where some months are taller than their weeks
         let app = app_with(include_str!("../../testdata/tasks.md"));
         let months = Months::new(&app, 1, 100);
         let mut day = date(2021, 1, 1);
@@ -540,18 +575,18 @@ mod tests {
 
     #[test]
     fn scrolled_top_keeps_the_margin() {
-        // 10 列、留 2 列：選取的在畫面的第 3～8 列（index 2～7）就不捲
+        // 10 rows, margin 2: no scrolling while the selected row is on screen rows 3 to 8 (index 2 to 7)
         assert_eq!(scrolled_top(0, 5, 10, 2), 0);
         assert_eq!(scrolled_top(0, 2, 10, 2), 0);
         assert_eq!(scrolled_top(0, 7, 10, 2), 0);
-        // 往下超過：選取的那列停在 index 7
+        // Past the bottom: the selected row stops at index 7
         assert_eq!(scrolled_top(0, 8, 10, 2), 1);
         assert_eq!(scrolled_top(0, 30, 10, 2), 23);
-        // 往上超過：選取的那列停在 index 2；可以捲到負的列（以前的月）
+        // Past the top: the selected row stops at index 2; it can scroll to negative rows (earlier months)
         assert_eq!(scrolled_top(20, 21, 10, 2), 19);
         assert_eq!(scrolled_top(0, 1, 10, 2), -1);
         assert_eq!(scrolled_top(0, -40, 10, 2), -42);
-        // 畫面只有 3 列：最多留 1 列
+        // A screen of only 3 rows: the margin is at most 1
         assert_eq!(scrolled_top(0, 5, 3, 2), 4);
     }
 }

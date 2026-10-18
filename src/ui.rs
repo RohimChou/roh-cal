@@ -1,5 +1,7 @@
-//! 畫整個畫面：最左邊 side menu（夠寬才有；不夠寬時按 `s` 蓋在左邊），右邊是主畫面（版型 1 的月曆框 + 事項框、版型 3 的大月曆、或任務頁），
-//! 最下面一列操作說明；跳窗（版型 3 那天的事、編輯框、說明頁、設定頁）蓋在最上面
+//! Draws the whole screen: the side menu on the far left (only when wide enough; when narrow, `s` shows it
+//! over the left side), the main view on the right (layout 1's calendar box + agenda, layout 3's month grid,
+//! or the tasks page), the key hints on the bottom row; popups (layout 3's day popup, the edit box, the help
+//! page, the settings page) go on top
 
 mod day;
 mod editor;
@@ -23,46 +25,47 @@ use ratatui::{
     widgets::{Clear, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
-/// terminal 至少這麼寬才畫 side menu
+/// The terminal must be at least this wide to draw the side menu
 const SIDE_MIN_WIDTH: u16 = 120;
 
-/// 編輯框的位置（滑鼠點框外 = 取消用）
+/// Where the edit box is (so a mouse click outside it can cancel)
 pub fn editor_area(screen: Rect) -> Rect {
     editor::area(screen)
 }
 
-/// 版型 3「那天的事」跳窗的框在畫面上的位置（滑鼠點框外 = 關掉用）
+/// Where layout 3's day popup (that day's items) is on screen (so a mouse click outside it can close it)
 pub fn day_area(app: &App) -> Rect {
     day::area(app, areas(app.screen, app).main)
 }
 
-/// 滑鼠點在 (`column`, `row`) 點到跳窗裡的第幾件（`App::items_on(selected)` 的位置）
+/// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::items_on(selected)`)
 pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
     day::item_at(app, areas(app.screen, app).main, column, row)
 }
 
-/// 說明頁的框在畫面上的位置（滑鼠點框外 = 關掉用）
+/// Where the help page box is on screen (so a mouse click outside it can close it)
 pub fn help_area(app: &App, full: bool) -> Rect {
     help::area(app, app.screen, full)
 }
 
-/// 說明頁最多能往下捲幾行（照 terminal 現在的大小算）
+/// How many lines the help page can scroll down at most (based on the terminal's current size)
 pub fn help_max_scroll(app: &App, full: bool) -> u16 {
     help::max_scroll(app, app.screen, full)
 }
 
-/// 設定頁的框在畫面上的位置（滑鼠點框外 = 關掉用）
+/// Where the settings page box is on screen (so a mouse click outside it can close it)
 pub fn settings_area(app: &App) -> Rect {
     settings::area(app, app.screen)
 }
 
-/// 滑鼠點在 (`column`, `row`) 點到設定頁的哪一列（`app::rows()` 的位置）
+/// Which settings row a mouse click at (`column`, `row`) hits (its index in `app::rows()`)
 pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
     settings::row_at(app, app.screen, column, row)
 }
 
-/// 跳窗（`area`）左邊那格如果是中文字（佔 2 格），它的後半格會蓋到跳窗的左框線（terminal 只收到中文字、收不到框線）：
-/// 先換成空白再畫跳窗
+/// If the cell left of a popup (`area`) holds a CJK character (2 cells wide), its
+/// second half covers the popup's left border (the terminal gets the character
+/// but not the border): replace it with a space before drawing the popup
 fn clear_wide_left_of(buffer: &mut Buffer, area: Rect) {
     let Some(x) = area.x.checked_sub(1) else {
         return;
@@ -76,8 +79,9 @@ fn clear_wide_left_of(buffer: &mut Buffer, area: Rect) {
     }
 }
 
-/// 跳窗（`area`）放不下時，右框線上畫捲軸：軌道就是原本的框線（不另外畫），粗線那段 = 現在看得到的部分在整頁的哪裡。
-/// `scroll` = 往下捲了幾行、`max` = 最多能捲幾行、`visible` = 一次看得到幾行
+/// When a popup (`area`) cannot show everything, draw a scrollbar on its right border: the track is the
+/// border itself (not drawn separately), and the thick part = where the visible part sits in the whole page.
+/// `scroll` = lines scrolled down, `max` = the most lines it can scroll, `visible` = lines visible at once
 fn render_scrollbar(
     frame: &mut Frame,
     area: Rect,
@@ -92,25 +96,26 @@ fn render_scrollbar(
         .end_symbol(None)
         .thumb_symbol("┃")
         .thumb_style(Style::new().fg(theme.label));
-    // 能停的位置有 max + 1 個（0..=max），一次看得到 visible 行
+    // There are max + 1 positions to stop at (0..=max), and visible lines show at once
     let mut state = ScrollbarState::new(usize::from(max) + 1)
         .position(usize::from(scroll))
         .viewport_content_length(usize::from(visible));
-    // 上下的圓角不算：捲軸只畫在右框線的直線那段
+    // Leave out the rounded corners: the scrollbar goes only on the straight part of the right border
     frame.render_stateful_widget(scrollbar, area.inner(Margin::new(0, 1)), &mut state);
 }
 
-/// terminal（`screen`）夠不夠寬畫 side menu
+/// Whether the terminal (`screen`) is wide enough to draw the side menu
 pub fn side_fits(screen: Rect) -> bool {
     screen.width >= SIDE_MIN_WIDTH
 }
 
-/// 不夠寬、鍵盤在 side menu（按了 `s`）：side menu 蓋在主畫面左邊的位置；其他時候是 `None`（滑鼠點框外 = 收起用）
+/// Narrow screen with the keyboard in the side menu (after `s`): where the side menu sits over the left of
+/// the main view; `None` otherwise (so a mouse click outside it can hide it)
 pub fn side_overlay(app: &App) -> Option<Rect> {
     side_overlay_in(app.screen, app)
 }
 
-/// 同 `side_overlay`，terminal 是 `screen` 那麼大的時候
+/// Same as `side_overlay`, for a terminal the size of `screen`
 fn side_overlay_in(screen: Rect, app: &App) -> Option<Rect> {
     if side_fits(screen) || app.focus != Focus::Side {
         return None;
@@ -122,23 +127,27 @@ fn side_overlay_in(screen: Rect, app: &App) -> Option<Rect> {
     })
 }
 
-/// 畫面上每一塊的位置
+/// Where each part of the screen is
 struct Areas {
-    /// 最左邊：side menu（日曆清單）；沒畫的時候寬度是 0
+    /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
     side: Rect,
-    /// side menu 右邊、操作說明上面的整塊：版型 3 的大月曆、任務頁畫在這裡
+    /// The whole block right of the side menu and above the key
+    /// hints: layout 3's month grid and the tasks page are drawn here
     main: Rect,
-    /// 版型 1 的左邊：月曆框
+    /// Left side of layout 1: the calendar box
     calendar: Rect,
-    /// 版型 1 的右邊：事項框，跟月曆框同一列對齊；表頭右邊寫選取的日期
+    /// Right side of layout 1: the agenda, on the same rows as the
+    /// calendar box; its header shows the selected day on the right
     agenda: Rect,
-    /// 最下面一列：操作說明
+    /// Bottom row: the key hints
     hints: Rect,
 }
 
-/// 把整個 terminal（`screen`）切成幾塊；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
+/// Splits the whole terminal (`screen`) into parts; drawing and
+/// mouse hit-testing both use this, so the two always agree
 ///
-/// side menu 只在 terminal 夠寬、沒按 `s` 收起時才有，寬度跟著日曆的名字
+/// The side menu is there only when the terminal is wide enough
+/// and `s` has not hidden it; its width follows the calendar names
 fn areas(screen: Rect, app: &App) -> Areas {
     let [main, hints] =
         Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(screen);
@@ -163,23 +172,25 @@ fn areas(screen: Rect, app: &App) -> Areas {
     }
 }
 
-/// 滑鼠點到的東西
+/// What a mouse click hit
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Click {
-    /// 月曆上的一天
+    /// A day on the calendar
     Day(Date),
-    /// 右邊的一件事：`App::agenda()` 裡的位置
+    /// An item in the agenda: its index in `App::agenda()`
     Item(usize),
-    /// side menu 上的一個日曆：`App::groups` 裡的位置
+    /// A calendar in the side menu: its index in `App::groups`
     Group(usize),
-    /// 任務頁的一列：`App::tasks_rows()` 裡的位置；`on_marker` = 點在 `▸` / `▾` 上（展開 / 收起）
+    /// A row of the tasks page: its index in `App::tasks_rows()`; `on_marker` = the click was
+    /// on `▸` / `▾` (expand / collapse)
     TaskRow { row: usize, on_marker: bool },
 }
 
-/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期、事、日曆上回傳 `None`
+/// What a mouse click at terminal cell (`column`, `row`) hits;
+/// `None` when it is not on a day, an item or a calendar
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     let areas = areas(app.screen, app);
-    // side menu：夠寬時在最左邊，不夠寬時叫出來蓋在左邊
+    // side menu: on the far left when wide enough; when narrow, called up over the left side
     let side = side_overlay(app).unwrap_or(areas.side);
     if side.contains(Position::new(column, row)) {
         return side::click_at(side, app, column, row);
@@ -191,8 +202,10 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     }
 }
 
-/// 畫整個畫面：中間最左邊是 side menu（夠寬才有；不夠寬時按 `s` 蓋在左邊），右邊是版型 1 的月曆框 + 事項框、版型 3 的大月曆或任務頁；
-/// 最下面一列操作說明；開著的跳窗（版型 3 那天的事、編輯框、說明頁、設定頁）最後畫，蓋在最上面
+/// Draws the whole screen: in the middle, the side menu on the far left (only when wide enough; when narrow,
+/// `s` shows it over the left side), and on the right layout 1's calendar box + agenda, layout 3's month grid
+/// or the tasks page; the key hints on the bottom row; open popups (layout 3's day popup, the edit box, the
+/// help page, the settings page) are drawn last, on top
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
@@ -203,7 +216,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         agenda: agenda_area,
         hints,
     } = areas(frame.area(), app);
-    // 最下面一列：問要不要刪 > 改期中（在搬哪件、怎麼確定）> 提示（寫檔失敗、重新載入，下一個按鍵就換回來）> 操作說明
+    // Bottom row: delete confirmation > rescheduling (which item is moving, how to confirm) > notice (write
+    // failed, reloaded; the next key brings the hints back) > key hints
     if let Some((item, count)) = app.confirm_delete() {
         frame.render_widget(
             Line::styled(
@@ -226,7 +240,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     } else {
-        // 任務頁有自己的操作說明；版型 3 的跳窗開著時寫跳窗裡的鍵
+        // The tasks page has its own key hints; while layout 3's popup is open, show the popup's keys
         let hint_text = match app.view {
             _ if app.focus == Focus::Day => texts.hints_day,
             View::Tasks => texts.hints_tasks,
@@ -237,27 +251,28 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
-    // side menu、主畫面會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了；跳窗再蓋在它上面
+    // The side menu and the main view change `app` (they remember the scroll position); by now the `theme`
+    // borrowed above is no longer used. Popups go on top of them
     match app.view {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
         View::Tasks => tasks::render(frame, main_area, app),
     }
-    // 不夠寬時叫出來的 side menu：蓋在主畫面左邊
+    // The side menu called up on a narrow screen: drawn over the left of the main view
     if let Some(area) = side_overlay_in(frame.area(), app) {
         frame.render_widget(Clear, area);
         side::render(frame, area, app);
     }
-    // 版型 3 那天的事跳窗：蓋在大月曆上（編輯框、說明頁這些再蓋在它上面）
+    // Layout 3's day popup: over the month grid (the edit box, help page and so on go on top of it)
     if app.view == View::Month && app.focus == Focus::Day {
         day::render(frame, main_area, app);
     }
-    // 編輯框、說明頁、設定頁蓋在最上面
+    // The edit box, help page and settings page go on top of everything
     match &app.mode {
         Mode::Editor(editor) => editor::render(frame, editor, app),
         Mode::Help(help) => help::render(frame, app, *help),
         Mode::Settings { page, .. } => {
-            // 先捲到選到的那列看得到（記在設定頁的 `top`），再畫
+            // First scroll so the chosen row is visible (kept in the settings page's `top`), then draw
             let page = SettingsPage {
                 top: settings::scrolled(app, frame.area(), *page),
                 ..*page
@@ -267,7 +282,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             }
             settings::render(frame, app, page);
         }
-        // 問要不要刪、改期中：畫在最下面那一列（上面畫過了）
+        // Delete confirmation and rescheduling: shown on the bottom row (already drawn above)
         Mode::ConfirmDelete(..) | Mode::Moving(_) | Mode::Normal => {}
     }
 }
@@ -290,14 +305,15 @@ mod tests {
         text::Span,
     };
 
-    /// 用 `lang` 畫一次 `width` × `height` 的畫面：今天是 2026/10/17、選取 `selected`
+    /// Draws one `width` × `height` screen in `lang`: today is 2026/10/17, the selected day is `selected`
     fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBackend> {
         let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
         app.selected = selected;
         draw_app(&mut app, width, height)
     }
 
-    /// 滑鼠點在 (`column`, `row`) 點到哪一天：點到月曆的日期就是那天、點到右邊的事就是那件事那天
+    /// Which day a mouse click at (`column`, `row`) hits: a date on the calendar gives that day, an item in
+    /// the agenda gives that item's day
     fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
         match click_at(app, column, row)? {
             Click::Day(date) => Some(date),
@@ -306,14 +322,15 @@ mod tests {
         }
     }
 
-    /// 用現在的 `app` 畫一次 `width` × `height` 的畫面（捲到哪會記在 `app` 裡，下一次接著用）
+    /// Draws one `width` × `height` screen with the current `app`
+    /// (the scroll position is kept in `app` for the next draw)
     fn draw_app(app: &mut App, width: u16, height: u16) -> Terminal<TestBackend> {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal.draw(|frame| render(frame, app)).unwrap();
         terminal
     }
 
-    /// 畫面每一列的字，去掉尾端空白（見 `area_rows`）
+    /// The text of each screen row, trailing spaces removed (see `area_rows`)
     fn text_rows(buffer: &Buffer) -> Vec<String> {
         area_rows(buffer, buffer.area)
             .iter()
@@ -321,8 +338,9 @@ mod tests {
             .collect()
     }
 
-    /// `area` 裡每一列的字；中文字佔 2 格，後面那格（buffer 裡是空白）跳過，接起來才是原本的字。
-    /// 說明頁、設定頁的 test 也用這個
+    /// The text of each row in `area`; a CJK character takes 2 cells, and the
+    /// second one (a space in the buffer) is skipped so the joined text matches
+    /// the original. The help page and settings page tests use this too
     pub(super) fn area_rows(buffer: &Buffer, area: Rect) -> Vec<String> {
         (area.top()..area.bottom())
             .map(|y| {
@@ -340,7 +358,9 @@ mod tests {
 
     #[test]
     fn calendar_from_this_month_down_with_a_thick_line_between_years() {
-        // 只有 1 月寫年份（下一列寫月），畫面上有 1 月所以表頭照常寫「年月」；跨年那條是粗線；選取的今天加括號、標題列右邊寫日期
+        // Only January shows the year (the month goes on the next row); January is on screen, so the header
+        // shows 「年月」 as usual; the line between years is thick; today, which is selected, gets brackets;
+        // the title row shows the date on the right
         let terminal = draw(Lang::ZhTw, 35, 26, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
@@ -398,7 +418,8 @@ mod tests {
 
     #[test]
     fn selection_brackets_and_the_month_on_top() {
-        // 選到別的月：那個月排在最上面；畫面上沒有 1 月，表頭寫年份；一位數的日期括號貼著數字
+        // Another month selected: that month goes on top; no January on
+        // screen, so the header shows the year; brackets hug a one-digit date
         let terminal = draw(Lang::En, 35, 8, date(2026, 11, 2));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
@@ -413,7 +434,8 @@ mod tests {
                 " hjkl move  Tab pane  [] month  t t",
             ]
         );
-        // 星期日：`]` 放在最後多留的那格；月曆只有 3 列、要留 1 列，所以往上多捲一列（跨年的粗線）
+        // Sunday: `]` goes in the extra cell at the end; the calendar has only 3 rows and must keep 1 row of
+        // margin, so it scrolls up one more row (the thick year line)
         let terminal = draw(Lang::ZhTw, 35, 8, date(2027, 1, 3));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
@@ -432,14 +454,16 @@ mod tests {
 
     #[test]
     fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
-        // 月曆有 6 列：10/17 → 10/24 → 10/31 → 11/7 一路往下，選取的那列離下緣至少留 2 列，不夠才捲
+        // The calendar has 6 rows: 10/17 → 10/24 → 10/31 → 11/7 going down; the selected row keeps at least 2
+        // rows from the bottom edge and scrolls only when it can't
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         draw_app(&mut app, 35, 11);
         for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
             app.selected = day;
             draw_app(&mut app, 35, 11);
         }
-        // 10 月的前 4 列捲到上面了；畫面上沒有 1 月，表頭寫年份
+        // October's first 4 rows have scrolled off the top;
+        // no January on screen, so the header shows the year
         assert_eq!(
             text_rows(draw_app(&mut app, 35, 11).backend().buffer()),
             [
@@ -456,7 +480,7 @@ mod tests {
                 " hjkl move  Tab pane  [] month  t t",
             ]
         );
-        // 往回一週：選取的那列離上緣至少留 2 列，往上捲 2 列
+        // One week back: the selected row keeps at least 2 rows from the top edge, so it scrolls up 2 rows
         app.selected = date(2026, 10, 31);
         assert_eq!(
             text_rows(draw_app(&mut app, 35, 11).backend().buffer()),
@@ -478,7 +502,8 @@ mod tests {
 
     #[test]
     fn calendar_scrolls_up_into_earlier_months() {
-        // 10/17 往上一週到 10/10：上面只剩 1 列，往上捲 1 列，露出 9 月後面的線
+        // From 10/17 one week up to 10/10: only 1 row is left above,
+        // so it scrolls up 1 row and shows the line after September
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         draw_app(&mut app, 35, 11);
         app.selected = date(2026, 10, 10);
@@ -502,7 +527,8 @@ mod tests {
 
     #[test]
     fn selection_always_stays_two_rows_from_the_edges() {
-        // 一天一天往後 40 天、一週一週往後 120 週、再往前 240 週：每畫一次都檢查括號在畫面上、離上下緣至少 2 列
+        // Day by day 40 days forward, week by week 120 weeks forward, then 240 weeks back: every draw checks
+        // that the brackets are on screen, at least 2 rows from the top and bottom edges
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         let steps = std::iter::repeat_n(1, 40)
             .chain(std::iter::repeat_n(7, 120))
@@ -510,7 +536,8 @@ mod tests {
         for step in steps {
             app.selected = app.selected.saturating_add(step.days());
             let rows = text_rows(draw_app(&mut app, 40, 13).backend().buffer());
-            // 月曆的列：上面是標題、框線、表頭、表頭的線，下面是框線和操作說明
+            // Calendar rows: above are the title, border, header and
+            // header line; below are the border and the key hints
             let body = &rows[3..rows.len() - 2];
             let selected = format!("[{}]", app.selected.day());
             let y = body
@@ -527,19 +554,21 @@ mod tests {
 
     #[test]
     fn click_positions_map_to_the_dates_on_screen() {
-        // 40 × 26、10 月在最上面（畫面見 `calendar_from_this_month_down_with_a_thick_line_between_years`）
+        // 40 × 26, October on top (screen: see
+        // `calendar_from_this_month_down_with_a_thick_line_between_years`)
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 26);
         draw_app(&mut app, 40, 26);
-        // 一天 3 格，前面的空白也算那天：16 號是 x 24～26
+        // A day is 3 cells wide, and the space before it counts as that day: the 16th is x 24-26
         assert_eq!(date_at(&app, 24, 5), Some(date(2026, 10, 16)));
         assert_eq!(date_at(&app, 26, 5), Some(date(2026, 10, 16)));
         assert_eq!(date_at(&app, 27, 5), Some(date(2026, 10, 17)));
         assert_eq!(date_at(&app, 32, 5), Some(date(2026, 10, 18)));
-        // 11/1 在 11 月第一列的最後一格；12/31 是星期四
+        // 11/1 is in the last cell of November's first row; 12/31 is a Thursday
         assert_eq!(date_at(&app, 31, 9), Some(date(2026, 11, 1)));
         assert_eq!(date_at(&app, 22, 20), Some(date(2026, 12, 31)));
-        // 沒有日期：最後多留的那格、10/1 前面的空格、月和月之間的線、年月欄、週數欄、表頭、框線、操作說明、右邊空白
+        // No date: the extra cell at the end, the blanks before 10/1, the line between months, the year/month
+        // column, the week-number column, the header, the border, the key hints, the blank space on the right
         for (x, y) in [
             (33, 5),
             (13, 3),
@@ -557,7 +586,8 @@ mod tests {
 
     #[test]
     fn click_positions_follow_the_scroll() {
-        // 捲到 11/7（畫面見 `calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom`）
+        // Scrolled to 11/7 (screen: see
+        // `calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom`)
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 11);
         draw_app(&mut app, 40, 11);
@@ -565,17 +595,18 @@ mod tests {
             app.selected = day;
             draw_app(&mut app, 40, 11);
         }
-        // 最上面那列是 10/26 那週、下一列是線、再來是 11/1、11/2 那週
+        // The top row is the week of 10/26, then a line, then 11/1, then the week of 11/2
         assert_eq!(date_at(&app, 13, 3), Some(date(2026, 10, 26)));
         assert_eq!(date_at(&app, 13, 4), None);
         assert_eq!(date_at(&app, 31, 5), Some(date(2026, 11, 1)));
         assert_eq!(date_at(&app, 13, 6), Some(date(2026, 11, 2)));
     }
 
-    /// 事項框 test 用的任務檔（`tools/expected_screen.py` 算預期畫面時也讀這一份）
+    /// Task file for the agenda tests (`tools/expected_screen.py`
+    /// reads this same file for the expected screens)
     const AGENDA_TASKS: &str = include_str!("../testdata/agenda.md");
 
-    /// 今天 2026/10/17、選取今天、任務檔是 `AGENDA_TASKS` 的 app
+    /// An app with today 2026/10/17, today selected, and `AGENDA_TASKS` as the task file
     fn agenda_app(lang: Lang) -> App {
         App::new(
             lang,
@@ -589,7 +620,7 @@ mod tests {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         assert_eq!(areas(Rect::new(0, 0, 119, 20), &app).side.width, 0);
         assert_eq!(areas(Rect::new(0, 0, 120, 20), &app).side.width, 22);
-        // 按 `s` 收起：月曆貼回最左邊
+        // `s` hides it: the calendar moves back to the far left
         app.side_hidden = true;
         let hidden = areas(Rect::new(0, 0, 120, 20), &app);
         assert_eq!((hidden.side.width, hidden.calendar.x), (0, 0));
@@ -597,7 +628,8 @@ mod tests {
 
     #[test]
     fn a_one_row_terminal_with_the_side_menu_does_not_panic() {
-        // 只有 1 列（全給操作說明）：side menu 是 0 列高，夠寬時在左邊、不夠寬時按了 s 蓋在左邊，都不能 panic
+        // Only 1 row (all of it for the key hints): the side menu is 0 rows tall; whether it is on the left
+        // when wide or over the left after s when narrow, nothing may panic
         let text = "# 工作\n- a @2026-10-10\n";
         for (width, focus) in [(121, Focus::Calendar), (60, Focus::Side)] {
             let mut app = App::new(
@@ -612,7 +644,7 @@ mod tests {
 
     #[test]
     fn a_long_calendar_list_scrolls_to_the_chosen_one() {
-        // 121 × 10：side menu 裡放得下 5 個日曆（y 3～7），有 12 個（c01～c12，各 1 件）
+        // 121 × 10: the side menu fits 5 calendars (y 3-7), and there are 12 (c01-c12, 1 item each)
         let text: String = (1..=12)
             .map(|n| format!("# c{n:02}\n- a @2026-10-{n:02}\n"))
             .collect();
@@ -630,31 +662,34 @@ mod tests {
             let thumb: Vec<u16> = (3..8)
                 .filter(|&y| buffer[(21, y)].symbol() == "┃")
                 .collect();
-            // 每一列「│ ☑ c01 … 1」用空白切開，第 3 段是名字
+            // Split each row 「│ ☑ c01 … 1」 on whitespace; the 3rd part is the name
             let names = rows
                 .iter()
                 .map(|row| row.split_whitespace().nth(2).unwrap_or("").to_string());
             (names.collect::<Vec<_>>(), thumb)
         };
-        // 選第 1 個：不捲，捲軸在最上面
+        // Choose the 1st: no scroll, the scrollbar is at the top
         let (rows, thumb) = names(&mut app);
         assert_eq!(rows, ["c01", "c02", "c03", "c04", "c05"]);
         assert_eq!(thumb.first(), Some(&3));
-        // 選第 9 個：跑出框外才捲，捲到它剛好在最後一列（最上面 c05）
+        // Choose the 9th: scroll only once it leaves the box,
+        // just enough to put it on the last row (c05 on top)
         app.group_index = 8;
         assert_eq!(names(&mut app).0, ["c05", "c06", "c07", "c08", "c09"]);
-        // 最後一個：捲軸在最下面
+        // The last one: the scrollbar is at the bottom
         app.group_index = 11;
         let (rows, thumb) = names(&mut app);
         assert_eq!(rows, ["c08", "c09", "c10", "c11", "c12"]);
         assert_eq!(thumb.last(), Some(&7));
-        // 往回選第 8 個：還看得到，不捲；選第 6 個：捲到它剛好在第一列（最上面 c06）；點第一列 = c06
+        // Back to the 8th: still visible, no scroll; the 6th: scroll so it is just on the first row (c06 on
+        // top); clicking the first row = c06
         app.group_index = 7;
         assert_eq!(names(&mut app).0, ["c08", "c09", "c10", "c11", "c12"]);
         app.group_index = 5;
         assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
         assert_eq!(click_at(&app, 5, 3), Some(Click::Group(5)));
-        // 點最後一列（c10）：選它，不會捲走；再點同一個地方 = 同一個日曆，取消勾選
+        // Click the last row (c10): it gets chosen and does not scroll away; clicking the same
+        // spot again = the same calendar, which unchecks it
         let click = |app: &mut App| {
             use ratatui::crossterm::event::{
                 KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -675,8 +710,10 @@ mod tests {
 
     #[test]
     fn a_narrow_side_menu_covers_the_left_of_the_screen() {
-        // 60 × 14、鍵盤在 side menu（按了 s）：side menu 22 格寬、蓋在月曆左邊，月曆不縮（x 22 還是月曆的上框線）；
-        // 數字 = 那個日曆有日期的事有幾件（生活的 c 沒日期不算）
+        // 60 × 14, keyboard in the side menu (after s): the side menu is 22 cells
+        // wide, over the calendar's left side, and the calendar does not shrink
+        // (x 22 is still the calendar's top border); the number = how many items in
+        // that calendar have a date (c in 生活 has no date, so it does not count)
         let text = "# 工作\n- a @2026-10-10\n# 生活\n- b @2026-10-11\n- c\n";
         let mut app = App::new(
             Lang::ZhTw,
@@ -699,9 +736,9 @@ mod tests {
         );
         assert_eq!(buffer[(21, 13 - 1)].symbol(), "╯");
         assert_eq!(buffer[(22, 0)].symbol(), "─");
-        // 操作說明窄的時候也有 s（60 格寬，後面切掉）
+        // The key hints have s even when narrow (60 cells wide, the end is cut off)
         assert!(text_rows(buffer)[13].starts_with(" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆"));
-        // 鍵盤不在 side menu：不畫
+        // Keyboard not in the side menu: not drawn
         app.focus = Focus::Calendar;
         let terminal = draw_app(&mut app, 60, 14);
         assert_eq!(terminal.backend().buffer()[(0, 3)].symbol(), "│");
@@ -710,9 +747,11 @@ mod tests {
 
     #[test]
     fn side_menu_lists_the_calendars_when_wide() {
-        // 121 格寬：最左邊列出日曆（任務檔的分組，照出現的順序；標題之前的是「未分組」），
-        // 數字是有日期的事有幾件（「工作」有一件沒日期）；最後一個名字太長，框寬到 30 格還放不下，切掉；
-        // 操作說明多一個 `s`。右邊只剩一欄、10 月的 8 件放不下：捲 1 列，選取那天（10/17）的事後面多留一列
+        // 121 cells wide: the calendars are listed on the far left (the task file's groups, in order of
+        // appearance; items before any heading are 「未分組」), the number is how many items have a date
+        // (「工作」 has one item without a date); the last name is too long even at the 30-cell max width, so
+        // it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
+        // do not fit: it scrolls 1 row, leaving one row after the selected day's (10/17) items
         let mut app = agenda_app(Lang::ZhTw);
         let terminal = draw_app(&mut app, 121, 14);
         assert_eq!(
@@ -734,7 +773,8 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // ☑ 用 `checked` 的顏色、名字是一般的字、數字和表頭淡色、框線是一般的線
+        // ☑ uses the `checked` color, names are normal text, numbers
+        // and the header are muted, the border is a normal line
         let theme = Theme::catppuccin_mocha();
         let buffer = terminal.backend().buffer();
         let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
@@ -743,7 +783,8 @@ mod tests {
         assert_eq!(cell(27, 4), ("5", theme.muted));
         assert_eq!(cell(2, 1), ("日", theme.muted));
         assert_eq!(cell(0, 0), ("╭", theme.line));
-        // 按 `s` 收起：月曆貼回最左邊，操作說明照樣有 `s`（再按一次打開）
+        // `s` hides it: the calendar moves back to the far left,
+        // and the key hints still have `s` (press it again to open)
         app.side_hidden = true;
         assert_eq!(
             text_rows(draw_app(&mut app, 121, 14).backend().buffer()),
@@ -768,7 +809,8 @@ mod tests {
 
     #[test]
     fn unchecked_calendars_hide_their_items() {
-        // 「生活」沒勾：☐ 和名字淡色、數字照算；它的 5 件事不列，10/5、10/10 也不是橘色了
+        // 「生活」 unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed,
+        // and 10/5 and 10/10 are no longer orange
         let mut app = agenda_app(Lang::En);
         app.groups[1].shown = false;
         let terminal = draw_app(&mut app, 121, 14);
@@ -797,7 +839,8 @@ mod tests {
         assert_eq!(cell(2, 4), ("☐", theme.muted));
         assert_eq!(cell(4, 4), ("生", theme.muted));
         assert_eq!(cell(2, 3), ("☑", theme.checked));
-        // 10/5（星期一）、10/10（星期六）回到平常的顏色；10/16 是沒分組的事，照樣橘色
+        // 10/5 (Monday) and 10/10 (Saturday) go back to their
+        // usual colors; 10/16 is an ungrouped item, still orange
         assert_eq!(cell(44, 4), ("5", theme.text));
         assert_eq!(cell(59, 4), ("0", theme.weekend));
         assert_eq!(cell(56, 5), ("6", theme.has_item));
@@ -805,7 +848,8 @@ mod tests {
 
     #[test]
     fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
-        // 鍵盤在 side menu、選到第 2 個（生活）：side menu 的框線亮、月曆的不亮；那一列整列墊底色，字的顏色不變
+        // Keyboard in the side menu, the 2nd one chosen (生活): the side menu's border is lit, the calendar's
+        // is not; that whole row gets the highlight background, text colors unchanged
         let mut app = agenda_app(Lang::ZhTw);
         app.focus = Focus::Side;
         app.group_index = 1;
@@ -814,7 +858,8 @@ mod tests {
         let buffer = terminal.backend().buffer();
         assert_eq!(buffer[(0, 0)].fg, theme.focus);
         assert_eq!(buffer[(30, 0)].fg, theme.line);
-        // 中文字後半那格（「生」「活」的 x 5、7）TestBackend 拿不到樣式，跳過
+        // TestBackend gets no style for the second half of a CJK
+        // character (x 5 and 7 for 「生」「活」), so skip those
         for x in (1..29).filter(|x| ![5, 7].contains(x)) {
             assert_eq!(buffer[(x, 4)].bg, theme.cursor_line, "x = {x}");
             assert_ne!(buffer[(x, 3)].bg, theme.cursor_line, "x = {x}");
@@ -827,26 +872,29 @@ mod tests {
 
     #[test]
     fn click_positions_in_the_side_menu() {
-        // 121 × 14（畫面見 `side_menu_lists_the_calendars_when_wide`）：日曆從 y 3 開始，一個一列
+        // 121 × 14 (screen: see `side_menu_lists_the_calendars_when_wide`):
+        // calendars start at y 3, one per row
         let mut app = agenda_app(Lang::ZhTw);
         app.screen = Rect::new(0, 0, 121, 14);
         draw_app(&mut app, 121, 14);
         assert_eq!(click_at(&app, 5, 3), Some(Click::Group(0)));
         assert_eq!(click_at(&app, 1, 6), Some(Click::Group(3)));
         assert_eq!(click_at(&app, 20, 4), Some(Click::Group(1)));
-        // 沒有日曆：下面的空白、表頭、表頭的線、左右框線、操作說明
+        // No calendar: the blank space below, the header, the
+        // header line, the left and right borders, the key hints
         for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (29, 3), (5, 13)] {
             assert_eq!(click_at(&app, x, y), None, "({x}, {y})");
         }
-        // 月曆往右移了 30 格：16 號在 x 54～56
+        // The calendar moved 30 cells right: the 16th is at x 54-56
         assert_eq!(date_at(&app, 54, 5), Some(date(2026, 10, 16)));
         assert_eq!(date_at(&app, 57, 5), Some(date(2026, 10, 17)));
     }
 
     #[test]
     fn agenda_lists_each_months_items_next_to_it() {
-        // 右邊一欄：10 月 8 件事比 5 週多，月份往下長 3 列；照日期、時間排（同一天沒時間的在前）；
-        // 沒日期的不列；太長的標題被切掉
+        // One agenda column: October's 8 items outnumber its 5 weeks, so the month grows 3 rows down; sorted
+        // by date and time (on the same day, items without a time first); items without a date are not
+        // listed; titles that are too long are cut
         let mut app = agenda_app(Lang::ZhTw);
         assert_eq!(
             text_rows(draw_app(&mut app, 70, 23).backend().buffer()),
@@ -880,7 +928,8 @@ mod tests {
 
     #[test]
     fn agenda_flows_into_columns_when_wide() {
-        // 右邊 58 格寬：分 2 欄，像報紙一樣先排滿第一欄（10 月 5 列）再排第二欄
+        // Agenda 58 cells wide: 2 columns, filled like a newspaper,
+        // the first column full (October's 5 rows) before the second
         let mut app = agenda_app(Lang::En);
         assert_eq!(
             text_rows(draw_app(&mut app, 95, 15).backend().buffer()),
@@ -906,21 +955,24 @@ mod tests {
 
     #[test]
     fn clicking_an_item_selects_its_day() {
-        // 一欄（畫面見 `agenda_lists_each_months_items_next_to_it`）：右邊框裡面從 x 36 開始
+        // One column (screen: see `agenda_lists_each_months_items_next_to_it`):
+        // the inside of the agenda box starts at x 36
         let mut app = agenda_app(Lang::ZhTw);
         app.screen = Rect::new(0, 0, 70, 23);
         draw_app(&mut app, 70, 23);
         assert_eq!(date_at(&app, 40, 3), Some(date(2026, 10, 5)));
         assert_eq!(date_at(&app, 68, 8), Some(date(2026, 10, 17)));
         assert_eq!(date_at(&app, 40, 12), Some(date(2026, 11, 3)));
-        // 右邊沒有事的列、表頭；左邊只有事的那幾列沒有日期
+        // Agenda rows without an item, and the header; on the
+        // left, the rows that exist only for items have no date
         assert_eq!(date_at(&app, 40, 13), None);
         assert_eq!(date_at(&app, 40, 1), None);
         assert_eq!(date_at(&app, 20, 8), None);
-        // 點到的是右邊的第幾件事（`App::agenda()` 的順序）
+        // Which agenda item was clicked (in `App::agenda()` order)
         assert_eq!(click_at(&app, 40, 3), Some(Click::Item(0)));
         assert_eq!(click_at(&app, 20, 5), Some(Click::Day(date(2026, 10, 14))));
-        // 兩欄（畫面見 `agenda_flows_into_columns_when_wide`）：第二欄從 x 36 + 28 + 2 = 66 開始，中間 2 格空白不算
+        // Two columns (screen: see `agenda_flows_into_columns_when_wide`): the second column starts
+        // at x 36 + 28 + 2 = 66; the 2 blank cells between do not count
         let mut app = agenda_app(Lang::En);
         app.screen = Rect::new(0, 0, 95, 15);
         draw_app(&mut app, 95, 15);
@@ -933,8 +985,10 @@ mod tests {
 
     #[test]
     fn the_selected_day_and_its_items_stay_on_screen_with_tall_months() {
-        // 範例任務檔有的月比週數高（10 月很多事）：鍵盤在月曆，一天一天往後 120 天、往前 240 天，
-        // 每畫一次都檢查：月曆上看得到選取那天的括號；那天有事的話，右邊看得到那天的第一件
+        // In the sample task file some months are taller than their weeks (October has
+        // many items): keyboard in the calendar, day by day 120 days forward, 240 days
+        // back; every draw checks: the selected day's brackets are visible on the
+        // calendar; if that day has items, its first item is visible in the agenda
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
@@ -946,7 +1000,7 @@ mod tests {
             app.selected = app.selected.saturating_add(step.days());
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
-            // 每一列 `││` 左邊是月曆框、右邊是事項框
+            // In each row, left of `││` is the calendar box and right of it the agenda
             let (left, right): (Vec<&str>, Vec<&str>) = body
                 .iter()
                 .map(|row| row.split_once("││").unwrap_or((row, "")))
@@ -957,7 +1011,8 @@ mod tests {
                 "{}：月曆上看不到 {day}：{body:#?}",
                 app.selected
             );
-            // 那天的第一件（跨多天的中間那幾天也算）：右邊寫的是它開始那天，例：` 10/28~11/3`
+            // The day's first item (the middle days of a multi-day item
+            // count too): the agenda shows its start day, e.g. ` 10/28~11/3`
             let first = app
                 .agenda()
                 .iter()
@@ -976,12 +1031,13 @@ mod tests {
 
     #[test]
     fn item_colors_follow_their_day() {
-        // 畫面見 `agenda_lists_each_months_items_next_to_it`：右邊框裡面從 x 36 開始
+        // Screen: see `agenda_lists_each_months_items_next_to_it`;
+        // the inside of the agenda box starts at x 36
         let mut app = agenda_app(Lang::ZhTw);
         let terminal = draw_app(&mut app, 70, 23);
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // (x, y) 那格：字、前景色、有沒有劃線
+        // The (x, y) cell: symbol, foreground color, whether it is struck through
         let cell = |x: u16, y: u16| {
             let cell = &buffer[(x, y)];
             (
@@ -990,26 +1046,28 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 右邊的表頭：「重要事項」淡色、右邊選取的日期一般顏色（2026/10/17 從 x 52 開始）
+        // Agenda header: 「重要事項」 muted, the selected day on
+        // the right in the normal color (2026/10/17 starts at x 52)
         assert_eq!(cell(37, 1), ("重", theme.muted, false));
         assert_eq!(cell(52, 1), ("2", theme.text, false));
-        // 10/5 有沒做完的事：日期、標題都跟月曆上一樣是橘色
+        // 10/5 has an unfinished item: date and title are orange, same as on the calendar
         assert_eq!(cell(38, 3), ("1", theme.has_item, false));
         assert_eq!(cell(43, 3), ("繳", theme.has_item, false));
-        // 10/15 做完的事：整行變灰（日期也是），標題劃線
+        // 10/15's finished item: the whole line is gray (the date too), the title struck through
         assert_eq!(cell(37, 5), ("1", theme.muted, false));
         assert_eq!(cell(43, 5), ("修", theme.muted, true));
-        // 10/17 今天：綠色；時間淡色
+        // 10/17 today: green; the time is muted
         assert_eq!(cell(43, 7), ("聚", theme.today, false));
         assert_eq!(cell(43, 8), ("0", theme.muted, false));
         assert_eq!(cell(49, 8), ("早", theme.today, false));
-        // 10/18（日）有沒做完的事：橘色蓋過週末
+        // 10/18 (Sun) has an unfinished item: orange wins over the weekend color
         assert_eq!(cell(49, 9), ("爬", theme.has_item, false));
     }
 
     #[test]
     fn the_selected_week_row_has_a_background() {
-        // 10/17 那週在 y 5：月曆框裡整列（x 1～33）墊底色；上下列、右邊框的同一列不墊
+        // The week of 10/17 is at y 5: that whole row in the calendar box (x 1-33) gets the highlight
+        // background; the rows above and below, and the same row in the agenda, do not
         let mut app = agenda_app(Lang::ZhTw);
         let theme = Theme::catppuccin_mocha();
         let bg = |terminal: &Terminal<TestBackend>, x: u16, y: u16| {
@@ -1023,7 +1081,8 @@ mod tests {
         assert_eq!(bg(&terminal, 20, 4), Color::Reset);
         assert_eq!(bg(&terminal, 20, 6), Color::Reset);
         assert_eq!(bg(&terminal, 40, 5), Color::Reset);
-        // 跨月那週拆成兩列：選 10/31，只有 10 月那一半（y 7）墊底色，11 月那一半（y 12）不墊
+        // The week that crosses months is split into two rows: with 10/31 selected, only the October half
+        // (y 7) gets the highlight, the November half (y 12) does not
         app.selected = date(2026, 10, 31);
         let terminal = draw_app(&mut app, 70, 23);
         assert_eq!(bg(&terminal, 20, 7), theme.cursor_line);
@@ -1032,7 +1091,7 @@ mod tests {
 
     #[test]
     fn agenda_focus_brackets_the_chosen_item() {
-        // 鍵盤在右邊、選到第 6 件（10/17 08:00 早餐會）：日期加括號
+        // Keyboard in the agenda, the 6th item chosen (10/17 08:00 早餐會): its date gets brackets
         let mut app = agenda_app(Lang::ZhTw);
         app.focus = Focus::Agenda;
         app.agenda_index = 5;
@@ -1067,10 +1126,11 @@ mod tests {
         );
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // 右邊框的框線亮起來、月曆框的變回一般的線
+        // The agenda's border lights up, and the calendar box's goes back to a normal line
         assert_eq!(buffer[(35, 0)].fg, theme.focus);
         assert_eq!(buffer[(0, 0)].fg, theme.line);
-        // 括號是選取的顏色；選到的那件整欄墊底色（x 36～68），上下那件不墊
+        // The brackets are in the selected color; the chosen item gets the highlight across the whole column
+        // (x 36-68), the items above and below do not
         assert_eq!(
             (buffer[(36, 8)].symbol(), buffer[(36, 8)].fg),
             ("[", theme.selected)
@@ -1079,7 +1139,8 @@ mod tests {
             (buffer[(42, 8)].symbol(), buffer[(42, 8)].fg),
             ("]", theme.selected)
         );
-        // 寬字元（中文）後半那格不會送到 terminal，跳過（真的 terminal 上底色會蓋滿兩格）
+        // The second half of a wide (CJK) character is not sent to the terminal, so skip it (on a real
+        // terminal the background covers both cells)
         let mut x = 36;
         while x <= 68 {
             assert_eq!(buffer[(x, 8)].bg, theme.cursor_line, "x {x}");
@@ -1091,8 +1152,9 @@ mod tests {
 
     #[test]
     fn the_chosen_item_is_always_on_screen() {
-        // 範例任務檔：10 月的事比週數多很多（一個月放不下，右邊要在裡面捲）；一件一件往下選、再往上選，
-        // 選到的那件（日期有括號）和月曆上選取的那天都在畫面上
+        // Sample task file: October has far more items than weeks (a month does not fit, so the agenda
+        // scrolls inside it); choose items one by one going down, then going up; the chosen item (date in
+        // brackets) and the selected day on the calendar both stay on screen
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
@@ -1106,13 +1168,14 @@ mod tests {
             let first = app.agenda()[index].item.date.expect("有日期");
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
-            // 選到的那件日期加括號；跨多天的括號裡是範圍，例：`[10/28~11/3]`
+            // The chosen item's date gets brackets; for a multi-day
+            // item the brackets hold the range, e.g. `[10/28~11/3]`
             let chosen = format!("[{}/{}", first.month(), first.day());
             assert!(
                 body.iter().any(|row| row.contains(&chosen)),
                 "第 {index} 件不在畫面上：{body:#?}"
             );
-            // 月曆框（每一列 `││` 左邊那半）上也看得到選取的那天
+            // The selected day is also visible in the calendar box (left of `││` in each row)
             let day = format!("[{}]", app.selected.day());
             assert!(
                 body.iter().any(|row| row
@@ -1126,8 +1189,9 @@ mod tests {
 
     #[test]
     fn a_capped_month_scrolls_inside_while_choosing_items() {
-        // 月曆 6 列 → 一個月最多 3 列，但至少是週數（10 月 5 週）：10 月 8 件事只放得下 5 件。
-        // 鍵盤在右邊、選到第 8 件（10/20）：10 月的右邊捲 3 列，月曆不動
+        // 6 calendar rows → a month gets at most 3 rows, but at least its number of weeks (October has 5):
+        // only 5 of October's 8 items fit. Keyboard in the agenda, the 8th item chosen (10/20): October's
+        // agenda scrolls 3 rows, the calendar does not move
         let mut app = agenda_app(Lang::ZhTw);
         app.screen = Rect::new(0, 0, 70, 11);
         app.focus = Focus::Agenda;
@@ -1152,13 +1216,13 @@ mod tests {
         );
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
         assert_eq!(app.calendar_top, Some(0));
-        // 捲軸的亮塊跟框線同一個顏色（鍵盤在右邊：focus 色）
+        // The scrollbar thumb has the same color as the border (keyboard in the agenda: focus color)
         let theme = Theme::catppuccin_mocha();
         let cell = &terminal.backend().buffer()[(69, 5)];
         assert_eq!((cell.symbol(), cell.fg), ("┃", theme.focus));
-        // 點擊跟畫面一樣：右邊第一列是第 4 件（10/16 交週報）
+        // Clicks match the screen: the agenda's first row is the 4th item (10/16 交週報)
         assert_eq!(click_at(&app, 40, 3), Some(Click::Item(3)));
-        // 選回第 1 件（10/5）：右邊捲回最上面
+        // Back to the 1st item (10/5): the agenda scrolls back to the top
         app.agenda_index = 0;
         app.selected = date(2026, 10, 5);
         draw_app(&mut app, 70, 11);
@@ -1167,7 +1231,8 @@ mod tests {
 
     #[test]
     fn the_agenda_follows_the_calendar() {
-        // 鍵盤在月曆、10 月只放得下 5 件：選 10/20，右邊捲到看得到 10/20 那件，月曆不動
+        // Keyboard in the calendar, only 5 of October's items fit: select 10/20, and the agenda scrolls until
+        // the 10/20 item is visible; the calendar does not move
         let mut app = agenda_app(Lang::ZhTw);
         draw_app(&mut app, 70, 11);
         app.selected = date(2026, 10, 20);
@@ -1190,16 +1255,17 @@ mod tests {
         );
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
         assert_eq!(app.calendar_top, Some(0));
-        // 那天的事墊底色（跟月曆上那週一樣），別天的不墊
+        // That day's items get the highlight background (like
+        // its week on the calendar); other days' items do not
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(40, 7)].bg, theme.cursor_line);
         assert_eq!(buffer[(40, 6)].bg, Color::Reset);
-        // 選沒事的 10/19：右邊不捲（不會跳上跳下）
+        // Select 10/19, which has no items: the agenda does not scroll (no jumping up and down)
         app.selected = date(2026, 10, 19);
         draw_app(&mut app, 70, 11);
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
-        // 選 10/5：右邊捲回最上面
+        // Select 10/5: the agenda scrolls back to the top
         app.selected = date(2026, 10, 5);
         draw_app(&mut app, 70, 11);
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 0)));
@@ -1207,7 +1273,8 @@ mod tests {
 
     #[test]
     fn the_year_in_the_corner_is_the_top_weeks() {
-        // 月曆 6 列：先選 12/28，再往下一週到 2027/1/4，畫面最上面還是 12 月那週 → 左上角寫 2026年
+        // 6 calendar rows: select 12/28, then go one week down to 2027/1/4; the top of the screen is still
+        // the December week → the top-left corner shows 2026年
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.selected = date(2026, 12, 28);
         draw_app(&mut app, 35, 11);
@@ -1219,7 +1286,8 @@ mod tests {
 
     #[test]
     fn a_busy_month_takes_at_most_two_thirds() {
-        // 範例任務檔、70 × 24：月曆 19 列，10 月事很多 → 佔 19 × 2 / 3 = 12 列，下面的 11 月看得到幾週
+        // Sample task file, 70 × 24: the calendar has 19 rows and October has many items → it
+        // takes 19 × 2 / 3 = 12 rows, and a few weeks of November show below
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1235,8 +1303,8 @@ mod tests {
 
     #[test]
     fn a_hint_tells_how_many_more_items_a_month_has() {
-        // 剛打開（選今天 10/17）、10 月只放得下 5 件：右邊捲 2 列看 10/17 的事，
-        // 10 月下面那條線寫「還有 1 件」（10/20 那件）
+        // Just opened (today 10/17 selected), only 5 of October's items fit: the agenda scrolls 2 rows to
+        // show 10/17's items, and the line under October says 「還有 1 件」 (the 10/20 item)
         let mut app = agenda_app(Lang::ZhTw);
         let terminal = draw_app(&mut app, 70, 11);
         assert_eq!(
@@ -1255,7 +1323,8 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 提示是淡色；提示左右的線還是線的顏色（「還」在 x 58，線的最後一格在 x 68）
+        // The hint is muted; the line on both sides of it keeps the
+        // line color (「還」 is at x 58, the line's last cell at x 68)
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         assert_eq!(
@@ -1282,7 +1351,8 @@ mod tests {
         );
         app.handle_key(KeyEvent::from(KeyCode::Tab));
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-        // 70 × 12：編輯框在最下面操作說明的上面（y 7～10），整個 terminal 那麼寬
+        // 70 × 12: the edit box sits just above the key hints
+        // at the bottom (y 7-10), as wide as the whole terminal
         let mut terminal = draw_app(&mut app, 70, 12);
         let rows = text_rows(terminal.backend().buffer());
         assert!(rows[7].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[7]);
@@ -1300,12 +1370,14 @@ mod tests {
             "{}",
             rows[10]
         );
-        // 游標在打的字最後面：框線 1 + 空白 1 + 「- [ ] 交週報 @2026-10-16 17:30」30 格
+        // The cursor is right after the typed text, at
+        // border 1 + space 1 + 「- [ ] 交週報 @2026-10-16 17:30」 30 cells
         assert_eq!(
             terminal.get_cursor_position().expect("cursor"),
             Position::new(32, 8)
         );
-        // 讀成什麼是淡色；改成不存在的時間：那一列換成紅字說明
+        // What the line parses as is shown muted; change it to a time
+        // that does not exist: that row becomes a red explanation
         let theme = Theme::catppuccin_mocha();
         assert_eq!(terminal.backend().buffer()[(2, 9)].fg, theme.muted);
         for code in [
@@ -1359,7 +1431,7 @@ mod tests {
         let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 17));
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // (x, y) 那格：字、前景色、是不是粗體
+        // The (x, y) cell: symbol, foreground color, whether it is bold
         let cell = |x: u16, y: u16| {
             let cell = &buffer[(x, y)];
             (
@@ -1368,39 +1440,41 @@ mod tests {
                 cell.modifier.contains(Modifier::BOLD),
             )
         };
-        // 操作說明淡色
+        // The key hints are muted
         assert_eq!(cell(1, 25), ("h", theme.muted, false));
-        // 鍵盤在月曆：月曆框的框線用 focus 的顏色
+        // Keyboard in the calendar: the calendar box's border uses the focus color
         assert_eq!(cell(0, 0), ("╭", theme.focus, false));
-        // 表頭：平日淡色、六日用週末的顏色、直線
-        // 左上角的年份（2026年，畫面上有 1 月也一樣寫）
+        // Header: weekdays muted, Sat and Sun in the weekend color, vertical line
+        // The year in the top-left corner (2026年, shown even when January is on screen)
         assert_eq!(cell(5, 1), ("年", theme.muted, false));
         assert_eq!(cell(13, 1), ("一", theme.muted, false));
         assert_eq!(cell(28, 1), ("六", theme.weekend, false));
         assert_eq!(cell(31, 1), ("日", theme.weekend, false));
         assert_eq!(cell(11, 1), ("│", theme.line, false));
-        // 月和月之間的線、跨年的粗線
+        // The line between months, the thick line between years
         assert_eq!(cell(11, 2), ("┼", theme.line, false));
         assert_eq!(cell(5, 21), ("━", theme.year_line, false));
         assert_eq!(cell(11, 21), ("┿", theme.year_line, false));
-        // 月（10月）、1 月的年（2027年）、週數
+        // Month (10月), January's year (2027年), week numbers
         assert_eq!(cell(3, 3), ("1", theme.label, false));
         assert_eq!(cell(1, 22), ("2", theme.label, false));
-        // 週數：選取那週（42）亮、其他週（41）暗
+        // Week numbers: the selected week (42) bright, other weeks (41) dim
         assert_eq!(cell(8, 5), ("4", theme.week_number, false));
         assert_eq!(cell(8, 4), ("4", theme.week_number_dim, false));
-        // 10/16（五）一般；10/17（六）是今天：今天的顏色蓋過週末，而且粗體；10/18（日）週末
+        // 10/16 (Fri) normal; 10/17 (Sat) is today: today's color wins
+        // over the weekend color, and it is bold; 10/18 (Sun) weekend
         assert_eq!(cell(25, 5), ("1", theme.text, false));
         assert_eq!(cell(29, 5), ("7", theme.today, true));
         assert_eq!(cell(32, 5), ("8", theme.weekend, false));
-        // 選取的括號
+        // The selection brackets
         assert_eq!(cell(27, 5), ("[", theme.selected, true));
         assert_eq!(cell(30, 5), ("]", theme.selected, true));
     }
 
     #[test]
     fn year_hint_in_the_header_is_muted() {
-        // 畫面上沒有 1 月：表頭 `Wk` 左邊寫 2026，跟表頭一樣淡（畫面見 `calendar_in_english`）
+        // No January on screen: 2026 is shown left of the header's `Wk`,
+        // as muted as the header (screen: see `calendar_in_english`)
         let terminal = draw(Lang::En, 40, 11, date(2026, 10, 17));
         let cell = &terminal.backend().buffer()[(3, 1)];
         assert_eq!(
@@ -1409,13 +1483,15 @@ mod tests {
         );
     }
 
-    /// 跨多天的事 test 用的任務檔（`tools/expected_screen.py` 算預期畫面時也讀這一份）
+    /// Task file for the multi-day tests (`tools/expected_screen.py`
+    /// reads this same file for the expected screens)
     const RANGE_TASKS: &str = include_str!("../testdata/ranges.md");
 
     #[test]
     fn multi_day_items_are_listed_once_per_month() {
-        // 右邊在開始那天列一次，日期寫範圍（`10/20~25`、跨月 `10/28~11/3`、跨年 `12/30~1/2`）；
-        // 跨月的在之後每個月最上面再列一次；日期比較長，標題往右推
+        // The agenda lists an item once on its start day, with the date as a range (`10/20~25`, across months
+        // `10/28~11/3`, across years `12/30~1/2`); an item that crosses months is listed again at the top of
+        // each later month; the dates are longer, so titles move right
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1457,19 +1533,22 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 月曆：範圍裡的每一天加底線（10/20～25、10/28～11/3），前後一天不加；顏色不變：開始那天橘色，
-        // 中間沒有自己的事的日子（10/21，x 19～20）是一般的顏色
+        // Calendar: every day in a range is underlined (10/20-25, 10/28-11/3), the days just before and after
+        // are not; colors do not change: the start day is orange, and days in the middle with no items of
+        // their own (10/21, x 19-20) keep the normal color
         let buffer = terminal.backend().buffer();
         let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
-        // 10/19（一）x 13～14、10/20（二）x 16～17、10/25（日）x 31～32 在 y 6；10/26（一）、10/28（三）在 y 7
+        // 10/19 (Mon) x 13-14, 10/20 (Tue) x 16-17, 10/25
+        // (Sun) x 31-32 are at y 6; 10/26 (Mon) and 10/28 (Wed) at y 7
         assert!(!underlined(14, 6));
         assert!(underlined(17, 6) && underlined(32, 6));
         assert!(!underlined(14, 7) && underlined(20, 7));
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(17, 6)].fg, theme.has_item);
         assert_eq!(buffer[(20, 6)].fg, theme.text);
-        // 鍵盤在右邊、選到 11 月那一行的主管出差（從 11/2 按 Tab）：括號裡是範圍；11 月在最上面
-        // （11/2 那週是 11 月第 2 列，要離上緣留 2 列，所以往上多捲一列、露出 10 月下面的線）
+        // Keyboard in the agenda, 主管出差 chosen on November's line (Tab from 11/2): the brackets hold the
+        // range; November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from the top
+        // edge, so it scrolls up one more row and shows the line under October)
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1517,7 +1596,8 @@ mod tests {
 
     #[test]
     fn a_multi_day_item_belongs_to_every_day_it_covers() {
-        // 鍵盤在月曆、選 10/22：東京出差（10/20～25）和買伴手禮（10/22）都墊底色，交週報不墊（畫面見上面）
+        // Keyboard in the calendar, 10/22 selected: 東京出差 (10/20-25) and 買伴手禮 (10/22) both get the
+        // highlight background, 交週報 does not (screen: see above)
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1535,7 +1615,8 @@ mod tests {
 
     #[test]
     fn holidays_are_red() {
-        // 國定假日（type:holiday）：國慶連假 10/9～11、光復節 10/25；10/25 還有一件工作的事，假日的紅蓋過橘
+        // 國定假日 (type:holiday): 國慶連假 10/9-11, 光復節 10/25; 10/25
+        // also has an item in 工作, and the holiday red wins over orange
         let text = "# 國定假日 type:holiday\n- 國慶連假 @2026-10-09..2026-10-11\n- 光復節 @2026-10-25\n\
                     # 工作\n- [ ] 加班 @2026-10-25\n";
         let mut app = App::new(
@@ -1549,17 +1630,19 @@ mod tests {
             let cell = &terminal.backend().buffer()[(x, y)];
             (cell.symbol().to_string(), cell.fg)
         };
-        // 10/9（五）x 26、10/10（六）x 29、10/11（日）x 32 在 y 4；10/25（日）x 32 在 y 6；10/8（四）x 23 不是假日
+        // 10/9 (Fri) x 26, 10/10 (Sat) x 29, 10/11 (Sun) x 32 at y 4;
+        // 10/25 (Sun) x 32 at y 6; 10/8 (Thu) x 23 is not a holiday
         assert_eq!(fg(&mut app, 26, 4), ("9".into(), theme.holiday));
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.holiday));
         assert_eq!(fg(&mut app, 32, 4), ("1".into(), theme.holiday));
         assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.holiday));
         assert_eq!(fg(&mut app, 23, 4), ("8".into(), theme.text));
-        // 今天是假日的話，今天的綠色優先
+        // If today is a holiday, today's green comes first
         app.today = date(2026, 10, 10);
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.today));
         app.today = date(2026, 10, 17);
-        // side menu 上的名字不含 type:holiday；取消勾選：不是假日了（10/25 回到有事的橘、10/10 回到週末的藍）
+        // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/25 back to the
+        // has-items orange, 10/10 back to weekend blue)
         assert_eq!(app.groups[0].name.as_deref(), Some("國定假日"));
         app.groups[0].shown = false;
         assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.has_item));
@@ -1568,7 +1651,8 @@ mod tests {
 
     #[test]
     fn events_gray_out_once_their_day_is_past() {
-        // 10/9 過期沒做完的任務（橘）、10/10 過去的行程（灰、不劃線，那天回到週末的藍）、10/18 還沒到的行程（橘）
+        // 10/9: an overdue unfinished task (orange); 10/10: a past event (gray, not struck through, and the
+        // day goes back to weekend blue); 10/18: an upcoming event (orange)
         let text = "- [ ] 交週報 @2026-10-09\n- 國慶日 @2026-10-10\n- 爬山 @2026-10-18 07:00\n";
         let mut app = App::new(
             Lang::ZhTw,
@@ -1586,11 +1670,12 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 月曆：10/9（五）x 26、10/10（六）x 29 在 y 4；10/18（日）x 32 在 y 5
+        // Calendar: 10/9 (Fri) x 26, 10/10 (Sat) x 29 at y 4; 10/18 (Sun) x 32 at y 5
         assert_eq!(cell(26, 4), ("9", theme.has_item, false));
         assert_eq!(cell(29, 4), ("0", theme.weekend, false));
         assert_eq!(cell(32, 5), ("8", theme.has_item, false));
-        // 右邊（從 x 36 開始，一件一列）：標題在 x 43；爬山前面有時間，在 x 49
+        // Agenda (starts at x 36, one item per row): titles
+        // at x 43; 爬山 has a time in front, so it is at x 49
         assert_eq!(cell(43, 3), ("交", theme.has_item, false));
         assert_eq!(cell(43, 4), ("國", theme.muted, false));
         assert_eq!(cell(38, 4), ("0", theme.muted, false));
@@ -1599,8 +1684,9 @@ mod tests {
 
     #[test]
     fn days_with_open_items_are_orange() {
-        // 16 號有沒做完的事 → 橘；15 號只有做完的 → 跟沒事一樣；17 號（今天）有事 → 還是今天的顏色；
-        // 18 號（日）有事 → 橘蓋過週末；14 號沒事
+        // The 16th has an unfinished item → orange; the 15th has only finished ones → same as no items; the
+        // 17th (today) has items → still today's color; the 18th (Sun) has items → orange wins over the
+        // weekend color; the 14th has no items
         let text = "- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 聚餐 @2026-10-17\n\
                     - [ ] 爬山 @2026-10-18 07:00\n";
         let mut app = App::new(
@@ -1619,7 +1705,7 @@ mod tests {
         assert_eq!(fg(32), ("8", theme.has_item));
     }
 
-    /// 版型 3、今天 2026/10/17、選取 `selected`、任務檔是 `text` 的 app
+    /// An app in layout 3 with today 2026/10/17, `selected` selected, and `text` as the task file
     fn month_app(lang: Lang, selected: Date, text: &str) -> App {
         let mut app = App::new(lang, date(2026, 10, 17), crate::tasks::parse(text).items);
         app.view = View::Month;
@@ -1629,8 +1715,9 @@ mod tests {
 
     #[test]
     fn the_agenda_header_keeps_the_whole_date_when_narrow() {
-        // 中文、右邊很窄：日期完整，「重要事項」放不下的整個字切掉、中間至少空一格（56 格：日期的 2 不會被吃掉；
-        // 57 格：「重」和日期中間有空格）
+        // Chinese, with a very narrow agenda: the date stays whole, 「重要事項」 drops each character that
+        // does not fit, with at least one space between (56 cells: the date's 2 is not eaten; 57 cells: there
+        // is a space between 「重」 and the date)
         let terminal = draw(Lang::ZhTw, 56, 10, date(2026, 10, 17));
         assert_eq!(
             text_rows(terminal.backend().buffer()),
@@ -1667,9 +1754,11 @@ mod tests {
 
     #[test]
     fn month_view_fills_the_space_with_six_equal_weeks() {
-        // 80 × 30：框裡面 78 × 27 → 天的寬度 78 − 5 − 7 = 66，一、二、三 10 格、其他 9 格；每週 (27 − 7) ÷ 6 = 3 列，
-        // 零頭 2 列留在最下面（直線照樣畫到下框）。最上面是 10/1 那週的前一週（9/21）；1 號後面寫月份；
-        // 選取的今天加括號；右上角寫選取的日期；跨月那週的週數看選取那個月的日子（9/28 那週寫 10/1 的 40）
+        // 80 × 30: inside the box 78 × 27 → day width 78 − 5 − 7 = 66, Mon-Wed 10 cells, the others 9; each
+        // week (27 − 7) ÷ 6 = 3 rows, the 2 leftover rows stay at the bottom (vertical lines still reach the
+        // bottom border). The top is the week before 10/1's week (9/21); the month follows the 1st; today,
+        // which is selected, gets brackets; the top-right corner shows the selected day; a week that crosses
+        // months takes its week number from the selected month's days (the 9/28 week shows 10/1's 40)
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
@@ -1706,7 +1795,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 80 × 28：每週 3 列剛好填滿，最後一週貼著下框（外框接成 ┴）
+        // 80 × 28: 3 rows per week fill it exactly, and the last week touches the bottom border (joined as ┴)
         let mut app = month_app(Lang::En, date(2026, 10, 17), "");
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 28).backend().buffer()),
@@ -1743,15 +1832,18 @@ mod tests {
         );
     }
 
-    /// 大月曆 test 用的任務檔（`tools/expected_screen.py` 算預期畫面時也讀這一份）
+    /// Task file for the month grid tests (`tools/expected_screen.py`
+    /// reads this same file for the expected screens)
     const MONTH_TASKS: &str = include_str!("../testdata/month.md");
 
     #[test]
     fn month_view_lists_each_days_items_in_its_cell() {
-        // 80 × 30、每週 3 列：日期下面列 2 件；同一天沒時間的在前（跟版型 1 一樣）；
-        // 10/16 有 4 件放不下：列 1 件、最後一行「+3」；其他月份（9/25、11/1）的事照列。
-        // 太長的標題往右借隔壁格（同一行是空的才借，蓋過中間的格線），借不到就切掉：10/13 借到 10/14、停在 10/15 前面；
-        // 10/12 隔壁有事，借不到
+        // 80 × 30, 3 rows per week: 2 items listed under the date; on the same day, items
+        // without a time first (like layout 1); 10/16 has 4 items that do not fit: 1 is listed
+        // and the last line says 「+3」; items on other months' days (9/25, 11/1) are listed
+        // too. A title that is too long borrows the next cells to the right (only where that
+        // line is empty, covering the grid line between) and is cut where it can't: 10/13
+        // borrows 10/14 and stops before 10/15; 10/12's neighbor has items, so it can't borrow
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
@@ -1788,7 +1880,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 80 × 24、每週 2 列：只放得下 1 件，2 件以上就只寫「+N」
+        // 80 × 24, 2 rows per week: only 1 item fits; with 2 or more it just shows 「+N」
         let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 24).backend().buffer()),
@@ -1819,7 +1911,8 @@ mod tests {
                 " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
-        // 80 × 16、每週只有 1 列：不列事，日期後面畫點點（1 件 ⠂、2 件 ⠒、4 件以上 ⠶）
+        // 80 × 16, only 1 row per week: no items listed, dots after
+        // the date instead (1 item ⠂, 2 items ⠒, 4 or more ⠶)
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
@@ -1846,13 +1939,13 @@ mod tests {
 
     #[test]
     fn month_view_item_colors() {
-        // 80 × 30（畫面見 `month_view_lists_each_days_items_in_its_cell`）：格子從 x 7、18、29、40、50、60、70 開始，
-        // 第 1、4 週在 y 3、15
+        // 80 × 30 (screen: see `month_view_lists_each_days_items_in_its_cell`): cells start at x 7, 18, 29,
+        // 40, 50, 60, 70; weeks 1 and 4 are at y 3 and 15
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         let terminal = draw_app(&mut app, 80, 30);
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // (x, y) 那格：字、前景色、有沒有劃線
+        // The (x, y) cell: symbol, foreground color, whether it is struck through
         let cell = |x: u16, y: u16| {
             let cell = &buffer[(x, y)];
             (
@@ -1861,28 +1954,28 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 10/12（一）沒做完的事：點和標題橘色、時間淡色
+        // 10/12 (Mon) unfinished item: dot and title orange, time muted
         assert_eq!(cell(8, 16), ("∙", theme.has_item, false));
         assert_eq!(cell(10, 16), ("1", theme.muted, false));
-        // 10/15（四）做完的事：整行灰、標題劃線（點不劃）
+        // 10/15 (Thu) finished item: whole line gray, title struck through (the dot is not)
         assert_eq!(cell(41, 16), ("∙", theme.muted, false));
         assert_eq!(cell(43, 16), ("修", theme.muted, true));
-        // 10/17（六）今天：綠色
+        // 10/17 (Sat) today: green
         assert_eq!(cell(63, 16), ("聚", theme.today, false));
-        // 10/16（五）放不下：「+3」淡色
+        // 10/16 (Fri) overflows: 「+3」 is muted
         assert_eq!(cell(52, 17), ("3", theme.muted, false));
-        // 9/25（五）其他月份：整行灰
+        // 9/25 (Fri) is in another month: whole line gray
         assert_eq!(cell(51, 4), ("∙", theme.other_month, false));
         assert_eq!(cell(53, 4), ("中", theme.other_month, false));
-        // 10/20（二）的長標題往右借到 10/23（五）：蓋過格線的字是它自己的顏色（x 49 原本是直線）；
-        // 字後面的格線還是格線的顏色
+        // 10/20 (Tue)'s long title borrows cells up to 10/23 (Fri): text over the grid lines keeps its own
+        // color (x 49 was a vertical line); the grid lines after the text keep the grid color
         assert_eq!(cell(49, 20), ("題", theme.has_item, false));
         assert_eq!(buffer[(59, 20)].symbol(), "│");
         assert_eq!(buffer[(59, 20)].fg, theme.grid);
-        // 每週只有 1 列：點點跟著那天的顏色（10/16 橘）；都做完了（10/15）淡色
+        // Only 1 row per week: the dots follow the day's color (10/16 orange); all done (10/15) is muted
         let terminal = draw_app(&mut app, 80, 16);
         let buffer = terminal.backend().buffer();
-        // 80 × 16：第 4 週在 y 9；10/16 是「 16 ⠶」、10/15 是「 15 ⠂」
+        // 80 × 16: week 4 is at y 9; 10/16 is 「 16 ⠶」, 10/15 is 「 15 ⠂」
         assert_eq!(
             (buffer[(54, 9)].symbol(), buffer[(54, 9)].fg),
             ("⠶", theme.has_item)
@@ -1895,7 +1988,7 @@ mod tests {
 
     #[test]
     fn month_view_with_the_side_menu_hides_unchecked_calendars() {
-        // 121 格寬：side menu 在最左邊，大月曆佔剩下的整塊
+        // 121 cells wide: the side menu on the far left, the month grid takes all the rest
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         let terminal = draw_app(&mut app, 121, 22);
         assert_eq!(
@@ -1925,7 +2018,8 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 「生活」沒勾：它的事從格子裡拿掉，那幾天也不是橘色了（10/18 回到週末的藍）
+        // 「生活」 unchecked: its items leave the cells, and those
+        // days are no longer orange (10/18 back to weekend blue)
         app.groups[1].shown = false;
         let terminal = draw_app(&mut app, 121, 22);
         assert_eq!(
@@ -1955,11 +2049,12 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 10/18（日）：大月曆從 x 22 開始，星期日那欄從 x 108 開始、第 4 週在 y 12（每週 2 列）；「 18」的「1」在 x 109
+        // 10/18 (Sun): the month grid starts at x 22, the Sunday column at x 108, week 4 at y 12 (2 rows per
+        // week); the 「1」 of 「 18」 is at x 109
         let theme = Theme::catppuccin_mocha();
         let cell = &terminal.backend().buffer()[(109, 12)];
         assert_eq!((cell.symbol(), cell.fg), ("1", theme.weekend));
-        // 勾回來：橘色
+        // Checked again: orange
         app.groups[1].shown = true;
         let terminal = draw_app(&mut app, 121, 22);
         let cell = &terminal.backend().buffer()[(109, 12)];
@@ -1968,8 +2063,9 @@ mod tests {
 
     #[test]
     fn month_view_without_grid_lines_gives_the_cells_more_room() {
-        // 設定檔 `[month] grid_lines = false`：沒有格線，格子緊貼著，表頭下面也沒有線；
-        // 80 × 24：天的寬度 78 − 5 = 73（一、二、三 11 格，其他 10 格），每週 (21 − 1) ÷ 6 = 3 列
+        // Config `[month] grid_lines = false`: no grid lines, the cells touch,
+        // and no line under the header either; 80 × 24: day width 78 − 5 = 73
+        // (Mon-Wed 11 cells, the others 10), each week (21 − 1) ÷ 6 = 3 rows
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         app.settings.month.grid_lines = false;
         app.screen = Rect::new(0, 0, 80, 24);
@@ -2002,7 +2098,8 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 滑鼠：沒有格線的那幾格也點得到。星期二是 x 17～27，第 3 週（10/5 那週）是 y 8～10
+        // Mouse: the cells without grid lines can be clicked too.
+        // Tuesday is x 17-27, week 3 (the week of 10/5) is y 8-10
         assert_eq!(click_at(&app, 17, 8), Some(Click::Day(date(2026, 10, 6))));
         assert_eq!(click_at(&app, 27, 10), Some(Click::Day(date(2026, 10, 6))));
         assert_eq!(click_at(&app, 28, 10), Some(Click::Day(date(2026, 10, 7))));
@@ -2010,7 +2107,7 @@ mod tests {
 
     #[test]
     fn month_view_without_item_icons() {
-        // 設定檔 `[month] item_icons = false`：格子裡的事前面沒有點，只空一格
+        // Config `[month] item_icons = false`: no dot before the items in the cells, just one space
         let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
         app.settings.month.item_icons = false;
         assert_eq!(
@@ -2046,7 +2143,8 @@ mod tests {
 
     #[test]
     fn month_view_keeps_the_selected_week_in_the_middle() {
-        // 設定檔 `[month] center_cursor = true`：選取的那週固定在第 3 列（剛打開也是，不是 1 號的前一週在最上面）
+        // Config `[month] center_cursor = true`: the selected week stays on row 3 (also right after opening,
+        // instead of the week before the 1st on top)
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
         app.settings.month.center_cursor = true;
         assert_eq!(
@@ -2070,7 +2168,8 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 往下移一週（11/2 不在 6 週的最後面也一樣）：整個畫面跟著往下捲一週
+        // One week down (the same even though 11/2 is not the last of
+        // the 6 weeks): the whole screen scrolls down one week with it
         app.selected = date(2026, 11, 2);
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
@@ -2097,8 +2196,9 @@ mod tests {
 
     #[test]
     fn relative_week_numbers_in_both_layouts() {
-        // 設定檔 `[calendar] relative_weeks = true`：選取那週（10/12～18）寫 42，其他週寫差幾週；
-        // 版型 1 跨月那週（10/26～11/1）在兩個月各一列，兩列都寫 2
+        // Config `[calendar] relative_weeks = true`: the selected week (10/12-18) shows 42, other weeks show
+        // how many weeks away they are; in layout 1 the week that crosses months (10/26-11/1) has a row in
+        // each month, and both rows show 2
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.settings.calendar.relative_weeks = true;
         assert_eq!(
@@ -2120,7 +2220,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今",
             ]
         );
-        // 版型 3 也一樣
+        // Same in layout 3
         app.view = View::Month;
         assert_eq!(
             text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
@@ -2147,8 +2247,9 @@ mod tests {
 
     #[test]
     fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
-        // 東京出差 10/20～25：每一天的格子都列；比較早開始的排在那天的最前面（10/22 先東京出差、再買伴手禮）；
-        // 主管出差 10/28～11/3 列到畫面上最後一天 11/1
+        // 東京出差 10/20-25: listed in every day's cell; an item that starts
+        // earlier goes first in a day (10/22: 東京出差 first, then 買伴手禮);
+        // 主管出差 10/28-11/3 is listed up to the last day on screen, 11/1
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), RANGE_TASKS);
         let terminal = draw_app(&mut app, 80, 30);
         assert_eq!(
@@ -2186,14 +2287,15 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 範圍裡的日期加底線：10/20（二）「 20」在 x 19～20、y 19；10/19（一）在 x 8～9 不加
+        // Dates in a range are underlined: 10/20 (Tue) 「 20」 at x 19-20, y 19; 10/19 (Mon) at x 8-9 is not
         let buffer = terminal.backend().buffer();
         let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
         assert!(underlined(20, 19));
         assert!(!underlined(9, 19));
     }
 
-    /// 任務頁、今天 2026/10/17、任務檔是範例檔的 app（寫錯的地方也記著，跟 `main` 一樣）
+    /// An app on the tasks page with today 2026/10/17 and the
+    /// sample task file (mistakes recorded too, as in `main`)
     fn tasks_app(lang: Lang) -> App {
         let parsed = crate::tasks::parse(include_str!("../testdata/tasks.md"));
         let mut app = App::new(lang, date(2026, 10, 17), parsed.items);
@@ -2205,8 +2307,10 @@ mod tests {
 
     #[test]
     fn tasks_page_lists_the_file_as_a_tree() {
-        // 70 × 30：整份任務檔照日曆列出來，沒日期的也列；子任務收著（▸）、後面寫子任務做完幾件；
-        // 右邊日期、時間各一欄、上下對齊（沒時間的留空白）；最下面一列是選到的那件（第一件）原本的文字
+        // 70 × 30: the whole task file listed by calendar, items without a date too;
+        // subtasks folded (▸), followed by how many subtasks are done; date and time
+        // each get a column on the right, aligned (blank when there is no time); the
+        // bottom row is the original text of the chosen item (the first one)
         let mut app = tasks_app(Lang::ZhTw);
         assert_eq!(
             text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
@@ -2243,7 +2347,8 @@ mod tests {
                 " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說",
             ]
         );
-        // 展開幾件（▾）、選到第 61 行（三層深）：往下捲到它看得到、離下緣留 2 列
+        // Expand a few items (▾) and choose line 61 (three levels deep):
+        // scroll down until it is visible, 2 rows from the bottom edge
         let mut app = tasks_app(Lang::En);
         app.expanded.extend([6, 59, 60]);
         app.tasks_line = Some(61);
@@ -2272,7 +2377,8 @@ mod tests {
 
     #[test]
     fn tasks_page_colors_and_clicks() {
-        // 不是今年的日期前面加年份；做完的灰、劃線；過去的行程灰、不劃線；日期用那天的顏色；選到的那列墊底色
+        // Dates not in this year get the year in front; done tasks gray and struck through; past events gray,
+        // not struck through; dates in that day's color; the chosen row gets the highlight background
         let text = "# 工作\n- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 國慶日 @2026-10-10\n\
                     - 跨年 @2027-01-02\n  - [ ] 買票\n";
         let mut app = App::new(
@@ -2296,20 +2402,21 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // 標題：工作（label 色、粗體）
+        // Heading: 工作 (label color, bold)
         assert_eq!(buffer[(2, 3)].fg, theme.label);
         assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
-        // 交週報（y 4）：沒做完 → 一般的字、日期（x 33～37）橘色；選到的那列整列墊底色
+        // 交週報 (y 4): not done → normal text, date (x 33-37) orange;
+        // the chosen row gets the highlight across the whole row
         assert_eq!(cell(8, 4), ("交", theme.text, false));
         assert_eq!(cell(34, 4), ("0", theme.has_item, false));
         assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
         assert_eq!(buffer[(1, 5)].bg, Color::Reset);
-        // 修 bug（y 5）：做完 → 灰、劃線；國慶日（y 6）：過去的行程 → 灰、不劃線
+        // 修 bug (y 5): done → gray, struck through; 國慶日 (y 6): past event → gray, not struck through
         assert_eq!(cell(8, 5), ("修", theme.muted, true));
         assert_eq!(cell(8, 6), ("國", theme.muted, false));
-        // ▸ 淡色
+        // ▸ is muted
         assert_eq!(cell(2, 7), ("▸", theme.muted, false));
-        // 點跨年（y 7）那列：選它；點 ▸（x 2）：展開
+        // Click the 跨年 row (y 7): it gets chosen; click ▸ (x 2): it expands
         let click = |app: &mut App, column, row| {
             use ratatui::crossterm::event::{
                 KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -2329,7 +2436,7 @@ mod tests {
         assert!(app.expanded.is_empty());
         click(&mut app, 2, 7);
         assert!(app.expanded.contains(&5));
-        // 點標題那列：不理
+        // Clicking a heading row: ignored
         click(&mut app, 5, 3);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
@@ -2339,7 +2446,8 @@ mod tests {
 
     #[test]
     fn tasks_page_points_at_format_mistakes() {
-        // 表頭右邊寫有幾處寫錯；選到寫錯的那一行（第 43 行 @2026-13-01）：最下面一列改說哪裡錯，標題紅字
+        // The header's right side shows how many mistakes there are; choose the line with a mistake (line 43,
+        // @2026-13-01): the bottom row says what is wrong instead, and the title is red
         let mut app = tasks_app(Lang::ZhTw);
         app.tasks_line = Some(43);
         let terminal = draw_app(&mut app, 70, 16);
@@ -2366,17 +2474,18 @@ mod tests {
         );
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // 表頭的「1 處寫錯」、最下面那列都是紅字
+        // The header's 「1 處寫錯」 and the bottom row are both red
         assert_eq!(buffer[(60, 1)].fg, theme.error);
         assert_eq!(buffer[(2, 13)].fg, theme.error);
-        // 繳房屋稅那列（y 9）的標題紅字（標題從 x 8 開始）；別列不是
+        // The title in the 繳房屋稅 row (y 9) is red (titles start at x 8); other rows are not
         assert_eq!(buffer[(8, 9)].fg, theme.error);
         assert_eq!(buffer[(8, 8)].fg, theme.text);
     }
 
     #[test]
     fn tasks_page_with_the_side_menu() {
-        // 121 格寬：side menu 在左邊；沒勾的日曆（未分組、付款 API 改版）整組不列
+        // 121 cells wide: side menu on the left; unchecked
+        // calendars (未分組, 付款 API 改版) are left out entirely
         let mut app = tasks_app(Lang::ZhTw);
         app.groups[0].shown = false;
         app.groups[1].shown = false;
@@ -2403,8 +2512,10 @@ mod tests {
 
     #[test]
     fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
-        // 60 × 20、版型 3、10/17 有 4 件：跳窗在大月曆（60 × 19）正中間，30 格寬（最窄）、6 列高 → x 15、y 6；
-        // 上框線寫日期，一件一列（跟版型 1 右邊一樣），選到的第一件日期加括號；最下面一列換成跳窗的鍵
+        // 60 × 20, layout 3, 10/17 has 4 items: the popup is centered on the month
+        // grid (60 × 19), 30 cells wide (the minimum), 6 rows tall → x 15, y 6; the top
+        // border shows the date, one item per row (like layout 1's agenda), the first item
+        // is chosen with its date in brackets; the bottom row switches to the popup's keys
         let text = "- [ ] 交週報 @2026-10-17 17:30\n- 週會 @2026-10-17 10:00\n\
                     - [x] 整理書櫃 @2026-10-17\n- 出差 @2026-10-16..2026-10-18\n";
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
@@ -2422,16 +2533,17 @@ mod tests {
                 "╰────────────────────────────╯",
             ]
         );
-        // 操作說明 61 格，60 格寬時最後一個字切掉
+        // The key hints are 61 cells, so at 60 cells wide the last character is cut
         assert_eq!(
             text_rows(buffer)[19],
             " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關"
         );
-        // 框線是鍵盤所在的顏色、括號是選取的紅
+        // The border has the color of where the keyboard is, the brackets the selected red
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(15, 6)].fg, theme.focus);
         assert_eq!(buffer[(16, 7)].fg, theme.selected);
-        // 太矮（60 × 6，大月曆 5 列）：框裡放 3 件，選最後一件時往下捲一件；右框線上有捲軸
+        // Too short (60 × 6, month grid 5 rows): the box holds 3 items, and choosing the last one scrolls
+        // down one item; a scrollbar on the right border
         app.day_index = 3;
         let terminal = draw_app(&mut app, 60, 6);
         let buffer = terminal.backend().buffer();
@@ -2444,7 +2556,8 @@ mod tests {
             ]
         );
         assert!((1..4).any(|y| buffer[(44, y)].symbol() == "┃"));
-        // 點最上面那列（整理書櫃）：選它，捲到哪不變；再點同一個地方還是它（沒有任務檔，打勾不寫）
+        // Click the top row (整理書櫃): it gets chosen, the scroll stays; clicking the same spot again is
+        // still it (no task file, so checking it off writes nothing)
         app.screen = Rect::new(0, 0, 60, 6);
         let click = |app: &mut App| {
             use ratatui::crossterm::event::{
@@ -2470,7 +2583,8 @@ mod tests {
 
     #[test]
     fn month_view_scrolls_a_week_at_a_time() {
-        // 80 × 16：每週只有 1 列。剛打開最上面是 9/21；選到 11/2（第 7 週）→ 往下捲一週，最上面變 9/28
+        // 80 × 16: only 1 row per week. Right after opening the top is 9/21; selecting 11/2 (week 7) → scroll
+        // down one week, the top becomes 9/28
         let mut app = month_app(Lang::En, date(2026, 10, 17), "");
         draw_app(&mut app, 80, 16);
         assert_eq!(app.month_top, Some(date(2026, 9, 21)));
@@ -2497,7 +2611,8 @@ mod tests {
             ]
         );
         assert_eq!(app.month_top, Some(date(2026, 9, 28)));
-        // 選 9/20（最上面那週的前一週）：那週變成最上面；選取那個月變成 9 月，10 月的日子變灰
+        // Select 9/20 (the week before the top week): that week becomes the top; the selected month becomes
+        // September, so October's days turn gray
         app.lang = Lang::ZhTw;
         app.selected = date(2026, 9, 20);
         assert_eq!(
@@ -2522,7 +2637,7 @@ mod tests {
             ]
         );
         assert_eq!(app.month_top, Some(date(2026, 9, 14)));
-        // 6 週裡面移動：不捲
+        // Moving within the 6 weeks: no scrolling
         app.selected = date(2026, 10, 18);
         draw_app(&mut app, 80, 16);
         assert_eq!(app.month_top, Some(date(2026, 9, 14)));
@@ -2530,19 +2645,20 @@ mod tests {
 
     #[test]
     fn month_view_click_positions_map_to_the_cells() {
-        // 80 × 30（畫面見 `month_view_fills_the_space_with_six_equal_weeks`）：一 x 7～16、二 x 18～27，
-        // 第 1 週 y 3～5、第 2 週 y 7～9；最上面那週是 9/21
+        // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7-16, Tue x 18-27,
+        // week 1 y 3-5, week 2 y 7-9; the top week is 9/21's
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
         app.screen = Rect::new(0, 0, 80, 30);
         draw_app(&mut app, 80, 30);
-        // 格子裡任何一格都算那天（不只第一行的日期）
+        // Any cell in a day's box counts as that day (not just the date on the first line)
         assert_eq!(date_at(&app, 7, 3), Some(date(2026, 9, 21)));
         assert_eq!(date_at(&app, 16, 5), Some(date(2026, 9, 21)));
         assert_eq!(date_at(&app, 18, 7), Some(date(2026, 9, 29)));
         assert_eq!(date_at(&app, 78, 25), Some(date(2026, 11, 1)));
-        // 最後一週下面的零頭也算最後一週
+        // The leftover rows under the last week count as the last week too
         assert_eq!(date_at(&app, 10, 27), Some(date(2026, 10, 26)));
-        // 沒有日期：直線、橫線、週數欄、表頭、下框、左框、操作說明
+        // No date: vertical lines, horizontal lines, the week-number column, the header, the bottom border,
+        // the left border, the key hints
         for (x, y) in [
             (17, 3),
             (10, 6),
@@ -2558,13 +2674,14 @@ mod tests {
 
     #[test]
     fn month_view_colors_by_role() {
-        // 80 × 30（畫面見 `month_view_fills_the_space_with_six_equal_weeks`）：一 x 7、二 x 18、三 x 29、四 x 40、
-        // 五 x 50、六 x 60、日 x 70；第 1～6 週在 y 3、7、11、15、19、23。選 10/16（五），10/15（四）有沒做完的事
+        // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7, Tue x 18,
+        // Wed x 29, Thu x 40, Fri x 50, Sat x 60, Sun x 70; weeks 1-6 at y 3, 7, 11, 15, 19, 23. 10/16 (Fri)
+        // selected, 10/15 (Thu) has an unfinished item
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 16), "- [ ] 交週報 @2026-10-15\n");
         let terminal = draw_app(&mut app, 80, 30);
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        // (x, y) 那格：字、前景色、是不是粗體
+        // The (x, y) cell: symbol, foreground color, whether it is bold
         let cell = |x: u16, y: u16| {
             let cell = &buffer[(x, y)];
             (
@@ -2573,41 +2690,45 @@ mod tests {
                 cell.modifier.contains(Modifier::BOLD),
             )
         };
-        // 選取的括號紅色；日期本身是那天的顏色（平日一般色），選取那個月的日期加粗
+        // The selection brackets are red; the date itself has that day's color (normal on a weekday), and
+        // dates in the selected month are bold
         assert_eq!(cell(50, 15), ("[", theme.selected, true));
         assert_eq!(cell(52, 15), ("6", theme.text, true));
         assert_eq!(cell(53, 15), ("]", theme.selected, true));
-        // 今天綠、有沒做完的事橘、週末藍
+        // Today green, days with unfinished items orange, weekends blue
         assert_eq!(cell(62, 15), ("7", theme.today, true));
         assert_eq!(cell(42, 15), ("5", theme.has_item, true));
         assert_eq!(cell(72, 15), ("8", theme.weekend, true));
-        // 其他月份的日期灰、不加粗：9/21、11/1（月份也灰）；10/1 的月份是 label 的顏色
+        // Dates in other months are gray, not bold: 9/21, 11/1
+        // (its month too); 10/1's month is in the label color
         assert_eq!(cell(9, 3), ("1", theme.other_month, false));
         assert_eq!(cell(71, 23), ("1", theme.other_month, false));
         assert_eq!(cell(73, 23), ("1", theme.other_month, false));
         assert_eq!(cell(43, 7), ("1", theme.label, false));
-        // 週數：選取那週（42）亮、其他週（39）暗
+        // Week numbers: the selected week (42) bright, other weeks (39) dim
         assert_eq!(cell(3, 15), ("4", theme.week_number, false));
         assert_eq!(cell(3, 3), ("3", theme.week_number_dim, false));
-        // 表頭：平日淡色、六日週末色
+        // Header: weekdays muted, Sat and Sun in the weekend color
         assert_eq!(cell(8, 1), ("一", theme.muted, false));
         assert_eq!(cell(61, 1), ("六", theme.weekend, false));
-        // 格線淡色；碰到外框的接頭是外框的顏色（鍵盤在月曆：focus 色）
+        // Grid lines are faint; the joints where they meet the outer border
+        // have the border's color (keyboard in the calendar: focus color)
         assert_eq!(cell(6, 2), ("┬", theme.grid, false));
         assert_eq!(cell(6, 3), ("│", theme.grid, false));
         assert_eq!(cell(6, 6), ("┼", theme.grid, false));
-        // 最後一週下面的零頭：直線照樣畫到下框，下框接成 ┴（外框的顏色）
+        // The leftover rows under the last week: vertical lines still reach the bottom border, which joins
+        // them as ┴ (in the border color)
         assert_eq!(cell(6, 26), ("│", theme.grid, false));
         assert_eq!(cell(6, 28), ("┴", theme.focus, false));
         assert_eq!(cell(0, 6), ("├", theme.focus, false));
         assert_eq!(cell(79, 6), ("┤", theme.focus, false));
-        // 右上角的日期一般色
+        // The date in the top-right corner is in the normal color
         assert_eq!(cell(64, 0), ("2", theme.text, false));
     }
 
     #[test]
     fn selected_day_is_bold_in_its_own_color() {
-        // 選 10/16（五）：數字是一般的顏色、加粗；今天 10/17 還是今天的顏色
+        // Select 10/16 (Fri): the number is in the normal color and bold; today 10/17 keeps today's color
         let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 16));
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();

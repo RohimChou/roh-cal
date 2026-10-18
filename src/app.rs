@@ -1,4 +1,4 @@
-//! 程式的狀態與主迴圈：畫畫面 → 等輸入 → 改狀態，一直重複到離開
+//! App state and the main loop: draw the screen → wait for input → update the state, until quit
 
 mod day;
 mod editor;
@@ -34,43 +34,44 @@ use ratatui::{
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// 鍵盤在哪個框
+/// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
-    /// 左邊的月曆：`hjkl` 移動選取的日期
+    /// The calendar on the left: `hjkl` move the selected day
     Calendar,
-    /// 右邊的事項：`j` / `k` 一件一件選
+    /// The agenda on the right: `j` / `k` choose items one by one
     Agenda,
-    /// 最左邊的 side menu（夠寬時一直在；不夠寬時按 `s` 叫出來蓋在左邊）：`j` / `k` 選日曆、`Space` 勾選
+    /// The side menu at the far left (always shown when wide enough; otherwise `s` calls it up over the left):
+    /// `j` / `k` choose a calendar, `Space` checks it
     Side,
-    /// 任務頁（`4`）：`j` / `k` 一件一件選、`l` / `h` 展開 / 收起子任務
+    /// The tasks page (`4`): `j` / `k` choose items one by one, `l` / `h` expand / collapse subtasks
     Tasks,
-    /// 版型 3 的「那天的事」跳窗（月曆上 `Enter`）：`j` / `k` 一件一件選選取那天的事
+    /// Layout 3's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
     Day,
 }
 
-/// 用哪個版型（數字鍵切換）
+/// Which layout is shown (number keys switch)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
-    /// 版型 1（`1`）：左邊月曆、右邊每個月的事跟月份對齊
+    /// Layout 1 (`1`): calendar on the left; on the right, each month's items line up with that month
     Planner,
-    /// 版型 3（`3`）：大月曆，一次 6 週，格子裡列那天的事
+    /// Layout 3 (`3`): the big month grid, 6 weeks at a time; each cell lists that day's items
     Month,
-    /// 任務頁（`4`）：整份任務檔照日曆列出來，子任務排成樹，沒日期的也列
+    /// Tasks page (`4`): the whole task file listed by calendar, subtasks as a tree, undated items included
     Tasks,
 }
 
-/// side menu 上的一個日曆（= 任務檔的一個分組）
+/// One calendar in the side menu (= one group in the task file)
 #[derive(Debug)]
 pub struct Group {
-    /// 分組名稱；`None` = 檔案開頭、還沒有標題的項目
+    /// Group name; `None` = items at the start of the file, before any heading
     pub name: Option<String>,
-    /// 有沒有勾選（剛打開時全部勾選）
+    /// Whether it is checked (all are checked at start)
     pub shown: bool,
 }
 
 impl Group {
-    /// 任務檔裡的所有分組，照第一次出現的順序；名稱一樣的標題算同一個
+    /// All groups in the task file, in order of first appearance; headings with the same name count as one
     fn list(items: &[Item]) -> Vec<Self> {
         let mut groups: Vec<Self> = Vec::new();
         for item in items {
@@ -82,122 +83,137 @@ impl Group {
         groups
     }
 
-    /// `item` 是不是這個分組的
+    /// Whether `item` belongs to this group
     pub fn includes(&self, item: &Item) -> bool {
         self.name.as_deref() == item.group.as_ref().map(|heading| heading.name.as_str())
     }
 }
 
-/// 右邊列出來的一行：哪件事、列在哪天（`App::agenda()` 排好的順序就是右邊由上到下的順序）
+/// One row in the agenda: which item, and on which day it is listed (the order from `App::agenda()` is the
+/// agenda's top-to-bottom order)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entry<'a> {
-    /// 哪件事
+    /// Which item
     pub item: &'a Item,
-    /// 列在哪天：一般是那件事的日子；跨多天又跨月的事，之後的月列在 1 號
+    /// The day it is listed on: usually the item's day; a multi-day item that spans months is listed on the
+    /// 1st in each later month
     pub date: Date,
 }
 
 impl Entry<'_> {
-    /// 這一行算不算 `day` 那天的事：那件事蓋到 `day`（跨多天的中間每一天都算），而且這一行列在 `day` 那個月
-    /// （跨月的事每個月各一行，只算那個月的那一行）
+    /// Whether this row is an item on `day`: the item covers `day` (every day of a multi-day item counts),
+    /// and this row is listed in `day`'s month
+    /// (an item spanning months has one row per month; only that month's row counts)
     pub fn is_on(&self, day: Date) -> bool {
         self.item.covers(day) && self.date.first_of_month() == day.first_of_month()
     }
 }
 
-/// 蓋在畫面上、先收按鍵和滑鼠的東西；同時只會有一種
+/// Things drawn over the screen that get keys and the mouse first; only one at a time
 ///
-/// 用一個 enum 記（不是好幾個 `Option`）：按鍵、滑鼠、畫面都 `match` 它，多一種時沒處理到的地方 compiler 會抓到
+/// Kept in one enum (not several `Option`s): keys, mouse, and drawing all `match` on it, so when a new
+/// one is added, the compiler catches every place that does not handle it
 #[derive(Debug, Default)]
 pub enum Mode {
-    /// 什麼都沒開：按鍵照鍵盤在哪個框處理
+    /// Nothing open: keys go to the pane that has the keyboard
     #[default]
     Normal,
-    /// 說明頁（`?`）
+    /// Help page (`?`)
     Help(Help),
-    /// 設定頁（`,`）：頁面的狀態，和打開那時候的設定（關掉時只存這段時間改過的）
+    /// Settings page (`,`): the page's state, and the settings when it opened (closing saves only what
+    /// changed since then)
     Settings {
         page: SettingsPage,
         opened: Settings,
     },
-    /// 按了 `d`、正在問要不要刪：要刪的那件和會刪掉幾件（含子任務）
+    /// After `d`, asking whether to delete: the item to delete and how many items that removes (with subtasks)
     ConfirmDelete(Item, usize),
-    /// 編輯框（`e`、`a`、`A`）
+    /// Editor box (`e`, `a`, `A`)
     Editor(Editor),
-    /// 改期中（`r`）：要搬哪件事
+    /// Rescheduling (`r`): which item to move
     Moving(Moving),
 }
 
-/// 整個程式的狀態
+/// State of the whole app
 #[derive(Debug)]
 pub struct App {
-    /// 畫面的語言
+    /// Screen language
     pub lang: Lang,
-    /// 今天（打開程式那天；test 可以指定任何一天）
+    /// Today (the day the app was opened; tests can set any day)
     pub today: Date,
-    /// 選取的日期：月曆上加括號 `[17]` 的那天
+    /// The selected day: the one in brackets `[17]` on the calendar
     pub selected: Date,
-    /// 任務檔裡的所有項目
+    /// All items in the task file
     pub items: Vec<Item>,
-    /// 任務檔寫錯的地方（例：`@2026-13-01`），任務頁上標出來
+    /// Mistakes in the task file (e.g. `@2026-13-01`), marked on the tasks page
     pub warnings: Vec<Warning>,
-    /// side menu 上的日曆，照任務檔裡出現的順序
+    /// Calendars in the side menu, in task file order
     pub groups: Vec<Group>,
-    /// 按 `s` 收起 side menu
+    /// The side menu was hidden with `s`
     pub side_hidden: bool,
-    /// side menu 選到第幾個日曆（`groups` 裡的位置）；鍵盤在 side menu 時才用
+    /// Which calendar is chosen in the side menu (index in `groups`); used only when the keyboard is there
     pub group_index: usize,
-    /// side menu 捲到哪：最上面是第幾個日曆（`groups` 裡的位置）；日曆多到放不下時才會捲
+    /// Side menu scroll: which calendar is at the top (index in `groups`); it scrolls only when the calendars
+    /// do not fit
     pub side_top: usize,
-    /// 不夠寬時按 `s` 叫出 side menu 之前，鍵盤在哪個框（收起時回到那裡）
+    /// Which pane had the keyboard before `s` called up the side menu when narrow (it goes back there on hide)
     side_back: Focus,
-    /// 鍵盤在哪個框
+    /// Which pane has the keyboard
     pub focus: Focus,
-    /// 用哪個版型
+    /// Which layout is shown
     pub view: View,
-    /// 右邊選到第幾件事（`agenda()` 裡的位置）；鍵盤在右邊時才用
+    /// Which item is chosen in the agenda (index in `agenda()`); used only when the keyboard is there
     pub agenda_index: usize,
-    /// 版型 3 的跳窗選到第幾件事（`items_on(selected)` 裡的位置）；鍵盤在跳窗時才用
+    /// Which item is chosen in layout 3's popup (index in `items_on(selected)`);
+    /// used only when the keyboard is in the popup
     pub day_index: usize,
-    /// 跳窗打開之後，滑鼠在跳窗裡點過了沒：還沒點過時點到選到的那件只算選、不打勾
-    /// （連點兩下選取的那天：第一下打開跳窗，第二下剛好落在跳窗的第一件上）
+    /// Whether the mouse has clicked in the popup since it opened; before that, clicking the chosen item only
+    /// chooses it and does not check it
+    /// (double-clicking the selected day: the first click opens the popup, the second lands on its first item)
     pub day_clicked: bool,
-    /// 跳窗捲到哪：最上面是第幾件（選到的那件跑出框外才捲）
+    /// Popup scroll: which item is at the top (it scrolls only when the chosen item leaves the box)
     pub day_top: usize,
-    /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
+    /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
+    /// day's month at the top)
     pub calendar_top: Option<i64>,
-    /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；事太多、那個月放不下時才會捲
+    /// Agenda scroll: (the 1st of which month, which sorted row of that month is at the top); it scrolls only
+    /// when a month has too many items to fit
     pub agenda_window: Option<(Date, usize)>,
-    /// 版型 3 捲到哪：畫面最上面那週的星期一（`None` = 下一次畫的時候把選取那個月 1 號的前一週放在最上面）
+    /// Layout 3 scroll: the Monday of the top week (`None` = on the next draw, put the week before the 1st of
+    /// the selected month at the top)
     pub month_top: Option<Date>,
-    /// 畫面的顏色
+    /// Screen colors
     pub theme: Theme,
-    /// 設定檔裡的設定（theme、顏色、格線、相對週數…）；設定頁改這裡
+    /// Settings from the config file (theme, colors, grid lines, relative week numbers…);
+    /// the settings page changes them
     pub settings: Settings,
-    /// 設定檔的位置（設定頁關掉時存回去）；`None` = 不存（test、找不到放設定檔的地方）
+    /// Where the config file is (saved back when the settings page closes); `None` = do not save (tests, or
+    /// no place for a config file)
     pub config_path: Option<PathBuf>,
-    /// terminal 的大小（每一輪畫之前更新），滑鼠點的位置要用它換算
+    /// Terminal size (updated before each draw); needed to map mouse click positions
     pub screen: Rect,
-    /// 任務檔的位置（打勾、編輯要寫回去）；`None` = 沒有任務檔（test），不寫
+    /// Where the task file is (checking and editing write back to it); `None` = no task file (tests), no writes
     pub tasks_path: Option<PathBuf>,
-    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入、undo）；下一個按鍵、點擊就消失
+    /// A notice that temporarily replaces the bottom row (write failed, reloaded, undo); gone on the next
+    /// key or click
     pub notice: Option<Notice>,
-    /// roh-cal 寫過的檔（`u` 復原用），最新的在最後面
+    /// Writes roh-cal has made (for `u` to undo), newest last
     undo: Vec<write::UndoStep>,
-    /// 現在開著的跳窗、正在做的事（說明頁、設定頁、問要不要刪、編輯框、改期）；同時只會有一種
+    /// The popup that is open or the action in progress (help page, settings page, delete question, editor
+    /// box, rescheduling); only one at a time
     pub mode: Mode,
-    /// 任務頁選到的那件事在檔案的第幾行；`None` = 還沒選（選第一件）
+    /// File line of the item chosen on the tasks page; `None` = nothing chosen yet (choose the first)
     pub tasks_line: Option<usize>,
-    /// 任務頁上展開了子任務的事（檔案的第幾行）
+    /// Items on the tasks page with their subtasks expanded (file line numbers)
     pub expanded: BTreeSet<usize>,
-    /// 任務頁捲到哪：畫面最上面是第幾列（`tasks_rows()` 裡的位置）
+    /// Tasks page scroll: which row is at the top of the screen (index in `tasks_rows()`)
     pub tasks_top: usize,
-    /// `true` = 這一輪畫完就結束主迴圈
+    /// `true` = leave the main loop after this round
     should_quit: bool,
 }
 
 impl App {
-    /// 剛打開時的狀態：鍵盤在月曆、選取今天、theme 是 Catppuccin Mocha
+    /// State at start: keyboard on the calendar, today selected, theme is Catppuccin Mocha
     pub fn new(lang: Lang, today: Date, items: Vec<Item>) -> Self {
         Self {
             lang,
@@ -234,7 +250,7 @@ impl App {
         }
     }
 
-    /// 說明頁開著的話，它的狀態
+    /// The help page's state, if it is open
     pub fn help(&self) -> Option<Help> {
         match self.mode {
             Mode::Help(help) => Some(help),
@@ -242,7 +258,7 @@ impl App {
         }
     }
 
-    /// 設定頁開著的話，它的狀態
+    /// The settings page's state, if it is open
     pub fn settings_page(&self) -> Option<SettingsPage> {
         match self.mode {
             Mode::Settings { page, .. } => Some(page),
@@ -250,7 +266,7 @@ impl App {
         }
     }
 
-    /// 正在問要不要刪的話：要刪的那件和會刪掉幾件
+    /// If asking whether to delete: the item to delete and how many items that removes
     pub fn confirm_delete(&self) -> Option<(&Item, usize)> {
         match &self.mode {
             Mode::ConfirmDelete(item, count) => Some((item, *count)),
@@ -258,7 +274,7 @@ impl App {
         }
     }
 
-    /// 編輯框開著的話，它的狀態
+    /// The editor box's state, if it is open
     pub fn editor(&self) -> Option<&Editor> {
         match &self.mode {
             Mode::Editor(editor) => Some(editor),
@@ -266,7 +282,7 @@ impl App {
         }
     }
 
-    /// 改期中的話：在搬哪件
+    /// If rescheduling: which item is moving
     pub fn moving(&self) -> Option<&Moving> {
         match &self.mode {
             Mode::Moving(moving) => Some(moving),
@@ -274,14 +290,16 @@ impl App {
         }
     }
 
-    /// 照設定（`settings.theme` + `settings.colors` 蓋掉的顏色）換掉畫面的顏色；組不出來就不換（設定檔讀進來時檢查過、換 theme 走 `Settings::set_theme`，正常都組得出來）
+    /// Applies the settings to the screen colors (`settings.theme` plus overrides in `settings.colors`). If
+    /// they cannot be built into a theme, nothing changes (the config file is checked on load and theme changes
+    /// go through `Settings::set_theme`, so normally it always builds)
     pub fn apply_theme(&mut self) {
         if let Ok(theme) = Theme::build(&self.settings.theme, &self.settings.colors) {
             self.theme = theme;
         }
     }
 
-    /// 這件事要不要顯示：它的日曆（分組）有勾選才顯示
+    /// Whether this item is shown: only if its calendar (group) is checked
     pub fn is_shown(&self, item: &Item) -> bool {
         self.groups
             .iter()
@@ -289,7 +307,8 @@ impl App {
             .is_none_or(|group| group.shown)
     }
 
-    /// `day` 是不是假日：假日日曆（標題寫了 `type:holiday`）裡有勾選的事蓋到那天
+    /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)
+    /// covers that day
     pub fn is_holiday(&self, day: Date) -> bool {
         self.items.iter().any(|item| {
             item.group.as_ref().is_some_and(|group| group.holiday)
@@ -298,10 +317,12 @@ impl App {
         })
     }
 
-    /// 右邊列出來的事：有日期、日曆有勾選的，照列在哪天、時間排好（同一天沒有時間的在前；日期、時間一樣的照檔案裡的順序）
+    /// Items listed in the agenda: ones with a date whose calendar is checked, sorted by listed day and time
+    /// (on the same day, items without a time come first; same date and time keep file order)
     ///
-    /// 跨多天又跨月的事，碰到的每個月都列一次：第一個月列在開始那天，之後的月列在 1 號、排在那個月最上面。
-    /// 沒有日期的事先不列（月曆上沒有位置放）
+    /// A multi-day item that spans months is listed once in each month it touches: in the first month on its
+    /// start day, in later months on the 1st, at the top of that month.
+    /// Items without a date are not listed for now (they have no place on the calendar)
     pub fn agenda(&self) -> Vec<Entry<'_>> {
         let mut entries = Vec::new();
         for item in self.items.iter().filter(|item| self.is_shown(item)) {
@@ -309,7 +330,7 @@ impl App {
                 continue;
             };
             entries.push(Entry { item, date: first });
-            // 之後碰到的每個月（1 號）
+            // Each later month it touches (on the 1st)
             let months = first
                 .first_of_month()
                 .series(1.month())
@@ -317,8 +338,8 @@ impl App {
                 .take_while(|&month| month <= last);
             entries.extend(months.map(|date| Entry { item, date }));
         }
-        // sort_by_key 是 stable sort：key 一樣的保持原本的順序；同一天裡，從上個月接過來的排最前面，
-        // 再來是沒有時間的（`None` 排在 `Some` 前面）
+        // sort_by_key is a stable sort: equal keys keep their order. On the same day, items carried over from
+        // the previous month come first, then ones without a time (`None` sorts before `Some`)
         entries.sort_by_key(|entry| {
             let continued = Some(entry.date) != entry.item.date;
             (entry.date, !continued, entry.item.time)
@@ -326,8 +347,10 @@ impl App {
         entries
     }
 
-    /// `day` 那天的事（日曆有勾選的；跨多天的蓋到那天就算）：比較早開始的在前，同一天開始的照時間
-    /// （沒有時間的在前；時間一樣的照檔案裡的順序）；版型 3 的格子、月曆上按 `a` 找那天的組都用這個
+    /// Items on `day` (calendar checked; a multi-day item counts if it covers that day): earlier starts
+    /// first, items starting the same day by time
+    /// (no time first; same time keeps file order). Layout 3's cells and `a` on the calendar (to find that
+    /// day's group) both use this
     pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
@@ -338,7 +361,7 @@ impl App {
         items
     }
 
-    /// 鍵盤在右邊時選到的那一行；鍵盤在月曆時是 `None`
+    /// The chosen row when the keyboard is in the agenda; `None` when it is on the calendar
     pub fn chosen(&self) -> Option<Entry<'_>> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
@@ -346,7 +369,8 @@ impl App {
         }
     }
 
-    /// 鍵盤選到的那件事：右邊選到的、任務頁選到的、或版型 3 跳窗選到的；鍵盤在月曆、side menu 是 `None`（打勾、編輯、刪除、改期都用這件）
+    /// The item the keyboard has chosen: in the agenda, on the tasks page, or in layout 3's popup; `None` on
+    /// the calendar or side menu (checking, editing, deleting, and rescheduling all act on this item)
     fn chosen_item(&self) -> Option<&Item> {
         match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item),
@@ -356,13 +380,15 @@ impl App {
         }
     }
 
-    /// 最左邊有沒有佔位置的 side menu：terminal 夠寬、沒按 `s` 收起（不夠寬時叫出來蓋在左邊的不算）
+    /// Whether the side menu takes up space at the far left: the terminal is wide enough and `s` has not
+    /// hidden it (the one called up over the left when narrow does not count)
     fn side_shown(&self) -> bool {
         ui::side_fits(self.screen) && !self.side_hidden
     }
 
-    /// 記下 terminal 的大小；terminal 變寬、side menu 是收起來的，鍵盤在上面的話回到主框
-    /// （不夠寬時鍵盤在 side menu = 它蓋在畫面左邊，照樣能用）
+    /// Records the terminal size. If the terminal gets wide enough while the side menu is hidden and has the
+    /// keyboard, the keyboard goes back to the main pane
+    /// (when narrow, the keyboard in the side menu = it is shown over the left side and still works)
     fn resize(&mut self, screen: Rect) {
         self.screen = screen;
         if self.focus == Focus::Side && ui::side_fits(screen) && self.side_hidden {
@@ -370,8 +396,10 @@ impl App {
         }
     }
 
-    /// 不夠寬時叫出來的 side menu 收起來：鍵盤回到叫出來之前的框（右邊的事項、版型 3 的跳窗也是，選的位置不變；
-    /// 勾掉日曆後事變少了就選最後一件）；那個框現在沒有了（換了版型、事都沒了）就回到主框
+    /// Hides the side menu that was called up when narrow: the keyboard goes back to the pane it was in
+    /// before (for the agenda and layout 3's popup, the choice stays;
+    /// if unchecked calendars left fewer items, the last one is chosen). If that pane is gone now (the layout
+    /// changed, no items left), it goes back to the main pane
     fn put_side_away(&mut self) {
         self.focus = self.home_focus();
         match (self.side_back, self.view) {
@@ -388,7 +416,8 @@ impl App {
         }
     }
 
-    /// 這個版型的主框：月曆（版型 1、3）或任務頁；`Esc`、side menu 收起來時鍵盤回到這裡
+    /// This layout's main pane: the calendar (layouts 1, 3) or the tasks page; `Esc` and hiding the side menu
+    /// bring the keyboard back here
     fn home_focus(&self) -> Focus {
         match self.view {
             View::Planner | View::Month => Focus::Calendar,
@@ -396,14 +425,16 @@ impl App {
         }
     }
 
-    /// 主迴圈：每一輪畫一次畫面、等一個輸入，直到要離開
+    /// Main loop: each round draws the screen once and waits for one input, until quit
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
-            // 先記下 terminal 的大小（視窗拉大縮小也會跟著變），畫面和滑鼠換算位置才一致
+            // Record the terminal size first (it changes when the window is resized),
+            // so drawing and mouse positions agree
             let size = terminal.size()?;
             self.resize(Rect::new(0, 0, size.width, size.height));
             terminal.draw(|frame| ui::render(frame, &mut self))?;
-            // event::read() 會 block 到有輸入為止；按鍵只處理按下（有的 terminal 放開也會送一次）
+            // event::read() blocks until there is input; only key presses are handled (some terminals also send
+            // key releases)
             let event = event::read()?;
             if let Some(key) = event.as_key_press_event() {
                 self.handle_key(key);
@@ -414,70 +445,75 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：先給開著的跳窗、正在做的事（`mode`）；都沒開時見 `handle_normal_key`
+    /// Keys: the open popup or action in progress (`mode`) gets them first; otherwise see `handle_normal_key`
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
-        // 上一次的提示看過了：按任何鍵就消失
+        // The last notice has been seen: any key clears it
         self.notice = None;
         match self.mode {
-            // 說明頁：只收捲動、換版、關掉
+            // Help page: only scrolling, switching version, closing
             Mode::Help(_) => self.handle_help_key(key),
-            // 設定頁：只收選列、改值、還原、關掉
+            // Settings page: only choosing a row, changing a value, resetting, closing
             Mode::Settings { .. } => self.handle_settings_key(key),
-            // 正在問要不要刪：`y` 刪，其他鍵只是取消
+            // Asking whether to delete: `y` deletes, any other key just cancels
             Mode::ConfirmDelete(..) => self.answer_delete(key),
-            // 編輯框：按鍵都是打字（Enter 存、Esc 取消）
+            // Editor box: keys are typing (Enter saves, Esc cancels)
             Mode::Editor(_) => self.handle_editor_key(key),
-            // 改期中：只收移動日期、確定、取消
+            // Rescheduling: only moving the date, confirming, cancelling
             Mode::Moving(_) => self.handle_moving_key(key),
             Mode::Normal => self.handle_normal_key(key),
         }
     }
 
-    /// 沒開跳窗時的按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`u` 復原、`1` / `3` / `4` 換版型、
-    /// `s` 收起 / 打開 side menu、`?` 說明頁、`,` 設定頁、`q` / `Ctrl+C` 離開；`Esc` 回這個版型的主框，
-    /// 已經在主框：任務頁回到版型 1、月曆就離開。版型 3 的跳窗、不夠寬時叫出來的 side menu 開著時，`Esc` / `q` 只關掉它。
-    /// 其他鍵看鍵盤在哪個框
+    /// Keys when no popup is open: `Tab` switches pane, `[` / `]` switch month, `t` back to today, `u` undo,
+    /// `1` / `3` / `4` switch layout, `s` hides / shows the side menu, `?` help page, `,` settings page,
+    /// `q` / `Ctrl+C` quit. `Esc` goes back to this layout's main pane;
+    /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 3's
+    /// popup or the side menu called up when narrow is open, `Esc` / `q` only close it.
+    /// Other keys depend on which pane has the keyboard
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
-            // 跳窗、不夠寬時叫出來的 side menu 開著時，q 只關掉它（跟說明頁一樣），不離開
+            // While the popup or the side menu called up when narrow is open, q only closes it
+            // (like the help page) and does not quit
             KeyCode::Char('q') if self.focus == Focus::Day => self.focus = Focus::Calendar,
             KeyCode::Char('q') if ui::side_overlay(self).is_some() => self.put_side_away(),
             KeyCode::Char('q') => self.should_quit = true,
-            // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
+            // In raw mode Ctrl+C does not send SIGINT to end the program, so handle it here
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            // 不夠寬時叫出來的 side menu：收起，鍵盤回到叫出來之前的框
+            // The side menu called up when narrow: hide it; the keyboard goes back to the pane from before
             KeyCode::Esc if ui::side_overlay(self).is_some() => self.put_side_away(),
-            // 鍵盤不在主框（右邊、side menu）：回到主框
+            // Keyboard not in the main pane (agenda, side menu): back to the main pane
             KeyCode::Esc if self.focus != self.home_focus() => self.focus = self.home_focus(),
-            // 任務頁：回到版型 1 的月曆；月曆：離開
+            // Tasks page: back to layout 1's calendar; calendar: quit
             KeyCode::Esc if self.view == View::Tasks => self.set_view(View::Planner),
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
-            // 回今天，並把今天那個月捲到最上面（任務頁沒有月曆，不理）
+            // Back to today and scroll its month to the top (the tasks page has no calendar, so ignored)
             KeyCode::Char('t') if self.view != View::Tasks => {
                 self.go_today();
                 self.focus = Focus::Calendar;
             }
-            // 復原上一次寫檔（打勾、編輯…）
+            // Undo the last write (check, edit, …)
             KeyCode::Char('u') => self.undo(),
             KeyCode::Char('?') => self.mode = Mode::Help(Help::default()),
             KeyCode::Char(',') => self.open_settings(),
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('3') => self.set_view(View::Month),
             KeyCode::Char('4') => self.set_view(View::Tasks),
-            // 上個月 / 下個月的 1 號，並把那個月捲到最上面（任務頁沒有月曆，不理）
+            // 1st of the previous / next month, scrolled to the top (ignored on the tasks page: no calendar)
             KeyCode::Char('[') if self.view != View::Tasks => self.jump_month(-1),
             KeyCode::Char(']') if self.view != View::Tasks => self.jump_month(1),
-            // terminal 夠寬：收起 / 打開 side menu，收起時鍵盤在上面的話回到主框
+            // Terminal wide enough: hide / show the side menu; when hiding it while it has the keyboard,
+            // go back to the main pane
             KeyCode::Char('s') if ui::side_fits(self.screen) => {
                 self.side_hidden = !self.side_hidden;
                 if self.focus == Focus::Side {
                     self.focus = self.home_focus();
                 }
             }
-            // 不夠寬：side menu 蓋在畫面左邊叫出來 / 收起（鍵盤在 side menu = 叫出來了）；收起時鍵盤回到叫出來之前的框
+            // Not wide enough: call up / hide the side menu over the left side (keyboard in the side menu
+            // = it is called up); hiding it returns the keyboard to the pane from before
             KeyCode::Char('s') if self.focus == Focus::Side => self.put_side_away(),
             KeyCode::Char('s') => {
                 self.side_back = self.focus;
@@ -493,8 +529,9 @@ impl App {
         }
     }
 
-    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）；`a` 在選取那天新增一件、
-    /// `Enter` 進到那天的事
+    /// Keyboard on the calendar: left / right = previous / next day, up / down = previous / next week
+    /// (like vim); `a` adds an item on the selected day,
+    /// `Enter` goes into that day's items
     fn handle_calendar_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
@@ -507,8 +544,9 @@ impl App {
         }
     }
 
-    /// 月曆上 `Enter`（或再點一次選取的那天）：進到那天的事，鍵盤換到右邊、選那天的第一件；
-    /// 版型 3 沒有右邊，打開「那天的事」跳窗；那天沒事就不動
+    /// `Enter` on the calendar (or clicking the selected day again): go into that day's items; the keyboard
+    /// moves to the agenda and the day's first item is chosen;
+    /// layout 3 has no agenda, so it opens the day popup instead; nothing happens if the day has no items
     fn open_day(&mut self) {
         if self.view == View::Month {
             self.open_day_popup();
@@ -520,8 +558,9 @@ impl App {
         self.enter_agenda();
     }
 
-    /// 鍵盤在右邊：上下一件事，月曆選取的日期跟著那件事走；`Space` / `x` 打勾、`r` 改期、`e` / `Enter` 編輯、
-    /// `a` 新增、`A` 新增子任務、`d` 刪除（都寫回任務檔）
+    /// Keyboard in the agenda: up / down one item, and the calendar's selected day follows the item;
+    /// `Space` / `x` check, `r` reschedule, `e` / `Enter` edit,
+    /// `a` add, `A` add a subtask, `d` delete (all write back to the task file)
     fn handle_agenda_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
@@ -536,7 +575,8 @@ impl App {
         }
     }
 
-    /// 鍵盤在 side menu：上下選日曆，`Space` / `Enter` 勾選或取消勾選（沒勾的日曆，它的事不顯示）
+    /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
+    /// unchecked calendar's items are hidden)
     fn handle_side_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
@@ -546,17 +586,19 @@ impl App {
         }
     }
 
-    /// side menu 選到的那個日曆：勾選 ⇄ 取消勾選
+    /// The calendar chosen in the side menu: checked ⇄ unchecked
     fn toggle_group(&mut self) {
         if let Some(group) = self.groups.get_mut(self.group_index) {
             group.shown = !group.shown;
         }
     }
 
-    /// 滑鼠：先給開著的跳窗、正在做的事（`mode`）；都沒開時見 `handle_normal_mouse`
+    /// Mouse: the open popup or action in progress (`mode`) gets it first; otherwise see `handle_normal_mouse`
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // 上一次的提示看過了：按下滑鼠鍵、滾輪才算。放開、移動、拖曳不算：點一下會先後送「按下」和「放開」，
-        // 「放開」也清的話，點出來的提示（例：行程不能打勾）馬上就不見了
+        // The last notice has been seen, but only a press or the wheel counts; release, move, and drag do not.
+        // A click sends a press and then a release,
+        // and if the release cleared it too, a notice from the click (e.g. an event cannot be checked) would
+        // vanish right away
         if matches!(
             mouse.kind,
             MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
@@ -564,11 +606,12 @@ impl App {
             self.notice = None;
         }
         match self.mode {
-            // 說明頁：滾輪捲說明頁、點框外關掉
+            // Help page: the wheel scrolls it, a click outside closes it
             Mode::Help(_) => self.handle_help_mouse(mouse),
-            // 設定頁：滾輪選列、點列、點框外關掉
+            // Settings page: the wheel chooses rows, clicks on rows, a click outside closes it
             Mode::Settings { .. } => self.handle_settings_mouse(mouse),
-            // 正在問要不要刪：點擊、滾輪只是取消（跟按 `y` 以外的鍵一樣），那一下不做別的事
+            // Asking whether to delete: a click or the wheel just cancels (like any key other than `y`);
+            // that event does nothing else
             Mode::ConfirmDelete(..) => {
                 if matches!(
                     mouse.kind,
@@ -577,7 +620,7 @@ impl App {
                     self.mode = Mode::Normal;
                 }
             }
-            // 編輯框：點框外 = 取消（Esc），其他不理
+            // Editor box: a click outside = cancel (Esc); everything else is ignored
             Mode::Editor(_) => {
                 if mouse.kind == MouseEventKind::Down(MouseButton::Left)
                     && !ui::editor_area(self.screen)
@@ -586,35 +629,40 @@ impl App {
                     self.mode = Mode::Normal;
                 }
             }
-            // 改期中：滾輪照樣移動選取的日期，點日期 = 選新的日期，點別的地方不理
+            // Rescheduling: the wheel moves the selected day as usual, clicking a date picks the new date,
+            // other clicks are ignored
             Mode::Moving(_) => self.handle_moving_mouse(mouse),
             Mode::Normal => self.handle_normal_mouse(mouse),
         }
     }
 
-    /// 沒開跳窗時的滑鼠：滾輪上下（月曆移一週、右邊、任務頁移一件事、side menu 移一個日曆）；
-    /// 左鍵點月曆上的日期 = 選那天（再點一次 = 進到那天的事）、點右邊的事 = 選那件（再點一次 = 打勾）、
-    /// 點任務頁的一列 = 選那列（再點一次 = 打勾，點 `▸` = 展開 / 收起）、點 side menu 的日曆 = 選那個（再點一次 = 勾選 / 取消勾選）
+    /// Mouse when no popup is open: the wheel moves up / down (a week on the calendar, one item in the agenda
+    /// or on the tasks page, one calendar in the side menu);
+    /// a left click on a calendar date selects it (again = go into that day's items), on an agenda item
+    /// chooses it (again = check it),
+    /// on a tasks page row chooses it (again = check it; on `▸` = expand / collapse), on a side menu calendar
+    /// chooses it (again = check / uncheck)
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
-            // 往下滾（看後面的）、往上滾
+            // Scroll down (to see later ones), scroll up
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
-            // 不夠寬、side menu 蓋在左邊：點框外收起（跟 Esc 一樣），那一下不做別的事
+            // Narrow, side menu over the left side: a click outside hides it (like Esc) and does nothing else
             MouseEventKind::Down(MouseButton::Left)
                 if ui::side_overlay(self)
                     .is_some_and(|area| !area.contains(Position::new(mouse.column, mouse.row))) =>
             {
                 self.put_side_away();
             }
-            // 版型 3 的跳窗開著：點跳窗裡的事、點框外關掉
+            // Layout 3's popup is open: click items in it, a click outside closes it
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
                 self.click_day(mouse.column, mouse.row);
             }
-            // 點在日期或事上才選；點在表頭、線、空格上不理
+            // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
-                    // 再點一次已經選取的那天（鍵盤在月曆）= 進到那天的事（跟 Enter 一樣）
+                    // Clicking the selected day again (keyboard on the calendar) = go into that
+                    // day's items (like Enter)
                     Some(Click::Day(date))
                         if date == self.selected && self.focus == Focus::Calendar =>
                     {
@@ -624,7 +672,7 @@ impl App {
                         self.selected = date;
                         self.focus = Focus::Calendar;
                     }
-                    // 再點一次已經選到的那件 = 打勾
+                    // Clicking the chosen item again = check it
                     Some(Click::Item(index))
                         if self.focus == Focus::Agenda && self.agenda_index == index =>
                     {
@@ -636,12 +684,13 @@ impl App {
                     None => {}
                 }
             }
-            // 其他（右鍵、拖曳、移動）不理
+            // Anything else (right click, drag, move) is ignored
             _ => {}
         }
     }
 
-    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊、任務頁、跳窗就移一件事，在 side menu 就移一個日曆
+    /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on the calendar, one item in the
+    /// agenda, the tasks page, or the popup, and one calendar in the side menu
     fn scroll(&mut self, step: i8) {
         match self.focus {
             Focus::Calendar => self.move_by(7 * i64::from(step)),
@@ -652,11 +701,13 @@ impl App {
         }
     }
 
-    /// 換版型：選取那天的那個月捲到最上面；版型 3 沒有右邊的事項框，鍵盤在那裡的話回到月曆
+    /// Switches layout: the selected day's month scrolls to the top; layout 3 has no agenda, so a keyboard
+    /// there goes back to the calendar
     fn set_view(&mut self, view: View) {
         self.view = view;
         self.scroll_to_month();
-        // side menu 照舊；其他的換到這個版型的主框（版型 3 沒有右邊的事項框、任務頁沒有月曆）
+        // The side menu stays; other panes go to this layout's main pane (layout 3 has no agenda, the tasks
+        // page has no calendar)
         if self.focus != Focus::Side {
             self.focus = match (view, self.focus) {
                 (View::Planner, Focus::Agenda) => Focus::Agenda,
@@ -665,20 +716,21 @@ impl App {
         }
     }
 
-    /// `t`：選取今天，今天那個月捲到最上面
+    /// `t`: selects today and scrolls today's month to the top
     fn go_today(&mut self) {
         self.selected = self.today;
         self.scroll_to_month();
     }
 
-    /// 下一次畫的時候，把選取那天的那個月捲到最上面（兩個版型都是）
+    /// On the next draw, scroll the selected day's month to the top (in both layouts)
     fn scroll_to_month(&mut self) {
         self.calendar_top = None;
         self.month_top = None;
     }
 
-    /// `Tab`：月曆 → 右邊的事項（一件事都沒有、或是版型 3 就跳過）→ side menu（有畫才去）→ 月曆；
-    /// 任務頁：任務頁 ⇄ side menu（有畫才去）；版型 3 的跳窗開著時不理
+    /// `Tab`: calendar → agenda (skipped if there are no items, or in layout 3) → side menu (only if drawn)
+    /// → calendar;
+    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 3's popup is open
     fn next_focus(&mut self) {
         match self.focus {
             Focus::Day => {}
@@ -695,7 +747,8 @@ impl App {
         }
     }
 
-    /// 點 side menu 上第 `index` 個日曆：點一下選它（鍵盤換到 side menu），再點一次已經選到的 = 勾選 / 取消勾選
+    /// Click on calendar number `index` in the side menu: one click chooses it (the keyboard moves to the
+    /// side menu); clicking the chosen one again = check / uncheck
     fn click_group(&mut self, index: usize) {
         if self.focus == Focus::Side && self.group_index == index {
             self.toggle_group();
@@ -705,14 +758,15 @@ impl App {
         }
     }
 
-    /// side menu 選往後（負的 = 往前）第 `step` 個日曆；到第一個 / 最後一個就停住
+    /// Moves the side menu choice `step` calendars down (negative = up); stops at the first / last one
     fn choose_group(&mut self, step: isize) {
         let last = self.groups.len().saturating_sub(1);
         self.group_index = self.group_index.saturating_add_signed(step).min(last);
     }
 
-    /// 鍵盤換到右邊：選「選取那天的事」或「之後」的第一件（跨多天、比較早開始但蓋到選取那天的，排在前面所以先選它）；
-    /// 之後都沒事就選最後一件；一件事都沒有就不換
+    /// Moves the keyboard to the agenda: chooses the first item on or after the selected day (a multi-day item
+    /// that started earlier but covers the selected day sorts first, so it is chosen first);
+    /// if there is nothing on or after it, choose the last item; if there are no items at all, do not move
     fn enter_agenda(&mut self) {
         let index = {
             let agenda = self.agenda();
@@ -727,8 +781,9 @@ impl App {
         self.choose(index);
     }
 
-    /// 選右邊第 `index` 件事：鍵盤換到右邊，月曆選取那件事列在的那天；
-    /// 選取的日期本來就是那件事的日子（跨多天的中間某天）就不動
+    /// Chooses agenda item `index`: the keyboard moves to the agenda, and the calendar selects the day the
+    /// item is listed on;
+    /// if the selected day is already one of the item's days (a day inside a multi-day span), it stays
     fn choose(&mut self, index: usize) {
         let Some((date, on_selected)) = self
             .agenda()
@@ -744,8 +799,10 @@ impl App {
         self.focus = Focus::Agenda;
     }
 
-    /// 寫檔之後，右邊選檔案第 `line` 行那件事：跨月的事選選取那天那個月的那一行；
-    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆；任務頁就選那一列；版型 3 的跳窗就選跳窗裡那件
+    /// After a write, chooses the item on file line `line` in the agenda; for an item spanning months, the row
+    /// in the selected day's month.
+    /// If the agenda does not have it (e.g. its date was removed, or layout 3 has no agenda), back to the
+    /// calendar. On the tasks page, choose that row; in layout 3's popup, choose that item in the popup
     fn choose_line(&mut self, line: usize) {
         if self.view == View::Tasks {
             self.choose_task_line(line);
@@ -772,13 +829,14 @@ impl App {
         }
     }
 
-    /// 選往後（負的 = 往前）第 `step` 件事；到第一件 / 最後一件就停住
+    /// Chooses the item `step` items further down (negative = up); stops at the first / last item
     fn choose_next(&mut self, step: isize) {
         let last = self.agenda().len().saturating_sub(1);
         self.choose(self.agenda_index.saturating_add_signed(step).min(last));
     }
 
-    /// 跳到往後（負的 = 往前）第 `months` 個月的 1 號，那個月捲到最上面；鍵盤回到月曆
+    /// Jumps to the 1st of the month `months` months later (negative = earlier), scrolled to the top;
+    /// the keyboard goes back to the calendar
     fn jump_month(&mut self, months: i64) {
         self.selected = self
             .selected
@@ -788,7 +846,7 @@ impl App {
         self.focus = Focus::Calendar;
     }
 
-    /// 選取的日期往後（負的 = 往前）移幾天
+    /// Moves the selected day this many days later (negative = earlier)
     fn move_by(&mut self, days: i64) {
         self.selected = self.selected.saturating_add(days.days());
     }
@@ -799,7 +857,7 @@ mod tests {
     use super::*;
     use jiff::civil::date;
 
-    /// 按一個鍵（沒有 Ctrl 之類的 modifier）
+    /// Presses one key (no modifier such as Ctrl)
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }
@@ -815,7 +873,7 @@ mod tests {
         assert_eq!(app.selected, date(2026, 10, 18));
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(app.selected, date(2026, 10, 17));
-        // 方向鍵一樣；跨月、跨年都照常移
+        // Arrow keys do the same; moving across months and years works as usual
         press(&mut app, KeyCode::Down);
         press(&mut app, KeyCode::Down);
         assert_eq!(app.selected, date(2026, 10, 31));
@@ -829,7 +887,7 @@ mod tests {
         assert_eq!(app.selected, date(2027, 1, 5));
     }
 
-    /// 滑鼠在 (`column`, `row`) 的一個動作
+    /// One mouse action at (`column`, `row`)
     fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
         MouseEvent {
             kind,
@@ -851,13 +909,13 @@ mod tests {
 
     #[test]
     fn left_click_on_a_date_selects_it() {
-        // 40 × 26 的畫面、10 月在最上面：16 號在 (24～26, 5)，見 ui.rs 的畫面 test
+        // 40 × 26 screen, October at the top: the 16th is at (24-26, 5); see the screen tests in ui.rs
         let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 40, 26);
         app.calendar_top = Some(0);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
         assert_eq!(app.selected, date(2026, 10, 16));
-        // 右鍵、點在表頭上：不理
+        // Right click, click on the header: ignored
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 5));
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 1));
         assert_eq!(app.selected, date(2026, 10, 16));
@@ -869,12 +927,12 @@ mod tests {
         app.calendar_top = Some(3);
         press(&mut app, KeyCode::Char(']'));
         assert_eq!(app.selected, date(2026, 11, 1));
-        // 跳完要把那個月捲到最上面（下一次畫的時候）
+        // After the jump, that month must scroll to the top (on the next draw)
         assert_eq!(app.calendar_top, None);
         press(&mut app, KeyCode::Char('['));
         press(&mut app, KeyCode::Char('['));
         assert_eq!(app.selected, date(2026, 9, 1));
-        // 跨年
+        // Across a year
         app.selected = date(2026, 12, 15);
         press(&mut app, KeyCode::Char(']'));
         assert_eq!(app.selected, date(2027, 1, 1));
@@ -883,7 +941,7 @@ mod tests {
         assert_eq!(app.selected, date(2026, 12, 1));
     }
 
-    /// 今天 2026/10/17 的 app，任務檔是 `text`
+    /// An app with today = 2026/10/17 and `text` as the task file
     fn app_with(text: &str) -> App {
         App::new(
             Lang::En,
@@ -892,13 +950,13 @@ mod tests {
         )
     }
 
-    /// 右邊照順序是：10/10 a、10/17 b、10/17 c、10/20 d（沒日期的不算）
+    /// The agenda in order: 10/10 a, 10/17 b, 10/17 c, 10/20 d (the undated one is not listed)
     const ITEMS: &str =
         "- d @2026-10-20\n- c @2026-10-17 09:00\n- 沒日期\n- b @2026-10-17\n- a @2026-10-10\n";
 
     #[test]
     fn tab_moves_into_the_agenda_and_back() {
-        // 選取 10/17 → 換到右邊時選 10/17 當天的第一件（沒時間的 b 在前）
+        // 10/17 selected → moving to the agenda chooses the first item on 10/17 (b, with no time, comes first)
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Agenda);
@@ -909,7 +967,7 @@ mod tests {
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.chosen(), None);
-        // 選取那天之後都沒事：選最後一件，月曆跟著跳到那天
+        // Nothing on or after the selected day: choose the last item, and the calendar jumps to its day
         app.selected = date(2026, 12, 1);
         press(&mut app, KeyCode::Tab);
         assert_eq!(
@@ -941,13 +999,13 @@ mod tests {
             Some("d")
         );
         assert_eq!(app.selected, date(2026, 10, 20));
-        // 最後一件再往下：停住
+        // Down from the last item: stays
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("d")
         );
-        // 往上到第一件、再往上：停住
+        // Up to the first item, then up again: stays
         for _ in 0..5 {
             press(&mut app, KeyCode::Char('k'));
         }
@@ -956,7 +1014,7 @@ mod tests {
             Some("a")
         );
         assert_eq!(app.selected, date(2026, 10, 10));
-        // h / l 在右邊不動
+        // h / l do nothing in the agenda
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(app.selected, date(2026, 10, 10));
     }
@@ -968,7 +1026,7 @@ mod tests {
         press(&mut app, KeyCode::Esc);
         assert_eq!(app.focus, Focus::Calendar);
         assert!(!app.should_quit);
-        // 已經在月曆：Esc 離開
+        // Already on the calendar: Esc quits
         press(&mut app, KeyCode::Esc);
         assert!(app.should_quit);
     }
@@ -1002,7 +1060,8 @@ mod tests {
 
     #[test]
     fn clicking_an_item_moves_the_keyboard_there() {
-        // 70 × 23、10 月在最上面：右邊第一列是 10/10 a（右邊框裡面從 x 36、y 3 開始）
+        // 70 × 23, October at the top: the agenda's first row is 10/10 a (the inside of the agenda box starts
+        // at x 36, y 3)
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
@@ -1013,7 +1072,7 @@ mod tests {
             Some("a")
         );
         assert_eq!(app.selected, date(2026, 10, 10));
-        // 再點月曆上的日期：鍵盤回到月曆
+        // Then click a date on the calendar: the keyboard goes back to the calendar
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.selected, date(2026, 10, 16));
@@ -1031,7 +1090,7 @@ mod tests {
 
     #[test]
     fn groups_keep_file_order() {
-        // 檔案開頭沒有標題的是 `None`；同名的標題算同一個；`##` 也是一個分組
+        // Items before any heading are `None`; headings with the same name are one group; `##` is a group too
         let app = app_with("- a\n# 工作\n- b\n## 生活\n- c\n# 工作\n- d\n# 沒有項目\n");
         let names: Vec<Option<&str>> = app
             .groups
@@ -1040,14 +1099,14 @@ mod tests {
             .collect();
         assert_eq!(names, [None, Some("工作"), Some("生活")]);
         assert!(app.groups.iter().all(|group| group.shown));
-        // d 在第二個「# 工作」底下，也算「工作」
+        // d is under the second "# 工作" and also counts as "工作"
         assert!(app.groups[1].includes(&app.items[3]));
         assert!(!app.groups[0].includes(&app.items[3]));
     }
 
     #[test]
     fn unchecked_groups_leave_the_agenda() {
-        // 「生活」沒勾：它的 b、c 不列，Tab 換到右邊時也跳過它們
+        // "生活" unchecked: its b and c are not listed, and Tab into the agenda skips them too
         let mut app = app_with(
             "- a @2026-10-10\n# 生活\n- b @2026-10-17\n- c @2026-10-20\n# 工作\n- d @2026-10-25\n",
         );
@@ -1064,34 +1123,34 @@ mod tests {
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("d")
         );
-        // 勾回來：又列出來
+        // Checked again: listed again
         app.groups[1].shown = true;
         assert_eq!(app.agenda().len(), 4);
     }
 
-    /// 120 格寬（有 side menu）、任務檔是 `text` 的 app
+    /// An app 120 cells wide (with a side menu) and `text` as the task file
     fn wide_app_with(text: &str) -> App {
         let mut app = app_with(text);
         app.screen = Rect::new(0, 0, 120, 30);
         app
     }
 
-    /// 三個分組：未分組（a）、生活（b）、工作（c）
+    /// Three groups: ungrouped (a), 生活 (b), 工作 (c)
     const GROUPS: &str = "- a @2026-10-10\n# 生活\n- b @2026-10-17\n# 工作\n- c @2026-10-20\n";
 
     #[test]
     fn tab_goes_through_the_side_menu_when_wide() {
-        // 月曆 → 右邊 → side menu → 月曆
+        // Calendar → agenda → side menu → calendar
         let mut app = wide_app_with(GROUPS);
         for focus in [Focus::Agenda, Focus::Side, Focus::Calendar] {
             press(&mut app, KeyCode::Tab);
             assert_eq!(app.focus, focus);
         }
-        // 右邊一件事都沒有：月曆直接到 side menu
+        // No items in the agenda: the calendar goes straight to the side menu
         let mut app = wide_app_with("- 沒日期\n");
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Side);
-        // 收起來了：跟窄的時候一樣，月曆 ⇄ 右邊
+        // Hidden: same as when narrow, calendar ⇄ agenda
         let mut app = wide_app_with(GROUPS);
         app.side_hidden = true;
         press(&mut app, KeyCode::Tab);
@@ -1103,16 +1162,16 @@ mod tests {
     fn side_menu_keys_choose_and_check_calendars() {
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
-        // j 到「生活」、Space 取消勾選：b 不列了
+        // j to "生活", Space unchecks it: b is no longer listed
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.group_index, 1);
         press(&mut app, KeyCode::Char(' '));
         assert!(!app.groups[1].shown);
         assert_eq!(app.agenda().len(), 2);
-        // Enter 勾回來
+        // Enter checks it again
         press(&mut app, KeyCode::Enter);
         assert!(app.groups[1].shown);
-        // 到最後一個再往下、到第一個再往上：停住；方向鍵、滾輪一樣
+        // Down past the last one, up past the first one: stays; arrow keys and the wheel do the same
         for _ in 0..3 {
             press(&mut app, KeyCode::Down);
         }
@@ -1123,7 +1182,7 @@ mod tests {
             press(&mut app, KeyCode::Char('k'));
         }
         assert_eq!(app.group_index, 0);
-        // h / l 不動選取的日期；Esc 回月曆、不離開
+        // h / l do not move the selected day; Esc goes back to the calendar without quitting
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(app.selected, date(2026, 10, 17));
         press(&mut app, KeyCode::Esc);
@@ -1133,12 +1192,12 @@ mod tests {
 
     #[test]
     fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
-        // 按 `s` 收起
+        // Hide it with `s`
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
         press(&mut app, KeyCode::Char('s'));
         assert_eq!(app.focus, Focus::Calendar);
-        // terminal 變窄：鍵盤留在 side menu，side menu 改成蓋在左邊
+        // The terminal gets narrow: the keyboard stays in the side menu, which now shows over the left side
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
         app.resize(Rect::new(0, 0, 120, 20));
@@ -1150,25 +1209,27 @@ mod tests {
 
     #[test]
     fn clicking_a_calendar_selects_it_then_toggles_it() {
-        // 120 × 30：side menu 裡面從 y 3 開始一個日曆一列（畫面見 ui.rs 的 `side_menu_lists_the_calendars_when_wide`）
+        // 120 × 30: inside the side menu, one calendar per row from y 3 (screen in ui.rs's
+        // `side_menu_lists_the_calendars_when_wide`)
         let mut app = wide_app_with(GROUPS);
         let click = |app: &mut App, row| {
             app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, row));
         };
-        // 第一下：選「生活」、鍵盤換到 side menu，還沒勾
+        // First click: chooses "生活", the keyboard moves to the side menu, not toggled yet
         click(&mut app, 4);
         assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
         assert!(app.groups[1].shown);
-        // 再點一次：取消勾選；再一次：勾回來
+        // Click again: unchecks it; once more: checks it again
         click(&mut app, 4);
         assert!(!app.groups[1].shown);
         click(&mut app, 4);
         assert!(app.groups[1].shown);
-        // 點別的日曆：只選、不勾
+        // Click another calendar: only chooses, does not toggle
         click(&mut app, 5);
         assert_eq!(app.group_index, 2);
         assert!(app.groups[2].shown);
-        // 鍵盤不在 side menu 時，點已經選到的那個也只是選（回到 side menu）
+        // When the keyboard is not in the side menu, clicking the chosen one also just chooses it
+        // (back to the side menu)
         app.focus = Focus::Calendar;
         click(&mut app, 5);
         assert_eq!(app.focus, Focus::Side);
@@ -1178,7 +1239,8 @@ mod tests {
     #[test]
     fn s_hides_the_side_menu_when_wide_and_calls_it_up_when_narrow() {
         let mut app = app_with(GROUPS);
-        // 不夠寬：s 叫出來（鍵盤換到 side menu），操作跟寬的時候一樣；再按 s 收起，Esc 也收起
+        // Narrow: s calls it up (the keyboard moves to the side menu), and it works like when wide; s again
+        // hides it, and so does Esc
         app.screen = Rect::new(0, 0, 119, 30);
         press(&mut app, KeyCode::Char('s'));
         assert_eq!(app.focus, Focus::Side);
@@ -1191,7 +1253,7 @@ mod tests {
         press(&mut app, KeyCode::Esc);
         assert_eq!(app.focus, Focus::Calendar);
         assert!(!app.side_hidden);
-        // 夠寬：收起、再按一次打開
+        // Wide enough: hides it, pressing again shows it
         app.screen = Rect::new(0, 0, 120, 30);
         press(&mut app, KeyCode::Char('s'));
         assert!(app.side_hidden);
@@ -1201,8 +1263,9 @@ mod tests {
 
     #[test]
     fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
-        // 60 格寬、鍵盤在右邊選著 c（第 3 件）：s 叫出 side menu，用 s / Esc / 點框外 / q 收起，都回到右邊、還選著 c
-        // （q 只收起，不離開）
+        // 60 cells wide, keyboard in the agenda with c (3rd item) chosen: s calls up the side menu; hiding it
+        // with s / Esc / a click outside / q always goes back to the agenda with c still chosen
+        // (q only hides it, does not quit)
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 60, 20);
         app.choose(2);
@@ -1219,14 +1282,16 @@ mod tests {
             assert_eq!((app.focus, app.agenda_index), (Focus::Agenda, 2), "{close}");
             assert!(!app.should_quit);
         }
-        // 版型 3、10/17 的跳窗選著第 2 件（c）：叫出來再收起，跳窗回來、還選著 c
+        // Layout 3, the 10/17 popup with the 2nd item (c) chosen: call it up and hide it; the popup comes back
+        // with c still chosen
         press(&mut app, KeyCode::Char('3'));
         press(&mut app, KeyCode::Enter);
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('s'));
         press(&mut app, KeyCode::Char('s'));
         assert_eq!((app.focus, app.day_index), (Focus::Day, 1));
-        // 叫出來時把唯一的日曆勾掉：那天沒事了，收起後回到月曆
+        // Uncheck the only calendar while it is up: the day has no items left, so hiding it goes back to
+        // the calendar
         press(&mut app, KeyCode::Char('s'));
         press(&mut app, KeyCode::Char(' '));
         press(&mut app, KeyCode::Char('s'));
@@ -1235,19 +1300,21 @@ mod tests {
 
     #[test]
     fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
-        // 60 × 20：s 叫出來，蓋在左邊（框線、表頭、線之後一個日曆一列：未分組 y 3、生活 y 4）
+        // 60 × 20: s calls it up over the left side (after the border, header, and line, one calendar per row:
+        // ungrouped y 3, 生活 y 4)
         let mut app = app_with(GROUPS);
         app.screen = Rect::new(0, 0, 60, 20);
         press(&mut app, KeyCode::Char('s'));
         let area = ui::side_overlay(&app).expect("overlay");
         assert_eq!(area, Rect::new(0, 0, 22, 19));
-        // 點生活：選它；再點一次：取消勾選
+        // Click 生活: chooses it; click again: unchecks it
         let left = MouseEventKind::Down(MouseButton::Left);
         app.handle_mouse(mouse(left, 3, 4));
         assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
         app.handle_mouse(mouse(left, 3, 4));
         assert!(!app.groups[1].shown);
-        // 點框外（月曆上的 10/16；10 月在最上面時 10/17 在 x 27～29、y 5）：只收起，選取的日期不動
+        // Click outside the box (10/16 on the calendar; with October at the top, 10/17 is at x 27-29, y 5):
+        // only hides it, the selected day stays
         app.calendar_top = Some(0);
         let selected = app.selected;
         assert_eq!(
@@ -1261,13 +1328,14 @@ mod tests {
 
     #[test]
     fn widening_keeps_the_side_menu_unless_it_was_hidden() {
-        // 不夠寬時叫出來，terminal 拉寬：side menu 在最左邊，鍵盤還在上面
+        // Called up when narrow, then the terminal is widened: side menu at the far left, keyboard still on it
         let mut app = app_with(GROUPS);
         app.resize(Rect::new(0, 0, 60, 20));
         press(&mut app, KeyCode::Char('s'));
         app.resize(Rect::new(0, 0, 120, 20));
         assert_eq!(app.focus, Focus::Side);
-        // 寬的時候收起過（side_hidden）：拉寬之後看不到，鍵盤回到月曆
+        // Hidden earlier while wide (side_hidden): after widening it is not shown, and the keyboard goes back
+        // to the calendar
         let mut app = app_with(GROUPS);
         app.side_hidden = true;
         app.resize(Rect::new(0, 0, 60, 20));
@@ -1279,7 +1347,8 @@ mod tests {
 
     #[test]
     fn a_multi_day_item_is_listed_in_each_month_and_chosen_from_any_of_its_days() {
-        // 主管出差 10/28～11/3：10 月、11 月各列一行；11 月那行列在 11/1、排在 11/1 的準備月報前面
+        // 主管出差 10/28-11/3: one row in October and one in November; the November row is listed on 11/1,
+        // before 11/1's 準備月報
         let mut app = app_with(
             "- [ ] 準備月報 @2026-11-01\n- 主管出差 @2026-10-28..2026-11-03\n- [ ] 交週報 @2026-10-30\n",
         );
@@ -1297,21 +1366,22 @@ mod tests {
                 ("準備月報", date(2026, 11, 1)),
             ]
         );
-        // 選 11/2（出差的中間）按 Tab：選到 11 月那一行，選取的日期不動
+        // Select 11/2 (inside 出差) and press Tab: chooses the November row; the selected day stays
         app.selected = date(2026, 11, 2);
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.agenda_index, 2);
         assert_eq!(app.selected, date(2026, 11, 2));
-        // j：準備月報，月曆跳到 11/1；k：回到出差，11/1 也是它的日子，月曆不動
+        // j: 準備月報, the calendar jumps to 11/1; k: back to 出差; 11/1 is also one of its days,
+        // so the calendar stays
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.selected, date(2026, 11, 1));
         press(&mut app, KeyCode::Char('k'));
         assert_eq!((app.agenda_index, app.selected), (2, date(2026, 11, 1)));
-        // 再往上：交週報（10/30）→ 10 月那一行的出差（10/30 也是它的日子，月曆不動）
+        // Up again: 交週報 (10/30) → 出差's October row (10/30 is also one of its days, so the calendar stays)
         press(&mut app, KeyCode::Char('k'));
         press(&mut app, KeyCode::Char('k'));
         assert_eq!((app.agenda_index, app.selected), (0, date(2026, 10, 30)));
-        // 10/29（出差中間、10 月）按 Tab：選 10 月那一行，比 10/30 的交週報先
+        // Tab on 10/29 (inside 出差, in October): chooses the October row, ahead of 10/30's 交週報
         let mut app = app_with("- [ ] 交週報 @2026-10-30\n- 主管出差 @2026-10-28..2026-11-03\n");
         app.selected = date(2026, 10, 29);
         press(&mut app, KeyCode::Tab);
@@ -1324,7 +1394,7 @@ mod tests {
 
     #[test]
     fn enter_on_the_calendar_goes_into_that_days_items() {
-        // 10/17 有 b、c：Enter → 鍵盤換到右邊、選 b
+        // 10/17 has b and c: Enter → the keyboard moves to the agenda and chooses b
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.focus, Focus::Agenda);
@@ -1332,12 +1402,12 @@ mod tests {
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("b")
         );
-        // 那天沒事（10/18）：不動
+        // A day with no items (10/18): nothing happens
         let mut app = app_with(ITEMS);
         app.selected = date(2026, 10, 18);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.focus, Focus::Calendar);
-        // 版型 3：不換版型，打開那天的事跳窗、選第一件（b）
+        // Layout 3: the layout stays; the day popup opens with the first item (b) chosen
         let mut app = app_with(ITEMS);
         app.view = View::Month;
         press(&mut app, KeyCode::Enter);
@@ -1345,7 +1415,7 @@ mod tests {
             (app.view, app.focus, app.day_index),
             (View::Month, Focus::Day, 0)
         );
-        // 再點一次選取的那天也一樣（70 × 23、10 月在最上面：10/17 在 x 27～29、y 5）
+        // Clicking the selected day again works too (70 × 23, October at the top: 10/17 is at x 27-29, y 5)
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
@@ -1355,7 +1425,7 @@ mod tests {
 
     #[test]
     fn number_keys_switch_layouts() {
-        // 3 換到大月曆、1 換回來；換的時候選取那個月捲到最上面
+        // 3 switches to the month grid, 1 switches back; switching scrolls the selected month to the top
         let mut app = app_with(ITEMS);
         app.calendar_top = Some(5);
         app.month_top = Some(date(2026, 1, 5));
@@ -1364,7 +1434,8 @@ mod tests {
         assert_eq!((app.calendar_top, app.month_top), (None, None));
         press(&mut app, KeyCode::Char('1'));
         assert_eq!(app.view, View::Planner);
-        // 鍵盤在右邊的事項框時換到大月曆（沒有事項框）：回到月曆；side menu 不受影響
+        // Switching to the month grid (no agenda) with the keyboard in the agenda: back to the calendar;
+        // the side menu is not affected
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Agenda);
         press(&mut app, KeyCode::Char('3'));
@@ -1377,7 +1448,7 @@ mod tests {
 
     #[test]
     fn tab_skips_the_agenda_in_the_month_view() {
-        // 大月曆：月曆 → side menu → 月曆；窄的時候（沒有 side menu）按了不動
+        // Month grid: calendar → side menu → calendar; when narrow (no side menu), Tab does nothing
         let mut app = wide_app_with(GROUPS);
         app.view = View::Month;
         for focus in [Focus::Side, Focus::Calendar] {
@@ -1392,15 +1463,16 @@ mod tests {
 
     #[test]
     fn the_mouse_works_in_the_month_view() {
-        // 80 × 30、最上面是 9/21（格子的位置見 ui.rs 的 `month_view_click_positions_map_to_the_cells`）
+        // 80 × 30, 9/21 at the top (for cell positions see ui.rs's
+        // `month_view_click_positions_map_to_the_cells`)
         let mut app = app_with(ITEMS);
         app.view = View::Month;
         app.screen = Rect::new(0, 0, 80, 30);
         app.month_top = Some(date(2026, 9, 21));
-        // 點第 2 週星期二的格子（不一定要點在日期上）：選那天
+        // Click the Tuesday cell of week 2 (not necessarily on the date): selects that day
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 20, 9));
         assert_eq!(app.selected, date(2026, 9, 29));
-        // 滾輪移一週
+        // The wheel moves a week
         app.handle_mouse(mouse(MouseEventKind::ScrollDown, 20, 9));
         assert_eq!(app.selected, date(2026, 10, 6));
     }
@@ -1432,7 +1504,7 @@ mod tests {
 
     #[test]
     fn other_keys_do_not_quit() {
-        // 只按 c（沒有 Ctrl）、大寫 Q、Enter 都不離開
+        // Plain c (no Ctrl), capital Q, and Enter do not quit
         let keys = [
             KeyEvent::from(KeyCode::Char('c')),
             KeyEvent::from(KeyCode::Char('Q')),

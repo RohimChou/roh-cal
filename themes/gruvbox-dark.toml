@@ -1,5 +1,5 @@
-# Gruvbox Dark：暖色調的暗色配色（vim、terminal 很常見）
-# 色票：https://github.com/morhetz/gruvbox 的 dark（字用 light、強調色用 bright 那組）
+# Gruvbox Dark: a warm dark theme (common in vim and terminals)
+# Palette: dark from https://github.com/morhetz/gruvbox (light shades for text, the bright set for accents)
 
 [palette]
 light1 = "#ebdbb2"
@@ -11,7 +11,8 @@ aqua = "#8ec07c"
 blue = "#83a598"
 green = "#b8bb26"
 yellow = "#fabd2f"
-# 黃色和底色（dark0 #282828）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+# Dim yellow: yellow and the background (dark0 #282828) mixed 7:3. Still reads as yellow,
+# but darker than the selected week's number
 dim_yellow = "#bb902d"
 orange = "#fe8019"
 red = "#fb4934"

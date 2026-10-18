@@ -1,8 +1,10 @@
-# Catppuccin Mocha：暗色背景用的柔和配色（跟 v1 的預設一樣）
-# 色票：https://catppuccin.com/palette 的 mocha
+# Catppuccin Mocha: soft colors for a dark background (same as v1's default)
+# Palette: mocha from https://catppuccin.com/palette
 #
-# [palette] 是這套 theme 的色票（名字自己取）；[roles] 是畫面上每個角色用哪個顏色：
-# 寫色票的名字，或直接寫顏色（"#rrggbb"、terminal 的 16 色名字像 "blue"、"dark-gray"，或 256 色的編號）
+# [palette] is this theme's palette (name the colors as you like); [roles] says which color each
+# on-screen role uses:
+# a palette name, or a color itself ("#rrggbb", a terminal 16-color name like "blue" or "dark-gray",
+# or a 256-color number)
 
 [palette]
 text = "#cdd6f4"
@@ -14,7 +16,8 @@ lavender = "#b4befe"
 blue = "#89b4fa"
 green = "#a6e3a1"
 yellow = "#f9e2af"
-# 黃色和底色（base #1e1e2e）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+# Dim yellow: yellow and the background (base #1e1e2e) mixed 7:3. Still reads as yellow,
+# but darker than the selected week's number
 dim_yellow = "#b7a788"
 peach = "#fab387"
 red = "#f38ba8"
@@ -38,9 +41,9 @@ focus = "mauve"
 checked = "mauve"
 notice = "yellow"
 error = "red"
-# 格線、其他月份：跟 v1 一樣
+# Grid lines and other months: same as v1
 grid = "surface0"
 other_month = "overlay0"
-# 說明頁：跟 v1 一樣
+# Help page: same as v1
 help_section = "blue"
 help_key = "peach"

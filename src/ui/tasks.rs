@@ -1,4 +1,5 @@
-//! 任務頁（`4`）：side menu 右邊整塊，整份任務檔照日曆列出來，子任務排成樹；最下面一列是選到的那一行原本的文字
+//! Tasks page (`4`): the whole area right of the side menu, listing the entire task file by calendar, with
+//! subtasks as a tree; the bottom row shows the chosen line's original text
 
 use super::{
     Click,
@@ -18,11 +19,14 @@ use ratatui::{
     widgets::{Block, BorderType},
 };
 
-/// 選到的那件離上下邊緣至少留幾列，不夠才捲（跟版型 1 一樣）
+/// How many rows to keep between the chosen item and the top and bottom edges; scroll only when there
+/// are fewer (same as layout 1)
 const SCROLLOFF: i64 = 2;
 
-/// 任務頁框裡面怎麼切：表頭（一列字 + 一條線）、中間一列一件事、下面一條線 + 選到的那一行原本的文字；
-/// 畫畫面和滑鼠換算位置都用這個。回傳（表頭, 表頭的線, 中間, 下面的線, 最下面那列）；太矮時中間是空的
+/// How the inside of the tasks page box is split: the header (a line of text + a rule), one item per row
+/// in the middle, and at the bottom a rule + the chosen line's original text;
+/// used both for drawing and for mapping mouse positions. Returns (header, header rule, middle, bottom
+/// rule, bottom row); when too short, the middle is empty
 fn inner_areas(area: Rect) -> [Rect; 5] {
     let inner = Block::bordered().inner(area);
     let row = |y: u16| Rect {
@@ -53,7 +57,8 @@ fn inner_areas(area: Rect) -> [Rect; 5] {
     ]
 }
 
-/// 畫任務頁：先捲到選到的那件看得到（記在 `app.tasks_top`），再一列一列畫
+/// Draws the tasks page: first scroll so the chosen item is visible (stored in `app.tasks_top`), then
+/// draw row by row
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.tasks_rows();
     let [header, rule, body, bottom_rule, detail] = inner_areas(area);
@@ -66,11 +71,11 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             height,
             SCROLLOFF,
         );
-        // 不捲過頭：最後一列貼著底就好
+        // Do not overscroll: the last row just touches the bottom
         let max = i64::try_from(rows.len()).unwrap_or(0) - height;
         app.tasks_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
     }
-    // 接下來只讀
+    // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -83,7 +88,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         Line::styled(texts.header_tasks, Style::new().fg(theme.muted)),
         header,
     );
-    // 表頭右邊：任務檔有寫錯的地方就寫幾處（紅字）
+    // Right side of the header: if the task file has mistakes, say how many (red text)
     if !app.warnings.is_empty() {
         frame.render_widget(
             Line::from(Span::styled(
@@ -140,7 +145,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                     (*children, *expanded),
                     columns,
                 );
-                // 選到的那件整列墊底色（鍵盤在任務頁時）
+                // The chosen item's whole row gets a background (when the keyboard is on the tasks page)
                 if focused && cursor == Some(index) {
                     frame
                         .buffer_mut()
@@ -149,7 +154,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         }
     }
-    // 最下面：選到的那一行原本的文字（看得到檔案裡怎麼寫）；那一行寫錯了就改說哪裡錯（紅字）
+    // Bottom: the chosen line's original text (shows how it is written in the file); if that line has a
+    // mistake, say what is wrong instead (red text)
     if let Some(item) = app.tasks_chosen() {
         let line = match app
             .warnings
@@ -169,7 +175,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
-/// 右邊日期那一欄的字：不是今年的前面加年份（例：`10/14`、`10/20~25`、`2027/1/2`）；沒日期是 `None`
+/// Text for the date column on the right: dates not in this year get the year in front (e.g. `10/14`,
+/// `10/20~25`, `2027/1/2`); `None` without a date
 fn date_label(item: &Item, app: &App) -> Option<String> {
     let first = item.date?;
     let year = if first.year() == app.today.year() {
@@ -180,8 +187,9 @@ fn date_label(item: &Item, app: &App) -> Option<String> {
     Some(format!("{year}{}", date_text(item)))
 }
 
-/// 右邊兩欄的寬度（日期欄, 時間欄），每一列都照這個排才上下對齊：日期欄 = 列出來的事裡最長的日期；
-/// 時間欄 = 有一件有時間就留 6 格（` 08:00`），都沒有就是 0
+/// Widths of the two columns on the right (date column, time column); every row uses them so they line
+/// up: date column = the longest date among the listed items;
+/// time column = 6 cells (` 08:00`) if any item has a time, otherwise 0
 fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
     rows.iter()
         .filter_map(|row| match row {
@@ -194,12 +202,15 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
         })
 }
 
-/// 一件事：「 ▸ [ ] 實作退款 API  1/4            10/14       」：左邊是縮排（一層 2 格）、`▸` / `▾`（有子任務：收著 / 展開）、
-/// `[ ]` / `[x]`（任務）或 ` ∙ `（行程）、標題、子任務做完幾件；右邊是日期一欄（靠右）、時間一欄，
-/// 寬度照 `date_columns`，沒時間的那格留空白（沒日期就整個空著）
+/// One item: 「 ▸ [ ] 實作退款 API  1/4            10/14       」. On the left: the indent (2 cells
+/// per level), `▸` / `▾` (has subtasks: collapsed / expanded),
+/// `[ ]` / `[x]` (task) or ` ∙ ` (event), the title, and how many subtasks are done. On the right:
+/// a date column (right-aligned) and a time column, sized by `date_columns`; an item without a time
+/// leaves that cell blank (without a date, both are empty)
 ///
-/// 顏色：結束了的（做完的任務、過去的行程）灰、做完的標題劃線；寫錯的那一行標題紅字；日期用那天在月曆上的顏色；
-/// `▸`、子任務的件數、時間淡色
+/// Colors: items that are over (done tasks, past events) are gray, done titles struck through; a line
+/// with a mistake has a red title; the date uses that day's calendar color;
+/// `▸`, the subtask count and the time are muted
 fn render_item(
     frame: &mut Frame,
     area: Rect,
@@ -222,13 +233,13 @@ fn render_item(
         (Kind::Task, true) => "[x]",
         (Kind::Event, _) => " ∙ ",
     };
-    // 那一行有寫錯的地方：標題紅字
+    // That line has a mistake: red title
     let mistake = app.warnings.iter().any(|warning| warning.line == item.line);
     let mut title = Style::new().fg(if mistake { theme.error } else { color });
     if item.done {
         title = title.add_modifier(Modifier::CROSSED_OUT);
     }
-    // 子任務（任務才算）：(做完幾件, 共幾件)
+    // Subtasks (only tasks count): (how many done, how many in total)
     let (done, total) = app
         .items
         .iter()
@@ -250,7 +261,7 @@ fn render_item(
             Style::new().fg(theme.muted),
         ));
     }
-    // 右邊：日期一欄（靠右）、時間一欄（沒時間的留空白），後面留一格
+    // Right side: a date column (right-aligned), a time column (blank without a time), then one blank cell
     let mut right = Vec::new();
     if let (Some(first), Some(label)) = (item.date, date_label(item, app)) {
         let date_color = if open {
@@ -272,7 +283,7 @@ fn render_item(
         right.push(Span::raw(" "));
     }
     let right = Line::from(right);
-    // 標題太長：切掉，日期一定看得到（中間至少留一格）
+    // Title too long: cut it off so the date is always visible (at least one blank cell between)
     let right_width = u16::try_from(right.width()).unwrap_or(u16::MAX);
     let left_area = Rect {
         width: area.width.saturating_sub(right_width + 1),
@@ -282,8 +293,9 @@ fn render_item(
     frame.render_widget(right.right_aligned(), area);
 }
 
-/// 滑鼠點在任務頁（`area`）的 (`column`, `row`) 點到哪一列；`on_marker` = 點在 `▸` / `▾` 那一格上。
-/// 點在表頭、線、最下面那列、外框上回傳 `None`
+/// Which row a mouse click at (`column`, `row`) on the tasks page (`area`) hits; `on_marker` = the
+/// click is on the `▸` / `▾` cell.
+/// `None` on the header, the rules, the bottom row or the outer border
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, body, _, _] = inner_areas(area);
     if !body.contains(Position::new(column, row)) {
@@ -295,7 +307,7 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         TaskRow::Item { index, .. } => app.items.get(*index)?.depth,
         TaskRow::Heading { .. } => return None,
     };
-    // `▸` 在框裡面第 1 + 2 × 層數格
+    // `▸` sits at cell 1 + 2 × depth inside the box
     let marker = usize::from(body.x) + 1 + 2 * depth;
     Some(Click::TaskRow {
         row: index,

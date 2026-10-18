@@ -1,10 +1,12 @@
-//! 一行編輯框（像 tuxedo）：直接打那一行的文字，下面即時顯示這行會讀成什麼；`Enter` 存檔（寫錯的地方沒改好就存不了）、
-//! `Esc` 取消
+//! One-line editor (like tuxedo): type the line's text directly; below it, a live preview shows
+//! how the line will be read; `Enter` saves (it cannot save while a mistake is not fixed),
+//! `Esc` cancels
 //!
-//! - `e` / `Enter`：編輯右邊（或任務頁）選到的那件事的那一行
-//! - `a`：新增一件（選到的那件那一組；在月曆上是選取那天第一件事的那一組，那天沒事就加在檔案最後），預先填好選取的日期
-//!   （任務頁不填）
-//! - `A`：新增選到的那件事的子任務
+//! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page)
+//! - `a`: add an item (in the chosen item's group; on the calendar, in the group of the selected day's
+//!   first item, or at the end of the file if that day has none), with the selected day filled in
+//!   (not on the tasks page)
+//! - `A`: add a subtask to the chosen item
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
@@ -12,33 +14,34 @@ use crate::tasks::Item;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui_input::{Input, backend::crossterm::to_input_request};
 
-/// 編輯框：打的字、要做什麼
+/// The editor: the typed text and what to do with it
 #[derive(Debug)]
 pub struct Editor {
-    /// 打的字（那一行，不含縮排）和游標
+    /// The typed text (the line, without indentation) and the cursor
     pub input: Input,
-    /// 編輯哪件，或新增到哪裡
+    /// Which item to edit, or where to add the new one
     pub target: Target,
 }
 
-/// 編輯框存檔時要做什麼
+/// What the editor does when it saves
 #[derive(Debug, Clone)]
 pub enum Target {
-    /// 編輯這件（打開那時候讀到的樣子）
+    /// Edit this item (as it was read when the editor opened)
     Edit(Item),
-    /// 新增一件，放在這裡
+    /// Add a new item, placed here
     Add(Place),
 }
 
 impl Editor {
-    /// 現在打的這一行讀起來是什麼（畫面上即時顯示；有問題就存不了）
+    /// How the line typed so far reads (shown live on screen; if there is a problem it cannot be saved)
     pub fn check(&self) -> Result<Item, edit::Problem> {
         edit::check(self.input.value())
     }
 }
 
 impl App {
-    /// `e` / `Enter`：打開編輯框，裡面是右邊（或任務頁）選到的那件事的那一行（不含縮排），游標在最後面
+    /// `e` / `Enter`: opens the editor with the line of the chosen item in
+    /// the agenda (or the tasks page), without indentation, cursor at the end
     pub(super) fn start_editing(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -50,9 +53,12 @@ impl App {
         });
     }
 
-    /// `a`：新增一件，預先填好 `- [ ]  @選取的日期`，游標在標題的位置（任務頁不填日期）
+    /// `a`: adds an item, prefilled with `- [ ]  @選取的日期`,
+    /// cursor where the title goes (no date on the tasks page)
     ///
-    /// 鍵盤在右邊、任務頁、版型 3 的跳窗：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
+    /// Keyboard in the agenda, the tasks page or layout 3's popup: placed in the
+    /// chosen item's group; on the calendar: placed in the group of the selected
+    /// day's first item, or at the end of the file if that day has none
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
             Focus::Agenda | Focus::Tasks | Focus::Day => self.chosen_item().cloned(),
@@ -63,7 +69,7 @@ impl App {
         };
         let place = near.map_or(Place::End, Place::InGroupOf);
         let prefix = "- [ ] ";
-        // 任務頁沒有選取的日期：不填日期
+        // The tasks page has no selected day: no date filled in
         let input = if self.view == super::View::Tasks {
             Input::new(prefix.to_string())
         } else {
@@ -75,7 +81,8 @@ impl App {
         });
     }
 
-    /// `A`：新增右邊（或任務頁）選到的那件事的子任務（預先填好 `- [ ] `，子任務常常沒有自己的日期）
+    /// `A`: adds a subtask to the chosen item in the agenda (or the tasks page)
+    /// (prefilled with `- [ ] `; subtasks often have no date of their own)
     pub(super) fn start_adding_subtask(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -86,7 +93,8 @@ impl App {
         });
     }
 
-    /// 編輯框開著時的按鍵：`Enter` 存檔、`Esc` 取消、`Ctrl+C` 離開，其他鍵都是打字（游標移動、刪字見 tui-input）
+    /// Keys while the editor is open: `Enter` saves, `Esc` cancels, `Ctrl+C` quits;
+    /// every other key is typing (cursor movement and deleting: see tui-input)
     pub(super) fn handle_editor_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -104,15 +112,18 @@ impl App {
         }
     }
 
-    /// 存檔：編輯 = 那一行換成打的字（縮排照舊）；新增 = 打的字放到該放的地方。寫回任務檔，右邊（任務頁）選著那件
+    /// Saves: edit = the line is replaced by the typed text (indentation kept); add = the typed text goes
+    /// where it belongs. Writes back to the task file, and the agenda (tasks page) keeps that item chosen
     ///
-    /// 打的字有問題（不是一件事、日期寫錯、沒有標題）就不存，編輯框留著（畫面上有紅字說明）；編輯什麼都沒改就不寫。
-    /// 讀不到、寫不進任務檔：編輯框也留著（打的字還在），最下面一列說為什麼；檔案在別處改過：重新載入、編輯框關掉
+    /// If the typed text has a problem (not an item, a wrong date, no title), it is not saved and the
+    /// editor stays open (red text on screen explains); an edit that changed nothing is not written.
+    /// If the task file cannot be read or written: the editor also stays open (the typed text is kept)
+    /// and the bottom row says why; if the file was changed elsewhere: reload and close the editor
     fn save_editor(&mut self) {
         let Some(editor) = self.editor() else {
             return;
         };
-        // 存得了才存；`checked` = 打的這一行讀成的那件事
+        // Save only if it can be saved; `checked` = the item this typed line reads as
         let Ok(checked) = editor.check() else {
             return;
         };
@@ -131,7 +142,8 @@ impl App {
                             }
                         }
                         Err(edit::Changed) => {
-                            // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
+                            // Changed elsewhere: reload; the keyboard goes back to this
+                            // layout's main box (the tasks page stays the tasks page)
                             self.mode = Mode::Normal;
                             self.reload(&text);
                             self.focus = self.home_focus();
@@ -152,8 +164,9 @@ impl App {
                             return;
                         }
                         self.mode = Mode::Normal;
-                        // 右邊選著新的那件（任務頁一定看得到）；它不在右邊（例：沒有日期的子任務）就還是選著原本那件
-                        // （它的行號沒變）
+                        // The agenda chooses the new item (always visible on the tasks page); if it is not in
+                        // the agenda (e.g. a subtask without a date), the originally chosen item stays chosen
+                        // (its line number did not change)
                         let shown = self.view == super::View::Tasks
                             || self.agenda().iter().any(|entry| entry.item.line == line);
                         match &place {
@@ -184,7 +197,7 @@ mod tests {
     use super::*;
     use jiff::civil::date;
 
-    /// 一個字一個字打進編輯框
+    /// Types text into the editor one character at a time
     fn type_text(app: &mut App, text: &str) {
         for c in text.chars() {
             press(app, KeyCode::Char(c));
@@ -198,12 +211,12 @@ mod tests {
         let (mut app, path) = app_with_task_file("editor-failed", text);
         press(&mut app, KeyCode::Char('e'));
         type_text(&mut app, " 改");
-        // 資料夾設成唯讀：暫存檔寫不進去（讀還是讀得到）
+        // Make the folder read-only: the temp file cannot be written (reading still works)
         let dir = path.parent().expect("dir");
         let mode = |mode| std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode));
         mode(0o555).expect("read-only");
         press(&mut app, KeyCode::Enter);
-        // 編輯框還開著、打的字還在，最下面一列說為什麼
+        // The editor is still open, the typed text is still there, and the bottom row says why
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
             Some("- [ ] 早上 @2026-10-10 改")
@@ -213,7 +226,7 @@ mod tests {
             Some(Notice::Failed(std::io::ErrorKind::PermissionDenied))
         );
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
-        // 改回可以寫：再按一次 Enter 就存了、編輯框關掉
+        // Make it writable again: pressing Enter once more saves and closes the editor
         mode(0o755).expect("writable");
         press(&mut app, KeyCode::Enter);
         assert!(app.editor().is_none());
@@ -228,17 +241,17 @@ mod tests {
     fn e_opens_the_line_and_enter_saves_what_was_typed() {
         let text = "# 例行\n  - [ ] 交週報 @2026-10-16 17:30\n";
         let (mut app, path) = app_with_task_file("edit", text);
-        // e：編輯框裡是那一行（不含縮排），游標在最後
+        // e: the editor holds that line (without indentation), cursor at the end
         press(&mut app, KeyCode::Char('e'));
         let editor = app.editor().expect("編輯框");
         assert_eq!(editor.input.value(), "- [ ] 交週報 @2026-10-16 17:30");
-        // 把 17:30 改成 18:00：游標在最後面，Backspace 5 次再打
+        // Change 17:30 to 18:00: the cursor is at the end, press Backspace 5 times, then type
         for _ in 0..5 {
             press(&mut app, KeyCode::Backspace);
         }
         type_text(&mut app, "18:00 給主管");
         press(&mut app, KeyCode::Enter);
-        // 縮排照留；「給主管」跟在時間後面，是標題的一部分
+        // Indentation kept; 「給主管」 follows the time and is part of the title
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "# 例行\n  - [ ] 交週報 @2026-10-16 18:00 給主管\n"
@@ -248,7 +261,7 @@ mod tests {
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("交週報 給主管")
         );
-        // u 復原
+        // u undoes
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         clean_up(&path);
@@ -258,14 +271,14 @@ mod tests {
     fn a_in_the_agenda_adds_to_the_chosen_items_group() {
         let text = "# 工作\n- [ ] 寫報告 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n";
         let (mut app, path) = app_with_task_file("add", text);
-        // a：預先填好選取的日期，游標在標題的位置；上框線寫「新增」
+        // a: the selected day is prefilled, cursor where the title goes; the top border says 「新增」
         press(&mut app, KeyCode::Char('a'));
         let editor = app.editor().expect("編輯框");
         assert_eq!(editor.input.value(), "- [ ]  @2026-10-16");
         assert_eq!(editor.input.cursor(), 6);
         type_text(&mut app, "交週報");
         press(&mut app, KeyCode::Enter);
-        // 加在「工作」的最後；右邊選著新的那件
+        // Added at the end of 「工作」; the agenda chooses the new item
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "# 工作\n- [ ] 寫報告 @2026-10-16\n- [ ] 交週報 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n"
@@ -274,7 +287,7 @@ mod tests {
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("交週報")
         );
-        // u：整行拿掉，提示寫的是新增的那件
+        // u: removes the whole line; the notice names the added item
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         assert_eq!(app.notice, Some(Notice::Undone("交週報".into())));
@@ -283,7 +296,8 @@ mod tests {
 
     #[test]
     fn a_on_the_calendar_adds_on_the_selected_day() {
-        // 選取 10/20（那天沒事）：加在檔案最後，鍵盤換到右邊、選著它
+        // Selected 10/20 (nothing that day): added at the end of
+        // the file; the keyboard moves to the agenda with it chosen
         let text = "# 工作\n- [ ] 寫報告 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("add-calendar", text);
         press(&mut app, KeyCode::Esc);
@@ -296,7 +310,8 @@ mod tests {
             "# 工作\n- [ ] 寫報告 @2026-10-16\n- [ ] 看醫生 @2026-10-20\n"
         );
         assert_eq!(app.focus, Focus::Agenda);
-        // 選取 10/16（那天有寫報告）：加在寫報告那一組；版型 3 沒有右邊，鍵盤留在月曆
+        // Selected 10/16 (「寫報告」 is that day): added to 「寫報告」's
+        // group; layout 3 has no agenda, so the keyboard stays on the calendar
         app.view = crate::app::View::Month;
         app.focus = Focus::Calendar;
         app.selected = date(2026, 10, 16);
@@ -327,7 +342,7 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n- [ ] 交週報 @2026-10-16\n"
         );
-        // 子任務沒有日期、不在右邊：還是選著寫報告
+        // The subtask has no date and is not in the agenda: 「寫報告」 stays chosen
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("寫報告")
@@ -340,7 +355,7 @@ mod tests {
         let (mut app, path) = app_with_task_file("add-new-file", "");
         std::fs::remove_file(&path).expect("remove");
         app.focus = Focus::Calendar;
-        // 沒打標題就 Enter：存不了，編輯框還開著
+        // Enter without a title: cannot save, the editor stays open
         press(&mut app, KeyCode::Char('a'));
         press(&mut app, KeyCode::Enter);
         assert_eq!(
@@ -348,7 +363,7 @@ mod tests {
             Some(Err(edit::Problem::EmptyTitle))
         );
         assert!(!path.exists());
-        // 打了標題：檔案建起來
+        // Title typed: the file is created
         type_text(&mut app, "第一件事");
         press(&mut app, KeyCode::Enter);
         assert_eq!(
@@ -363,7 +378,8 @@ mod tests {
         let text = "- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-mistake", text);
         press(&mut app, KeyCode::Enter);
-        // 日期改成不存在的 10/32：Enter 不存，編輯框還開著，檢查結果是錯的
+        // Change the date to 10/32, which does not exist: Enter does
+        // not save, the editor stays open, the check result is an error
         for _ in 0..2 {
             press(&mut app, KeyCode::Backspace);
         }
@@ -372,7 +388,7 @@ mod tests {
         let editor = app.editor().expect("還開著");
         assert!(editor.check().is_err());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
-        // 拿掉開頭的「- 」：不是一件事，也不存
+        // Remove the leading 「- 」: not an item, not saved either
         press(&mut app, KeyCode::Home);
         press(&mut app, KeyCode::Delete);
         press(&mut app, KeyCode::Delete);
@@ -380,7 +396,7 @@ mod tests {
             app.editor().map(Editor::check),
             Some(Err(edit::Problem::NotAnItem))
         );
-        // Esc：不存、關掉
+        // Esc: not saved, closed
         press(&mut app, KeyCode::Esc);
         assert!(app.editor().is_none());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
@@ -389,7 +405,7 @@ mod tests {
 
     #[test]
     fn keys_go_to_the_editor_while_it_is_open() {
-        // q、u、j、Space 都是打字，不會離開、復原、換選的事、打勾
+        // q, u, j, Space are all typing: they do not quit, undo, change the chosen item or check it off
         let text = "- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-keys", text);
         press(&mut app, KeyCode::Char('e'));
@@ -399,7 +415,7 @@ mod tests {
             app.editor().map(|editor| editor.input.value()),
             Some("- [ ] 交週報 @2026-10-16 qu j")
         );
-        // 沒改就存：不寫、不記 undo
+        // Saving with no change: nothing is written, no undo is recorded
         press(&mut app, KeyCode::Esc);
         press(&mut app, KeyCode::Char('e'));
         press(&mut app, KeyCode::Enter);
@@ -410,7 +426,7 @@ mod tests {
 
     #[test]
     fn taking_the_date_away_leaves_the_agenda() {
-        // 日期拿掉：存了之後右邊沒有它了，鍵盤回到月曆
+        // Date removed: after saving, the agenda no longer has it and the keyboard goes back to the calendar
         let text = "- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-undated", text);
         press(&mut app, KeyCode::Char('e'));

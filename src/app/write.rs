@@ -1,4 +1,5 @@
-//! 寫任務檔：打勾、刪除、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
+//! Writing the task file: check off, delete, undo. Always re-read before
+//! writing; if the line was changed elsewhere, don't write and reload instead
 
 use super::{App, Focus, Mode, View};
 use crate::edit;
@@ -8,45 +9,50 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-/// undo 最多記幾步
+/// The most undo steps kept
 const UNDO_LEVELS: usize = 50;
 
-/// 最下面一列暫時換成的提示（寫檔的結果）；下一個按鍵、點擊就消失
+/// A notice that temporarily replaces the bottom row (the result of a write); gone on the next key or click
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Notice {
-    /// 任務檔在別處被改過（例：剛在 Obsidian 改了）：沒寫，已重新載入
+    /// The task file was changed elsewhere (e.g. just edited in Obsidian): not written, reloaded
     Reloaded,
-    /// 讀 / 寫任務檔失敗（例：沒有權限、檔案被刪了）：沒寫
+    /// Reading / writing the task file failed (e.g. no permission, the file was deleted): not written
     Failed(ErrorKind),
-    /// 想打勾的是行程（沒有框）：行程不能打勾
+    /// Tried to check off an event (no box): events cannot be checked off
     NotATask,
-    /// 任務檔有幾處寫錯（例：`@2026-13-01`）；一打開就說
+    /// The task file has some mistakes (e.g. `@2026-13-01`); said as soon as it opens
     Mistakes(usize),
-    /// undo 成功，帶著被復原的那件事的標題，例：`週會`
+    /// Undo worked; carries the title of the item that was restored, e.g. `週會`
     Undone(String),
-    /// 沒有可以 undo 的（還沒寫過檔，或已經退到底）
+    /// Nothing to undo (no writes yet, or already undone all the way back)
     NothingToUndo,
-    /// 設定頁改的開關存不回設定檔（例：沒有權限、設定檔在別處改壞了）
+    /// The settings page's switches could not be saved to the config
+    /// file (e.g. no permission, the config file was broken elsewhere)
     SettingsFailed(ErrorKind),
 }
 
-/// 一次寫檔的紀錄（undo 用）：寫之前、寫之後的整個檔案，和改到的那件事的標題（提示用）
+/// The record of one write (for undo): the whole file before and after
+/// the write, and the title of the item it changed (for the notice)
 #[derive(Debug)]
 pub(super) struct UndoStep {
-    /// roh-cal 寫之前的整個檔案（復原就是寫回這個）
+    /// The whole file before roh-cal wrote it (undo writes this back)
     before: String,
-    /// roh-cal 寫進去的整個檔案（檔案現在要跟這個一模一樣才復原，不然就是在別處改過）
+    /// The whole file roh-cal wrote (undo only happens if the file
+    /// still matches it exactly; otherwise it was changed elsewhere)
     after: String,
-    /// 改到的那件事的標題（`已復原：週會`）
+    /// The title of the item it changed (`已復原：週會`)
     title: String,
-    /// 上下搬（`J` / `K`）的話，換了哪兩塊：畫面記著的行號照它搬（復原時反過來）；其他寫檔是 `None`
+    /// For a move up / down (`J` / `K`), which two blocks were swapped: line numbers
+    /// the screen remembers follow it (reversed on undo); `None` for other writes
     swap: Option<edit::Swap>,
 }
 
 impl App {
-    /// 右邊（或任務頁）選到的那件事打勾 / 取消，寫回任務檔；結果（失敗、重新載入）放在 `notice`
+    /// Checks off / unchecks the chosen item in the agenda (or the tasks page) and
+    /// writes back to the task file; the result (failed, reloaded) goes in `notice`
     ///
-    /// 沒有任務檔（test）、沒選到事就什麼都不做
+    /// Does nothing without a task file (tests) or without a chosen item
     pub(super) fn toggle_chosen(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -66,7 +72,8 @@ impl App {
         }
     }
 
-    /// `d`：先算刪掉選到的那件會刪掉幾件（含子任務），最下面一列問使用者（`y` 才刪）
+    /// `d`: first counts how many items deleting the chosen one would remove
+    /// (including subtasks), then asks the user in the bottom row (only `y` deletes)
     pub(super) fn ask_delete(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -80,13 +87,14 @@ impl App {
         }
     }
 
-    /// 問「要刪嗎」的時候按的鍵：`y` 刪掉（連子任務），`Ctrl+C` 離開，其他鍵都只是取消
+    /// Keys while asking "delete?": `y` deletes (with subtasks), `Ctrl+C` quits, any other key just cancels
     ///
-    /// 問的時候算的件數跟現在算的不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
+    /// If the count from when it asked differs from the count now (e.g. a
+    /// subtask was just added elsewhere), it does not delete and reloads instead
     pub(super) fn answer_delete(&mut self, key: KeyEvent) {
         let (item, count) = match std::mem::take(&mut self.mode) {
             Mode::ConfirmDelete(item, count) => (item, count),
-            // 沒在問：什麼都不做（放回去）
+            // Not asking: do nothing (put it back)
             other => {
                 self.mode = other;
                 return;
@@ -99,7 +107,7 @@ impl App {
         if key.code != KeyCode::Char('y') {
             return;
         }
-        // 任務頁：刪之前選到的是第幾列（刪完選那個位置）
+        // Tasks page: which row was chosen before deleting (choose that position after deleting)
         let row = if self.view == View::Tasks {
             self.tasks_cursor(&self.tasks_rows()).unwrap_or(0)
         } else {
@@ -112,21 +120,25 @@ impl App {
             Ok((after, deleted)) if deleted == count => {
                 self.write_tasks(&path, text, after, item.title);
                 if self.view == View::Tasks {
-                    // 任務頁：選原本那一列（現在是下一件）；刪到最後面就選最後一件
+                    // Tasks page: choose the same row (now the next item);
+                    // if the last one was deleted, choose the last item
                     self.choose_task_row_near(row);
                     return;
                 }
-                // 版型 3 的跳窗：選的位置 set_items 已經調好了（那天沒事了就關掉）
+                // Layout 3's popup: set_items already adjusted the chosen
+                // position (closes it if that day has no items left)
                 if self.view == View::Month {
                     return;
                 }
-                // 右邊選下一件（原本的位置）；刪到沒有了就回到月曆
+                // The agenda chooses the next item (the same
+                // position); if none are left, go back to the calendar
                 match self.agenda().len().checked_sub(1) {
                     Some(last) => self.choose(self.agenda_index.min(last)),
                     None => self.focus = Focus::Calendar,
                 }
             }
-            // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
+            // Changed elsewhere: reload; the keyboard goes back to this
+            // layout's main box (the tasks page stays the tasks page)
             _ => {
                 self.reload(&text);
                 self.focus = self.home_focus();
@@ -134,9 +146,10 @@ impl App {
         }
     }
 
-    /// `u`：復原 roh-cal 最後一次寫檔，結果放在 `notice`
+    /// `u`: undoes roh-cal's last write; the result goes in `notice`
     ///
-    /// 檔案要跟 roh-cal 最後寫的一模一樣才復原；在別處改過就不動檔案、改成重新載入，別人的改動不會被蓋掉
+    /// Undoes only if the file matches exactly what roh-cal last wrote; if it was changed elsewhere,
+    /// the file is left alone and reloaded instead, so other people's changes are not overwritten
     pub(super) fn undo(&mut self) {
         let Some(path) = self.tasks_path.clone() else {
             self.notice = Some(Notice::NothingToUndo);
@@ -149,7 +162,7 @@ impl App {
         let current = match std::fs::read_to_string(&path) {
             Ok(text) => text,
             Err(error) => {
-                // 沒復原成：這一步放回去，之後還能再試
+                // Undo failed: put this step back so it can be tried again later
                 self.undo.push(step);
                 self.notice = Some(Notice::Failed(error.kind()));
                 return;
@@ -165,7 +178,7 @@ impl App {
             return;
         }
         match step.swap {
-            // 上下搬的：反過來搬回去
+            // A move up / down: move it back the other way
             Some(swap) => self.remap_lines(|line| Some(swap.reversed().map(line))),
             None => self.remap_lines(edit::line_map(&step.after, &step.before)),
         }
@@ -173,7 +186,8 @@ impl App {
         self.notice = Some(Notice::Undone(step.title));
     }
 
-    /// 任務檔的位置和現在的內容（寫之前一定先重讀）；沒有任務檔（test）是 `None`，讀不到就記下提示、也是 `None`
+    /// The task file's path and its current content (always re-read before writing); `None`
+    /// without a task file (tests); if it cannot be read, records a notice and is also `None`
     pub(super) fn read_tasks(&mut self) -> Option<(PathBuf, String)> {
         let path = self.tasks_path.clone()?;
         match std::fs::read_to_string(&path) {
@@ -185,7 +199,8 @@ impl App {
         }
     }
 
-    /// 新增用：任務檔的位置和現在的內容；檔案還不存在（例：預設位置第一次用）就當作空的，存的時候會建起來
+    /// For adding: the task file's path and its current content; if the file does not exist
+    /// yet (e.g. the default location's first use), it counts as empty and is created on save
     pub(super) fn read_tasks_for_adding(&mut self) -> Option<(PathBuf, String)> {
         let path = self.tasks_path.clone()?;
         match std::fs::read_to_string(&path) {
@@ -198,8 +213,9 @@ impl App {
         }
     }
 
-    /// 把 `after` 寫進任務檔，畫面的事跟著更新，記一步 undo（`before` = 寫之前的內容、`title` = 改到的那件事）；
-    /// 失敗就記下提示（檔案、畫面都不動）。回傳有沒有寫成
+    /// Writes `after` to the task file, updates the items on screen and records an undo
+    /// step (`before` = the content before the write, `title` = the item it changed);
+    /// on failure, records a notice (file and screen untouched). Returns whether it was written
     pub(super) fn write_tasks(
         &mut self,
         path: &Path,
@@ -210,7 +226,8 @@ impl App {
         self.write_tasks_swapped(path, before, after, title, None)
     }
 
-    /// 同 `write_tasks`；上下搬（`swap` 有值）時，畫面記著的行號照換了哪兩塊搬，不用 `edit::line_map`
+    /// Same as `write_tasks`; for a move up / down (`swap` has a value), line numbers
+    /// the screen remembers follow the two swapped blocks instead of `edit::line_map`
     pub(super) fn write_tasks_swapped(
         &mut self,
         path: &Path,
@@ -223,7 +240,7 @@ impl App {
             self.notice = Some(Notice::Failed(error.kind()));
             return false;
         }
-        // 畫面記著的行號（選到的那件、展開的子任務）跟著搬
+        // Line numbers the screen remembers (the chosen item, expanded subtasks) move along
         match swap {
             Some(swap) => self.remap_lines(|line| Some(swap.map(line))),
             None => self.remap_lines(edit::line_map(&before, &after)),
@@ -235,29 +252,34 @@ impl App {
             title,
             swap,
         });
-        // 只留最近的 UNDO_LEVELS 步
+        // Keep only the last UNDO_LEVELS steps
         if self.undo.len() > UNDO_LEVELS {
             self.undo.remove(0);
         }
         true
     }
 
-    /// 任務檔在別處被改過：照檔案現在的內容 `text` 重新載入，告訴使用者這次沒寫；之前記的 undo 都對不上了，清掉
+    /// The task file was changed elsewhere: reload from the file's current content `text` and
+    /// tell the user this was not written; the earlier undo steps no longer match, so clear them
     pub(super) fn reload(&mut self, text: &str) {
         self.set_items(tasks::parse(text));
         self.undo.clear();
         self.notice = Some(Notice::Reloaded);
     }
 
-    /// 畫面記著的行號（任務頁選到的那件、展開的子任務）照 `map` 換成寫檔之後的行號；對不到的（刪掉了）就忘掉
+    /// Maps the line numbers the screen remembers (the item chosen on the tasks page, expanded
+    /// subtasks) to line numbers after the write with `map`; ones with no match (deleted) are forgotten
     fn remap_lines(&mut self, map: impl Fn(usize) -> Option<usize>) {
         self.expanded = self.expanded.iter().filter_map(|&line| map(line)).collect();
         self.tasks_line = self.tasks_line.and_then(&map);
     }
 
-    /// 換一份新的事（寫檔、重新載入、復原之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態。
-    /// 右邊的事變少了（例：復原了剛新增的那件）：鍵盤在右邊、選的位置超出範圍就選最後一件，一件都沒有了就回到月曆；
-    /// 版型 3 的跳窗也一樣（見 `keep_day_choice`）
+    /// Swaps in a new set of items (after a write, a reload or an undo); the side menu re-lists the
+    /// calendars from the new file, and calendars that existed before keep their checked state.
+    /// If the agenda has fewer items (e.g. the item just added was undone), the keyboard
+    /// is in the agenda and the chosen position is out of range: choose the last item;
+    /// if no items are left, go back to the calendar;
+    /// layout 3's popup works the same way (see `keep_day_choice`)
     fn set_items(&mut self, Parsed { items, warnings }: Parsed) {
         let mut groups = super::Group::list(&items);
         for group in &mut groups {
@@ -290,8 +312,10 @@ pub(crate) mod tests {
         KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
-    /// 暫存資料夾裡的任務檔（內容 `text`）和讀它的 app（今天 2026/10/17、鍵盤在右邊、選第一件）；
-    /// 回傳 app 和檔案的位置。不會碰到真的任務檔，用完要刪掉 `path` 的資料夾
+    /// A task file in a temp folder (content `text`) and an app that reads
+    /// it (today 2026/10/17, keyboard in the agenda, first item chosen);
+    /// returns the app and the file's path. Never touches the real task file;
+    /// delete `path`'s folder when done
     pub(crate) fn app_with_task_file(name: &str, text: &str) -> (App, PathBuf) {
         let dir = files::test_dir(name);
         std::fs::create_dir_all(&dir).expect("dir");
@@ -299,17 +323,18 @@ pub(crate) mod tests {
         std::fs::write(&path, text).expect("write");
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), tasks::parse(text).items);
         app.tasks_path = Some(path.clone());
-        // 跟按 Tab 一樣選第一件：鍵盤換到右邊、月曆選取那件事的日子
+        // Choose the first item, like pressing Tab: the keyboard moves
+        // to the agenda, and the calendar selects that item's day
         app.choose(0);
         (app, path)
     }
 
-    /// 按一個鍵
+    /// Presses one key
     pub(crate) fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }
 
-    /// 刪掉 test 的暫存資料夾
+    /// Deletes the test's temp folder
     pub(crate) fn clean_up(path: &Path) {
         std::fs::remove_dir_all(path.parent().expect("dir")).expect("clean up");
     }
@@ -319,18 +344,18 @@ pub(crate) mod tests {
         let text = "# 例行\n- [ ] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n";
         let (mut app, path) = app_with_task_file("toggle", text);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // 選第二件（下午）按 Space：只改那一行
+        // Choose the second item (「下午」) and press Space: only that line changes
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(
             read(),
             "# 例行\n- [ ] 早上 @2026-10-17 09:00\n- [x] 下午 @2026-10-17 14:00\n"
         );
-        // 畫面用的事也跟著更新；還選著同一件、沒有提示
+        // The items on screen update too; the same item is still chosen, no notice
         assert!(app.items[1].done);
         assert_eq!(app.agenda_index, 1);
         assert_eq!(app.notice, None);
-        // x 也可以：再按一次就取消
+        // x works too: press it again to uncheck
         press(&mut app, KeyCode::Char('x'));
         assert_eq!(read(), text);
         assert!(!app.items[1].done);
@@ -344,7 +369,7 @@ pub(crate) mod tests {
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         assert_eq!(app.notice, Some(Notice::NotATask));
-        // 下一個鍵：提示消失
+        // Next key: the notice disappears
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.notice, None);
         clean_up(&path);
@@ -353,11 +378,11 @@ pub(crate) mod tests {
     #[test]
     fn toggle_reloads_instead_of_writing_when_the_file_changed_elsewhere() {
         let (mut app, path) = app_with_task_file("changed", "- [ ] 早上 @2026-10-17 09:00\n");
-        // 在別處（例：Obsidian）上面多加了一行
+        // A line was added above, elsewhere (e.g. Obsidian)
         let edited = "- [ ] 新的 @2026-10-17 08:00\n- [ ] 早上 @2026-10-17 09:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char(' '));
-        // 檔案不動、重新載入（現在有兩件）、提示出現
+        // File untouched, reloaded (now two items), notice shown
         assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
         assert_eq!(app.items.len(), 2);
         assert_eq!(app.notice, Some(Notice::Reloaded));
@@ -370,7 +395,7 @@ pub(crate) mod tests {
         std::fs::remove_file(&path).expect("remove");
         press(&mut app, KeyCode::Char(' '));
         assert_eq!(app.notice, Some(Notice::Failed(ErrorKind::NotFound)));
-        // 沒有偷偷建一個新檔案
+        // No new file was quietly created
         assert!(!path.exists());
         clean_up(&path);
     }
@@ -390,7 +415,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_notice_from_a_click_stays_after_the_button_is_released() {
-        // 70 × 23、10 月在最上面：右邊第一列（y 3）是 10/10 的行程；點兩下 = 想打勾，行程不能打勾
+        // 70 × 23, October at the top: the agenda's first row (y 3) is the event on 10/10;
+        // a double click = trying to check it off, and events cannot be checked off
         let text = "- 開會 @2026-10-10\n";
         let (mut app, path) = app_with_task_file("click-notice", text);
         app.focus = Focus::Calendar;
@@ -408,12 +434,12 @@ pub(crate) mod tests {
             app.handle_mouse(mouse(down, 40));
             app.handle_mouse(mouse(up, 40));
         }
-        // 「放開」不會把提示清掉；移動、拖曳也不會
+        // 「放開」 (the release) does not clear the notice; neither does moving or dragging
         assert_eq!(app.notice, Some(Notice::NotATask));
         app.handle_mouse(mouse(MouseEventKind::Moved, 50));
         app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), 50));
         assert_eq!(app.notice, Some(Notice::NotATask));
-        // 下一次按下：看過了，清掉
+        // The next press: it has been seen, so clear it
         app.handle_mouse(mouse(down, 5));
         assert_eq!(app.notice, None);
         clean_up(&path);
@@ -421,7 +447,7 @@ pub(crate) mod tests {
 
     #[test]
     fn clicking_the_chosen_item_again_checks_it_off() {
-        // 70 × 23、10 月在最上面：右邊第一列（y 3、從 x 36 開始）是 10/10 早上
+        // 70 × 23, October at the top: the agenda's first row (y 3, from x 36) is 10/10's 「早上」
         let text = "- [ ] 早上 @2026-10-10\n";
         let (mut app, path) = app_with_task_file("click", text);
         app.focus = Focus::Calendar;
@@ -434,11 +460,11 @@ pub(crate) mod tests {
             modifiers: KeyModifiers::NONE,
         };
         let read = || std::fs::read_to_string(&path).expect("read");
-        // 第一下：選它（鍵盤換到右邊），還沒打勾
+        // First click: choose it (the keyboard moves to the agenda), not checked off yet
         app.handle_mouse(click);
         assert_eq!(app.focus, Focus::Agenda);
         assert_eq!(read(), text);
-        // 再點一次：打勾
+        // Click again: checked off
         app.handle_mouse(click);
         assert_eq!(read(), "- [x] 早上 @2026-10-10\n");
         clean_up(&path);
@@ -446,7 +472,9 @@ pub(crate) mod tests {
 
     #[test]
     fn undoing_an_add_keeps_the_agenda_choice_on_an_item() {
-        // 右邊新增一件（選著新的那件、第 2 件）再 u：右邊只剩 1 件，改選最後一件（不會選到不存在的第 2 件，打勾才有反應）
+        // Add an item in the agenda (the new one, the 2nd item, is chosen),
+        // then u: the agenda has only 1 item left, so the last one is chosen
+        // (not the 2nd item that no longer exists, so checking off still works)
         let text = "- [ ] 早上 @2026-10-10\n";
         let (mut app, path) = app_with_task_file("undo-add", text);
         press(&mut app, KeyCode::Char('a'));
@@ -464,7 +492,7 @@ pub(crate) mod tests {
             ),
             (Focus::Agenda, Some("早上"))
         );
-        // 唯一的一件也刪掉：右邊沒有事了，回到月曆
+        // Delete the only item too: the agenda is empty, back to the calendar
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(app.focus, Focus::Calendar);
@@ -476,7 +504,7 @@ pub(crate) mod tests {
         let text = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 下午 @2026-10-17 14:00\n";
         let (mut app, path) = app_with_task_file("undo", text);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // 兩件都打勾，再回月曆
+        // Check off both items, then go back to the calendar
         for code in [' ', 'j', ' '].map(KeyCode::Char) {
             press(&mut app, code);
         }
@@ -485,7 +513,7 @@ pub(crate) mod tests {
             read(),
             "- [x] 早上 @2026-10-17 09:00\n- [x] 下午 @2026-10-17 14:00\n"
         );
-        // 在月曆上按 u：先復原最後一次（下午），再復原早上；畫面跟著回去
+        // Press u on the calendar: first undoes the last write (「下午」), then 「早上」; the screen follows
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(
             read(),
@@ -503,13 +531,13 @@ pub(crate) mod tests {
     #[test]
     fn u_leaves_the_file_alone_when_it_changed_elsewhere() {
         let (mut app, path) = app_with_task_file("undo-changed", "- [ ] 早上 @2026-10-17 09:00\n");
-        // 打勾再取消（記了兩步），之後在別處又改了檔案
+        // Check off and uncheck (two steps recorded), then the file is changed again elsewhere
         press(&mut app, KeyCode::Char(' '));
         press(&mut app, KeyCode::Char(' '));
         let edited = "- [ ] 早上 @2026-10-17 09:00\n- [ ] 新的 @2026-10-17 10:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char('u'));
-        // 別人的改動留著，只重新載入；之前記的兩步都對不上了，全部清掉
+        // The other changes stay, it only reloads; the two recorded steps no longer match, so all are cleared
         assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
         assert_eq!(app.items.len(), 2);
         assert_eq!(app.notice, Some(Notice::Reloaded));
@@ -521,11 +549,11 @@ pub(crate) mod tests {
     #[test]
     fn undo_keeps_only_the_last_50_steps() {
         let (mut app, path) = app_with_task_file("undo-limit", "- [ ] 早上 @2026-10-17 09:00\n");
-        // 打勾 / 取消 51 次（單數次 → 最後是打勾的）
+        // Check off / uncheck 51 times (odd count → it ends checked off)
         for _ in 0..=UNDO_LEVELS {
             press(&mut app, KeyCode::Char('x'));
         }
-        // 一直按 u：只復原得了 50 次（多按幾次也不會超過）
+        // Keep pressing u: only 50 undos work (pressing more does not go past that)
         let undone = (0..UNDO_LEVELS + 5)
             .filter(|_| {
                 press(&mut app, KeyCode::Char('u'));
@@ -533,7 +561,7 @@ pub(crate) mod tests {
             })
             .count();
         assert_eq!(undone, UNDO_LEVELS);
-        // 最早的那一步掉了：檔案停在第一次打勾之後
+        // The earliest step was dropped: the file stays as it was after the first check-off
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "- [x] 早上 @2026-10-17 09:00\n"
@@ -541,7 +569,8 @@ pub(crate) mod tests {
         clean_up(&path);
     }
 
-    /// 10/17 早上有一個子任務（沒日期，不在右邊）、下午沒有（刪除的 test 用）
+    /// 10/17's 「早上」 has one subtask (no date, not in the agenda), 「下午」 has none
+    /// (for the delete tests)
     const WITH_SUBTASK: &str =
         "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n- [ ] 下午 @2026-10-17 14:00\n";
 
@@ -549,7 +578,7 @@ pub(crate) mod tests {
     fn d_then_y_deletes_with_subtasks_and_u_brings_them_back() {
         let (mut app, path) = app_with_task_file("delete", WITH_SUBTASK);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // d：先問，檔案還沒動；早上 + 子任務 = 2 件
+        // d: asks first, file not touched yet; 「早上」 + subtask = 2 items
         press(&mut app, KeyCode::Char('d'));
         assert_eq!(
             app.confirm_delete()
@@ -557,7 +586,7 @@ pub(crate) mod tests {
             Some(("早上", 2))
         );
         assert_eq!(read(), WITH_SUBTASK);
-        // y：刪掉早上和它的子任務，只剩下午；右邊選著下午
+        // y: deletes 「早上」 and its subtask, only 「下午」 is left; the agenda chooses 「下午」
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(read(), "- [ ] 下午 @2026-10-17 14:00\n");
         assert_eq!(app.confirm_delete(), None);
@@ -565,7 +594,7 @@ pub(crate) mod tests {
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("下午")
         );
-        // u：整段救回來
+        // u: the whole block comes back
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), WITH_SUBTASK);
         assert_eq!(app.notice, Some(Notice::Undone("早上".into())));
@@ -577,7 +606,7 @@ pub(crate) mod tests {
         let (mut app, path) = app_with_task_file("delete-cancel", WITH_SUBTASK);
         for other in [KeyCode::Char('j'), KeyCode::Char('n'), KeyCode::Esc] {
             press(&mut app, KeyCode::Char('d'));
-            // 取消用的那個鍵只拿來取消：還在右邊、還選著第一件
+            // The key used to cancel only cancels: still in the agenda, still on the first item
             press(&mut app, other);
             assert_eq!(app.confirm_delete(), None, "{other:?}");
             assert_eq!(
@@ -602,7 +631,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_click_or_the_wheel_cancels_the_delete_question() {
-        // 問「要刪嗎」的時候點滑鼠、滾輪：只是取消（跟按別的鍵一樣），點的那一下不做事（不會選到、打勾底下的東西）
+        // Clicking or scrolling while asking "delete?": it just cancels (like any other
+        // key); that click does nothing else (does not choose or check off what is under it)
         let (mut app, path) = app_with_task_file("delete-click", WITH_SUBTASK);
         app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
         let selected = app.selected;
@@ -624,7 +654,7 @@ pub(crate) mod tests {
                 "{kind:?}"
             );
         }
-        // 移動滑鼠不算：還在問
+        // Moving the mouse does not count: still asking
         press(&mut app, KeyCode::Char('d'));
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Moved,
@@ -641,7 +671,8 @@ pub(crate) mod tests {
     fn y_does_not_delete_when_the_subtasks_changed_meanwhile() {
         let (mut app, path) = app_with_task_file("delete-changed", WITH_SUBTASK);
         press(&mut app, KeyCode::Char('d'));
-        // 問的時候是 2 件；按 y 之前，在別處多加了一個子任務 → 會刪 3 件，跟問的不一樣
+        // It was 2 items when it asked; before pressing y, a subtask was added
+        // elsewhere → it would delete 3, which differs from what it asked
         let edited = "- [ ] 早上 @2026-10-17 09:00\n  - [ ] 準備 slides\n  - [ ] 印講義\n- [ ] 下午 @2026-10-17 14:00\n";
         std::fs::write(&path, edited).expect("edit");
         press(&mut app, KeyCode::Char('y'));
@@ -662,7 +693,8 @@ pub(crate) mod tests {
 
     #[test]
     fn rewriting_keeps_the_calendars_checked_state() {
-        // 「生活」沒勾；打勾寫檔之後重列日曆，「生活」還是沒勾
+        // 「生活」 is unchecked; after a check-off writes the file and
+        // the calendars are re-listed, 「生活」 is still unchecked
         let text = "- [ ] 早上 @2026-10-17 09:00\n# 生活\n- [ ] 爬山 @2026-10-18\n";
         let (mut app, path) = app_with_task_file("groups", text);
         app.groups[1].shown = false;

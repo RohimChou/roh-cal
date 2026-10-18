@@ -1,6 +1,7 @@
-//! 版型 1：左邊的月曆框和右邊的事項框，兩邊同一列對齊；表頭固定在上面，下面一個月一大塊往下排，可以上下捲動
+//! Layout 1: the calendar box on the left and the agenda on the right, with their rows lined up. The header
+//! stays at the top; below it, one big block per month runs downward, and it scrolls up and down
 //!
-//! 每個月佔幾列、列的編號、捲動到哪：見 `months.rs`
+//! How many rows each month takes, the row numbers and the scroll position: see `months.rs`
 
 use super::{
     Click,
@@ -24,78 +25,85 @@ use ratatui::{
 };
 use std::rc::Rc;
 
-/// 月曆框裡的四欄：年月、週數、│、7 天（一天 3 格，多留 1 格給選取日期的 `]`）
+/// The four columns in the calendar box: year/month, week number, │, 7 days (3 cells per day, plus 1 extra
+/// cell for the selected day's `]`)
 const COLUMNS: [Constraint; 4] = [
     Constraint::Length(6),
     Constraint::Length(4),
     Constraint::Length(1),
     Constraint::Length(22),
 ];
-/// 月曆框的寬度：四欄 + 左右框線
+/// Width of the calendar box: the four columns + left and right border
 pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + 22 + 2;
-/// 選取的那列離畫面上下邊緣至少留幾列，不夠才捲（像 vim 的 scrolloff）
+/// How many rows to keep between the selected row and the screen's top and bottom edges; scroll only when
+/// there are fewer (like vim's scrolloff)
 const SCROLLOFF: i64 = 2;
-/// 右邊的事分欄時，每一欄至少幾格寬
+/// When the agenda is split into columns, the minimum width of each column
 const AGENDA_COLUMN_WIDTH: u16 = 28;
-/// 右邊最多分幾欄
+/// The most columns the agenda can split into
 const MAX_AGENDA_COLUMNS: u16 = 4;
-/// 右邊欄和欄之間空幾格
+/// Gap between agenda columns
 const AGENDA_GAP: u16 = 2;
 
-/// 右邊 `width` 格寬要分幾欄：每欄至少 `AGENDA_COLUMN_WIDTH` 格（欄和欄之間空 `AGENDA_GAP` 格）、最多 `MAX_AGENDA_COLUMNS` 欄
+/// How many columns an agenda `width` cells wide gets: each at least `AGENDA_COLUMN_WIDTH` cells (with
+/// `AGENDA_GAP` cells between columns), at most `MAX_AGENDA_COLUMNS` columns
 fn agenda_columns(width: u16) -> usize {
     usize::from(
         ((width + AGENDA_GAP) / (AGENDA_COLUMN_WIDTH + AGENDA_GAP)).clamp(1, MAX_AGENDA_COLUMNS),
     )
 }
 
-/// 把右邊的一列切成 `count` 欄，像報紙一樣
+/// Splits one agenda row into `count` columns, like a newspaper
 fn split_columns(area: Rect, count: usize) -> Rc<[Rect]> {
     Layout::horizontal(vec![Constraint::Fill(1); count])
         .spacing(AGENDA_GAP)
         .split(area)
 }
 
-/// 這一週裡第一個屬於這個月的日子；週數、年 / 月都用它算
+/// This week's first day that belongs to this month; the week number and year / month come from it
 fn first_day(days: &WeekRow) -> Option<Date> {
     days.iter().flatten().next().copied()
 }
 
-/// 一個月最多佔月曆的幾分之幾高（至少是那個月的週數），下面的月份才看得到：(分子, 分母) = 2/3
+/// The largest share of the calendar height one month may take (at least its week count), so the months
+/// below stay visible: (numerator, denominator) = 2/3
 const MAX_MONTH_SHARE: (u16, u16) = (2, 3);
 
-/// 一個月最多幾列：月曆高度的 `MAX_MONTH_SHARE`
+/// The most rows one month takes: `MAX_MONTH_SHARE` of the calendar height
 fn max_month_height(body: Rect) -> usize {
     let (numerator, denominator) = MAX_MONTH_SHARE;
     usize::from(body.height) * usize::from(numerator) / usize::from(denominator)
 }
 
-/// 畫左邊的月曆框（`calendar`）和右邊的事項框（`agenda`）
+/// Draws the calendar box on the left (`calendar`) and the agenda on the right (`agenda`)
 ///
-/// 先在選取的那個月裡面捲右邊（記在 `app.agenda_window`），再捲整個畫面（記在 `app.calendar_top`），
-/// 讓選取那週和要看的事都看得到
+/// First scroll the agenda within the selected month (stored in `app.agenda_window`), then scroll the
+/// whole screen (stored in `app.calendar_top`), so the selected week and the items to show are both visible
 pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     let [calendar_header, calendar_rule, calendar_body] = inner_areas(calendar);
     let [agenda_header, agenda_rule, agenda_body] = inner_areas(agenda);
     let columns = agenda_columns(agenda_body.width);
     let max_height = max_month_height(calendar_body);
-    // 要改 `app`，所以先算好（`Months` 借著 `app.items`，Rust 不准一邊借著讀一邊改）
+    // `app` gets changed, so compute these first (`Months` borrows `app.items`, and Rust does not allow
+    // changing something while it is borrowed for reading)
     let (top, window) = {
         let mut months = Months::new(app, columns, max_height);
         let month = app.selected.first_of_month();
-        // 右邊要看得到的事：鍵盤在右邊 = 選到的那件；在月曆 = 選取那天的事
+        // Agenda items that must be visible: keyboard on the agenda = the chosen item; on the calendar =
+        // the selected day's items
         let targets = match app.chosen() {
             Some(item) => vec![item],
             None => months.day_items(app.selected),
         };
-        // 右邊在那個月裡面捲（換了月就從第一列開始）
+        // The agenda scrolls within that month (a new month starts from its first row)
         let previous = app
             .agenda_window
             .filter(|(window_month, _)| *window_month == month)
             .map_or(0, |(_, offset)| offset);
         let window = (month, months.window_for(month, previous, &targets));
         months.window = Some(window);
-        // 再捲整個畫面：還沒捲過（剛打開、按了 `t`）就先把選取那天的那個月放在最上面
+        // Then scroll the whole screen: if not scrolled yet (just opened, or after `t`), put the selected
+        // day's month at the top first
         let top = app
             .calendar_top
             .unwrap_or_else(|| months.block_start(app.selected));
@@ -110,13 +118,13 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     };
     app.calendar_top = Some(top);
     app.agenda_window = Some(window);
-    // 接下來只讀
+    // Read-only from here on
     let app = &*app;
     let mut months = Months::new(app, columns, max_height);
     months.window = app.agenda_window;
     let texts = app.lang.texts();
     let theme = &app.theme;
-    // 鍵盤在的那個框，框線用 `focus` 的顏色
+    // The box that has the keyboard gets its border in the `focus` color
     let border_color = |focus: Focus| {
         if app.focus == focus {
             theme.focus
@@ -133,10 +141,11 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     }
     let chosen = app.chosen();
 
-    // 畫面上看得到的列
+    // Rows visible on screen
     let visible = months.visible_rows(top, usize::from(calendar_body.height));
 
-    // 表頭左上角一直寫畫面最上面那週的年份（畫面上一週都沒有時，用選取那天的）
+    // The header's top-left always shows the year of the top week on screen (the selected day's year
+    // if no week is on screen)
     let year = visible
         .iter()
         .find_map(|row| match row {
@@ -147,8 +156,11 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         })
         .unwrap_or(app.selected);
     render_header(frame, calendar_header, texts, theme, year);
-    // 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面留一格空白）。兩段畫在各自的位置：日期一定完整，
-    // 「重要事項」放不下就切掉（中文字不會切一半），中間至少空一格；畫在同一塊的話，日期開頭落在中文字的後半格會被吃掉
+    // Agenda header: 「重要事項」 on the left, the selected day on the right (one blank cell after it).
+    // Each is drawn in its own area: the date is always complete,
+    // 「重要事項」 is cut off if it does not fit (never half a Chinese character), with at least one blank
+    // cell between. Drawn in one area, a date starting on the second half of a Chinese character would
+    // get eaten
     let date = format!("{} ", texts.date_title(app.selected));
     let date_width = u16::try_from(Span::raw(&date).width())
         .unwrap_or(u16::MAX)
@@ -169,13 +181,13 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     frame.render_widget(Line::styled(date, Style::new().fg(theme.text)), date_area);
     render_rule(frame, calendar_rule, agenda_rule, false, None, theme);
 
-    // 一列一列畫，左右兩個框的同一列在同一個高度
+    // Draw row by row; the same row of the left and right box sits at the same height
     for (y, row) in (calendar_body.y..calendar_body.bottom()).zip(&visible) {
         let calendar_row = Rect::new(calendar_body.x, y, calendar_body.width, 1);
         let agenda_row = Rect::new(agenda_body.x, y, agenda_body.width, 1);
         match row {
             Row::Separator { year, hidden } => {
-                // 上面那個月的事放不下：線的右邊寫還有幾件
+                // The month above has items that do not fit: the right end of the line says how many more
                 let hint = (*hidden > 0).then(|| texts.more_items(*hidden));
                 render_rule(frame, calendar_row, agenda_row, *year, hint, theme);
             }
@@ -191,9 +203,10 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                     .zip(split_columns(agenda_row, items.len()).iter())
                 {
                     if let Some(entry) = entry {
-                        // 鍵盤在右邊時選到的那一行：日期加括號、墊底色
+                        // Chosen line (keyboard on the agenda): date in brackets, background color
                         let is_chosen = chosen == Some(*entry);
-                        // 鍵盤在月曆時：選取那天的事墊底色（跟月曆上那週一樣；跨多天的蓋到那天就算）
+                        // Keyboard on the calendar: the selected day's items get a background color (same as
+                        // that week on the calendar; a multi-day item counts if it covers that day)
                         let on_selected_day =
                             app.focus == Focus::Calendar && entry.is_on(app.selected);
                         frame.render_widget(item_line(entry.item, app, is_chosen), *area);
@@ -204,7 +217,8 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                         }
                     }
                 }
-                // 這個月的事放不下：右框線上畫捲軸的亮塊（框線那格換成粗線）
+                // This month's items do not fit: draw the scrollbar thumb on the right border (that
+                // border cell becomes a thick line)
                 if *thumb == Some(true) && agenda.width > 0 {
                     frame.render_widget(
                         Line::styled(
@@ -219,9 +233,10 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     }
 }
 
-/// 框裡面怎麼切：表頭（一列字 + 一條線）固定在上面，下面一列一列排月份；畫畫面和滑鼠換算位置都用這個
+/// How the inside of a box is split: the header (a line of text + a rule) stays at the top, months fill
+/// the rows below; used both for drawing and for mapping mouse positions
 ///
-/// side menu 也照這樣切，三個框的表頭才對齊
+/// The side menu is split the same way, so the headers of all three boxes line up
 pub(super) fn inner_areas(area: Rect) -> [Rect; 3] {
     Layout::vertical([
         Constraint::Length(1),
@@ -231,10 +246,12 @@ pub(super) fn inner_areas(area: Rect) -> [Rect; 3] {
     .areas(Block::bordered().inner(area))
 }
 
-/// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼：左邊月曆框（`calendar`）的一天，或右邊事項框（`agenda`）的一件事；
-/// 沒點在日期或事上回傳 `None`
+/// What a mouse click at terminal (`column`, `row`) hits: a day in the calendar box on the left
+/// (`calendar`) or an item in the agenda on the right (`agenda`);
+/// `None` when it is not on a date or an item
 ///
-/// 捲動的位置用上一次畫的時候記下的 `app.calendar_top`；月曆一天佔 3 格（日期前面的空白也算那天）
+/// The scroll position is `app.calendar_top`, stored at the last draw; each calendar day takes 3 cells
+/// (the blank before the date counts as that day)
 pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, calendar_body] = inner_areas(calendar);
     let [_, _, agenda_body] = inner_areas(agenda);
@@ -245,17 +262,18 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     );
     months.window = app.agenda_window;
     let position = Position::new(column, row);
-    // 畫面上的每一列，跟畫畫面時一樣（含右邊捲過的）；左右兩個框同一列對齊
+    // Every row on screen, same as when drawing (including the agenda's scroll); both boxes' rows line up
     let rows = months.visible_rows(app.calendar_top?, usize::from(calendar_body.height));
     if calendar_body.contains(position) {
-        // 點的是哪一列（月和月之間的線、只有事的列都沒有日期）
+        // Which row was clicked (lines between months and item-only rows have no dates)
         let Row::Week {
             days: Some(days), ..
         } = rows.get(usize::from(row - calendar_body.y))?
         else {
             return None;
         };
-        // 第幾天：7 天那欄的第幾個 3 格；最後多留的那格是第 8 個，沒有日期
+        // Which day: which group of 3 cells in the 7-day column; the extra cell at the end
+        // is the 8th and has no date
         let [_, _, _, days_area] = Layout::horizontal(COLUMNS).areas(calendar_body);
         let weekday = usize::from(column.checked_sub(days_area.x)? / 3);
         days.get(weekday).copied().flatten().map(Click::Day)
@@ -263,13 +281,13 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
         let Row::Week { items, .. } = rows.get(usize::from(row - agenda_body.y))? else {
             return None;
         };
-        // 點在第幾欄（欄和欄之間的空白不算）
+        // Which column was clicked (the gap between columns does not count)
         let agenda_row = Rect::new(agenda_body.x, row, agenda_body.width, 1);
         let index = split_columns(agenda_row, items.len())
             .iter()
             .position(|area| area.contains(position))?;
         let entry = items.get(index).copied().flatten()?;
-        // 那一行在 `App::agenda()` 裡的位置
+        // That line's index in `App::agenda()`
         app.agenda()
             .iter()
             .position(|other| *other == entry)
@@ -279,9 +297,9 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     }
 }
 
-/// 表頭：「2026年  週 │ 一 二 … 日」；六、日用週末的顏色
+/// Header: 「2026年  週 │ 一 二 … 日」; Saturday and Sunday use the weekend color
 ///
-/// 年月那欄寫 `year` 那天的年份，例：「2026年  週」
+/// The year/month column shows the year of `year`, e.g. 「2026年  週」
 fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, year: Date) {
     let muted = Style::new().fg(theme.muted);
     let month_header = texts.year_label(year);
@@ -290,7 +308,7 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
         .iter()
         .enumerate()
         .map(|(i, name)| {
-            // 第 6、7 個是星期六、星期日
+            // The 6th and 7th are Saturday and Sunday
             let style = if i >= 5 {
                 Style::new().fg(theme.weekend)
             } else {
@@ -311,9 +329,11 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
     );
 }
 
-/// 月曆框的一列：左邊的年 / 月、週數、│、7 天（一天 3 格寬、日期靠右）；只有事的列只畫 │
+/// One row of the calendar box: year / month on the left, week number, │, 7 days (3 cells per day,
+/// dates right-aligned); item-only rows draw only │
 ///
-/// 選取的那天在這一列：週數用亮的顏色、整列墊上 `cursor_line` 的底色；其他列的週數比較暗
+/// If the selected day is in this row: the week number is bright and the whole row gets the
+/// `cursor_line` background; other rows have a dimmer week number
 fn render_week(
     frame: &mut Frame,
     area: Rect,
@@ -329,9 +349,10 @@ fn render_week(
         (Some(Label::Month), Some(day)) => texts.month_label(day),
         _ => String::new(),
     };
-    // 選取的那天在這一列：週數亮一點、整列墊底色
+    // The selected day is in this row: brighter week number, background on the whole row
     let selected_week = days.is_some_and(|days| days.contains(&Some(app.selected)));
-    // 週數（或跟選取那週差幾週）：這一列任何一天都行（同一列一定是同一週）
+    // Week number (or weeks away from the selected week): any day of this row works
+    // (a row is always one week)
     let relative = app.settings.calendar.relative_weeks;
     let week = day
         .map(|day| format!("{:>3} ", calendar::week_label(day, app.selected, relative)))
@@ -352,27 +373,28 @@ fn render_week(
         ],
     );
     if selected_week {
-        // 只換底色，字的顏色不動
+        // Only change the background; leave the text color alone
         frame
             .buffer_mut()
             .set_style(area, Style::new().bg(theme.cursor_line));
     }
 }
 
-/// 7 天的日期，一天 3 格寬、日期靠右；選取的那天前後加括號 `[17]`
+/// The dates of the 7 days, 3 cells per day, right-aligned; the selected day gets brackets `[17]`
 ///
-/// 日期最多 2 位數，前面一定有空白：`[` 佔掉自己前面的空白、`]` 佔掉下一天前面的空白（星期日就佔最後多留的那格）
+/// A date has at most 2 digits, so there is always a blank before it: `[` takes its own day's blank,
+/// `]` takes the next day's blank (for Sunday, the extra cell at the end)
 fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);
     let mut spans = Vec::new();
-    // 上一天是選取的：這一格前面的空白先放 `]`
+    // The previous day is the selected one: put `]` in the blank before this cell first
     let mut close = false;
     for day in days {
         let number = day.map(|day| day.day().to_string()).unwrap_or_default();
         let selected = *day == Some(app.selected);
-        // 日期前面要補幾格空白，例：`17` 補 1 格、`5` 補 2 格；括號佔掉的格子要扣掉
+        // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus cells taken by brackets
         let mut gap = 3 - number.len();
         if close {
             spans.push(Span::styled("]", bracket));
@@ -386,7 +408,7 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             spans.push(Span::styled("[", bracket));
         }
         if let Some(day) = day {
-            // 選取的和今天的日期加粗；跨多天的事的日子加底線
+            // The selected day and today are bold; days covered by a multi-day item are underlined
             let mut style = Style::new().fg(day_color(*day, app));
             if selected || *day == app.today {
                 style = style.add_modifier(Modifier::BOLD);
@@ -404,8 +426,9 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 一天的日期顏色：今天 > 假日 > 有還沒結束的事（沒做完的任務、還沒過的行程）> 週末 > 一般
-/// （事都結束了、日曆沒勾的事，都跟沒事一樣）
+/// A day's date color: today > holiday > has items not over yet (unfinished tasks, events not yet
+/// past) > weekend > normal
+/// (items that are all over, or in unchecked calendars, count as no items)
 pub(super) fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
@@ -425,14 +448,16 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
     }
 }
 
-/// `day` 在不在跨多天的事裡（日曆有勾選、不是做完的任務）：月曆上那天的日期加底線
+/// Whether `day` is inside a multi-day item (in a checked calendar, not a done task): if so, that date
+/// is underlined on the calendar
 pub(super) fn in_multi_day(day: Date, app: &App) -> bool {
     app.items
         .iter()
         .any(|item| item.end.is_some() && !item.done && app.is_shown(item) && item.covers(day))
 }
 
-/// 右邊的日期：`10/5`；跨多天的寫範圍：`10/20~25`、跨月 `10/28~11/3`、跨年 `12/30~1/2`
+/// The agenda date: `10/5`; multi-day items show a range: `10/20~25`, across months `10/28~11/3`,
+/// across years `12/30~1/2`
 pub(super) fn date_text(item: &Item) -> String {
     let Some(first) = item.date else {
         return String::new();
@@ -447,11 +472,13 @@ pub(super) fn date_text(item: &Item) -> String {
     }
 }
 
-/// 右邊的一件事：「 10/16 17:30 交週報」（日期至少 5 格、靠右；跨多天的日期比較長，標題就往右推；有時間才寫時間）
+/// One agenda item: 「 10/16 17:30 交週報」 (date at least 5 cells, right-aligned; a multi-day date is
+/// longer and pushes the title right; time only if it has one)
 ///
-/// 還沒結束的：日期和標題用那天在月曆上的顏色，兩邊對得起來；時間淡色。結束了的整行變灰：
-/// 做完的任務標題再劃線，過去的行程不劃線。
-/// `chosen` = 鍵盤在右邊時選到的這件：日期加括號 `[10/17]`、加粗
+/// Not over yet: date and title use that day's color on the calendar, so the two sides match; the time
+/// is muted. Over: the whole line turns gray; done tasks also get a struck-through title, past events
+/// do not.
+/// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
     let color = if item.is_open(app.today) {
@@ -460,7 +487,8 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
         theme.muted
     };
     let date = date_text(item);
-    // 日期那段至少 7 格寬：「 10/17 」；選到的是「[10/17]」（日期比較短時，括號前面補空白；跨多天的範圍比較長）
+    // The date part is at least 7 cells wide: 「 10/17 」; the chosen one is 「[10/17]」 (a shorter date
+    // gets blanks before the bracket; a multi-day range is longer)
     let mut spans = if chosen {
         let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
         vec![
@@ -486,8 +514,9 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     Line::from(spans)
 }
 
-/// 左右兩個框裡的同一條橫線（`thick` = 跨年的粗線）；月曆框裡跟直線交會的地方畫十字；
-/// `hint` 有值：寫在右邊那段線的右邊（淡色，最後留一格線），例：`───── 還有 23 件 ─`
+/// The same horizontal line across both boxes (`thick` = the thick new-year line); in the calendar
+/// box, a cross where it meets the vertical line. With a `hint`: written at the right end of the
+/// agenda part of the line (muted, leaving one line cell at the end), e.g. `───── 還有 23 件 ─`
 fn render_rule(
     frame: &mut Frame,
     calendar: Rect,
@@ -504,7 +533,7 @@ fn render_rule(
     let style = Style::new().fg(color);
     let columns = Layout::horizontal(COLUMNS).areas::<4>(calendar);
     for (i, column) in columns.into_iter().enumerate() {
-        // 第 3 欄是直線那欄
+        // The 3rd column is the vertical-line column
         let symbol = if i == 2 { cross } else { horizontal };
         let text = symbol.repeat(usize::from(column.width));
         frame.render_widget(Line::styled(text, style), column);
@@ -512,12 +541,13 @@ fn render_rule(
     let text = horizontal.repeat(usize::from(agenda.width));
     frame.render_widget(Line::styled(text, style), agenda);
     if let Some(hint) = hint {
-        // 顏色放在 `Span` 上：`Line::styled` 會把整列（連左邊的線）都換成淡色
+        // Color goes on the `Span`: `Line::styled` would make the whole row (including the line on
+        // the left) muted
         let hint = Line::from(Span::styled(
             format!(" {hint} "),
             Style::new().fg(theme.muted),
         ));
-        // 放得下才寫（前後至少各留一格線）
+        // Only write it if it fits (at least one line cell left on each side)
         if hint.width() + 2 <= usize::from(agenda.width) {
             let area = Rect {
                 width: agenda.width - 1,
@@ -528,7 +558,7 @@ fn render_rule(
     }
 }
 
-/// 月曆框一列的四欄各畫一段字
+/// Draws one piece of text in each of the four columns of a calendar box row
 fn render_cells(frame: &mut Frame, area: Rect, cells: [Line; 4]) {
     let columns = Layout::horizontal(COLUMNS).areas::<4>(area);
     for (cell, column) in cells.into_iter().zip(columns) {
@@ -542,7 +572,7 @@ mod tests {
 
     #[test]
     fn agenda_columns_are_at_least_28_wide() {
-        // 欄和欄之間空 2 格：2 欄要 28 + 2 + 28 = 58 格
+        // 2 cells between columns: 2 columns need 28 + 2 + 28 = 58 cells
         assert_eq!(agenda_columns(0), 1);
         assert_eq!(agenda_columns(57), 1);
         assert_eq!(agenda_columns(58), 2);

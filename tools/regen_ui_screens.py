@@ -1,8 +1,11 @@
-"""用 `tools/expected_screen.py` 重算 `src/ui.rs` 裡所有畫面 test 的預期畫面，直接改寫 `src/ui.rs`
+"""Recompute the expected screens of every screen test in `src/ui.rs` with `tools/expected_screen.py`,
+and rewrite `src/ui.rs` in place
 
-用法（在 repo 最上層）：python3 tools/regen_ui_screens.py
-改了畫面之後跑一次，再用 `git diff src/ui.rs` 看預期畫面變了哪裡、是不是你要的。
-新增畫面 test 時，要在下面的 `PLAN` 加一筆（test 名字 → 每個預期畫面的參數，照在 test 裡出現的順序）。
+Usage (from the repo root): python3 tools/regen_ui_screens.py
+Run it once after changing the screen, then use `git diff src/ui.rs` to see what changed in the expected
+screens and whether that is what you want.
+When you add a screen test, add an entry to `PLAN` below (test name → arguments of each expected screen,
+in the order they appear in the test).
 """
 import os
 import subprocess
@@ -13,7 +16,8 @@ GENERATOR = ROOT / "tools" / "expected_screen.py"
 AGENDA = (ROOT / "testdata" / "agenda.md").read_text()
 UI = ROOT / "src" / "ui.rs"
 
-# test 名字 → [(expected_screen.py 的參數, 任務檔（True = testdata/agenda.md、檔名 = testdata/ 裡的那個檔、False = 沒有）, 環境變數)]
+# test name → [(expected_screen.py arguments,
+#   task file (True = testdata/agenda.md, a file name = that file in testdata/, False = none), env vars)]
 PLAN = {
     "calendar_from_this_month_down_with_a_thick_line_between_years": [(["zh", "35", "26", "2026-10-17"], False, {})],
     "calendar_in_english": [(["en", "35", "11", "2026-10-17"], False, {})],
@@ -46,8 +50,9 @@ PLAN = {
 
 
 def generate(args, data, extra):
-    """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
-    # 只給 PATH 和這個畫面的環境變數：外面設了別的（例：上一次留下的 LAYOUT）也不會混進來
+    """Run expected_screen.py once and return each row (written as Rust strings, with outer whitespace stripped)"""
+    # Pass only PATH and this screen's env vars, so anything set outside (e.g. a LAYOUT left over from
+    # the last run) does not leak in
     env = {"PATH": os.environ["PATH"], **extra}
     if isinstance(data, str):
         text = (ROOT / "testdata" / data).read_text()
@@ -65,7 +70,7 @@ def main():
         end = src.find("\n    #[test]", start)
         end = len(src) if end < 0 else end
         lines = src[start:end].split("\n")
-        # 連續的字串列（`"...",`）= 一個預期畫面
+        # A run of string lines (`"...",`) = one expected screen
         blocks, i = [], 0
         while i < len(lines):
             text = lines[i].strip()

@@ -1,6 +1,7 @@
-//! 顏色：畫面只講「角色」（今天、週末、週數…），不講顏色名；換 theme = 整組換掉
+//! Colors: the screen only names "roles" (today, weekend, week number…), never color names;
+//! switching theme = swapping the whole set
 //!
-//! 一套 theme 是一個 TOML 檔（內建的在 repo 的 `themes/`，編進執行檔）
+//! A theme is one TOML file (the built-in ones are in the repo's `themes/`, compiled into the binary)
 
 use ratatui::style::Color;
 use serde::Deserialize;
@@ -10,57 +11,60 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 use toml_edit::DocumentMut;
 
-/// 一套 theme：每個角色各配一個顏色；從 theme 檔（TOML）的 `[roles]` 讀（見 `Theme::parse`），欄位名 = 角色名。
-/// `Serialize`：test 用來確認角色的名字（`ROLES`、`Theme::color`）跟欄位一模一樣
+/// A theme: one color per role; read from `[roles]` in the theme file (TOML) (see `Theme::parse`),
+/// field name = role name.
+/// `Serialize`: tests use it to confirm the role names (`ROLES`, `Theme::color`) match the fields exactly
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[cfg_attr(test, derive(Serialize))]
 #[serde(deny_unknown_fields)]
 pub struct Theme {
-    /// 一般的字：平日的日期
+    /// Normal text: weekday dates
     pub text: Color,
-    /// 次要的字：表頭、最下面的操作說明
+    /// Secondary text: headers, the key hints at the bottom
     pub muted: Color,
-    /// 外框、欄和欄之間、月和月之間的線
+    /// Lines: outer borders, between columns, between months
     pub line: Color,
-    /// 跨年的粗線
+    /// The thick line where the year changes
     pub year_line: Color,
-    /// 標題、左邊的年 / 月
+    /// Titles, the year / month on the left
     pub label: Color,
-    /// 選取那一週的週數
+    /// The week number of the selected week
     pub week_number: Color,
-    /// 其他週的週數（比較暗）
+    /// The week numbers of other weeks (dimmer)
     pub week_number_dim: Color,
-    /// 六、日的日期和表頭
+    /// Saturday and Sunday dates and headers
     pub weekend: Color,
-    /// 有還沒結束的事的日期
+    /// Dates that have items not over yet
     pub has_item: Color,
-    /// 假日（假日日曆裡的事的日子）的日期
+    /// Holiday dates (the days of items in a holiday calendar)
     pub holiday: Color,
-    /// 今天的日期
+    /// Today's date
     pub today: Color,
-    /// 選取的日期：前後的括號 `[17]`
+    /// The selected date: the brackets around it `[17]`
     pub selected: Color,
-    /// 月曆上選取那一週那一列、右邊選到的那件事的底色（像 vim 的 cursorline）
+    /// Background of the selected week's row in the calendar and of the chosen item in the agenda
+    /// (like vim's cursorline)
     pub cursor_line: Color,
-    /// 鍵盤在的那個框的框線
+    /// The border of the pane that has keyboard focus
     pub focus: Color,
-    /// side menu 上勾選的日曆的 `☑`
+    /// The `☑` of checked calendars in the side menu
     pub checked: Color,
-    /// 最下面一列暫時換成的提示（寫檔失敗、重新載入）
+    /// The notice that briefly replaces the bottom row (write failed, reloaded)
     pub notice: Color,
-    /// 寫錯的地方（編輯框裡存不了的原因、任務頁上寫錯格式的那一行）
+    /// Mistakes (why the editor cannot save, a badly formatted line on the tasks page)
     pub error: Color,
-    /// 大月曆（版型 3）格子之間的淡格線
+    /// The faint grid lines between cells in the month grid (layout 3)
     pub grid: Color,
-    /// 大月曆（版型 3）不是選取那個月的日子：日期和事都變灰
+    /// Days in the month grid (layout 3) outside the selected month: dates and items turn gray
     pub other_month: Color,
-    /// 說明頁的段落名（`移動`、`編輯`…）
+    /// Section names on the help page (`移動`, `編輯`…)
     pub help_section: Color,
-    /// 說明頁的按鍵（`hjkl`、`Space`…）
+    /// Keys on the help page (`hjkl`, `Space`…)
     pub help_key: Color,
 }
 
-/// 內建的 theme：(名字, theme 檔的內容)；檔案在 repo 的 `themes/`，編進執行檔
+/// Built-in themes: (name, theme file content); the files are in the repo's `themes/`,
+/// compiled into the binary
 pub const BUILTIN: [(&str, &str); 6] = [
     (
         "catppuccin-mocha",
@@ -73,15 +77,16 @@ pub const BUILTIN: [(&str, &str); 6] = [
     ("terminal", include_str!("../themes/terminal.toml")),
 ];
 
-/// 沒指定時用的 theme
+/// The theme used when none is given
 pub const DEFAULT: &str = "catppuccin-mocha";
 
-/// 內建的 theme 的名字，照 `BUILTIN` 的順序
+/// Names of the built-in themes, in `BUILTIN` order
 pub fn names() -> Vec<&'static str> {
     BUILTIN.iter().map(|&(name, _)| name).collect()
 }
 
-/// 每個角色的名字，照 `Theme` 欄位的順序（= theme 檔的 `[roles]`、設定檔的 `[colors]` 裡的名字；有 test 釘住）
+/// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
+/// config file's `[colors]`; pinned by a test)
 pub const ROLES: [&str; 21] = [
     "text",
     "muted",
@@ -106,7 +111,8 @@ pub const ROLES: [&str; 21] = [
     "help_key",
 ];
 
-/// terminal 的 16 色：theme 沒有色票時（例：`terminal`），設定頁換顏色就在這幾個裡面換
+/// The terminal's 16 colors: when a theme has no palette (e.g. `terminal`), the settings page picks
+/// colors from these
 const ANSI: [Color; 16] = [
     Color::Black,
     Color::Red,
@@ -126,7 +132,8 @@ const ANSI: [Color; 16] = [
     Color::White,
 ];
 
-/// 每一套內建 theme 能挑的顏色（照 `BUILTIN` 的順序）：第一次用的時候讀一次 theme 檔，之後都用這一份
+/// The colors each built-in theme can pick from (in `BUILTIN` order): the theme files are read once on
+/// first use, and this copy is used after that
 static CHOICES: LazyLock<Vec<Vec<(String, Color)>>> = LazyLock::new(|| {
     BUILTIN
         .iter()
@@ -134,8 +141,9 @@ static CHOICES: LazyLock<Vec<Vec<(String, Color)>>> = LazyLock::new(|| {
         .collect()
 });
 
-/// 內建的 theme `name` 能挑的顏色：它的色票 (名字, 顏色)，照 theme 檔裡的順序；
-/// 沒有色票（例：`terminal`）就是 terminal 的 16 色（名字 = 設定檔裡的寫法）；沒有這套 theme 是空的
+/// The colors the built-in theme `name` can pick from: its palette (name, color), in theme file order;
+/// without a palette (e.g. `terminal`), the terminal's 16 colors (name = how the config file writes it);
+/// empty if there is no such theme
 pub fn choices(name: &str) -> &'static [(String, Color)] {
     BUILTIN
         .iter()
@@ -143,7 +151,7 @@ pub fn choices(name: &str) -> &'static [(String, Color)] {
         .map_or(&[], |index| CHOICES[index].as_slice())
 }
 
-/// 從 theme 檔（`text`）讀出能挑的顏色（見 `choices`）
+/// Read the colors to pick from out of a theme file (`text`) (see `choices`)
 fn read_choices(text: &str) -> Vec<(String, Color)> {
     let palette: Vec<(String, Color)> = text
         .parse::<DocumentMut>()
@@ -169,8 +177,10 @@ fn read_choices(text: &str) -> Vec<(String, Color)> {
     }
 }
 
-/// 顏色寫成設定檔裡的樣子：`#cdd6f4`、`236`（256 色的編號）；terminal 的顏色照 ratatui 的寫法 `LightBlue`
-/// （大寫開頭：色票的名字都是小寫，theme 的色票就算也有 `cyan`，讀回來還是 terminal 的 cyan）
+/// A color written as in the config file: `#cdd6f4`, `236` (a 256-color index); terminal colors use
+/// ratatui's spelling `LightBlue`
+/// (capitalized: palette names are all lower case, so even if a theme's palette also has `cyan`, it reads
+/// back as the terminal's cyan)
 pub fn color_text(color: Color) -> String {
     match color {
         Color::Rgb(red, green, blue) => format!("#{red:02x}{green:02x}{blue:02x}"),
@@ -178,35 +188,41 @@ pub fn color_text(color: Color) -> String {
     }
 }
 
-/// theme 檔（TOML）的樣子：`[palette]` 色票（名字自己取，可以不寫）、`[roles]` 每個角色用哪個顏色
+/// The shape of a theme file (TOML): `[palette]` the palette (names are up to you, optional), `[roles]`
+/// which color each role uses
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeFile {
-    /// 色票：名字 → 顏色（`"#rrggbb"`）；`[roles]` 可以寫這裡的名字
+    /// Palette: name → color (`"#rrggbb"`); `[roles]` can use these names
     #[serde(default)]
     palette: BTreeMap<String, String>,
-    /// 每個角色用哪個顏色（色票的名字或顏色）；`Theme::parse` 再一個一個讀成顏色
+    /// Which color each role uses (a palette name or a color); `Theme::parse` then turns them into colors
+    /// one by one
     roles: toml::Table,
 }
 
 impl Theme {
-    /// [Catppuccin Mocha](https://catppuccin.com/palette)：暗色背景用的柔和配色（跟 v1 的預設一樣）
+    /// [Catppuccin Mocha](https://catppuccin.com/palette): soft colors for dark backgrounds
+    /// (same as v1's default)
     pub fn catppuccin_mocha() -> Self {
         Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("內建的 theme"))
     }
 
-    /// 內建的 theme 裡叫 `name` 的那一套（沒有蓋掉的顏色）；沒有這個名字是 `None`
+    /// The built-in theme called `name` (with no colors overridden); `None` if there is no such name
     pub fn builtin(name: &str) -> Option<Self> {
         let (_, text) = BUILTIN.iter().find(|(builtin, _)| *builtin == name)?;
-        // 內建的 theme 檔編進執行檔，test 確認每一套都讀得進來；讀不進來是寫程式的錯，不是使用者的錯
+        // The built-in theme files are compiled into the binary and a test checks that each one reads;
+        // failing to read one is a programming bug, not the user's fault
         Some(
             Self::parse(text, &BTreeMap::new())
                 .unwrap_or_else(|error| unreachable!("內建的 theme {name}：{error}")),
         )
     }
 
-    /// 內建的 theme `name`，再用 `colors`（設定檔的 `[colors]`：角色 → 顏色，或那套 theme 的色票名字）蓋掉幾個角色；
-    /// 沒有這套 theme、不認識的角色、不是顏色都是錯誤（錯誤訊息說明哪裡錯）
+    /// The built-in theme `name`, with some roles overridden by `colors` (the config file's `[colors]`:
+    /// role → color, or a palette name of that theme);
+    /// no such theme, an unknown role, or something that is not a color is an error (the error message says
+    /// what is wrong)
     pub fn build(name: &str, colors: &BTreeMap<String, String>) -> Result<Self, String> {
         let (_, text) = BUILTIN
             .iter()
@@ -217,7 +233,7 @@ impl Theme {
                     names().join(", ")
                 )
             })?;
-        // 先一個一個檢查蓋掉的顏色，錯誤訊息才說得出是哪一個
+        // Check the overriding colors one by one first, so the error message can say which one is wrong
         let file: ThemeFile = toml::from_str(text).map_err(|error| error.to_string())?;
         for (role, color) in colors {
             if !ROLES.contains(&role.as_str()) {
@@ -234,7 +250,8 @@ impl Theme {
         Self::parse(text, colors).map_err(|error| format!("[colors]: {}", error.message()))
     }
 
-    /// 角色 `role`（`ROLES` 的名字）現在的顏色；沒有這個角色是 `None`。名字跟欄位一一對應，有 test 釘住
+    /// The current color of role `role` (a name in `ROLES`); `None` if there is no such role.
+    /// Names match the fields one to one, pinned by a test
     pub fn color(&self, role: &str) -> Option<Color> {
         let color = match role {
             "text" => self.text,
@@ -263,9 +280,11 @@ impl Theme {
         Some(color)
     }
 
-    /// 把 theme 檔（TOML）轉成 `Theme`：先用 `colors` 蓋掉幾個角色，`[roles]` 裡寫色票名字的再換成 `[palette]` 裡的顏色，
-    /// 最後一個角色一個角色讀成顏色（`"#rrggbb"`、`"blue"` 這種 terminal 的顏色名字、256 色的編號都可以）。
-    /// 少了角色、不認識的角色、不是顏色都是錯誤
+    /// Turn a theme file (TOML) into a `Theme`: first override some roles with `colors`, then replace
+    /// palette names in `[roles]` with the colors from `[palette]`,
+    /// and finally read each role as a color (`"#rrggbb"`, terminal color names like `"blue"`, and 256-color
+    /// indexes all work).
+    /// A missing role, an unknown role, or something that is not a color is an error
     fn parse(text: &str, colors: &BTreeMap<String, String>) -> Result<Self, toml::de::Error> {
         let ThemeFile { palette, mut roles } = toml::from_str(text)?;
         for (role, color) in colors {
@@ -285,7 +304,7 @@ mod tests {
     use super::*;
 
     impl Theme {
-        /// 沒有蓋掉的顏色，只讀 theme 檔（test 用）
+        /// Read only the theme file, with no colors overridden (for tests)
         fn parse_text(text: &str) -> Result<Self, toml::de::Error> {
             Self::parse(text, &BTreeMap::new())
         }
@@ -293,11 +312,12 @@ mod tests {
 
     #[test]
     fn roles_list_every_field_in_order() {
-        // `ROLES` 跟 `Theme` 的欄位一模一樣（Theme 轉成 TOML 的名字和順序）
+        // `ROLES` matches the fields of `Theme` exactly (the names and order of Theme turned into TOML)
         let doc = toml_edit::ser::to_document(&Theme::catppuccin_mocha()).expect("serialize");
         let fields: Vec<&str> = doc.iter().map(|(key, _)| key).collect();
         assert_eq!(fields, ROLES);
-        // `Theme::color` 每個角色都查得到、就是那個欄位的顏色：每個角色蓋成不一樣的顏色（256 色的第 0～20 號）再查
+        // `Theme::color` finds every role and returns that field's color: override each role with a different
+        // color (256-color indexes 0-20), then look them up
         let colors: BTreeMap<String, String> = (0..)
             .zip(ROLES)
             .map(|(index, role): (u8, _)| (role.to_string(), index.to_string()))
@@ -323,7 +343,7 @@ mod tests {
                 .map(|&(role, color)| (role.to_string(), color.to_string()))
                 .collect()
         };
-        // 顏色、色票的名字都可以；沒寫到的角色照 theme 的
+        // Both colors and palette names work; roles not given keep the theme's color
         let theme = Theme::build(
             "catppuccin-mocha",
             &colors(&[("today", "#010203"), ("weekend", "red")]),
@@ -332,10 +352,10 @@ mod tests {
         assert_eq!(theme.today, Color::Rgb(1, 2, 3));
         assert_eq!(theme.weekend, Color::Rgb(0xf3, 0x8b, 0xa8));
         assert_eq!(theme.text, Theme::catppuccin_mocha().text);
-        // terminal 沒有色票：red 是 terminal 的紅色
+        // terminal has no palette: red is the terminal's red
         let terminal = Theme::build("terminal", &colors(&[("weekend", "red")])).expect("valid");
         assert_eq!(terminal.weekend, Color::Red);
-        // 錯誤：沒有這套 theme、角色名字打錯、不是顏色；訊息說得出是哪一個
+        // Errors: no such theme, a misspelled role name, not a color; the message says which one
         assert!(Theme::build("solarized", &BTreeMap::new()).is_err());
         let error =
             Theme::build("catppuccin-mocha", &colors(&[("todya", "red")])).expect_err("role");
@@ -379,7 +399,7 @@ mod tests {
             assert!(Theme::parse(text, &BTreeMap::new()).is_ok(), "{name}");
         }
         assert_eq!(Theme::builtin("no-such-theme"), None);
-        // 每一套都不一樣（複製貼上忘了改會抓到）
+        // Every theme differs (catches a copy-paste that was not edited)
         let themes: Vec<Theme> = names()
             .iter()
             .filter_map(|name| Theme::builtin(name))
@@ -390,7 +410,7 @@ mod tests {
                 assert_ne!(theme, other);
             }
         }
-        // 每一套從原本的專案抄的色票，抽一個角色對照
+        // Each theme's palette was copied from the original project; check one role of each against it
         assert_eq!(
             Theme::builtin("gruvbox-dark").map(|theme| theme.today),
             Some(Color::Rgb(0xb8, 0xbb, 0x26))
@@ -415,7 +435,7 @@ mod tests {
 
     #[test]
     fn roles_take_palette_names_or_colors() {
-        // 從 mocha 改一行來試：色票名字、#rrggbb、terminal 的顏色名字、256 色的編號
+        // Test by changing one line of mocha: palette name, #rrggbb, terminal color name, 256-color index
         let mocha = BUILTIN[0].1;
         let with = |role: &str| mocha.replace("today = \"green\"", &format!("today = {role}"));
         assert_eq!(
@@ -440,13 +460,13 @@ mod tests {
     fn mistakes_in_a_theme_file_are_errors() {
         let mocha = BUILTIN[0].1;
         for text in [
-            // 少一個角色
+            // A role missing
             mocha.replace("today = \"green\"\n", ""),
-            // 角色名字打錯
+            // A misspelled role name
             mocha.replace("today = ", "todya = "),
-            // 不是顏色、也不是色票的名字
+            // Neither a color nor a palette name
             mocha.replace("today = \"green\"", "today = \"greeen\""),
-            // 不認識的表
+            // An unknown table
             format!("{mocha}\n[colours]\n"),
         ] {
             assert!(Theme::parse(&text, &BTreeMap::new()).is_err(), "{text}");

@@ -1,24 +1,28 @@
-# roh-cal v2 設定檔範例（真正的位置：~/.config/roh-cal/config-v2.toml）
-# 只寫想改的就好，沒寫的用預設值；這裡每個開關都寫成跟預設相反
+# Sample roh-cal v2 config file (the real one lives at ~/.config/roh-cal/config-v2.toml)
+# Write only what you want to change; anything left out uses the default. Every switch here is set
+# to the opposite of its default
 
-# 顏色：內建的 catppuccin-mocha（預設）、gruvbox-dark、tokyo-night、dracula、nord、terminal（只用 terminal 的 16 色）
+# Colors: the built-in catppuccin-mocha (default), gruvbox-dark, tokyo-night, dracula, nord, terminal
+# (only the terminal's 16 colors)
 theme = "nord"
 
-# 月曆（版型 1、3）共用
+# Shared by the calendars (layouts 1 and 3)
 [calendar]
-# 週數欄：選取那週寫週數，其他週寫差幾週（預設 false）
+# Week-number column: the selected week shows its week number, other weeks show how many weeks away
+# they are (default false)
 relative_weeks = true
 
-# 大月曆（版型 3）
+# The month grid (layout 3)
 [month]
-# 格子之間畫淡淡的格線（預設 true）
+# Draw faint grid lines between the cells (default true)
 grid_lines = false
-# 每件事前面加一個點（預設 true）
+# Put a dot before each item (default true)
 item_icons = false
-# 選取的那週固定在正中間（預設 false）
+# Keep the selected week fixed in the middle (default false)
 center_cursor = true
 
-# 蓋掉 theme 的幾個角色（角色的名字見 themes/ 裡的 [roles]）：顏色、或那套 theme 的色票名字
+# Override some of the theme's roles (for role names see [roles] in themes/): a color, or a palette
+# name from that theme
 [colors]
-# 週末用 nord 色票的紅色（nord11）
+# Weekends use the red from the nord palette (nord11)
 weekend = "nord11"

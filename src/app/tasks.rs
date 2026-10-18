@@ -1,37 +1,40 @@
-//! 任務頁（`4`）：整份任務檔照日曆（分組）列出來，子任務排成樹（預設收起來），沒日期的也列；
-//! `j` / `k` 上下、`l` / `h` 展開 / 收起（`+` / `-` 全部）、`L` / `H` 縮排 / 取消縮排、`J` / `K` 上下搬
+//! Tasks page (`4`): lists the whole task file by calendar (group),
+//! subtasks as a tree (collapsed by default), undated items included;
+//! `j` / `k` up / down, `l` / `h` expand / collapse (`+` / `-`
+//! all), `L` / `H` indent / outdent, `J` / `K` move up / down
 
 use super::App;
 use crate::{edit, tasks::Item};
 use ratatui::crossterm::event::KeyCode;
 
-/// 任務頁的一列
+/// One row of the tasks page
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TaskRow {
-    /// 日曆（分組）的標題
+    /// A calendar (group) heading
     Heading {
-        /// 標題的名字；`None` = 檔案開頭、還沒有標題的「未分組」
+        /// The heading's name; `None` = the 「未分組」 part at the top of the file, before any heading
         name: Option<String>,
-        /// 幾個 `#`（縮排用）
+        /// How many `#` (for indentation)
         level: usize,
     },
-    /// 一件事
+    /// An item
     Item {
-        /// `App::items` 裡的位置
+        /// Its position in `App::items`
         index: usize,
-        /// 有沒有子任務
+        /// Whether it has subtasks
         children: bool,
-        /// 子任務展開了沒（沒有子任務的一定是 `false`）
+        /// Whether its subtasks are expanded (always `false` without subtasks)
         expanded: bool,
     },
 }
 
 impl App {
-    /// 任務頁的每一列，照檔案的順序：日曆換了就先列一列標題；子任務要上面每一層都展開了才列；
-    /// 日曆沒勾（side menu）的整組不列
+    /// Every row of the tasks page, in file order: a heading row comes first whenever the calendar changes;
+    /// a subtask is listed only if every level above it is expanded;
+    /// calendars unchecked in the side menu are left out entirely
     pub fn tasks_rows(&self) -> Vec<TaskRow> {
         let mut rows = Vec::new();
-        // 上一件列出來的事是哪一組（換組就列標題）
+        // Which group the last listed item was in (a new group gets a heading)
         let mut previous = None;
         for (index, item) in self.items.iter().enumerate() {
             if !self.is_shown(item) || !self.ancestors_expanded(item) {
@@ -48,14 +51,14 @@ impl App {
             rows.push(TaskRow::Item {
                 index,
                 children,
-                // 子任務都刪光了的，就算還記著展開也不算
+                // If all subtasks were deleted, it does not count as expanded even if it is still remembered
                 expanded: children && self.expanded.contains(&item.line),
             });
         }
         rows
     }
 
-    /// `item` 上面每一層（父項目、父項目的父項目…）都展開了沒
+    /// Whether every level above `item` (parent, parent's parent, ...) is expanded
     fn ancestors_expanded(&self, item: &Item) -> bool {
         let mut parent = item.parent;
         while let Some(index) = parent {
@@ -70,8 +73,9 @@ impl App {
         true
     }
 
-    /// 任務頁選到的那一列（`tasks_rows()` 裡的位置）：`tasks_line` 那一行的事；它不在畫面上（例：剛好被收起來、
-    /// 日曆沒勾）或還沒選過，就是第一件
+    /// The chosen row on the tasks page (its position in `tasks_rows()`): the item on line `tasks_line`;
+    /// if that item is not on screen (e.g. just collapsed, or its
+    /// calendar is unchecked) or nothing was chosen yet, the first item
     pub fn tasks_cursor(&self, rows: &[TaskRow]) -> Option<usize> {
         let line_of = |row: &TaskRow| match row {
             TaskRow::Item { index, .. } => self.items.get(*index).map(|item| item.line),
@@ -82,7 +86,7 @@ impl App {
             .or_else(|| rows.iter().position(|row| line_of(row).is_some()))
     }
 
-    /// 任務頁選到的那件事
+    /// The item chosen on the tasks page
     pub fn tasks_chosen(&self) -> Option<&Item> {
         let rows = self.tasks_rows();
         match rows.get(self.tasks_cursor(&rows)?)? {
@@ -91,9 +95,11 @@ impl App {
         }
     }
 
-    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務，`+` / `-` 全部展開 / 全部收起，
-    /// `L` / `H` 縮排 / 取消縮排，`J` / `K` 往下 / 往上搬；
-    /// 寫檔的鍵跟右邊的事項框一樣：`Space` / `x` 打勾、`e` / `Enter` 編輯、`a` 新增、`A` 新增子任務、`d` 刪除、`r` 改期
+    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped),
+    /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
+    /// `L` / `H` indent / outdent, `J` / `K` move down / up;
+    /// the keys that write the file are the same as in the agenda: `Space` / `x` check
+    /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_task(1),
@@ -116,7 +122,8 @@ impl App {
         }
     }
 
-    /// 選往後（負的 = 往前）第 `step` 件（標題不算）；到第一件 / 最後一件就停住
+    /// Chooses the `step`-th item forward (negative = backward),
+    /// headings not counted; stops at the first / last item
     pub(super) fn choose_task(&mut self, step: isize) {
         let rows = self.tasks_rows();
         let lines: Vec<usize> = rows
@@ -136,7 +143,7 @@ impl App {
         self.tasks_line = Some(lines[current.saturating_add_signed(step).min(last)]);
     }
 
-    /// 檔案第 `line` 行的那件事有沒有子任務
+    /// Whether the item on line `line` of the file has subtasks
     fn has_children(&self, line: usize) -> bool {
         self.items
             .iter()
@@ -144,7 +151,8 @@ impl App {
             .is_some_and(|index| self.items.iter().any(|other| other.parent == Some(index)))
     }
 
-    /// `l`：選到的那件有子任務、還收著就展開；已經展開就跳到第一個子任務
+    /// `l`: if the chosen item has subtasks and is collapsed,
+    /// expand it; if already expanded, jump to its first subtask
     fn expand_task(&mut self) {
         let Some(line) = self.tasks_chosen().map(|item| item.line) else {
             return;
@@ -158,12 +166,14 @@ impl App {
         self.choose_task(1);
     }
 
-    /// `h`：選到的那件展開著就收起來；不然跳到它的父項目（像 VS Code 的檔案樹）
+    /// `h`: if the chosen item is expanded, collapse it;
+    /// otherwise jump to its parent (like VS Code's file tree)
     fn collapse_task(&mut self) {
         let Some((line, parent)) = self.tasks_chosen().map(|item| (item.line, item.parent)) else {
             return;
         };
-        // 沒有子任務卻記著展開（子任務都刪光了）是舊的記錄：清掉，照樣跳到父項目
+        // Remembered as expanded but with no subtasks (all deleted)
+        // is a stale record: clear it and still jump to the parent
         if self.expanded.remove(&line) && self.has_children(line) {
             return;
         }
@@ -172,7 +182,7 @@ impl App {
         }
     }
 
-    /// `+`：每一件有子任務的都展開
+    /// `+`: expands every item that has subtasks
     fn expand_all(&mut self) {
         let parents: Vec<usize> = self
             .items
@@ -184,7 +194,8 @@ impl App {
         self.expanded.extend(parents);
     }
 
-    /// `-`：全部收起來；選到的是子任務（收起來就看不到了）就改選它最上層的那件
+    /// `-`: collapses everything; if the chosen item is a subtask
+    /// (it would be hidden), choose its top-level item instead
     fn collapse_all(&mut self) {
         let top = self.tasks_chosen().map(|chosen| {
             let mut item = chosen;
@@ -199,8 +210,9 @@ impl App {
         self.expanded.clear();
     }
 
-    /// `L`：選到的那件（連子任務）往裡縮一層，變成上面同一層那件的子任務（縮排 = 那件的縮排 + 2 格，跟 `A` 一樣）；
-    /// 上面沒有同一層的（那一組、那一層的第一件）不動
+    /// `L`: indents the chosen item (with its subtasks) one level, making it a subtask of the
+    /// item above at the same level (indent = that item's indent + 2 spaces, same as `A`);
+    /// does nothing if there is no item above at the same level (the first one in that group, at that level)
     fn indent_task(&mut self) {
         let Some(item) = self.tasks_chosen().cloned() else {
             return;
@@ -209,12 +221,13 @@ impl App {
             return;
         };
         let to = format!("{}  ", edit::indent_of(&above.line_text));
-        // 新的父項目展開，縮進去的那件才看得到
+        // Expand the new parent so the indented item stays visible
         self.reindent_task(&item, &above, &to, above.line);
     }
 
-    /// `H`：選到的那件（連子任務）往外一層，對齊它的父項目；它下面同一層的事變成它的子任務（跟 Obsidian 一樣）。
-    /// 本來就在最外層的不動
+    /// `H`: outdents the chosen item (with its subtasks) one level, aligned with its
+    /// parent; the items below it at the same level become its subtasks (same as Obsidian).
+    /// Does nothing if it is already at the top level
     fn outdent_task(&mut self) {
         let Some(item) = self.tasks_chosen().cloned() else {
             return;
@@ -223,11 +236,12 @@ impl App {
             return;
         };
         let to = edit::indent_of(&parent.line_text).to_string();
-        // 它自己展開：下面變成它子任務的那幾件照樣看得到
+        // Expand it: the items below that become its subtasks stay visible
         self.reindent_task(&item, &parent, &to, item.line);
     }
 
-    /// `item` 上面同一層的那件（同一個父項目、同一段標題底下；中間隔著的是那件的子任務）；沒有就是 `None`
+    /// The item above `item` at the same level (same parent, under the same heading;
+    /// anything in between is that item's subtasks); `None` if there is none
     fn sibling_above(&self, item: &Item) -> Option<&Item> {
         let index = self
             .items
@@ -244,7 +258,8 @@ impl App {
             })
     }
 
-    /// `item` 下面同一層的那件（同一個父項目、同一段標題底下；中間隔著的是 `item` 自己的子任務）；沒有就是 `None`
+    /// The item below `item` at the same level (same parent, under the same heading;
+    /// anything in between is `item`'s own subtasks); `None` if there is none
     fn sibling_below(&self, item: &Item) -> Option<&Item> {
         let index = self
             .items
@@ -260,8 +275,10 @@ impl App {
             })
     }
 
-    /// `J` / `K`：選到的那件（連子任務）跟下面（`down`）/ 上面同一層的那件換位置，寫回任務檔；
-    /// 那一層的最後一件 / 第一件不動（不會搬到別的父項目、別組）。搬完還選著它（行號照 `edit::Swap` 跟著搬）
+    /// `J` / `K`: swaps the chosen item (with its subtasks) with the item below
+    /// (`down`) / above at the same level, and writes back to the task file;
+    /// the last / first item at that level does not move (it never moves to another parent
+    /// or group). It stays chosen after the move (line numbers follow `edit::Swap`)
     fn move_task(&mut self, down: bool) {
         let Some(item) = self.tasks_chosen().cloned() else {
             return;
@@ -282,7 +299,8 @@ impl App {
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
-        // 剛打開還沒選過（預設選第一件）也先記下來，搬完選取才跟得過去
+        // Even right after opening, with nothing chosen yet (the first item
+        // by default), remember it first so the choice can follow the move
         self.tasks_line = Some(item.line);
         match edit::swap(&text, upper, lower) {
             Ok((after, swap)) => {
@@ -292,8 +310,9 @@ impl App {
         }
     }
 
-    /// `item` 那一塊的縮排換成 `to`（照 `anchor` 那一行算的）、寫回任務檔；寫成了就展開第 `expand` 行那件。
-    /// 這兩行在別處改過就重新載入
+    /// Changes the indentation of `item`'s block to `to` (computed from the `anchor` line)
+    /// and writes back to the task file; if written, expands the item on line `expand`.
+    /// Reloads if these two lines were changed elsewhere
     fn reindent_task(&mut self, item: &Item, anchor: &Item, to: &str, expand: usize) {
         let Some((path, text)) = self.read_tasks() else {
             return;
@@ -308,8 +327,9 @@ impl App {
         }
     }
 
-    /// 點任務頁的第 `row` 列（`tasks_rows()` 裡的位置）：點一下選它，點的是 `▸` / `▾` 就展開 / 收起；
-    /// 點標題不理
+    /// Clicks row `row` of the tasks page (its position in `tasks_rows()`):
+    /// one click chooses it; a click on `▸` / `▾` expands / collapses;
+    /// clicks on headings are ignored
     pub(super) fn click_task(&mut self, row: usize, on_marker: bool) {
         let Some(TaskRow::Item {
             index, children, ..
@@ -325,7 +345,7 @@ impl App {
                 self.expanded.insert(line);
             }
         } else if self.focus == super::Focus::Tasks && self.tasks_line == Some(line) {
-            // 再點一次已經選到的那件 = 打勾（跟右邊的事項框一樣）
+            // Clicking the already chosen item again = check it off (same as the agenda)
             self.toggle_chosen();
             return;
         }
@@ -333,7 +353,8 @@ impl App {
         self.focus = super::Focus::Tasks;
     }
 
-    /// 寫檔之後，任務頁選著第 `line` 行那件事；它在收起來的父項目底下就把上面每一層都展開
+    /// After a write, the tasks page chooses the item on line `line`;
+    /// if it is under a collapsed parent, expand every level above it
     pub(super) fn choose_task_line(&mut self, line: usize) {
         self.tasks_line = Some(line);
         let mut parent = self
@@ -350,7 +371,8 @@ impl App {
         }
     }
 
-    /// 刪除之後，任務頁選第 `row` 列（`tasks_rows()` 裡的位置）那件或它後面第一件；後面沒有就選最後一件
+    /// After a delete, the tasks page chooses the item at row `row` (its position in
+    /// `tasks_rows()`) or the first item after it; if there is none after it, the last item
     pub(super) fn choose_task_row_near(&mut self, row: usize) {
         let rows = self.tasks_rows();
         let line_of = |row: &TaskRow| match row {
@@ -373,7 +395,7 @@ mod tests {
     use jiff::civil::date;
     use ratatui::crossterm::event::KeyEvent;
 
-    /// 任務頁的 app（今天 2026/10/17）、任務檔是 `text`
+    /// An app on the tasks page (today 2026/10/17) whose task file is `text`
     fn tasks_app(text: &str) -> App {
         let mut app = App::new(
             Lang::ZhTw,
@@ -384,12 +406,13 @@ mod tests {
         app
     }
 
-    /// 按一個鍵
+    /// Presses one key
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }
 
-    /// 每一列的樣子：標題 `#名字`、事 `標題`（前面每一層兩格空白，有子任務的收著 `+`、展開 `-`）
+    /// What each row looks like: heading `#名字`, item `標題` (two spaces per level
+    /// in front; an item with subtasks gets `+` when collapsed, `-` when expanded)
     fn shape(app: &App) -> Vec<String> {
         app.tasks_rows()
             .iter()
@@ -412,14 +435,14 @@ mod tests {
             .collect()
     }
 
-    /// 任務頁的 test 用的檔案：沒分組的一件、「工作」有三層子任務、「生活」
+    /// The tasks page tests' file: one ungrouped item, 「工作」 with three levels of subtasks, and 「生活」
     const TREE: &str = "- 沒分組\n# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n    - [ ] 查文獻\n  - [x] 列大綱\n- [ ] 整理書櫃\n# 生活\n- 爬山 @2026-10-18\n";
 
     #[test]
     fn rows_list_the_whole_file_by_calendar_with_subtasks_collapsed() {
         let app = tasks_app(TREE);
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
-        // 沒日期的也列；子任務預設收著
+        // Undated items are listed too; subtasks are collapsed by default
         assert_eq!(
             shape(&app),
             [
@@ -437,7 +460,7 @@ mod tests {
     #[test]
     fn l_and_h_expand_and_collapse_like_a_file_tree() {
         let mut app = tasks_app(TREE);
-        // 第一件是「沒分組」；往下到寫報告，l 展開
+        // The first item is 「沒分組」; move down to 「寫報告」 and press l to expand
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
@@ -458,7 +481,7 @@ mod tests {
                 "爬山"
             ]
         );
-        // 已經展開再按 l：跳到第一個子任務；再 l 展開它
+        // Press l when already expanded: jump to the first subtask; l again expands it
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
@@ -466,7 +489,8 @@ mod tests {
         );
         press(&mut app, KeyCode::Right);
         assert!(shape(&app).contains(&"    查文獻".to_string()));
-        // h：展開著的先收起來；再 h 跳回父項目；再 h 收起父項目
+        // h: an expanded item collapses first; h again jumps
+        // back to the parent; h once more collapses the parent
         press(&mut app, KeyCode::Char('h'));
         assert!(!shape(&app).contains(&"    查文獻".to_string()));
         press(&mut app, KeyCode::Char('h'));
@@ -476,7 +500,7 @@ mod tests {
         );
         press(&mut app, KeyCode::Left);
         assert_eq!(shape(&app)[3], "+寫報告");
-        // 沒有子任務的按 l：不動
+        // l on an item without subtasks: nothing happens
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(
@@ -488,7 +512,7 @@ mod tests {
     #[test]
     fn plus_and_minus_expand_and_collapse_everything() {
         let mut app = tasks_app(TREE);
-        // +：每一層都展開，還選著原本那件（沒分組）
+        // +: every level expands, and the same item (「沒分組」) stays chosen
         press(&mut app, KeyCode::Char('+'));
         assert_eq!(
             shape(&app),
@@ -509,7 +533,8 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("沒分組")
         );
-        // 往下選到最深的查文獻；-：全部收起，改選它最上層的寫報告
+        // Move down to the deepest item, 「查文獻」; -: everything
+        // collapses and its top-level item 「寫報告」 is chosen instead
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('j'));
         }
@@ -564,14 +589,15 @@ mod tests {
         assert_eq!(shape(&app), ["#", "沒分組", "#生活", "爬山"]);
     }
 
-    /// 暫存資料夾裡的任務檔（內容 `text`）、開著任務頁的 app；用完要 `clean_up`
+    /// A task file in a temp folder (content `text`) and an
+    /// app with the tasks page open; call `clean_up` when done
     fn tasks_app_with_file(name: &str, text: &str) -> (App, std::path::PathBuf) {
         let (mut app, path) = super::super::write::tests::app_with_task_file(name, text);
         press(&mut app, KeyCode::Char('4'));
         (app, path)
     }
 
-    /// 一個字一個字打進編輯框
+    /// Types text into the editor one character at a time
     fn type_text(app: &mut App, text: &str) {
         for c in text.chars() {
             press(app, KeyCode::Char(c));
@@ -584,14 +610,14 @@ mod tests {
         let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n- [ ] 交週報 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n";
         let (mut app, path) = tasks_app_with_file("tasks-keys", text);
         let read = || std::fs::read_to_string(&path).expect("read");
-        // Space：沒日期的也能打勾；還選著同一件
+        // Space: undated items can be checked off too; the same item stays chosen
         press(&mut app, KeyCode::Char(' '));
         assert!(read().contains("- [x] 寫報告\n"));
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("寫報告")
         );
-        // A：子任務加在它的子任務下面；父項目展開、選著新的那件
+        // A: the subtask goes below its existing subtasks; the parent expands and the new item is chosen
         press(&mut app, KeyCode::Char('A'));
         type_text(&mut app, "列大綱");
         press(&mut app, KeyCode::Enter);
@@ -601,7 +627,7 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("列大綱")
         );
-        // d、y：刪掉；選著下一件（交週報，現在是第 4 行）
+        // d, y: deleted; the next item (「交週報」, now on line 4) is chosen
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
         assert!(!read().contains("列大綱"));
@@ -609,7 +635,7 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("交週報")
         );
-        // u：列大綱回來；交週報跟著往下一行，還是選著它
+        // u: 「列大綱」 comes back; 「交週報」 moves down one line along with it and is still chosen
         press(&mut app, KeyCode::Char('u'));
         assert!(read().contains("列大綱"));
         assert_eq!(app.tasks_line, Some(5));
@@ -617,7 +643,7 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("交週報")
         );
-        // a：任務頁不填日期；加在「工作」最後面，選著新的那件
+        // a: no date on the tasks page; added at the end of 「工作」, and the new item is chosen
         press(&mut app, KeyCode::Char('a'));
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
@@ -630,7 +656,7 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("開會")
         );
-        // e：編輯選到的那件
+        // e: edits the chosen item
         press(&mut app, KeyCode::Char('e'));
         type_text(&mut app, " 10:00");
         press(&mut app, KeyCode::Enter);
@@ -646,10 +672,11 @@ mod tests {
         let (mut app, path) = tasks_app_with_file("tasks-indent", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-        // 寫報告是第一件，上面沒有同一層的：L 不動
+        // 「寫報告」 is the first item, with nothing above it at the same level: L does nothing
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(read(), text);
-        // 交週報 L：連填表一起縮進去，變成寫報告的子任務；寫報告展開，還選著交週報
+        // L on 「交週報」: indented together with 「填表」, becoming a subtask
+        // of 「寫報告」; 「寫報告」 expands and 「交週報」 stays chosen
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(
@@ -669,7 +696,8 @@ mod tests {
             ]
         );
         assert_eq!(chosen(&app).as_deref(), Some("交週報"));
-        // u 復原；往上選到找資料，H：對齊寫報告，下面的列大綱變成它的子任務、它展開
+        // u undoes; move up to 「找資料」, H: aligned with 「寫報告」,
+        // 「列大綱」 below becomes its subtask, and it expands
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), text);
         press(&mut app, KeyCode::Char('k'));
@@ -692,7 +720,8 @@ mod tests {
                 "爬山"
             ]
         );
-        // 爬山：最外層（H 不動）、也是「生活」的第一件（上面的交週報是別組，L 不動）
+        // 「爬山」: top level (H does nothing) and the first item of
+        // 「生活」 (「交週報」 above is in another group, so L does nothing)
         let before = read();
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('j'));
@@ -712,7 +741,8 @@ mod tests {
         let (mut app, path) = tasks_app_with_file("tasks-swap", text);
         let read = || std::fs::read_to_string(&path).expect("read");
         let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-        // 寫報告（第 2 行，展開著）J：連子任務搬到交週報下面；還選著它、還展開著（現在是第 3 行）
+        // J on 「寫報告」 (line 2, expanded): moves with its subtasks
+        // below 「交週報」; still chosen and still expanded (now line 3)
         app.expanded.insert(2);
         press(&mut app, KeyCode::Char('J'));
         let moved =
@@ -732,10 +762,10 @@ mod tests {
                 "爬山"
             ]
         );
-        // 已經是「工作」最後一件（下面的爬山是別組）：J 不動
+        // Already the last item of 「工作」 (「爬山」 below is in another group): J does nothing
         press(&mut app, KeyCode::Char('J'));
         assert_eq!(read(), moved);
-        // 列大綱 K：跟找資料換；再 K：已經是第一個子任務，不動
+        // K on 「列大綱」: swaps with 「找資料」; K again: already the first subtask, nothing happens
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('K'));
@@ -745,7 +775,7 @@ mod tests {
         assert_eq!(app.tasks_line, Some(4));
         press(&mut app, KeyCode::Char('K'));
         assert_eq!(read(), swapped);
-        // u：換回來，還選著列大綱（回到第 5 行）
+        // u: swapped back, 「列大綱」 still chosen (back on line 5)
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(5));
@@ -756,7 +786,8 @@ mod tests {
     #[test]
     fn l_reloads_when_the_item_above_changed_elsewhere() {
         use super::super::write::{Notice, tests::clean_up};
-        // 選交週報之後，上面的寫報告在別處改過（行數沒變）：L 不寫，重新載入
+        // After choosing 「交週報」, 「寫報告」 above was changed
+        // elsewhere (same line count): L does not write and reloads
         let text = "- [ ] 寫報告\n- [ ] 交週報\n";
         let (mut app, path) = tasks_app_with_file("tasks-indent-changed", text);
         app.tasks_line = Some(2);
@@ -771,7 +802,8 @@ mod tests {
     #[test]
     fn indent_and_move_stay_inside_their_heading_section() {
         use super::super::write::tests::clean_up;
-        // 兩段同名的「工作」中間夾著沒有事的「生活」：第二段的交週報上面沒有同一段的事，L、K 都不動（不白寫一次檔）
+        // Two 「工作」 sections with the same name, with an empty 「生活」 between them: 「交週報」 in the
+        // second section has no item above it in the same section, so L and K do nothing (no pointless write)
         let text = "# 工作\n- [ ] 寫報告\n# 生活\n# 工作\n- [ ] 交週報\n";
         let (mut app, path) = tasks_app_with_file("tasks-sections", text);
         let read = || std::fs::read_to_string(&path).expect("read");
@@ -781,7 +813,7 @@ mod tests {
             assert_eq!(read(), text, "{key}");
         }
         assert!(app.expanded.is_empty());
-        // 第一段的寫報告：下面也沒有同一段的事，J 不動
+        // 「寫報告」 in the first section: no item below it in the same section either, so J does nothing
         app.tasks_line = Some(2);
         press(&mut app, KeyCode::Char('J'));
         assert_eq!(read(), text);
@@ -791,7 +823,8 @@ mod tests {
     #[test]
     fn moving_one_of_two_same_named_items_keeps_the_choice_on_it() {
         use super::super::write::tests::clean_up;
-        // 兩件都叫運動：第一件（第 1 行，展開著）J → 搬到第 3 行，選取、展開都跟著它
+        // Both items are called 「運動」: J on the first one (line 1, expanded)
+        // → moves to line 3, and the choice and the expanded state follow it
         let text = "- [ ] 運動\n  - [ ] 跑步\n- [ ] 運動\n  - [ ] 游泳\n";
         let (mut app, path) = tasks_app_with_file("tasks-same-name", text);
         let read = || std::fs::read_to_string(&path).expect("read");
@@ -801,10 +834,10 @@ mod tests {
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(3));
         assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [3]);
-        // 已經是最後一件：再 J 不動（不會換回去）
+        // Already the last item: J again does nothing (does not swap back)
         press(&mut app, KeyCode::Char('J'));
         assert_eq!(read(), moved);
-        // u：搬回來，選取、展開也回到第 1 行
+        // u: moved back; the choice and the expanded state go back to line 1 too
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(read(), text);
         assert_eq!(app.tasks_line, Some(1));
@@ -815,13 +848,15 @@ mod tests {
     #[test]
     fn deleting_every_subtask_does_not_leave_the_parent_expanded() {
         use super::super::write::tests::clean_up;
-        // 寫報告（第 3 行）、找資料（第 4 行）都展開；刪掉找資料唯一的子任務查文獻（第 5 行）
+        // 「寫報告」 (line 3) and 「找資料」 (line 4) are both expanded;
+        // delete 「查文獻」 (line 5), 「找資料」's only subtask
         let (mut app, path) = tasks_app_with_file("tasks-stale-expanded", TREE);
         app.expanded.extend([3, 4]);
         app.tasks_line = Some(5);
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
-        // 找資料沒有子任務了：不算展開；按一次 h 就跳到父項目寫報告（不用按兩次）
+        // 「找資料」 has no subtasks now: it does not count as expanded;
+        // one h jumps to its parent 「寫報告」 (no need to press twice)
         app.tasks_line = Some(4);
         let row = app.tasks_cursor(&app.tasks_rows()).expect("chosen");
         assert!(matches!(
@@ -840,10 +875,11 @@ mod tests {
     #[test]
     fn a_conflict_on_the_tasks_page_keeps_the_keyboard_there() {
         use super::super::write::{Notice, tests::clean_up};
-        // 編輯、新增、刪除的時候檔案在別處改過（最前面多了一行）：重新載入，鍵盤還是在任務頁，不會跑到看不到的月曆
+        // The file was changed elsewhere (a line added at the top) while editing, adding or deleting:
+        // reload, and the keyboard stays on the tasks page instead of going to the hidden calendar
         let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = tasks_app_with_file("tasks-conflict", text);
-        // 每次在最前面加不一樣的一行：選到的那件（第 1 行）每次都對不上
+        // Add a different line at the top each time: the chosen item (line 1) never matches
         let mut extra = String::new();
         let mut change_elsewhere = || {
             extra = format!("- 別處加的 {}\n{extra}", extra.lines().count() + 1);
@@ -873,7 +909,8 @@ mod tests {
     #[test]
     fn r_on_the_tasks_page_borrows_the_calendar() {
         use super::super::write::tests::clean_up;
-        // 還沒排日期的整理書櫃：r 換到版型 1 的月曆，從今天開始選；往後一天、Enter → 排在 10/18，回到任務頁
+        // 「整理書櫃」 has no date yet: r switches to layout 1's calendar, starting
+        // from today; one day later, Enter → scheduled on 10/18, back to the tasks page
         let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = tasks_app_with_file("tasks-move", text);
         press(&mut app, KeyCode::Char('r'));
@@ -890,7 +927,7 @@ mod tests {
             app.tasks_chosen().map(|item| item.title.as_str()),
             Some("整理書櫃")
         );
-        // Esc 取消：也回到任務頁
+        // Esc cancels: also back to the tasks page
         press(&mut app, KeyCode::Char('r'));
         press(&mut app, KeyCode::Esc);
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
@@ -900,7 +937,7 @@ mod tests {
     #[test]
     fn expanded_items_follow_their_lines_after_a_delete_above() {
         use super::super::write::tests::clean_up;
-        // b（第 2 行）展開著；刪掉上面的 a 之後 b 變成第 1 行，還是展開著
+        // b (line 2) is expanded; after deleting a above it, b becomes line 1 and is still expanded
         let text = "- [ ] a\n- [ ] b\n  - [ ] c\n";
         let (mut app, path) = tasks_app_with_file("tasks-remap", text);
         app.expanded.insert(2);
@@ -914,7 +951,8 @@ mod tests {
     #[test]
     fn esc_goes_back_to_the_calendar_and_tab_reaches_the_side_menu() {
         let mut app = tasks_app(TREE);
-        // 夠寬：Tab 換到 side menu、再 Tab 回任務頁；Esc 從 side menu 回任務頁
+        // Wide enough: Tab moves to the side menu, Tab again back to the
+        // tasks page; Esc goes from the side menu back to the tasks page
         app.screen = ratatui::layout::Rect::new(0, 0, 120, 30);
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, Focus::Side);
@@ -923,7 +961,7 @@ mod tests {
         press(&mut app, KeyCode::Tab);
         press(&mut app, KeyCode::Esc);
         assert_eq!(app.focus, Focus::Tasks);
-        // 在任務頁按 Esc：回到版型 1 的月曆（不是離開）
+        // Esc on the tasks page: back to layout 1's calendar (not quitting)
         press(&mut app, KeyCode::Esc);
         assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
         assert!(!app.should_quit);

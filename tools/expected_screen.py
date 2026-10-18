@@ -1,21 +1,35 @@
-"""另外算出版型 1（side menu + 左月曆 + 右事項）、版型 3（side menu + 大月曆）、任務頁的畫面，當 `src/ui.rs` 畫面 test 的預期值。
+"""Compute the screens of layout 1 (side menu + calendar on the left + agenda on the right),
+layout 3 (side menu + month grid) and the tasks page on their own, as the expected values
+of the screen tests in `src/ui.rs`.
 
-跟 Rust 的程式分開寫（週用 Python 的 `calendar` 算、週數用另一種算法、任務檔用簡單的 regex 讀），
-兩邊算出來一樣才算對；不要看 Rust 畫出來的結果抄回來。
+Written apart from the Rust code (weeks come from Python's `calendar`, week numbers use a different formula,
+the task file is read with a simple regex); a result only counts as right when both sides agree. Do not copy
+what Rust draws back in here.
 
-用法（在 repo 最上層）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那塊的月份 YYYY-MM 跳過幾列] < 任務檔
-例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
-版型 3（環境變數 LAYOUT=3）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那週的星期一 YYYY-MM-DD] < 任務檔
-（沒給最上面那週 = 剛打開：選取那個月 1 號的前一週，選取的那週不在 6 週裡再捲）
-任務頁（環境變數 LAYOUT=4）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期（任務頁用不到，照樣要給）< 任務檔；
-EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = 選到的那件在第幾行（沒給 = 第一件）
-環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
-SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
-NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；NO_ICONS = 版型 3 的事前面不加點（`item_icons = false`）；
-CENTER = 版型 3 選取的那週固定在第 3 列（`center_cursor = true`，最上面那週的參數不用給）；
-RELATIVE = 版型 1、3 的週數欄：選取那週寫週數，其他週寫差幾週（`[calendar] relative_weeks = true`）；
-HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3、4 是任務頁
-今天固定是 2026-10-17。
+Usage (from the repo root):
+python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONTH SKIP_ROWS] < TASK_FILE
+(TOP_MONTH = YYYY-MM of the month block at the top; SKIP_ROWS = how many rows to skip)
+Example: python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
+Layout 3 (env var LAYOUT=3):
+python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONDAY] < TASK_FILE
+(TOP_MONDAY = YYYY-MM-DD of the top week's Monday. Not given = just opened: the week before the one with
+the 1st of the selected month; scroll if the selected week is not within the 6 weeks)
+Tasks page (env var LAYOUT=4):
+python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
+(the tasks page does not use SELECTED_DAY, but it must still be given);
+EXPANDED = line numbers of the items whose subtasks are expanded, comma-separated;
+CHOSEN_LINE = line number of the chosen item (not given = the first item)
+Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in the agenda);
+WINDOW = how many rows the selected month's agenda is scrolled;
+SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
+NO_GRID = layout 3 draws no grid lines (config `[month] grid_lines = false`);
+NO_ICONS = no dot before items in layout 3 (`item_icons = false`);
+CENTER = layout 3 keeps the selected week on row 3 (`center_cursor = true`; the top-week argument is not needed);
+RELATIVE = week-number column in layouts 1 and 3: the selected week shows its week number, other weeks show
+how many weeks away they are (`[calendar] relative_weeks = true`);
+HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
+are not shown; LAYOUT = 3 is layout 3, 4 is the tasks page
+Today is always 2026-10-17.
 """
 import calendar
 import datetime
@@ -50,7 +64,7 @@ NO_ICONS = "NO_ICONS" in os.environ
 CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
-SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
+SIDE_MIN, SIDE_MAX = 22, 30  # side menu min / max width (borders included); width follows the longest calendar
 
 
 def width(s):
@@ -66,7 +80,7 @@ def ljust(s, n):
 
 
 def cut(s, n):
-    """最多 n 格；放不下的寬字元整個不放"""
+    """At most n cells; a wide character that does not fit is left out entirely"""
     out = ""
     for c in s:
         if width(out + c) > n:
@@ -76,36 +90,38 @@ def cut(s, n):
 
 
 def week_number(d, selected=None):
-    # 跟 Rust 不同的算法：這天那週的星期一 − 1/1 那週的星期一，除以 7
+    # A different formula from the Rust code: (Monday of this day's week − Monday of 1/1's week) divided by 7
     monday = lambda x: x - datetime.timedelta(days=x.weekday())
     if RELATIVE and selected and monday(d) != monday(selected):
-        # 相對：跟選取那週差幾週（不分前後）
+        # Relative: how many weeks away from the selected week (before or after alike)
         return abs((monday(d) - monday(selected)).days) // 7
     return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
 def read_items(text, hidden_names):
-    """簡單版：`- ` 開頭、行尾是 `@YYYY-MM-DD` 或 `@YYYY-MM-DD..YYYY-MM-DD`（可以再接時間）的行，
-    日曆（上面最近的 `#` 標題）沒勾的不算；回傳 (日期, 時間, 標題, 第幾行, 跨多天的最後一天或 None)，排好"""
+    """Simple version: lines that start with `- ` and end with `@YYYY-MM-DD` or `@YYYY-MM-DD..YYYY-MM-DD`
+    (a time may follow). Lines whose calendar (the nearest `#` heading above) is unchecked are skipped.
+    Returns (date, time, title, line index, last day of a multi-day item or None), sorted"""
     items = []
     name = None
     for i, line in enumerate(text.splitlines()):
         heading = re.match(r"#+ (.*)", line)
         if heading:
-            # `type:holiday` 不算名字
+            # `type:holiday` is not part of the name
             name = " ".join(w for w in heading.group(1).split() if w != "type:holiday")
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and name not in hidden_names:
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
             items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), m.group(1), i, end))
-    # 日期、時間（沒時間的在前）、檔案順序
+    # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
 
 
 def agenda_entries(items):
-    """右邊的每一行：(列在哪天, 是不是從上個月接過來的, 那件事)。跨月的事碰到的每個月各一行，
-    之後的月列在 1 號、排在那天最前面"""
+    """Each line of the agenda: (day it is listed on, whether it carries over from the previous month, the item).
+    An item that crosses months gets one line in every month it touches; in the later months it is listed on
+    the 1st, first in that day"""
     entries = []
     for it in items:
         entries.append((it[0], False, it))
@@ -122,7 +138,7 @@ def agenda_entries(items):
 
 
 def range_text(it):
-    """右邊的日期：`10/5`、跨多天 `10/20~25`、跨月 `10/28~11/3`"""
+    """The agenda's date: `10/5`, multi-day `10/20~25`, across months `10/28~11/3`"""
     start, end = it[0], it[4]
     d = f"{start.month}/{start.day}"
     if end and (end.year, end.month) == (start.year, start.month):
@@ -133,9 +149,10 @@ def range_text(it):
 
 
 def read_groups(text):
-    """分組（side menu 的日曆），照第一次出現的順序；回傳 [(名稱（標題之前的是 None）, 有日期的有幾件)]
-    （用 read_tree 讀：code block 裡的不算、不存在的日期不算有日期）"""
-    groups = {}  # dict 會照放進去的順序
+    """Groups (the side menu's calendars) in order of first appearance;
+    returns [(name (None for items before any heading), number of items with a date)]
+    (read with read_tree: items in code blocks do not count, and a day that does not exist is not a date)"""
+    groups = {}  # dict keeps insertion order
     for it in read_tree(text)[0]:
         name = it["group"][0] if it["group"] else None
         groups.setdefault(name, 0)
@@ -144,14 +161,16 @@ def read_groups(text):
 
 
 def side_width(t, groups):
-    """side menu 的寬度（含框線）：最長的那列「 ☑ 名字 件數 」加框線，在 SIDE_MIN ～ SIDE_MAX 之間"""
+    """side menu width (borders included): the longest row 「 ☑ name count 」 plus borders,
+    between SIDE_MIN and SIDE_MAX"""
     longest = max((3 + width(t["ungrouped"] if name is None else name) + len(f" {count} ")
                    for name, count in groups), default=0)
     return min(max(longest + 2, SIDE_MIN), SIDE_MAX)
 
 
 def side_lines(t, h, groups):
-    """side menu 那一欄的每一列（含上下框線，不含操作說明）：一個日曆一列「 ☑ 名字    件數 」"""
+    """Each row of the side menu column (top and bottom borders included, the hints line not):
+    one row per calendar 「 ☑ name    count 」"""
     iw = side_width(t, groups) - 2
     rows = [ljust(t["side"], iw), "─" * iw]
     for i, (name, count) in enumerate(groups):
@@ -164,11 +183,11 @@ def side_lines(t, h, groups):
 
 def screen(lang, w, h, selected, first, skip, items, groups):
     t = TEXTS[lang]
-    body_h = h - 5  # 框上下、表頭、表頭的線、操作說明
-    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0  # side menu 的寬度
-    aw = w - sw - 35  # 右邊框的寬度（含框線）
-    iw = max(aw - 2, 0)  # 右邊框裡面的寬度
-    n = min(max((iw + 2) // 30, 1), 4)  # 分幾欄
+    body_h = h - 5  # box top and bottom, header, header line, hints line
+    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0  # side menu width
+    aw = w - sw - 35  # agenda box width (borders included)
+    iw = max(aw - 2, 0)  # width inside the agenda box
+    n = min(max((iw + 2) // 30, 1), 4)  # number of columns
     colw = (iw - 2 * (n - 1)) // n if iw else 0
     assert iw == 0 or colw * n + 2 * (n - 1) == iw, "挑一個整除的寬度"
 
@@ -185,15 +204,17 @@ def screen(lang, w, h, selected, first, skip, items, groups):
         return ljust(cut(s, colw), colw)
 
     rule = lambda thick: ("━" * 10 + "┿" + "━" * 22) if thick else ("─" * 10 + "┼" + "─" * 22)
-    # 每一列：(月曆那半, 事項那半, 這列那週的年份（沒有日期是 None）, 右框線是不是捲軸的亮塊)
+    # Each row: (calendar half, agenda half, year of this row's week (None when there is no date),
+    # whether the right border is the scrollbar thumb)
     rows = []
     y, m = first
-    hidden = 0  # 上一個月下面還有幾件沒顯示出來
+    hidden = 0  # how many of the previous month's items are not shown below it
     while len(rows) < skip + body_h:
         if rows:
             sym = "━" if m == 1 else "─"
             right = sym * iw
-            # 上一個月的事放不下：線的右邊寫還有幾件（淡色，最後留一格線）
+            # The previous month's items do not fit: the right end of the line says how many more
+            # (muted, with one cell of line left at the end)
             if hidden:
                 label = " " + t["more"](hidden) + " "
                 if width(label) + 2 <= iw:
@@ -201,15 +222,17 @@ def screen(lang, w, h, selected, first, skip, items, groups):
             rows.append((rule(m == 1), right, None, False))
         weeks = calendar.monthcalendar(y, m)
         month_items = [e for e in entries if (e[0].year, e[0].month) == (y, m)]
-        # 每欄排幾列（不限高）、這一塊實際幾列（最多月曆高度的 2/3，至少是週數）
+        # Rows per column (no height limit), and the rows this block really gets
+        # (at most 2/3 of the calendar height, at least the number of weeks)
         layout = max(len(weeks), -(-len(month_items) // n))
         height = min(layout, max(len(weeks), body_h * 2 // 3))
-        # 選取的那個月右邊捲了幾列；其他月從頭
+        # How many rows the selected month's agenda is scrolled; other months start from the top
         offset = min(WINDOW, layout - height) if (y, m) == (selected.year, selected.month) else 0
-        # 捲過之後下面還有幾件看不到：每一欄都算
+        # After scrolling, how many items below are still out of view: count every column
         end = offset + height
         hidden = sum(max(0, min(max(len(month_items) - c * layout, 0), layout) - end) for c in range(n))
-        # 捲軸：放不下時才有；亮塊長度 = 高度 × 看得到的比例（至少 1），捲到底時貼底
+        # Scrollbar: only when things do not fit; thumb length = height × visible share (at least 1);
+        # the thumb touches the bottom when scrolled to the end
         if layout > height:
             length = max(1, height * height // layout)
             bar_start = offset * (height - length) // (layout - height)
@@ -244,10 +267,11 @@ def screen(lang, w, h, selected, first, skip, items, groups):
             rows.append((left, right, year, i in bar))
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     visible = rows[skip:skip + body_h]
-    # 左上角一直寫畫面最上面那週的年份
+    # The top-left corner always shows the year of the top week on screen
     month_header = t["year"](next(year for _, _, year, _ in visible if year is not None))
     header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d for d in t["wd"]), 22)
-    # 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面一格空白）；窄的時候日期照寫，「重要事項」切掉，中間至少空一格
+    # Agenda header: 「重要事項」 on the left, the selected day on the right (one space after it);
+    # when narrow the date stays whole and 「重要事項」 is cut, with at least one space between them
     date = t["date"](selected) + " "
     if iw:
         label = cut(t["items"], max(iw - width(date) - 1, 0))
@@ -268,21 +292,23 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     lines.append("╰" + "─" * 33 + "╯" + ("╰" + "─" * iw + "╯" if aw else ""))
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
-    # 操作說明（寬窄都有 `s`）
+    # Hints line (has `s` whether wide or narrow)
     lines.append(t["hints"])
-    # 比畫面寬的（例：窄畫面的操作說明）會被切掉
+    # Lines wider than the screen (e.g. the hints line on a narrow screen) get cut
     return [ljust(cut(line, w), w) for line in lines]
 
 
 class Canvas:
-    """一格一格的畫布：寬字元佔 2 格，後面那格放 None（印出來時跳過，跟 Rust test 的 `text_rows` 一樣）"""
+    """A cell-by-cell canvas: a wide character takes 2 cells and the second one holds None
+    (skipped when printed, like `text_rows` in the Rust tests)"""
 
     def __init__(self, w, h):
         self.w = w
         self.rows = [[" "] * w for _ in range(h)]
 
     def put(self, x, y, s, limit=None):
-        """從 (x, y) 往右寫 s，最多寫到 x + limit 格（寬字元放不下就整個不寫）"""
+        """Write s rightward from (x, y), up to cell x + limit
+        (a wide character that does not fit is not written at all)"""
         end = min(self.w, x + (limit if limit is not None else self.w))
         for c in s:
             cw = width(c)
@@ -298,23 +324,27 @@ class Canvas:
 
 
 def month_screen(lang, w, h, selected, top, items, groups):
-    """版型 3：side menu（夠寬才有）+ 大月曆（6 週）+ 操作說明"""
+    """Layout 3: side menu (only when wide enough) + month grid (6 weeks) + hints line"""
     t = TEXTS[lang]
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
-    iw, ih = w - sw - 2, h - 3  # 大月曆框裡面的寬、高（扣掉框、操作說明）
-    # 格線佔的寬度：有格線 = 欄和欄之間、表頭下面、週和週之間各 1 格；沒有就 0（格子緊貼著）
+    iw, ih = w - sw - 2, h - 3  # width and height inside the month grid box (minus the box and hints line)
+    # Room taken by grid lines: with grid lines, 1 cell each between columns, under the header and
+    # between weeks; without them 0 (the cells touch)
     gap = 0 if NO_GRID else 1
-    # 欄：週數欄 5 格；天平分剩下的寬度（扣掉 7 條直線），零頭從星期一開始一欄多 1 格
+    # Columns: the week-number column is 5 cells; the days share the rest (minus the 7 vertical lines)
+    # evenly, and the leftover cells go one per column starting from Monday
     days_w = iw - 5 - 7 * gap
     widths = [5] + [days_w // 7 + (1 if k < days_w % 7 else 0) for k in range(7)]
     xs = [0]
     for k in range(1, 8):
         xs.append(xs[k - 1] + widths[k - 1] + gap)
-    lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # 直線：每一欄的右邊（星期日右邊是外框）
-    wh = (ih - 1 - gap - 5 * gap) // 6  # 每週幾列（除不盡的零頭留在最下面，直線照樣畫到下框）
+    lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # vertical lines: right of each column
+                                                                    # (right of Sunday is the outer border)
+    wh = (ih - 1 - gap - 5 * gap) // 6  # rows per week (leftover rows stay at the bottom;
+                                        # vertical lines still run down to the bottom border)
     week_y = lambda i: 1 + gap + i * (wh + gap)
     c = Canvas(iw, ih)
-    left, right = ["│"] * ih, ["│"] * ih  # 每一列的左右外框
+    left, right = ["│"] * ih, ["│"] * ih  # left and right outer border of each row
     for x in lines_x:
         for y in range(1, ih):
             c.rows[y][x] = "│"
@@ -324,7 +354,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
         for x in lines_x:
             c.rows[y][x] = cross
         left[y], right[y] = "├", "┤"
-    # 表頭：「  週 」，每天的名字放在那欄最左邊
+    # Header: 「  週 」, and each day's name at the left edge of its column
     c.put(0, 0, " " + t["hw"], 5)
     for k, name in enumerate(t["wd"]):
         c.put(xs[k + 1], 0, " " + name, widths[k + 1])
@@ -332,34 +362,37 @@ def month_screen(lang, w, h, selected, top, items, groups):
     for i in range(6):
         monday = top + datetime.timedelta(weeks=i)
         days = [monday + datetime.timedelta(days=k) for k in range(7)]
-        # 週數：那週裡屬於選取那個月的日子，沒有就用星期一
+        # Week number: from a day of that week in the selected month; if there is none, from Monday
         numbered = next((d for d in days if (d.year, d.month) == month), monday)
         c.put(0, week_y(i), f" {week_number(numbered, selected):>3} ", 5)
-        week_cells = []  # 這週 7 格各自的每一行
+        week_cells = []  # the lines of each of this week's 7 cells
         for k, d in enumerate(days):
             mark = ("[", "]") if d == selected else (" ", " ")
             first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
-            # 蓋到這天的事（跨多天的每一天都列）；items 已經照開始那天、時間排好
+            # Items that cover this day (a multi-day item is listed on each of its days);
+            # items are already sorted by start day and time
             day_items = [it for it in items if it[0] <= d <= (it[4] or it[0])]
             if wh <= 1:
-                # 格子只有 1 行：日期後面畫點點（幾件就幾個，最多 4 個）
+                # The cell has only 1 line: draw dots after the date (one per item, at most 4)
                 cell = [first + ["", "⠂", "⠒", "⠖", "⠶"][min(len(day_items), 4)]]
             else:
-                # 放得下就全列；放不下就少列一件，最後一行 +N
+                # List them all if they fit; if not, list one fewer and put +N on the last line
                 shown = len(day_items) if len(day_items) <= wh - 1 else wh - 2
                 icon = " " if NO_ICONS else " ∙ "
                 cell = [first] + [icon + (time + " " if time else "") + title for _, time, title, _, _ in day_items[:shown]]
                 if shown < len(day_items):
                     cell.append(f" +{len(day_items) - shown}")
             week_cells.append(cell)
-        # 第一行以外：字可以往右寫進隔壁格，只要隔壁格那一行是空的（一路到有東西的格子或星期日）
+        # Except on the first line, text may run right into the next cell as long as that cell's line
+        # is empty (all the way to a cell with something in it, or Sunday)
         for k, cell in enumerate(week_cells):
             for r, text in enumerate(cell):
                 end = k
                 while r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r:
                     end += 1
                 c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
-    # 外框：上面右邊寫選取的日期（貼著右上角）；直線碰到下框接成 ┴
+    # Outer border: the selected day at the right end of the top border (against the corner);
+    # vertical lines meet the bottom border as ┴
     title = " " + t["date"](selected) + " "
     top_border = Canvas(iw, 1)
     top_border.rows[0] = ["─"] * iw
@@ -377,9 +410,9 @@ def month_screen(lang, w, h, selected, top, items, groups):
 
 
 def read_tree(text):
-    """任務頁用：讀整份檔案的每一件事（沒日期的也算），另外寫的簡單版 parser。
-    回傳 ([dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]（照檔案的順序）,
-    寫錯的地方 [(第幾行, "date" / "time" / "range", 那個字)])"""
+    """For the tasks page: read every item in the whole file (items without a date too); a separate,
+    simple parser. Returns ([dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]
+    (in file order), mistakes [(line number, "date" / "time" / "range", the word)])"""
     items, stack, group, in_code, mistakes = [], [], None, False, []
     for n, raw in enumerate(text.splitlines(), start=1):
         stripped = raw.lstrip()
@@ -402,7 +435,8 @@ def read_tree(text):
         done = task and box.group(1) in "xX"
         if task:
             rest = rest[3:]
-        # 第一個合法的日期（或範圍）和緊接的時間拿掉，剩下的是標題；行尾的 ^id 也不算
+        # Take out the first valid date (or range) and the time right after it; the rest is the title.
+        # A ^id at the end of the line does not count either
         words, date, end, time = rest.split(), None, None, None
         out, i = [], 0
         while i < len(words):
@@ -420,7 +454,8 @@ def read_tree(text):
                     mistakes.append((n, "date", w))
                 if ok:
                     date, end = first, (last if last > first else None)
-                    # 日期後面緊接長得像時間的字：存在的就是時間，不存在的當文字、記一個錯
+                    # A word right after the date that looks like a time: if that time exists it is the time;
+                    # if not, it stays as text and a mistake is recorded
                     if i + 1 < len(words) and re.fullmatch(r"\d\d:\d\d", words[i + 1]):
                         if int(words[i + 1][:2]) < 24 and int(words[i + 1][3:]) < 60:
                             time = words[i + 1]
@@ -443,7 +478,8 @@ def read_tree(text):
 
 
 def tasks_screen(lang, w, h, text, groups):
-    """任務頁：side menu（夠寬才有）+ 任務框（表頭、樹狀的每一列、最下面選到的那一行原本的文字）"""
+    """Tasks page: side menu (only when wide enough) + tasks box (header, each row of the tree, and at the
+    bottom the original text of the chosen line)"""
     t = TEXTS[lang]
     items, mistakes = read_tree(text)
     hidden_names = {groups[i][0] for i in HIDDEN}
@@ -453,7 +489,7 @@ def tasks_screen(lang, w, h, text, groups):
     body_h = ih - 4
 
     def visible(k):
-        # 上面每一層都展開了才看得到
+        # Visible only when every level above it is expanded
         p = items[k]["parent"]
         while p is not None:
             if items[p]["line"] not in expanded:
@@ -473,7 +509,8 @@ def tasks_screen(lang, w, h, text, groups):
     item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
     chosen_line = int(os.environ["CHOSEN_LINE"]) if "CHOSEN_LINE" in os.environ else None
     cursor = next((r for r in item_rows if items[rows[r][1]]["line"] == chosen_line), item_rows[0] if item_rows else None)
-    # 捲動：從最上面開始，選到的那件離上下緣至少留 2 列；不捲過頭
+    # Scrolling: start from the top; keep at least 2 rows between the chosen item and the top or bottom
+    # edge; do not scroll past the end
     top = 0
     if cursor is not None:
         margin = min(2, (body_h - 1) // 2)
@@ -482,13 +519,14 @@ def tasks_screen(lang, w, h, text, groups):
         top = max(0, min(top, len(rows) - body_h))
 
     def date_label(it):
-        # 右邊日期欄的字；不是 2026 年的前面加年份
+        # Text of the date column on the right; dates not in 2026 get the year in front
         if not it["date"]:
             return ""
         d = range_text((it["date"], None, None, None, it["end"]))
         return d if it["date"].year == 2026 else f"{it['date'].year}/" + d
 
-    # 右邊兩欄的寬度：日期欄 = 列出來的事裡最長的日期；時間欄 = 有一件有時間就 6 格，不然 0
+    # Widths of the two right columns: date column = the longest date among the listed items;
+    # time column = 6 if any item has a time, else 0
     listed = [items[row[1]] for row in rows if row[0] == "item"]
     date_w = max((width(date_label(it)) for it in listed), default=0)
     time_w = 6 if any(it["time"] for it in listed) else 0
@@ -522,7 +560,7 @@ def tasks_screen(lang, w, h, text, groups):
         it = items[rows[cursor][1]]
         wrong = [m for m in mistakes if m[0] == it["line"]]
         detail = t["mistake"](*wrong[0]) if wrong else t["detail"](it["line"], it["text"])
-    # 表頭：左邊「任務」、右邊有幾處寫錯（有的話）
+    # Header: 「任務」 on the left, the number of mistakes on the right (if there are any)
     header = t["tasks"]
     if mistakes:
         count = t["mistakes"](len(mistakes))
@@ -536,12 +574,13 @@ def tasks_screen(lang, w, h, text, groups):
 
 
 def month_top(selected, given):
-    """最上面那週的星期一：有給就用；沒給 = 選取那個月 1 號那週的前一週。選取的那週不在這 6 週裡就捲到剛好看得到"""
+    """Monday of the top week: the given one if any; if not given, the week before the one with the 1st of the
+    selected month. If the selected week is not within these 6 weeks, scroll just enough to show it"""
     monday = lambda x: x - datetime.timedelta(days=x.weekday())
     top = datetime.date.fromisoformat(given) if given else monday(selected.replace(day=1)) - datetime.timedelta(weeks=1)
     week = monday(selected)
     if CENTER:
-        # 置中：選取的那週在 6 週的第 3 列（前面 2 週）
+        # Centered: the selected week is row 3 of the 6 weeks (2 weeks above it)
         return week - datetime.timedelta(weeks=2)
     if week < top:
         top = week

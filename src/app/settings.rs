@@ -1,8 +1,10 @@
-//! 設定頁（`,`）：設定檔的設定列成一張清單（theme、開關、每個角色的顏色），蓋在畫面正中間；
-//! 改了畫面馬上跟著變，關掉時存回設定檔
+//! Settings page (`,`): the config file's settings as one list (theme,
+//! switches, each role's color), drawn over the middle of the screen;
+//! changes show on screen right away, and are saved to the config file on close
 //!
-//! `j` / `k` 選一列、`h` / `l`（`Space`、`Enter`）改那一列的值、`r` 還原那一列、`R` 全部還原（要再按 `y`）、
-//! `q` / `Esc` / `,` 或點框外關掉
+//! `j` / `k` choose a row, `h` / `l` (`Space`, `Enter`) change that row's
+//! value, `r` resets that row, `R` resets everything (press `y` to confirm),
+//! `q` / `Esc` / `,` or a click outside the box closes it
 
 use super::{App, Mode, Notice};
 use crate::config::{self, Settings};
@@ -13,21 +15,23 @@ use ratatui::{
     layout::Position,
 };
 
-/// 設定頁開著：選到第幾列、捲到哪、是不是正在問要不要全部還原
+/// The settings page is open: which row is chosen, where it
+/// is scrolled, and whether it is asking to reset everything
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SettingsPage {
-    /// 選到 `rows()` 的第幾列
+    /// Which row of `rows()` is chosen
     pub row: usize,
-    /// 畫面放不下時，框裡最上面是第幾行（每次畫的時候捲到選到的那列看得到，見 `ui::settings`）
+    /// When it does not fit on screen, which line is at the top of the box
+    /// (each draw scrolls so the chosen row is visible, see `ui::settings`)
     pub top: usize,
-    /// 按了 `R`、正在問要不要全部還原（下框線換成問句）
+    /// `R` was pressed and it is asking whether to reset everything (the bottom border becomes the question)
     pub confirm_reset: bool,
 }
 
-/// 設定頁的一列 = 設定檔的一個設定
+/// One row of the settings page = one setting in the config file
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
-    /// 最上層的 `theme`：用哪一套內建的 theme
+    /// The top-level `theme`: which built-in theme to use
     Theme,
     /// `[calendar] relative_weeks`
     RelativeWeeks,
@@ -37,11 +41,12 @@ pub enum Row {
     ItemIcons,
     /// `[month] center_cursor`
     CenterCursor,
-    /// `[colors]` 的一個角色（`theme::ROLES` 的名字）：蓋掉 theme 的那個顏色
+    /// One role in `[colors]` (a name in `theme::ROLES`): overrides that color of the theme
     Color(&'static str),
 }
 
-/// 設定頁的列，照顯示的順序（跟設定檔一樣：最上層的在前，同一個表的排在一起；最後是每個角色的顏色）
+/// The settings page's rows, in display order (same as the config file:
+/// top-level first, rows of the same table together; each role's color last)
 pub fn rows() -> Vec<Row> {
     let mut rows = vec![
         Row::Theme,
@@ -55,7 +60,8 @@ pub fn rows() -> Vec<Row> {
 }
 
 impl Row {
-    /// 這一列在設定檔的哪個表（`[calendar]`、`[month]`、`[colors]`）；最上層的（`theme`）是 `None`。設定頁也照這個分段
+    /// Which table of the config file this row is in (`[calendar]`, `[month]`, `[colors]`);
+    /// `None` for the top level (`theme`). The settings page is split into sections by this too
     pub fn section(self) -> Option<&'static str> {
         match self {
             Self::Theme => None,
@@ -65,7 +71,7 @@ impl Row {
         }
     }
 
-    /// 顯示在左邊的名字 = 設定檔裡的名字（有 test 釘住）
+    /// The name shown on the left = the name in the config file (pinned by a test)
     pub fn name(self) -> &'static str {
         match self {
             Self::Theme => "theme",
@@ -77,7 +83,8 @@ impl Row {
         }
     }
 
-    /// 開關那幾列在 `settings` 裡的那個 `bool`（`&mut`：改值、還原用）；`theme`、顏色不是開關，是 `None`
+    /// For switch rows, that `bool` in `settings` (`&mut`: for changing
+    /// and resetting); `theme` and colors are not switches, so `None`
     fn switch(self, settings: &mut Settings) -> Option<&mut bool> {
         match self {
             Self::Theme | Self::Color(_) => None,
@@ -88,8 +95,9 @@ impl Row {
         }
     }
 
-    /// 現在的值（畫在右邊的字）：開關是 `on` / `off`，`theme` 是那套 theme 的名字；
-    /// 顏色是色票裡的名字（不在色票裡的寫顏色本身，例：`#010203`）。`theme` = 照 `settings` 組好的畫面顏色
+    /// The current value (text drawn on the right): switches are `on` / `off`, `theme` is the theme's name;
+    /// colors are their palette name (a color not in the palette is written as
+    /// itself, e.g. `#010203`). `theme` = the screen colors built from `settings`
     pub fn value(self, settings: &Settings, theme: &Theme) -> String {
         let on_off = |on: bool| if on { "on" } else { "off" }.to_string();
         match self {
@@ -110,7 +118,8 @@ impl Row {
         }
     }
 
-    /// 顏色那幾列在 `theme`（照設定組好的畫面顏色）裡現在的顏色；其他列是 `None`
+    /// For color rows, the current color in `theme` (the screen
+    /// colors built from the settings); `None` for other rows
     pub fn color(self, theme: &Theme) -> Option<ratatui::style::Color> {
         let Self::Color(role) = self else {
             return None;
@@ -118,8 +127,10 @@ impl Row {
         theme.color(role)
     }
 
-    /// 改這一列的值：開關 on ⇄ off；`theme` 照內建的順序換下一套（`step` = 1）/ 上一套（-1）；
-    /// 顏色在 theme 的色票（沒有色票就是 terminal 的 16 色）裡換下一個 / 上一個。都是頭尾相接
+    /// Changes this row's value: switches on ⇄ off; `theme` goes to
+    /// the next (`step` = 1) / previous (-1) theme in built-in order;
+    /// colors go to the next / previous one in the theme's palette
+    /// (terminal's 16 colors if there is no palette). Both wrap around
     fn change(self, settings: &mut Settings, step: isize) {
         if let Some(switch) = self.switch(settings) {
             *switch = !*switch;
@@ -131,7 +142,8 @@ impl Row {
                 let current = Theme::build(&settings.theme, &settings.colors)
                     .ok()
                     .and_then(|theme| theme.color(role));
-                // 現在的顏色不在色票裡（例：手寫的色碼）就從頭（或尾）開始
+                // If the current color is not in the palette (e.g. a
+                // hand-written color code), start from the first (or last)
                 let next = match choices
                     .iter()
                     .position(|&(_, color)| Some(color) == current)
@@ -141,7 +153,7 @@ impl Row {
                     None => choices.len() - 1,
                 };
                 let color = choices[next].1;
-                // 跟 theme 本來的顏色一樣就不記（設定檔只記改過的）
+                // Same as the theme's own color: don't record it (the config file only records changes)
                 let base = Theme::builtin(&settings.theme).and_then(|theme| theme.color(role));
                 if Some(color) == base {
                     settings.colors.remove(role);
@@ -162,14 +174,14 @@ impl Row {
         }
     }
 
-    /// 這一列還原成預設值（顏色 = 拿掉蓋掉的，回到 theme 的顏色）
+    /// Resets this row to its default (color = remove the override, back to the theme's color)
     fn reset(self, settings: &mut Settings) {
         let mut defaults = Settings::default();
         if let Self::Color(role) = self {
             settings.colors.remove(role);
             return;
         }
-        // 開關：換成預設值裡同一個開關的值；不是開關的只剩 theme
+        // Switch: use the same switch's value from the defaults; the only non-switch left is theme
         if let Some(default) = self.switch(&mut defaults).copied() {
             if let Some(switch) = self.switch(settings) {
                 *switch = default;
@@ -180,7 +192,8 @@ impl Row {
     }
 }
 
-/// 第 `index` 個往前（`step` = −1）/ 往後（+1）走，頭尾相接；`len` 個裡面的第幾個
+/// Steps from the `index`-th one backward (`step` = −1) / forward (+1), wrapping around;
+/// returns which of the `len` items it lands on
 fn wrap(index: usize, step: isize, len: usize) -> usize {
     index
         .cast_signed()
@@ -190,7 +203,7 @@ fn wrap(index: usize, step: isize, len: usize) -> usize {
 }
 
 impl App {
-    /// `,`：打開設定頁，選第一列
+    /// `,`: opens the settings page with the first row chosen
     pub(super) fn open_settings(&mut self) {
         self.mode = Mode::Settings {
             page: SettingsPage::default(),
@@ -198,19 +211,20 @@ impl App {
         };
     }
 
-    /// 換掉設定頁的狀態（選到哪列、是不是在問）；設定頁沒開就不理
+    /// Replaces the settings page's state (which row is chosen,
+    /// whether it is asking); ignored if the settings page is not open
     fn set_settings_page(&mut self, new: SettingsPage) {
         if let Mode::Settings { page, .. } = &mut self.mode {
             *page = new;
         }
     }
 
-    /// 設定頁開著時的按鍵：見這個 module 開頭的說明；其他鍵不理
+    /// Keys while the settings page is open: see this module's top comment; other keys are ignored
     pub(super) fn handle_settings_key(&mut self, key: KeyEvent) {
         let Some(page) = self.settings_page() else {
             return;
         };
-        // 正在問要不要全部還原：`y` 還原，其他鍵只是取消
+        // Asking whether to reset everything: `y` resets, any other key just cancels
         if page.confirm_reset {
             if key.code == KeyCode::Char('y') {
                 self.settings = Settings::default();
@@ -225,7 +239,7 @@ impl App {
         let rows = rows();
         let row = rows[page.row.min(rows.len() - 1)];
         match key.code {
-            // 離開前一樣存回設定檔
+            // Save to the config file before quitting too
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.close_settings();
                 self.should_quit = true;
@@ -251,13 +265,15 @@ impl App {
         }
     }
 
-    /// 改 `row` 的值（`step` 見 `Row::change`），換了 theme 畫面的顏色馬上跟著換
+    /// Changes `row`'s value (`step`: see `Row::change`); when
+    /// the theme changes, the screen colors change right away
     fn change_setting(&mut self, row: Row, step: isize) {
         row.change(&mut self.settings, step);
         self.apply_theme();
     }
 
-    /// 設定頁開著時的滑鼠：滾輪上下選一列；點一列 = 選那列，再點一次選到的那列 = 改它的值；點框外關掉
+    /// Mouse while the settings page is open: the wheel chooses the row above / below; clicking a row =
+    /// choose it, clicking the chosen row again = change its value; clicking outside the box closes it
     pub(super) fn handle_settings_mouse(&mut self, mouse: MouseEvent) {
         let Some(page) = self.settings_page() else {
             return;
@@ -281,18 +297,19 @@ impl App {
         }
     }
 
-    /// 選下一列（`step` = 1）/ 上一列（-1）；到頭尾就停
+    /// Chooses the next row (`step` = 1) / previous row (-1); stops at either end
     fn choose_setting(&mut self, step: isize) {
         if let Mode::Settings { page, .. } = &mut self.mode {
             page.row = page.row.saturating_add_signed(step).min(rows().len() - 1);
         }
     }
 
-    /// 關掉設定頁，把打開之後改過的設定存回設定檔（只改那幾行；沒改東西就不寫）；存不了就在最下面一列說
+    /// Closes the settings page and saves the settings changed since it opened to the config file (only
+    /// those lines; nothing changed means no write); if it cannot save, says so in the bottom row
     fn close_settings(&mut self) {
         let before = match std::mem::take(&mut self.mode) {
             Mode::Settings { opened, .. } => opened,
-            // 設定頁沒開：什麼都不做（放回去）
+            // The settings page is not open: do nothing (put it back)
             other => {
                 self.mode = other;
                 return;
@@ -315,7 +332,7 @@ mod tests {
     use jiff::civil::date;
     use ratatui::layout::Rect;
 
-    /// 打開設定頁的 app（terminal 100 × 30）
+    /// An app with the settings page open (terminal 100 × 30)
     fn app_with_settings() -> App {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, 100, 30);
@@ -323,7 +340,7 @@ mod tests {
         app
     }
 
-    /// 按一個鍵
+    /// Presses one key
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
     }
@@ -332,12 +349,12 @@ mod tests {
     fn closing_saves_only_what_changed_and_says_when_it_cannot() {
         let dir = crate::files::test_dir("settings-save");
         let path = dir.join("config-v2.toml");
-        // 打開看看、沒改就關掉：不建檔案
+        // Open it to look and close without changes: no file is created
         let mut app = app_with_settings();
         app.config_path = Some(path.clone());
         press(&mut app, KeyCode::Esc);
         assert!(!path.exists());
-        // 改了 relative_weeks 再關掉：只寫那一行
+        // Change relative_weeks, then close: only that line is written
         press(&mut app, KeyCode::Char(','));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
@@ -347,7 +364,7 @@ mod tests {
             "[calendar]\nrelative_weeks = true\n"
         );
         assert_eq!(app.notice, None);
-        // Ctrl+C 離開前也存
+        // Ctrl+C saves before quitting too
         press(&mut app, KeyCode::Char(','));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('j'));
@@ -359,7 +376,8 @@ mod tests {
                 .expect("read")
                 .contains("grid_lines = false")
         );
-        // 設定檔在別處改壞了：不存，最下面一列說存不了，檔案原封不動
+        // The config file was broken elsewhere: not saved, the
+        // bottom row says it cannot save, the file is left untouched
         std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
         let mut app = app_with_settings();
         app.config_path = Some(path.clone());
@@ -379,7 +397,8 @@ mod tests {
     #[test]
     fn color_rows_go_through_the_palette_and_keep_only_overrides() {
         let mut app = app_with_settings();
-        // 第 6 列是 text 的顏色：l 換成色票的下一個（subtext0），記進 [colors]，畫面馬上跟著換
+        // Row 6 is text's color: l switches to the palette's next color
+        // (subtext0), records it in [colors], and the screen changes right away
         for _ in 0..5 {
             press(&mut app, KeyCode::Char('j'));
         }
@@ -393,10 +412,10 @@ mod tests {
             Row::Color("text").value(&app.settings, &app.theme),
             "subtext0"
         );
-        // h 回到 theme 本來的顏色：不記（設定檔只記改過的）
+        // h goes back to the theme's own color: not recorded (the config file only records changes)
         press(&mut app, KeyCode::Char('h'));
         assert!(app.settings.colors.is_empty());
-        // 再 h：頭尾相接到色票的最後一個（mauve）；r 還原
+        // h again: wraps around to the palette's last color (mauve); r resets
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(
             app.settings.colors.get("text").map(String::as_str),
@@ -409,7 +428,8 @@ mod tests {
 
     #[test]
     fn switching_the_theme_keeps_the_overridden_colors() {
-        // 設定檔手寫了 mocha 的色票名字；換到沒有色票的 terminal：先寫成顏色本身，換過去還是同一個顏色、組得出 theme
+        // The config file has a hand-written mocha palette name; switching to terminal, which has no palette:
+        // it is first written as the color itself, so it stays the same color and the theme can be built
         let mut app = app_with_settings();
         app.settings
             .colors
@@ -426,7 +446,7 @@ mod tests {
             ratatui::style::Color::Rgb(0x31, 0x32, 0x44)
         );
         assert_eq!(app.theme.text, ratatui::style::Color::Reset);
-        // terminal 沒有色票：顏色在 16 色裡換
+        // terminal has no palette: colors change within the 16 colors
         assert_eq!(
             Row::Color("today").value(&app.settings, &app.theme),
             "#313244"
@@ -435,7 +455,8 @@ mod tests {
 
     #[test]
     fn r_on_the_theme_row_keeps_the_overridden_colors_too() {
-        // 設定檔寫了 gruvbox 色票的名字：r 回到預設的 mocha，蓋掉的顏色先寫成顏色本身，組得出 theme（存回去下次也打得開）
+        // The config file has a gruvbox palette name: r goes back to the default mocha, the overridden color
+        // is first written as the color itself, so the theme builds (and the saved file opens next time)
         let mut app = app_with_settings();
         app.settings.theme = "gruvbox-dark".to_string();
         app.settings
@@ -456,7 +477,8 @@ mod tests {
 
     #[test]
     fn a_terminal_color_stays_itself_in_a_theme_with_the_same_palette_name() {
-        // terminal 的 cyan 換到 tokyo-night（色票也有 cyan = #7dcfff）：還是 terminal 的 cyan，不會被色票的同名顏色換掉
+        // terminal's cyan switched to tokyo-night (whose palette also has cyan = #7dcfff):
+        // stays terminal's cyan, not replaced by the palette color of the same name
         let mut app = app_with_settings();
         app.settings.theme = "terminal".to_string();
         app.settings
@@ -470,7 +492,8 @@ mod tests {
 
     #[test]
     fn every_switch_has_a_row() {
-        // 把 `Settings` 拆開到每個欄位：多加了設定、這裡沒跟著加就編譯不過，提醒要在 `rows()` 加一列
+        // Destructure `Settings` into every field: if a setting is added and
+        // not added here, it won't compile, a reminder to add a row in `rows()`
         let Settings {
             theme: _,
             colors: _,
@@ -487,7 +510,8 @@ mod tests {
 
     #[test]
     fn row_names_are_the_config_file_names() {
-        // 每一列改一次值，照「[表] 名字 = 新的值」寫成設定檔，讀回來剛好是改過的設定
+        // Change each row's value once, write it as a config file line "[table]
+        // name = new value", and reading it back gives exactly the changed settings
         for row in rows() {
             let mut changed = Settings::default();
             row.change(&mut changed, 1);
@@ -510,11 +534,12 @@ mod tests {
     fn comma_opens_it_and_hl_change_the_chosen_row() {
         let mut app = app_with_settings();
         assert_eq!(app.settings_page(), Some(SettingsPage::default()));
-        // 第一列 theme：l 換下一套（畫面的顏色馬上跟著換）、到最後一套再 l 回到第一套、h 往回
+        // First row, theme: l goes to the next theme (the screen colors change
+        // right away), l on the last theme goes back to the first, h goes back
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(app.settings.theme, "gruvbox-dark");
         assert_eq!(Some(&app.theme), Theme::builtin("gruvbox-dark").as_ref());
-        // 照 `theme::BUILTIN` 的順序：gruvbox-dark → tokyo-night → dracula → nord → terminal → 回到 mocha
+        // In `theme::BUILTIN` order: gruvbox-dark → tokyo-night → dracula → nord → terminal → back to mocha
         for expected in [
             "tokyo-night",
             "dracula",
@@ -528,13 +553,13 @@ mod tests {
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(app.settings.theme, "terminal");
         assert_eq!(app.theme.text, ratatui::style::Color::Reset);
-        // j 到 relative_weeks：l 打開、h 再關掉
+        // j to relative_weeks: l turns it on, h turns it off again
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         assert!(app.settings.calendar.relative_weeks);
         press(&mut app, KeyCode::Char('h'));
         assert!(!app.settings.calendar.relative_weeks);
-        // j 到 grid_lines，Space 關掉；k 回到第一列；到頭不會再往上
+        // j to grid_lines, Space turns it off; k back to the first row; it does not go above the top
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char(' '));
         assert!(!app.settings.month.grid_lines);
@@ -542,7 +567,7 @@ mod tests {
             press(&mut app, KeyCode::Char('k'));
         }
         assert_eq!(app.settings_page().map(|page| page.row), Some(0));
-        // 到尾也停在最後一列
+        // At the end it also stops on the last row
         for _ in 0..40 {
             press(&mut app, KeyCode::Down);
         }
@@ -555,18 +580,18 @@ mod tests {
     #[test]
     fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         let mut app = app_with_settings();
-        // theme 換成 gruvbox-dark，relative_weeks 打開、grid_lines 關掉
+        // theme switched to gruvbox-dark, relative_weeks on, grid_lines off
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
-        // r：只還原 grid_lines，其他的不動
+        // r: resets only grid_lines, the rest stays
         press(&mut app, KeyCode::Char('r'));
         assert!(app.settings.month.grid_lines);
         assert!(app.settings.calendar.relative_weeks);
         assert_eq!(app.settings.theme, "gruvbox-dark");
-        // R 之後按別的鍵：只是取消，那個鍵也不做事（j 不會移動）
+        // Another key after R: it only cancels, and that key does nothing else (j does not move)
         press(&mut app, KeyCode::Char('R'));
         assert_eq!(
             app.settings_page().map(|page| page.confirm_reset),
@@ -579,13 +604,13 @@ mod tests {
         );
         assert_eq!(app.settings_page().map(|page| page.row), Some(2));
         assert!(app.settings.calendar.relative_weeks);
-        // R 再 y：全部還原，畫面的顏色也回到預設的 theme
+        // R then y: resets everything, and the screen colors go back to the default theme
         press(&mut app, KeyCode::Char('R'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(app.settings, Settings::default());
         assert_eq!(app.theme, Theme::catppuccin_mocha());
         assert!(app.settings_page().is_some());
-        // theme 那列也能單獨 r
+        // The theme row can also be reset alone with r
         for _ in 0..2 {
             press(&mut app, KeyCode::Char('k'));
         }
@@ -597,7 +622,8 @@ mod tests {
 
     #[test]
     fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-        // 100 × 30：框（46 × 38）比畫面高、縮成 30 高，在 (27, 0)；grid_lines 是清單第 6 行：0 + 框線 1 + padding 1 + 6 = 8
+        // 100 × 30: the box (46 × 38) is taller than the screen, so it shrinks to 30 high,
+        // at (27, 0); grid_lines is line 6 of the list: 0 + border 1 + padding 1 + 6 = 8
         let mut app = app_with_settings();
         let click = |app: &mut App, column, row| {
             app.handle_mouse(MouseEvent {
@@ -610,10 +636,10 @@ mod tests {
         click(&mut app, 50, 8);
         assert_eq!(app.settings_page().map(|page| page.row), Some(2));
         assert!(app.settings.month.grid_lines);
-        // 再點一次選到的那列：改值
+        // Click the chosen row again: change the value
         click(&mut app, 50, 8);
         assert!(!app.settings.month.grid_lines);
-        // 滾輪：選下一列
+        // Wheel: choose the next row
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::ScrollDown,
             column: 50,
@@ -621,7 +647,7 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         });
         assert_eq!(app.settings_page().map(|page| page.row), Some(3));
-        // 點框外：關掉，底下的月曆不會被點到
+        // Click outside the box: closes it, and the calendar underneath is not clicked
         click(&mut app, 0, 0);
         assert_eq!(app.settings_page(), None);
         assert_eq!(app.selected, date(2026, 10, 17));
@@ -635,7 +661,7 @@ mod tests {
             assert_eq!(app.settings_page(), None, "{code:?}");
             assert!(!app.should_quit, "{code:?}");
         }
-        // 移動日期、換版型、說明頁都不理
+        // Moving the date, switching layouts and the help page are all ignored
         let mut app = app_with_settings();
         for code in ['t', ']', '3', '?', 'a'].map(KeyCode::Char) {
             press(&mut app, code);

@@ -1,11 +1,13 @@
-//! 寫檔：先寫暫存檔再 rename，寫到一半當掉也不會留下寫壞的檔案
+//! Writing files: write a temp file first, then rename it, so a crash mid-write never leaves a broken file
 
 use std::path::Path;
 
-/// 安全地寫檔：先寫到旁邊的暫存檔（例：`tasks.md.tmp`），再 rename 蓋過去；rename 是一次完成的，
-/// 寫到一半當掉也不會留下寫壞的檔案。資料夾不存在會自動建立
+/// Writes a file safely: first to a temp file beside it (e.g. `tasks.md.tmp`), then renames that over it;
+/// a rename happens in one step, so a crash mid-write never leaves a broken file.
+/// Creates the folder if it does not exist
 pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
-    // 檔案是 symlink（例：dotfiles、筆記 vault 統一管理）就寫到它指向的真正檔案，symlink 才不會被換成一般檔案
+    // If the file is a symlink (e.g. managed by dotfiles or a notes vault), write to the real file it points
+    // to, so the symlink is not replaced by a plain file
     let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
@@ -16,11 +18,12 @@ pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     std::fs::rename(&temp, &path)
 }
 
-/// test 用的暫存資料夾（每次先清空）：`$TMPDIR/roh-cal-<pid>-<name>`，不會碰到真的任務檔
+/// Temp folder for tests (emptied first each time): `$TMPDIR/roh-cal-<pid>-<name>`,
+/// so tests never touch the real task file
 #[cfg(test)]
 pub fn test_dir(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("roh-cal-{}-{name}", std::process::id()));
-    // 上次留下的先刪掉；本來就沒有也沒關係
+    // Delete what the last run left behind; fine if there is nothing
     let _ = std::fs::remove_dir_all(&dir);
     dir
 }
@@ -33,19 +36,19 @@ mod tests {
     fn write_atomically_creates_the_folder_and_leaves_no_temp_file() {
         let dir = test_dir("write");
         let path = dir.join("roh-cal").join("tasks.md");
-        // 資料夾還不存在：自動建立
+        // The folder does not exist yet: it is created
         write_atomically(&path, "- [ ] 週會\n").expect("write");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] 週會\n"
         );
-        // 已經有檔案：整個換成新的內容
+        // The file already exists: its whole content is replaced
         write_atomically(&path, "- [x] 週會\n").expect("overwrite");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "- [x] 週會\n"
         );
-        // 暫存檔沒有留下來
+        // No temp file is left behind
         assert!(!dir.join("roh-cal").join("tasks.md.tmp").exists());
         std::fs::remove_dir_all(&dir).expect("clean up");
     }
@@ -54,13 +57,13 @@ mod tests {
     fn write_atomically_writes_through_a_symlink() {
         let dir = test_dir("symlink");
         std::fs::create_dir_all(&dir).expect("dir");
-        // 真正的檔案在別處（例：筆記 vault），tasks.md 是指過去的 symlink
+        // The real file lives elsewhere (e.g. a notes vault); tasks.md is a symlink to it
         let real = dir.join("vault-tasks.md");
         let link = dir.join("tasks.md");
         std::fs::write(&real, "- [ ] 週會\n").expect("write");
         std::os::unix::fs::symlink(&real, &link).expect("symlink");
         write_atomically(&link, "- [x] 週會\n").expect("write");
-        // symlink 還是 symlink，內容寫進真正的檔案
+        // The symlink stays a symlink; the content goes into the real file
         let file_type = std::fs::symlink_metadata(&link).expect("meta").file_type();
         assert!(file_type.is_symlink());
         assert_eq!(

@@ -1,7 +1,9 @@
-//! 改期（`r`）：月曆就是選日期的地方。按 `r` 之後鍵盤換到月曆，用平常的鍵（`hjkl`、`[` `]`、`t`、滑鼠）選新的日期，
-//! `Enter`（或再點一次同一天）寫回任務檔，`Esc` 取消
+//! Rescheduling (`r`): the calendar itself is the date picker. After `r` the keyboard moves to the calendar,
+//! where the usual keys (`hjkl`, `[` `]`, `t`, the mouse) pick the new date;
+//! `Enter` (or clicking the same day again) writes back to the task file, `Esc` cancels
 //!
-//! 像拖曳：選取的日期移了幾天，那件事就往後（往前）搬幾天；跨多天的整段一起搬
+//! Like dragging: the item moves as many days later (earlier) as the selected day moved; a multi-day item
+//! moves as a whole
 
 use super::{App, Focus, Mode, View};
 use crate::edit;
@@ -12,25 +14,26 @@ use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 
-/// 改期中：要搬的那件事，和搬完（或取消）要回去的版型、框
+/// Rescheduling in progress: the item to move, and the layout and pane to return to when done (or cancelled)
 #[derive(Debug)]
 pub struct Moving {
-    /// 要搬的那件事（按 `r` 那時候讀到的樣子）
+    /// The item to move (as read when `r` was pressed)
     pub item: Item,
-    /// 按 `r` 那時候選取的日期：選取的日期移了幾天，那件事就搬幾天
+    /// The selected day when `r` was pressed: the item moves as many days as the selected day moves
     from: Date,
-    /// 按 `r` 之前在哪個版型、哪個框
+    /// Which layout and pane we were in before `r`
     back: (View, Focus),
 }
 
 impl App {
-    /// `r`：開始搬右邊（或任務頁）選到的那件事（鍵盤換到月曆，選取的日期還是那件事的日子；任務頁借版型 1 的月曆）
+    /// `r`: starts moving the item chosen in the agenda (or tasks page). The keyboard moves to the calendar,
+    /// and the selected day stays on the item's day; the tasks page borrows layout 1's calendar
     pub(super) fn start_moving(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
         };
         let back = (self.view, self.focus);
-        // 任務頁沒有月曆：借版型 1 的月曆來選，從那件事的日子（沒日期就從今天）開始
+        // The tasks page has no calendar: borrow layout 1's, starting at the item's day (or today if undated)
         if self.view == View::Tasks {
             self.view = View::Planner;
             self.selected = item.date.unwrap_or(self.today);
@@ -44,7 +47,8 @@ impl App {
         self.focus = Focus::Calendar;
     }
 
-    /// 改期中的按鍵：移動選取的日期跟平常一樣；`Enter` 確定、`Esc` 取消、`Ctrl+C` 離開，其他鍵不理
+    /// Keys while rescheduling: moving the selected day works as usual; `Enter` confirms, `Esc` cancels,
+    /// `Ctrl+C` quits, other keys are ignored
     pub(super) fn handle_moving_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -55,7 +59,7 @@ impl App {
             KeyCode::Char('t') => self.go_today(),
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
-            // 只收移動日期的鍵（月曆上的 `a` 新增之類的不理）
+            // Only keys that move the date (things like `a` to add on the calendar are ignored)
             code @ (KeyCode::Char('h' | 'j' | 'k' | 'l')
             | KeyCode::Left
             | KeyCode::Right
@@ -65,7 +69,8 @@ impl App {
         }
     }
 
-    /// 改期中的滑鼠：滾輪照樣移動選取的日期（一週）；點日期 = 選新的日期（再點一次同一天 = 確定），點別的地方不理
+    /// Mouse while rescheduling: the wheel moves the selected day as usual (a week); clicking a date picks the
+    /// new date (clicking the same day again = confirm); clicks elsewhere are ignored
     pub(super) fn handle_moving_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             MouseEventKind::ScrollDown => self.scroll(1),
@@ -79,7 +84,7 @@ impl App {
         }
     }
 
-    /// 改期中點到月曆上的一天：選那天；再點一次已經選的那天 = 確定
+    /// Click on a calendar day while rescheduling: select it; clicking the already selected day again = confirm
     pub(super) fn click_while_moving(&mut self, day: Date) {
         if day == self.selected {
             self.finish_moving();
@@ -88,28 +93,31 @@ impl App {
         }
     }
 
-    /// 確定：選取的日期移了幾天，那件事就搬幾天，寫回任務檔；回到按 `r` 之前的框（右邊、版型 3 的跳窗選著搬過去的那件）
+    /// Confirm: move the item as many days as the selected day moved and write back to the task file;
+    /// go back to the pane from before `r` (the agenda or layout 3's popup has the moved item chosen)
     fn finish_moving(&mut self) {
         let Moving { item, from, back } = match std::mem::take(&mut self.mode) {
             Mode::Moving(moving) => moving,
-            // 沒在改期：什麼都不做（放回去）
+            // Not rescheduling: do nothing (put it back)
             other => {
                 self.mode = other;
                 return;
             }
         };
         let to = self.selected;
-        // 新的日子：選取的日期移了幾天就搬幾天（沒動就不寫）；還沒排日期的就是選的那天
+        // The new day: shift by as many days as the selected day moved (no write if it did not move); an item
+        // with no date yet gets the selected day
         let new_first = match item.date {
             Some(first) if to != from => Some(first.saturating_add((to - from).get_days().days())),
             Some(_) => None,
             None => Some(to),
         };
-        // 搬成了（或不用搬）：寫檔失敗、在別處改過就是 `false`
+        // Moved (or no move needed); `false` if the write failed or the file was changed elsewhere
         let mut moved = true;
         if let Some(new_first) = new_first {
             let Some((path, text)) = self.read_tasks() else {
-                // 讀不到任務檔：沒搬，選取的日期回到按 `r` 那時候（跟取消一樣）
+                // Cannot read the task file: not moved; the selected day goes back to the one at `r`
+                // (same as cancelling)
                 self.selected = from;
                 self.go_back(back);
                 return;
@@ -123,7 +131,8 @@ impl App {
             };
         }
         self.go_back(back);
-        // 右邊選著搬過去的那件（只改那一行，行號不變）；沒搬成、找不到就留在月曆
+        // The agenda chooses the moved item (only that line changes, so its line number is the same); if the
+        // move failed or it is not found, stay on the calendar
         if back.1 == Focus::Agenda {
             let index = self
                 .agenda()
@@ -134,7 +143,7 @@ impl App {
                 _ => self.focus = Focus::Calendar,
             }
         }
-        // 版型 3 的跳窗：打開新的那天、選著搬過去的那件；沒搬成就關掉
+        // Layout 3's popup: open on the new day with the moved item chosen; if the move failed, close it
         if back.1 == Focus::Day {
             if moved {
                 self.choose_day_line(item.line);
@@ -144,7 +153,7 @@ impl App {
         }
     }
 
-    /// 取消：選取的日期回到按 `r` 那時候，回到按 `r` 之前的框
+    /// Cancel: the selected day goes back to the one at `r`, and the pane goes back to the one before `r`
     fn cancel_moving(&mut self) {
         match std::mem::take(&mut self.mode) {
             Mode::Moving(Moving { from, back, .. }) => {
@@ -155,7 +164,7 @@ impl App {
         }
     }
 
-    /// 回到按 `r` 之前的版型和框
+    /// Goes back to the layout and pane from before `r`
     fn go_back(&mut self, (view, focus): (View, Focus)) {
         self.view = view;
         self.focus = focus;
@@ -174,11 +183,12 @@ mod tests {
     fn r_then_hjkl_and_enter_moves_the_chosen_item() {
         let text = "- [ ] 交週報 @2026-10-16 17:30\n- [ ] 早餐會 @2026-10-17 08:00\n";
         let (mut app, path) = app_with_task_file("move", text);
-        // 選交週報、按 r：鍵盤換到月曆，提示寫著在搬哪件
+        // Choose 交週報 and press r: the keyboard moves to the calendar, and the hint says which item is moving
         press(&mut app, KeyCode::Char('r'));
         assert_eq!(app.focus, Focus::Calendar);
         assert_eq!(app.moving().map(|m| m.item.title.as_str()), Some("交週報"));
-        // 往後一週再往後一天（10/24），Enter：只改日期，時間照留；回到右邊、選著搬過去的那件
+        // One week and one day later (10/24), Enter: only the date changes, the time stays;
+        // back in the agenda with the moved item chosen
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Enter);
@@ -193,7 +203,7 @@ mod tests {
                 .map(|entry| (entry.item.title.as_str(), entry.date)),
             Some(("交週報", date(2026, 10, 24)))
         );
-        // u 復原
+        // u undoes it
         press(&mut app, KeyCode::Char('u'));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         clean_up(&path);
@@ -206,13 +216,13 @@ mod tests {
         press(&mut app, KeyCode::Char('r'));
         press(&mut app, KeyCode::Char(']'));
         assert_eq!(app.selected, date(2026, 11, 1));
-        // Esc：檔案不動，選取的日期回到 10/16，回到右邊
+        // Esc: the file is untouched, the selected day goes back to 10/16, back to the agenda
         press(&mut app, KeyCode::Esc);
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         assert_eq!(app.selected, date(2026, 10, 16));
         assert!(app.moving().is_none());
         assert_eq!(app.focus, Focus::Agenda);
-        // 沒改日期就 Enter：不寫、不記 undo
+        // Enter without changing the date: no write, no undo step
         press(&mut app, KeyCode::Char('r'));
         press(&mut app, KeyCode::Enter);
         press(&mut app, KeyCode::Char('u'));
@@ -225,7 +235,7 @@ mod tests {
         let text = "- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("move-keys", text);
         press(&mut app, KeyCode::Char('r'));
-        // q、Tab、Space、u 都不理（不會離開、不會換框、不會打勾）
+        // q, Tab, Space, u are all ignored (no quitting, no pane switch, no checking)
         for code in ['q', ' ', 'u', 's', '3', 'a', 'e']
             .map(KeyCode::Char)
             .into_iter()
@@ -243,7 +253,7 @@ mod tests {
 
     #[test]
     fn clicking_a_day_picks_it_and_clicking_it_again_moves_there() {
-        // 70 × 23、10 月在最上面：10/20（二）在 x 15～17、y 6
+        // 70 × 23, October at the top: 10/20 (Tue) is at x 15-17, y 6
         let text = "- [ ] 交週報 @2026-10-16\n";
         let (mut app, path) = app_with_task_file("move-click", text);
         app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
@@ -269,7 +279,8 @@ mod tests {
 
     #[test]
     fn moving_a_multi_day_item_keeps_its_length() {
-        // 主管出差 10/28～11/3：從 11 月那一行按 r（選取 11/2），往後一週 → 整段往後一週，天數不變
+        // 主管出差 10/28-11/3: press r on the November row (11/2 selected), one week later → the whole span
+        // moves a week later, same number of days
         let text = "- 主管出差 @2026-10-28..2026-11-03\n";
         let (mut app, path) = app_with_task_file("move-range", text);
         app.agenda_index = 1;
@@ -281,7 +292,7 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- 主管出差 @2026-11-04..2026-11-10\n"
         );
-        // 回到右邊：選著搬過去之後 11 月那一行（11/9 也是它的日子）
+        // Back in the agenda: the November row of the moved item is chosen (11/9 is also one of its days)
         assert_eq!(app.selected, date(2026, 11, 9));
         assert_eq!(
             app.chosen().map(|entry| entry.date),
