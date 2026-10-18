@@ -261,7 +261,7 @@ impl App {
     }
 
     /// `J` / `K`：選到的那件（連子任務）跟下面（`down`）/ 上面同一層的那件換位置，寫回任務檔；
-    /// 那一層的最後一件 / 第一件不動（不會搬到別的父項目、別組）。搬完還選著它（`write_tasks` 的 `line_map` 跟著搬）
+    /// 那一層的最後一件 / 第一件不動（不會搬到別的父項目、別組）。搬完還選著它（行號照 `edit::Swap` 跟著搬）
     fn move_task(&mut self, down: bool) {
         let Some(item) = self.tasks_chosen().cloned() else {
             return;
@@ -285,8 +285,8 @@ impl App {
         // 剛打開還沒選過（預設選第一件）也先記下來，搬完選取才跟得過去
         self.tasks_line = Some(item.line);
         match edit::swap(&text, upper, lower) {
-            Ok(after) => {
-                self.write_tasks(&path, text, after, item.title.clone());
+            Ok((after, swap)) => {
+                self.write_tasks_swapped(&path, text, after, item.title.clone(), Some(swap));
             }
             Err(edit::Changed) => self.reload(&text),
         }
@@ -749,6 +749,30 @@ mod tests {
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(5));
         assert_eq!(chosen(&app).as_deref(), Some("列大綱"));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn moving_one_of_two_same_named_items_keeps_the_choice_on_it() {
+        use super::super::write::tests::clean_up;
+        // 兩件都叫運動：第一件（第 1 行，展開著）J → 搬到第 3 行，選取、展開都跟著它
+        let text = "- [ ] 運動\n  - [ ] 跑步\n- [ ] 運動\n  - [ ] 游泳\n";
+        let (mut app, path) = tasks_app_with_file("tasks-same-name", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.expanded.insert(1);
+        press(&mut app, KeyCode::Char('J'));
+        let moved = "- [ ] 運動\n  - [ ] 游泳\n- [ ] 運動\n  - [ ] 跑步\n";
+        assert_eq!(read(), moved);
+        assert_eq!(app.tasks_line, Some(3));
+        assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [3]);
+        // 已經是最後一件：再 J 不動（不會換回去）
+        press(&mut app, KeyCode::Char('J'));
+        assert_eq!(read(), moved);
+        // u：搬回來，選取、展開也回到第 1 行
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), text);
+        assert_eq!(app.tasks_line, Some(1));
+        assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [1]);
         clean_up(&path);
     }
 

@@ -39,6 +39,8 @@ pub(super) struct UndoStep {
     after: String,
     /// 改到的那件事的標題（`已復原：週會`）
     title: String,
+    /// 上下搬（`J` / `K`）的話，換了哪兩塊：畫面記著的行號照它搬（復原時反過來）；其他寫檔是 `None`
+    swap: Option<edit::Swap>,
 }
 
 impl App {
@@ -162,7 +164,11 @@ impl App {
             self.notice = Some(Notice::Failed(error.kind()));
             return;
         }
-        self.remap_lines(edit::line_map(&step.after, &step.before));
+        match step.swap {
+            // 上下搬的：反過來搬回去
+            Some(swap) => self.remap_lines(|line| Some(swap.reversed().map(line))),
+            None => self.remap_lines(edit::line_map(&step.after, &step.before)),
+        }
         self.set_items(tasks::parse(&step.before));
         self.notice = Some(Notice::Undone(step.title));
     }
@@ -201,17 +207,33 @@ impl App {
         after: String,
         title: String,
     ) -> bool {
+        self.write_tasks_swapped(path, before, after, title, None)
+    }
+
+    /// 同 `write_tasks`；上下搬（`swap` 有值）時，畫面記著的行號照換了哪兩塊搬，不用 `edit::line_map`
+    pub(super) fn write_tasks_swapped(
+        &mut self,
+        path: &Path,
+        before: String,
+        after: String,
+        title: String,
+        swap: Option<edit::Swap>,
+    ) -> bool {
         if let Err(error) = files::write_atomically(path, &after) {
             self.notice = Some(Notice::Failed(error.kind()));
             return false;
         }
         // 畫面記著的行號（選到的那件、展開的子任務）跟著搬
-        self.remap_lines(edit::line_map(&before, &after));
+        match swap {
+            Some(swap) => self.remap_lines(|line| Some(swap.map(line))),
+            None => self.remap_lines(edit::line_map(&before, &after)),
+        }
         self.set_items(tasks::parse(&after));
         self.undo.push(UndoStep {
             before,
             after,
             title,
+            swap,
         });
         // 只留最近的 UNDO_LEVELS 步
         if self.undo.len() > UNDO_LEVELS {
