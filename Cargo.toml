@@ -3,6 +3,11 @@ name = "roh-cal"
 version = "0.1.0"
 edition = "2024"
 description = "A simple, keyboard-driven terminal calendar for plain-text tasks"
+license = "MIT"
+repository = "https://github.com/RohimChou/roh-cal"
+readme = "README.md"
+keywords = ["calendar", "tui", "tasks", "markdown", "terminal"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
