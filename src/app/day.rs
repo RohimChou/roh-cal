@@ -168,7 +168,10 @@ mod tests {
             area.x,
             area.y + 3,
         );
-        assert_eq!(app.focus, Focus::Day);
+        assert_eq!(
+            (app.focus, chosen(&app).as_deref()),
+            (Focus::Day, Some("週會"))
+        );
         // 滾輪往下一件，到最後一件停住
         mouse(&mut app, MouseEventKind::ScrollDown, 0, 0);
         mouse(&mut app, MouseEventKind::ScrollDown, 0, 0);

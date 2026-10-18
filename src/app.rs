@@ -1246,9 +1246,14 @@ mod tests {
         assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
         app.handle_mouse(mouse(left, 3, 4));
         assert!(!app.groups[1].shown);
-        // 點框外（月曆上的日期）：只收起，選取的日期不動
+        // 點框外（月曆上的 10/16；10 月在最上面時 10/17 在 x 27～29、y 5）：只收起，選取的日期不動
+        app.calendar_top = Some(0);
         let selected = app.selected;
-        app.handle_mouse(mouse(left, 30, 8));
+        assert_eq!(
+            ui::click_at(&app, 25, 5),
+            Some(Click::Day(date(2026, 10, 16)))
+        );
+        app.handle_mouse(mouse(left, 25, 5));
         assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
         assert_eq!(ui::side_overlay(&app), None);
     }
