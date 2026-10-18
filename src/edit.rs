@@ -295,39 +295,7 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
                 &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
             (block_end(text, &lines, start), format!("{indent}  "))
         }
-        Place::InCalendar(path) => {
-            let parsed = tasks::parse(text);
-            let is_it = |heading: &Heading| {
-                heading.parents.len() + 1 == path.len()
-                    && heading
-                        .parents
-                        .iter()
-                        .chain([&heading.name])
-                        .eq(path.iter())
-            };
-            let last = parsed
-                .items
-                .iter()
-                .rfind(|item| item.group.as_ref().is_some_and(is_it));
-            match last {
-                // Its last item: count its outermost item's whole block, as for `InGroupOf`
-                Some(mut last) => {
-                    while let Some(parent) = last.parent {
-                        last = &parsed.items[parent];
-                    }
-                    (block_end(text, &lines, last.line - 1), String::new())
-                }
-                // No items yet: right under its heading (the heading's line number = the next line's index)
-                None => {
-                    let heading = parsed
-                        .headings
-                        .iter()
-                        .find(|line| is_it(&line.heading))
-                        .ok_or(Changed)?;
-                    (heading.line, String::new())
-                }
-            }
-        }
+        Place::InCalendar(path) => (calendar_end(text, &lines, path)?, String::new()),
         Place::End => (segments.len(), String::new()),
     };
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
@@ -339,6 +307,42 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
     result.push_str(&format!("{indent}{}{newline}", new.trim()));
     result.push_str(&segments[at..].concat());
     Ok((result, at + 1))
+}
+
+/// Where a line goes at the end of the calendar with this `path` (see `Place::InCalendar`): the index of the
+/// line it goes before (`lines` = `text`'s lines). Below the calendar's last item (counting its outermost
+/// item's whole block, with subtasks and note lines); right under its first heading when it has no items of
+/// its own yet; `Changed` when there is no such calendar
+fn calendar_end(text: &str, lines: &[&str], path: &[String]) -> Result<usize, Changed> {
+    let parsed = tasks::parse(text);
+    let is_it = |heading: &Heading| {
+        heading.parents.len() + 1 == path.len()
+            && heading
+                .parents
+                .iter()
+                .chain([&heading.name])
+                .eq(path.iter())
+    };
+    let last = parsed
+        .items
+        .iter()
+        .rfind(|item| item.group.as_ref().is_some_and(is_it));
+    match last {
+        // Its last item: count its outermost item's whole block
+        Some(mut last) => {
+            while let Some(parent) = last.parent {
+                last = &parsed.items[parent];
+            }
+            Ok(block_end(text, lines, last.line - 1))
+        }
+        // No items yet: right under its heading (the heading's line number = the next line's index)
+        None => parsed
+            .headings
+            .iter()
+            .find(|line| is_it(&line.heading))
+            .map(|heading| heading.line)
+            .ok_or(Changed),
+    }
 }
 
 /// Delete: remove `item` together with the following lines indented deeper than it (subtasks, note lines,
