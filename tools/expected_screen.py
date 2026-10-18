@@ -24,7 +24,7 @@ WINDOW = how many rows the selected month's agenda is scrolled;
 SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
 NO_GRID = layout 2 draws no grid lines (config `[month] grid_lines = false`);
 CENTER = layout 2 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
-RELATIVE = week-number column in layouts 1 and 3: the selected week shows its week number, other weeks show
+RELATIVE = week-number column in layouts 1 and 2: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
 are not shown; LAYOUT = 2 is layout 2, 3 is the tasks page

@@ -103,7 +103,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `Esc` | Back to the layout's main pane (the calendar, or the tasks page) from the agenda, layout 2's day popup or the calendar list; from the tasks page to layout 1; quit from the calendar |
 | `q` / `Ctrl+C` | Quit (`q` in layout 2's day popup or the narrow calendar list only closes it) |
 
-**On the calendar** (layouts 1 and 3)
+**On the calendar** (layouts 1 and 2)
 
 | Key | Action |
 | :- | :- |

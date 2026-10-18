@@ -6,13 +6,13 @@
 # (only the terminal's 16 colors)
 theme = "nord"
 
-# Shared by the calendars (layouts 1 and 3)
+# Shared by the calendars (layouts 1 and 2)
 [calendar]
 # Week-number column: the selected week shows its week number, other weeks show how many weeks away
 # they are (default false)
 relative_weeks = true
 
-# The month grid (layout 3)
+# The month grid (layout 2)
 [month]
 # Draw faint grid lines between the cells (default true)
 grid_lines = false

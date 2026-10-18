@@ -32,7 +32,7 @@ use toml_edit::{DocumentMut, Item, Table, TableLike};
 pub struct Settings {
     /// Which built-in theme to use (a name in `theme::BUILTIN`), e.g. `nord`
     pub theme: String,
-    /// `[calendar]`: switches shared by the calendars of layouts 1 and 3
+    /// `[calendar]`: switches shared by the calendars of layouts 1 and 2
     pub calendar: CalendarSettings,
     /// `[month]`: switches for the big month calendar (layout 2)
     pub month: MonthSettings,
