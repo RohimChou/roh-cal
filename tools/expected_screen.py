@@ -42,7 +42,7 @@ TEXTS = {
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
                hints=" hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
-               side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
+               side=" Calendars", hide_done="Hide done", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
@@ -50,7 +50,7 @@ TEXTS = {
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
                hints=" hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
-               side=" 日曆", ungrouped="未分組", hw=" 週 ",
+               side=" 日曆", hide_done="隱藏做完的", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
                date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）"),
@@ -250,8 +250,8 @@ def group_label(t, path):
 def side_width(t, groups):
     """side menu width (borders included): the longest row 「 ☑ name count 」 (with its indent) plus borders,
     between SIDE_MIN and SIDE_MAX"""
-    longest = max((width("".join(group_label(t, path))) + 3 + len(f" {count} ")
-                   for path, count in groups), default=0)
+    longest = max([width("".join(group_label(t, path))) + 3 + len(f" {count} ") for path, count in groups]
+                  + [3 + width(t["hide_done"]) + 1])  # the 「 ☐ 隱藏做完的 」 row at the bottom
     return min(max(longest + 2, SIDE_MIN), SIDE_MAX)
 
 
@@ -266,6 +266,9 @@ def side_lines(t, h, groups):
         left = indent + (" ☐ " if i in HIDDEN else " ☑ ") + name
         rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
     rows = (rows + [" " * iw] * h)[: h - 3]
+    # The bottom two rows (when there are at least 3 below the header): a rule and the hide-done switch
+    if h - 3 - 2 >= 3:
+        rows[-2:] = ["─" * iw, ljust(" ☐ " + t["hide_done"], iw)]
     return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
 
 

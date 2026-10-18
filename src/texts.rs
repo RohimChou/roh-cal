@@ -64,6 +64,8 @@ pub struct Texts {
     pub header_items: &'static str,
     /// The side menu (calendar list) header
     pub header_side: &'static str,
+    /// The switch at the bottom of the side menu: hide done tasks (`[calendar_list] hide_done`)
+    pub hide_done: &'static str,
     /// The tasks page header
     pub header_tasks: &'static str,
     /// The key hints on the tasks page's bottom row
@@ -147,6 +149,7 @@ const EN: Texts = Texts {
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
+    hide_done: "Hide done",
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  123 view  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
@@ -352,6 +355,7 @@ const ZH_TW: Texts = Texts {
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
+    hide_done: "隱藏做完的",
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",

@@ -33,6 +33,8 @@ pub fn width(app: &App) -> u16 {
                 + Span::raw(name(group, texts)).width()
                 + count_text(app, group).len()
         })
+        // The 「隱藏做完的」 row below the calendars: 「 ☐ 」 3 cells + its name + one blank
+        .chain([3 + Span::raw(texts.hide_done).width() + 1])
         .max()
         .unwrap_or(0);
     // Add the left and right border
@@ -62,8 +64,33 @@ fn count_text(app: &App, group: &Group) -> String {
     format!(" {count} ")
 }
 
+/// The side menu's parts: the header 「日曆」 and its rule, the calendar list, and (when the box has room)
+/// a rule and the 「隱藏做完的」 row at the bottom
+fn areas(area: Rect) -> (Rect, Rect, Rect, Option<(Rect, Rect)>) {
+    let [header, rule, body] = inner_areas(area);
+    if body.height < 3 {
+        return (header, rule, body, None);
+    }
+    let row = |y: u16| Rect {
+        y,
+        height: 1,
+        ..body
+    };
+    let list = Rect {
+        height: body.height - 2,
+        ..body
+    };
+    (
+        header,
+        rule,
+        list,
+        Some((row(body.bottom() - 2), row(body.bottom() - 1))),
+    )
+}
+
 /// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ Work            12 」; a
-/// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」
+/// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」; at the bottom, below a rule,
+/// the 「 ☐ 隱藏做完的」 switch (`[calendar_list] hide_done`)
 ///
 /// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long (box already at
 /// `[calendar_list] max_width`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
@@ -71,11 +98,12 @@ fn count_text(app: &App, group: &Group) -> String {
 /// on the side menu, the border lights up and the chosen calendar gets a background color
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     // The header matches the other two boxes: a line of text + a rule
-    let [header, rule, body] = inner_areas(area);
+    let (header, rule, body, footer) = areas(area);
     let height = i64::from(body.height);
     let top = scrolled_top(
         i64::try_from(app.side_top).unwrap_or(0),
-        i64::try_from(app.group_index).unwrap_or(0),
+        // On the 「隱藏做完的」 row (below the list): keep the last calendar in view
+        i64::try_from(app.group_index.min(app.groups.len().saturating_sub(1))).unwrap_or(0),
         height,
         // Only scroll when the chosen one leaves the box: clicking a visible calendar does not scroll it
         // away (so a second click hits the same one)
@@ -144,6 +172,34 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 .set_style(row, Style::new().bg(theme.selection));
         }
     }
+    // The 「隱藏做完的」 switch below a rule: ☑ in the `checked` color when on, ☐ muted when off
+    if let Some((footer_rule, row)) = footer {
+        frame.render_widget(
+            Line::styled(
+                line::HORIZONTAL.repeat(usize::from(footer_rule.width)),
+                Style::new().fg(theme.line),
+            ),
+            footer_rule,
+        );
+        let on = app.settings.calendar_list.hide_done;
+        let (mark, mark_color) = if on {
+            ("☑", theme.checked)
+        } else {
+            ("☐", theme.muted)
+        };
+        frame.render_widget(
+            Line::from(vec![
+                Span::styled(format!(" {mark} "), Style::new().fg(mark_color)),
+                Span::styled(texts.hide_done, Style::new().fg(theme.text)),
+            ]),
+            row,
+        );
+        if focused && app.group_index == app.groups.len() {
+            frame
+                .buffer_mut()
+                .set_style(row, Style::new().bg(theme.selection));
+        }
+    }
     // Does not fit: draw a scrollbar on the right border next to the calendar rows (not when the box
     // has no rows at all)
     if let Ok(max) = u16::try_from(max)
@@ -160,10 +216,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
-/// Which calendar a mouse click at (`column`, `row`) on the side menu (`area`) hits; `None` on the
-/// header, the border, or the blank space below
+/// Which calendar a mouse click at (`column`, `row`) on the side menu (`area`) hits, or the 「隱藏做完的」
+/// row; `None` on the header, the border, the rules, or the blank space below the calendars
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
-    let [_, _, body] = inner_areas(area);
+    let (_, _, body, footer) = areas(area);
+    if footer.is_some_and(|(_, switch)| switch.contains(Position::new(column, row))) {
+        return Some(Click::HideDone);
+    }
     // One calendar per row, starting at the first row of `body` (if scrolled, that is calendar `side_top`)
     if !body.contains(Position::new(column, row)) {
         return None;

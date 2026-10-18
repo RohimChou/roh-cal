@@ -204,6 +204,8 @@ pub enum Click {
     Item(usize),
     /// A calendar in the side menu: its index in `App::groups`
     Group(usize),
+    /// The 「隱藏做完的」 row at the bottom of the side menu
+    HideDone,
     /// A row of the tasks page: its index in `App::tasks_rows()`; `on_marker` = the click was
     /// on `▸` / `▾` (expand / collapse)
     TaskRow { row: usize, on_marker: bool },
@@ -355,7 +357,7 @@ mod tests {
         match click_at(app, column, row)? {
             Click::Day(date) => Some(date),
             Click::Item(index) => Some(app.agenda()[index].date),
-            Click::Group(_) | Click::TaskRow { .. } => None,
+            Click::Group(_) | Click::HideDone | Click::TaskRow { .. } => None,
         }
     }
 
@@ -676,7 +678,8 @@ mod tests {
 
     #[test]
     fn a_long_calendar_list_scrolls_to_the_chosen_one() {
-        // 121 × 10: the side menu fits 5 calendars (y 3-7), and there are 12 (c01-c12, 1 item each)
+        // 121 × 12: the side menu fits 5 calendars (y 3-7; below them a rule and the 「隱藏做完的」 row,
+        // y 8-9), and there are 12 (c01-c12, 1 item each)
         let text: String = (1..=12)
             .map(|n| format!("# c{n:02}\n- a @2026-10-{n:02}\n"))
             .collect();
@@ -685,10 +688,10 @@ mod tests {
             date(2026, 10, 17),
             crate::tasks::parse(&text).items,
         );
-        app.screen = Rect::new(0, 0, 121, 10);
+        app.screen = Rect::new(0, 0, 121, 12);
         app.focus = Focus::Side;
         let names = |app: &mut App| {
-            let terminal = draw_app(app, 121, 10);
+            let terminal = draw_app(app, 121, 12);
             let buffer = terminal.backend().buffer();
             let rows = area_rows(buffer, Rect::new(0, 3, 21, 5));
             let thumb: Vec<u16> = (3..8)
@@ -700,6 +703,13 @@ mod tests {
                 .map(|row| row.split_whitespace().nth(2).unwrap_or("").to_string());
             (names.collect::<Vec<_>>(), thumb)
         };
+        // The rule and the switch below the list (not scrolled with it); clicking the switch turns it on
+        let terminal = draw_app(&mut app, 121, 12);
+        let bottom = area_rows(terminal.backend().buffer(), Rect::new(0, 8, 22, 2));
+        assert_eq!(bottom[0], "│────────────────────│");
+        assert!(bottom[1].starts_with("│ ☐ 隱藏做完的"), "{}", bottom[1]);
+        assert_eq!(click_at(&app, 5, 9), Some(Click::HideDone));
+        assert_eq!(click_at(&app, 5, 8), None);
         // Choose the 1st: no scroll, the scrollbar is at the top
         let (rows, thumb) = names(&mut app);
         assert_eq!(rows, ["c01", "c02", "c03", "c04", "c05"]);
@@ -807,8 +817,8 @@ mod tests {
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││ 10/17 08:00 Coffee chat                        ┃",
                 "│                                  ││          │                      ││ 10/18 07:00 Go hiking                          │",
                 "│                                  ││──────────┼──────────────────────││──────────────────────────────────── 還有 1 件 ─│",
-                "│                                  ││  11月 44 │                    1 ││  11/3 09:30 Release v2.3                       │",
-                "│                                  ││       45 │  2  3  4  5  6  7  8 ││                                                │",
+                "│──────────────────────────────────││  11月 44 │                    1 ││  11/3 09:30 Release v2.3                       │",
+                "│ ☐ 隱藏做完的                     ││       45 │  2  3  4  5  6  7  8 ││                                                │",
                 "╰──────────────────────────────────╯╰─────────────────────────────────╯╰────────────────────────────────────────────────╯",
                 " hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -866,8 +876,8 @@ mod tests {
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││                                                │",
                 "│                                  ││──────────┼──────────────────────││────────────────────────────────────────────────│",
                 "│                                  ││   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                       │",
-                "│                                  ││       45 │  2  3  4  5  6  7  8 ││                                                │",
-                "│                                  ││       46 │  9 10 11 12 13 14 15 ││                                                │",
+                "│──────────────────────────────────││       45 │  2  3  4  5  6  7  8 ││                                                │",
+                "│ ☐ Hide done                      ││       46 │  9 10 11 12 13 14 15 ││                                                │",
                 "╰──────────────────────────────────╯╰─────────────────────────────────╯╰────────────────────────────────────────────────╯",
                 " hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
             ]
@@ -2311,8 +2321,8 @@ mod tests {
                 "│                    ││  44 │ 26          │ 27         │ 28         │ 29         │ 30         │ 31         │ 1 11月     │",
                 "│                    ││ 11月│             │            │            │            │            │            │ Buy a birth│",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
-                "│                    ││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
-                "│                    ││     │             │            │            │            │            │            │            │",
+                "│────────────────────││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
+                "│ ☐ 隱藏做完的       ││     │             │            │            │            │            │            │            │",
                 "╰────────────────────╯╰─────┴─────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴────────────╯",
                 " hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -2341,8 +2351,8 @@ mod tests {
                 "│                    ││  44 │ 26          │ 27         │ 28         │ 29         │ 30         │ 31         │ 1 11月     │",
                 "│                    ││ 11月│             │            │            │            │            │            │            │",
                 "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
-                "│                    ││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
-                "│                    ││     │             │            │            │            │            │            │            │",
+                "│────────────────────││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
+                "│ ☐ 隱藏做完的       ││     │             │            │            │            │            │            │            │",
                 "╰────────────────────╯╰─────┴─────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴────────────╯",
                 " hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -2831,8 +2841,8 @@ mod tests {
                 "│ ☑ US holidays      2 ││   [ ] Buy Mom's birthday gift                                                      11/2       │",
                 "│ ☑ Learning Rust 🦀 4 ││   [ ] Book the annual physical                                                    10/16       │",
                 "│ ☑ Tokyo trip       5 ││    ∙  Mom's birthday 🎂                                                           10/29       │",
-                "│                      ││───────────────────────────────────────────────────────────────────────────────────────────────│",
-                "│                      ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
+                "│──────────────────────││───────────────────────────────────────────────────────────────────────────────────────────────│",
+                "│ ☐ 隱藏做完的         ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
                 "╰──────────────────────╯╰───────────────────────────────────────────────────────────────────────────────────────────────╯",
                 " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
             ]

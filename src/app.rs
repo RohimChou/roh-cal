@@ -18,7 +18,7 @@ pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
-    config::Settings,
+    config::{self, Settings},
     tasks::{Heading, HeadingLine, Item, Kind, Warning},
     texts::Lang,
     theme::Theme,
@@ -770,10 +770,24 @@ impl App {
         }
     }
 
-    /// The calendar chosen in the side menu: checked ⇄ unchecked
+    /// The calendar chosen in the side menu: checked ⇄ unchecked; on the 「隱藏做完的」 row below the
+    /// calendars, that switch
     fn toggle_group(&mut self) {
-        if let Some(group) = self.groups.get_mut(self.group_index) {
-            group.shown = !group.shown;
+        match self.groups.get_mut(self.group_index) {
+            Some(group) => group.shown = !group.shown,
+            None => self.toggle_hide_done(),
+        }
+    }
+
+    /// `[calendar_list] hide_done` on ⇄ off, saved to the config file right away (only that line); if it
+    /// cannot save, the bottom row says so
+    fn toggle_hide_done(&mut self) {
+        let before = self.settings.clone();
+        self.settings.calendar_list.hide_done = !before.calendar_list.hide_done;
+        if let Some(path) = &self.config_path
+            && let Err(error) = config::save(path, &before, &self.settings)
+        {
+            self.notice = Some(Notice::SettingsFailed(error.kind()));
         }
     }
 
@@ -854,6 +868,11 @@ impl App {
                     }
                     Some(Click::Item(index)) => self.choose(index),
                     Some(Click::Group(index)) => self.click_group(index),
+                    Some(Click::HideDone) => {
+                        self.focus = Focus::Side;
+                        self.group_index = self.groups.len();
+                        self.toggle_hide_done();
+                    }
                     Some(Click::TaskRow { row, on_marker }) => self.click_task(row, on_marker),
                     None => {}
                 }
@@ -972,9 +991,10 @@ impl App {
         }
     }
 
-    /// Moves the side menu choice `step` calendars down (negative = up); stops at the first / last one
+    /// Moves the side menu choice `step` rows down (negative = up); stops at the first calendar / the
+    /// 「隱藏做完的」 row below the last one
     fn choose_group(&mut self, step: isize) {
-        let last = self.groups.len().saturating_sub(1);
+        let last = self.groups.len();
         self.group_index = self.group_index.saturating_add_signed(step).min(last);
     }
 
@@ -1519,13 +1539,33 @@ mod tests {
         // Enter checks it again
         press(&mut app, KeyCode::Enter);
         assert!(app.groups[1].shown);
-        // Down past the last one, up past the first one: stays; arrow keys and the wheel do the same
+        // Down past the last calendar: the 「隱藏做完的」 row below it (index 3), and it stays there; Space
+        // switches it; up past the first one: stays; arrow keys and the wheel do the same
         for _ in 0..3 {
             press(&mut app, KeyCode::Down);
         }
-        assert_eq!(app.group_index, 2);
+        assert_eq!(app.group_index, 3);
+        // Switching it writes that one line to the config file right away
+        let dir = crate::files::test_dir("side-hide-done");
+        let path = dir.join("config.toml");
+        app.config_path = Some(path.clone());
+        press(&mut app, KeyCode::Char(' '));
+        assert!(app.settings.calendar_list.hide_done);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "[calendar_list]\nhide_done = true\n"
+        );
+        press(&mut app, KeyCode::Char(' '));
+        assert!(!app.settings.calendar_list.hide_done);
+        assert!(
+            std::fs::read_to_string(&path)
+                .expect("read")
+                .contains("hide_done = false")
+        );
+        app.config_path = None;
+        let _ = std::fs::remove_dir_all(&dir);
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
-        assert_eq!(app.group_index, 1);
+        assert_eq!(app.group_index, 2);
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('k'));
         }
