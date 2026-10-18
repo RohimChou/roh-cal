@@ -625,7 +625,7 @@ mod tests {
     fn a_one_row_terminal_with_the_side_menu_does_not_panic() {
         // Only 1 row (all of it for the key hints): the side menu is 0 rows tall; whether it is on the left
         // when wide or over the left after s when narrow, nothing may panic
-        let text = "# 工作\n- a @2026-10-10\n";
+        let text = "# Work\n- a @2026-10-10\n";
         for (width, focus) in [(121, Focus::Calendar), (60, Focus::Side)] {
             let mut app = App::new(
                 Lang::ZhTw,
@@ -708,8 +708,8 @@ mod tests {
         // 60 × 14, keyboard in the side menu (after s): the side menu is 22 cells
         // wide, over the calendar's left side, and the calendar does not shrink
         // (x 22 is still the calendar's top border); the number = how many items in
-        // that calendar have a date (c in 生活 has no date, so it does not count)
-        let text = "# 工作\n- a @2026-10-10\n# 生活\n- b @2026-10-11\n- c\n";
+        // that calendar have a date (c in Personal has no date, so it does not count)
+        let text = "# Work\n- a @2026-10-10\n# Personal\n- b @2026-10-11\n- c\n";
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -724,8 +724,8 @@ mod tests {
                 "╭────────────────────╮",
                 "│ 日曆               │",
                 "│────────────────────│",
-                "│ ☑ 工作           1 │",
-                "│ ☑ 生活           1 │",
+                "│ ☑ Work           1 │",
+                "│ ☑ Personal       1 │",
                 "│                    │",
             ]
         );
@@ -737,14 +737,14 @@ mod tests {
         app.focus = Focus::Calendar;
         let terminal = draw_app(&mut app, 60, 14);
         assert_eq!(terminal.backend().buffer()[(0, 3)].symbol(), "│");
-        assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "工");
+        assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "W");
     }
 
     #[test]
     fn side_menu_lists_the_calendars_when_wide() {
         // 121 cells wide: the calendars are listed on the far left (the task file's groups, in order of
         // appearance; items before any heading are 「未分組」), the number is how many items have a date
-        // (「工作」 has one item without a date); the last name is too long even at the 30-cell max width, so
+        // (Work has one item without a date); the last name is too long even at the 30-cell max width, so
         // it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
         // do not fit: it scrolls 1 row, leaving one row after the selected day's (10/17) items
         let mut app = agenda_app(Lang::ZhTw);
@@ -804,7 +804,7 @@ mod tests {
 
     #[test]
     fn unchecked_calendars_hide_their_items() {
-        // 「生活」 unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed,
+        // Personal unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed,
         // and 10/5 and 10/10 are no longer orange
         let mut app = agenda_app(Lang::En);
         app.groups[1].shown = false;
@@ -843,8 +843,8 @@ mod tests {
 
     #[test]
     fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
-        // Keyboard in the side menu, the 2nd one chosen (生活): the side menu's border is lit, the calendar's
-        // is not; that whole row gets the highlight background, text colors unchanged
+        // Keyboard in the side menu, the 2nd one chosen (Personal): the side menu's border is lit, the
+        // calendar's is not; that whole row gets the highlight background, text colors unchanged
         let mut app = agenda_app(Lang::ZhTw);
         app.focus = Focus::Side;
         app.group_index = 1;
@@ -853,9 +853,7 @@ mod tests {
         let buffer = terminal.backend().buffer();
         assert_eq!(buffer[(0, 0)].fg, theme.focus);
         assert_eq!(buffer[(30, 0)].fg, theme.line);
-        // TestBackend gets no style for the second half of a CJK
-        // character (x 5 and 7 for 「生」「活」), so skip those
-        for x in (1..29).filter(|x| ![5, 7].contains(x)) {
+        for x in 1..29 {
             assert_eq!(buffer[(x, 4)].bg, theme.cursor_line, "x = {x}");
             assert_ne!(buffer[(x, 3)].bg, theme.cursor_line, "x = {x}");
         }
@@ -1003,7 +1001,7 @@ mod tests {
             let day = format!("[{}]", app.selected.day());
             assert!(
                 left.iter().any(|row| row.contains(&day)),
-                "{}：月曆上看不到 {day}：{body:#?}",
+                "{}: {day} is not on the calendar: {body:#?}",
                 app.selected
             );
             // The day's first item (the middle days of a multi-day item
@@ -1017,7 +1015,7 @@ mod tests {
                 let date = format!(" {}/{}", first.month(), first.day());
                 assert!(
                     right.iter().any(|row| row.contains(&date)),
-                    "{}：右邊看不到那天的事：{body:#?}",
+                    "{}: the day's items are not in the agenda: {body:#?}",
                     app.selected
                 );
             }
@@ -1086,7 +1084,7 @@ mod tests {
 
     #[test]
     fn agenda_focus_brackets_the_chosen_item() {
-        // Keyboard in the agenda, the 6th item chosen (10/17 08:00 早餐會): its date gets brackets
+        // Keyboard in the agenda, the 6th item chosen (10/17 08:00 Coffee chat): its date gets brackets
         let mut app = agenda_app(Lang::ZhTw);
         app.focus = Focus::Agenda;
         app.agenda_index = 5;
@@ -1160,7 +1158,7 @@ mod tests {
         for index in (0..count).chain((0..count).rev()) {
             app.agenda_index = index;
             app.selected = app.agenda()[index].date;
-            let first = app.agenda()[index].item.date.expect("有日期");
+            let first = app.agenda()[index].item.date.expect("has a date");
             let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
             let body = &rows[3..rows.len() - 2];
             // The chosen item's date gets brackets; for a multi-day
@@ -1168,7 +1166,7 @@ mod tests {
             let chosen = format!("[{}/{}", first.month(), first.day());
             assert!(
                 body.iter().any(|row| row.contains(&chosen)),
-                "第 {index} 件不在畫面上：{body:#?}"
+                "item {index} is not on screen: {body:#?}"
             );
             // The selected day is also visible in the calendar box (left of `││` in each row)
             let day = format!("[{}]", app.selected.day());
@@ -1177,7 +1175,7 @@ mod tests {
                     .split("││")
                     .next()
                     .is_some_and(|left| left.contains(&day))),
-                "第 {index} 件：月曆上看不到 {day}：{body:#?}"
+                "item {index}: {day} is not on the calendar: {body:#?}"
             );
         }
     }
@@ -1215,7 +1213,7 @@ mod tests {
         let theme = Theme::catppuccin_mocha();
         let cell = &terminal.backend().buffer()[(69, 5)];
         assert_eq!((cell.symbol(), cell.fg), ("┃", theme.focus));
-        // Clicks match the screen: the agenda's first row is the 4th item (10/16 交週報)
+        // Clicks match the screen: the agenda's first row is the 4th item (10/16 Send the weekly update)
         assert_eq!(click_at(&app, 40, 3), Some(Click::Item(3)));
         // Back to the 1st item (10/5): the agenda scrolls back to the top
         app.agenda_index = 0;
@@ -1342,7 +1340,8 @@ mod tests {
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
-            crate::tasks::parse("- [ ] 交週報 @2026-10-16 17:30\n").items,
+            // 🎂 is on purpose: 2 cells wide, so the cursor position below counts cells, not chars or bytes
+            crate::tasks::parse("- [ ] Pick up the cake 🎂 @2026-10-16 17:30\n").items,
         );
         app.handle_key(KeyEvent::from(KeyCode::Tab));
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
@@ -1354,11 +1353,11 @@ mod tests {
         assert!(rows[7].ends_with("─╮"));
         assert_eq!(
             rows[8].trim_end_matches([' ', '│']),
-            "│ - [ ] 交週報 @2026-10-16 17:30"
+            "│ - [ ] Pick up the cake 🎂 @2026-10-16 17:30"
         );
         assert_eq!(
             rows[9].trim_end_matches([' ', '│']),
-            "│ 任務 · 2026/10/16（五） 17:30 · 「交週報」"
+            "│ 任務 · 2026/10/16（五） 17:30 · 「Pick up the cake 🎂」"
         );
         assert!(
             rows[10].starts_with("╰ Enter 存檔  Esc 取消 ─"),
@@ -1366,10 +1365,10 @@ mod tests {
             rows[10]
         );
         // The cursor is right after the typed text, at
-        // border 1 + space 1 + 「- [ ] 交週報 @2026-10-16 17:30」 30 cells
+        // border 1 + space 1 + 「- [ ] Pick up the cake 🎂 @2026-10-16 17:30」 43 cells (42 chars)
         assert_eq!(
             terminal.get_cursor_position().expect("cursor"),
-            Position::new(32, 8)
+            Position::new(45, 8)
         );
         // What the line parses as is shown muted; change it to a time
         // that does not exist: that row becomes a red explanation
@@ -1397,7 +1396,7 @@ mod tests {
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
-            crate::tasks::parse("- [ ] 交週報 @2026-10-16\n").items,
+            crate::tasks::parse("- [ ] Send the weekly update @2026-10-16\n").items,
         );
         app.focus = Focus::Agenda;
         app.handle_key(ratatui::crossterm::event::KeyEvent::from(
@@ -1406,7 +1405,7 @@ mod tests {
         let rows = text_rows(draw_app(&mut app, 70, 11).backend().buffer());
         assert_eq!(
             rows[10],
-            " 改期「交週報」：移到新的日期  Enter 確定  Esc 取消"
+            " 改期「Send the weekly update」：移到新的日期  Enter 確定  Esc 取消"
         );
     }
 
@@ -1541,9 +1540,9 @@ mod tests {
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(17, 6)].fg, theme.has_item);
         assert_eq!(buffer[(20, 6)].fg, theme.text);
-        // Keyboard in the agenda, 主管出差 chosen on November's line (Tab from 11/2): the brackets hold the
-        // range; November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from the top
-        // edge, so it scrolls up one more row and shows the line under October)
+        // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2): the brackets hold
+        // the range; November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from
+        // the top edge, so it scrolls up one more row and shows the line under October)
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1591,8 +1590,8 @@ mod tests {
 
     #[test]
     fn a_multi_day_item_belongs_to_every_day_it_covers() {
-        // Keyboard in the calendar, 10/22 selected: 東京出差 (10/20-25) and 買伴手禮 (10/22) both get the
-        // highlight background, 交週報 does not (screen: see above)
+        // Keyboard in the calendar, 10/22 selected: Business trip to NYC (10/20-25) and Buy gifts for the
+        // team (10/22) both get the highlight background, Send the weekly update does not (screen: see above)
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1610,10 +1609,10 @@ mod tests {
 
     #[test]
     fn holidays_are_red() {
-        // 國定假日 (type:holiday): 國慶連假 10/9-11, 光復節 10/25; 10/25
-        // also has an item in 工作, and the holiday red wins over orange
-        let text = "# 國定假日 type:holiday\n- 國慶連假 @2026-10-09..2026-10-11\n- 光復節 @2026-10-25\n\
-                    # 工作\n- [ ] 加班 @2026-10-25\n";
+        // US holidays (type:holiday): Long weekend 10/10-12, Halloween 10/31;
+        // 10/31 also has an item in Work, and the holiday red wins over orange
+        let text = "# US holidays type:holiday\n- Long weekend @2026-10-10..2026-10-12\n\
+                    - Halloween @2026-10-31\n# Work\n- [ ] On-call shift @2026-10-31\n";
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1625,22 +1624,22 @@ mod tests {
             let cell = &terminal.backend().buffer()[(x, y)];
             (cell.symbol().to_string(), cell.fg)
         };
-        // 10/9 (Fri) x 26, 10/10 (Sat) x 29, 10/11 (Sun) x 32 at y 4;
-        // 10/25 (Sun) x 32 at y 6; 10/8 (Thu) x 23 is not a holiday
-        assert_eq!(fg(&mut app, 26, 4), ("9".into(), theme.holiday));
+        // 10/10 (Sat) x 29, 10/11 (Sun) x 32 at y 4; 10/12 (Mon) x 14 at y 5;
+        // 10/31 (Sat) x 29 at y 7; 10/9 (Fri) x 26 at y 4 is not a holiday
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.holiday));
         assert_eq!(fg(&mut app, 32, 4), ("1".into(), theme.holiday));
-        assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.holiday));
-        assert_eq!(fg(&mut app, 23, 4), ("8".into(), theme.text));
+        assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 29, 7), ("1".into(), theme.holiday));
+        assert_eq!(fg(&mut app, 26, 4), ("9".into(), theme.text));
         // If today is a holiday, today's green comes first
         app.today = date(2026, 10, 10);
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.today));
         app.today = date(2026, 10, 17);
-        // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/25 back to the
+        // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/31 back to the
         // has-items orange, 10/10 back to weekend blue)
-        assert_eq!(app.groups[0].name.as_deref(), Some("國定假日"));
+        assert_eq!(app.groups[0].name.as_deref(), Some("US holidays"));
         app.groups[0].shown = false;
-        assert_eq!(fg(&mut app, 32, 6), ("5".into(), theme.has_item));
+        assert_eq!(fg(&mut app, 29, 7), ("1".into(), theme.has_item));
         assert_eq!(fg(&mut app, 29, 4), ("0".into(), theme.weekend));
     }
 
@@ -1648,7 +1647,8 @@ mod tests {
     fn events_gray_out_once_their_day_is_past() {
         // 10/9: an overdue unfinished task (orange); 10/10: a past event (gray, not struck through, and the
         // day goes back to weekend blue); 10/18: an upcoming event (orange)
-        let text = "- [ ] 交週報 @2026-10-09\n- 國慶日 @2026-10-10\n- 爬山 @2026-10-18 07:00\n";
+        let text = "- [ ] Send the weekly update @2026-10-09\n- Farmers market @2026-10-10\n\
+                    - Go hiking @2026-10-18 07:00\n";
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1670,11 +1670,11 @@ mod tests {
         assert_eq!(cell(29, 4), ("0", theme.weekend, false));
         assert_eq!(cell(32, 5), ("8", theme.has_item, false));
         // Agenda (starts at x 36, one item per row): titles
-        // at x 43; 爬山 has a time in front, so it is at x 49
-        assert_eq!(cell(43, 3), ("交", theme.has_item, false));
-        assert_eq!(cell(43, 4), ("國", theme.muted, false));
+        // at x 43; Go hiking has a time in front, so it is at x 49
+        assert_eq!(cell(43, 3), ("S", theme.has_item, false));
+        assert_eq!(cell(43, 4), ("F", theme.muted, false));
         assert_eq!(cell(38, 4), ("0", theme.muted, false));
-        assert_eq!(cell(49, 5), ("爬", theme.has_item, false));
+        assert_eq!(cell(49, 5), ("G", theme.has_item, false));
     }
 
     #[test]
@@ -1682,8 +1682,8 @@ mod tests {
         // The 16th has an unfinished item → orange; the 15th has only finished ones → same as no items; the
         // 17th (today) has items → still today's color; the 18th (Sun) has items → orange wins over the
         // weekend color; the 14th has no items
-        let text = "- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 聚餐 @2026-10-17\n\
-                    - [ ] 爬山 @2026-10-18 07:00\n";
+        let text = "- [ ] Send the weekly update @2026-10-16\n- [x] Fix the login bug @2026-10-15\n\
+                    - Dinner with friends @2026-10-17\n- [ ] Go hiking @2026-10-18 07:00\n";
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -2013,7 +2013,7 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // 「生活」 unchecked: its items leave the cells, and those
+        // Personal unchecked: its items leave the cells, and those
         // days are no longer orange (10/18 back to weekend blue)
         app.groups[1].shown = false;
         let terminal = draw_app(&mut app, 121, 22);
@@ -2242,9 +2242,9 @@ mod tests {
 
     #[test]
     fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
-        // 東京出差 10/20-25: listed in every day's cell; an item that starts
-        // earlier goes first in a day (10/22: 東京出差 first, then 買伴手禮);
-        // 主管出差 10/28-11/3 is listed up to the last day on screen, 11/1
+        // Business trip to NYC 10/20-25: listed in every day's cell; an item that starts earlier goes
+        // first in a day (10/22: Business trip to NYC first, then Buy gifts for the team);
+        // Manager OOO 10/28-11/3 is listed up to the last day on screen, 11/1
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), RANGE_TASKS);
         let terminal = draw_app(&mut app, 80, 30);
         assert_eq!(
@@ -2374,8 +2374,8 @@ mod tests {
     fn tasks_page_colors_and_clicks() {
         // Dates not in this year get the year in front; done tasks gray and struck through; past events gray,
         // not struck through; dates in that day's color; the chosen row gets the highlight background
-        let text = "# 工作\n- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 國慶日 @2026-10-10\n\
-                    - 跨年 @2027-01-02\n  - [ ] 買票\n";
+        let text = "# Work\n- [ ] Send the weekly update @2026-10-16\n- [x] Fix the login bug @2026-10-15\n\
+                    - Hackathon @2026-10-10\n- Trip to Tokyo @2027-01-02\n  - [ ] Book flights\n";
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -2386,7 +2386,7 @@ mod tests {
         app.screen = Rect::new(0, 0, 40, 14);
         let terminal = draw_app(&mut app, 40, 14);
         let rows = text_rows(terminal.backend().buffer());
-        assert_eq!(rows[7], "│ ▸  ∙  跨年  0/1             2027/1/2 │");
+        assert_eq!(rows[7], "│ ▸  ∙  Trip to Tokyo  0/1    2027/1/2 │");
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         let cell = |x: u16, y: u16| {
@@ -2397,21 +2397,22 @@ mod tests {
                 cell.modifier.contains(Modifier::CROSSED_OUT),
             )
         };
-        // Heading: 工作 (label color, bold)
+        // Heading: Work (label color, bold)
         assert_eq!(buffer[(2, 3)].fg, theme.label);
         assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
-        // 交週報 (y 4): not done → normal text, date (x 33-37) orange;
+        // Send the weekly update (y 4): not done → normal text, date (x 33-37) orange;
         // the chosen row gets the highlight across the whole row
-        assert_eq!(cell(8, 4), ("交", theme.text, false));
+        assert_eq!(cell(8, 4), ("S", theme.text, false));
         assert_eq!(cell(34, 4), ("0", theme.has_item, false));
         assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
         assert_eq!(buffer[(1, 5)].bg, Color::Reset);
-        // 修 bug (y 5): done → gray, struck through; 國慶日 (y 6): past event → gray, not struck through
-        assert_eq!(cell(8, 5), ("修", theme.muted, true));
-        assert_eq!(cell(8, 6), ("國", theme.muted, false));
+        // Fix the login bug (y 5): done → gray, struck through; Hackathon (y 6): past event → gray, not
+        // struck through
+        assert_eq!(cell(8, 5), ("F", theme.muted, true));
+        assert_eq!(cell(8, 6), ("H", theme.muted, false));
         // ▸ is muted
         assert_eq!(cell(2, 7), ("▸", theme.muted, false));
-        // Click the 跨年 row (y 7): it gets chosen; click ▸ (x 2): it expands
+        // Click the Trip to Tokyo row (y 7): it gets chosen; click ▸ (x 2): it expands
         let click = |app: &mut App, column, row| {
             use ratatui::crossterm::event::{
                 KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -2426,7 +2427,7 @@ mod tests {
         click(&mut app, 10, 7);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("跨年")
+            Some("Trip to Tokyo")
         );
         assert!(app.expanded.is_empty());
         click(&mut app, 2, 7);
@@ -2435,7 +2436,7 @@ mod tests {
         click(&mut app, 5, 3);
         assert_eq!(
             app.tasks_chosen().map(|item| item.title.as_str()),
-            Some("跨年")
+            Some("Trip to Tokyo")
         );
     }
 
@@ -2472,7 +2473,7 @@ mod tests {
         // The header's 「1 處寫錯」 and the bottom row are both red
         assert_eq!(buffer[(60, 1)].fg, theme.error);
         assert_eq!(buffer[(2, 13)].fg, theme.error);
-        // The title in the 繳房屋稅 row (y 9) is red (titles start at x 8); other rows are not
+        // The title in the Pay property tax row (y 9) is red (titles start at x 8); other rows are not
         assert_eq!(buffer[(8, 9)].fg, theme.error);
         assert_eq!(buffer[(8, 8)].fg, theme.text);
     }
@@ -2480,7 +2481,7 @@ mod tests {
     #[test]
     fn tasks_page_with_the_side_menu() {
         // 121 cells wide: side menu on the left; unchecked
-        // calendars (未分組, 付款 API 改版) are left out entirely
+        // calendars (Payments API v2, Recurring) are left out entirely
         let mut app = tasks_app(Lang::ZhTw);
         app.groups[0].shown = false;
         app.groups[1].shown = false;
@@ -2511,8 +2512,8 @@ mod tests {
         // grid (60 × 19), 30 cells wide (the minimum), 6 rows tall → x 15, y 6; the top
         // border shows the date, one item per row (like layout 1's agenda), the first item
         // is chosen with its date in brackets; the bottom row switches to the popup's keys
-        let text = "- [ ] 交週報 @2026-10-17 17:30\n- 週會 @2026-10-17 10:00\n\
-                    - [x] 整理書櫃 @2026-10-17\n- 出差 @2026-10-16..2026-10-18\n";
+        let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
+                    - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
         app.focus = Focus::Day;
         let terminal = draw_app(&mut app, 60, 20);
@@ -2521,10 +2522,10 @@ mod tests {
             area_rows(buffer, Rect::new(15, 6, 30, 6)),
             [
                 "╭ 2026/10/17（六） ──────────╮",
-                "│[10/16~18]出差              │",
-                "│ 10/17 整理書櫃             │",
-                "│ 10/17 10:00 週會           │",
-                "│ 10/17 17:30 交週報         │",
+                "│[10/16~18]Parents in town   │",
+                "│ 10/17 Clean the garage     │",
+                "│ 10/17 10:00 Farmers market │",
+                "│ 10/17 17:30 Buy groceries  │",
                 "╰────────────────────────────╯",
             ]
         );
@@ -2545,14 +2546,14 @@ mod tests {
         assert_eq!(
             area_rows(buffer, Rect::new(15, 1, 29, 3)),
             [
-                "│ 10/17 整理書櫃             ",
-                "│ 10/17 10:00 週會           ",
-                "│[10/17]17:30 交週報         ",
+                "│ 10/17 Clean the garage     ",
+                "│ 10/17 10:00 Farmers market ",
+                "│[10/17]17:30 Buy groceries  ",
             ]
         );
         assert!((1..4).any(|y| buffer[(44, y)].symbol() == "┃"));
-        // Click the top row (整理書櫃): it gets chosen, the scroll stays; clicking the same spot again is
-        // still it (no task file, so checking it off writes nothing)
+        // Click the top row (Clean the garage): it gets chosen, the scroll stays; clicking the same spot
+        // again is still it (no task file, so checking it off writes nothing)
         app.screen = Rect::new(0, 0, 60, 6);
         let click = |app: &mut App| {
             use ratatui::crossterm::event::{
@@ -2570,7 +2571,7 @@ mod tests {
         let terminal = draw_app(&mut app, 60, 6);
         assert_eq!(
             area_rows(terminal.backend().buffer(), Rect::new(15, 1, 29, 1)),
-            ["│[10/17]整理書櫃             "]
+            ["│[10/17]Clean the garage     "]
         );
         click(&mut app);
         assert_eq!(app.day_index, 1);
@@ -2672,7 +2673,11 @@ mod tests {
         // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7, Tue x 18,
         // Wed x 29, Thu x 40, Fri x 50, Sat x 60, Sun x 70; weeks 1-6 at y 3, 7, 11, 15, 19, 23. 10/16 (Fri)
         // selected, 10/15 (Thu) has an unfinished item
-        let mut app = month_app(Lang::ZhTw, date(2026, 10, 16), "- [ ] 交週報 @2026-10-15\n");
+        let mut app = month_app(
+            Lang::ZhTw,
+            date(2026, 10, 16),
+            "- [ ] Send the weekly update @2026-10-15\n",
+        );
         let terminal = draw_app(&mut app, 80, 30);
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
