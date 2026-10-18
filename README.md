@@ -1,7 +1,9 @@
 # roh-cal
 A simple, keyboard-driven terminal calendar for plain-text tasks.
 
+<!-- After adding the CI workflow (.github/workflows/ci.yml):
 [![CI](https://github.com/RohimChou/roh-cal/actions/workflows/ci.yml/badge.svg)](https://github.com/RohimChou/roh-cal/actions/workflows/ci.yml)
+-->
 [![License: MIT](https://img.shields.io/github/license/RohimChou/roh-cal)](LICENSE)
 ![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
 <!-- After the first release on crates.io:

@@ -13,7 +13,7 @@ cargo run -- --tasks /tmp/tasks.md
 ```
 
 ## Before a pull request
-Run the same checks as CI (Linux and macOS):
+Make sure these pass:
 
 ```sh
 cargo fmt
