@@ -113,6 +113,21 @@ pub enum WarningKind {
     EndBeforeStart(String),
 }
 
+/// 檔案開頭的 front matter（Obsidian 筆記的屬性）到第幾行：第一行是 `---`、到下一個 `---` 為止（含）；
+/// 沒有 front matter（第一行不是 `---`、或沒有結尾的 `---`）是 `None`。裡面的 `- work` 是 YAML 的清單，不是事
+///
+/// 例：`---` / `tags:` / `  - work` / `---` / `- [ ] 交週報` → `Some(4)`，第 5 行才開始讀
+fn front_matter_end(text: &str) -> Option<usize> {
+    let mut lines = text.lines();
+    if lines.next()?.trim_end() != "---" {
+        return None;
+    }
+    // 第 1 行是開頭的 `---`，結尾的 `---` 在它後面第幾個
+    lines
+        .position(|line| line.trim_end() == "---")
+        .map(|index| index + 2)
+}
+
 /// 解析整個任務檔
 pub fn parse(text: &str) -> Parsed {
     let mut parsed = Parsed::default();
@@ -121,11 +136,16 @@ pub fn parse(text: &str) -> Parsed {
     let mut ancestors: Vec<(usize, usize)> = Vec::new();
     // 是否在 ``` code block 裡面（裡面的東西都不算）
     let mut in_code_block = false;
+    // 檔案開頭的 front matter 到第幾行（裡面的東西都不算）
+    let front_matter = front_matter_end(text).unwrap_or(0);
 
     // lines() 會把 \n 和 \r\n 都當成換行
     for (index, raw) in text.lines().enumerate() {
         let line = index + 1;
         let trimmed = raw.trim_start();
+        if line <= front_matter {
+            continue;
+        }
 
         // ``` 或 ~~~ 開始 / 結束 code block
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
@@ -342,6 +362,18 @@ mod tests {
         let parsed = parse(line);
         assert_eq!(parsed.items.len(), 1, "{line}");
         parsed.items[0].clone()
+    }
+
+    #[test]
+    fn front_matter_at_the_top_is_skipped() {
+        // Obsidian 的屬性：tags 底下的 `- work` 不是事；結尾的 `---` 之後照常讀，行號照檔案算
+        let text = "---\ntags:\n  - work\n---\n- [ ] 交週報 @2026-10-16\n";
+        let items = parse(text).items;
+        assert_eq!(items.len(), 1);
+        assert_eq!((items[0].title.as_str(), items[0].line), ("交週報", 5));
+        // 不在第一行的 `---`（Markdown 的分隔線）、沒有結尾的 `---`：不是 front matter，照常讀
+        assert_eq!(parse("- a\n---\n- b\n---\n").items.len(), 2);
+        assert_eq!(parse("---\n- a\n- b\n").items.len(), 2);
     }
 
     #[test]

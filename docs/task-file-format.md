@@ -33,7 +33,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn in the holiday color. The token is not part of the group's name. Write holidays as events (no box), e.g. `- 國慶連假 @2026-10-09..2026-10-11` |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
 
-Everything else (blank lines, prose, code blocks, other Markdown) is ignored when reading and kept byte-for-byte when writing.
+Everything else (blank lines, prose, code blocks, other Markdown) is ignored when reading and kept byte-for-byte when writing. So is front matter: when the first line is `---`, everything up to the next `---` (an Obsidian note's properties, e.g. a `tags:` list) is skipped.
 
 ## Details
 | Topic | Rule |
