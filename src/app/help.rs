@@ -149,19 +149,19 @@ mod tests {
         press(&mut app, KeyCode::Tab);
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(app.help().map(|help| help.scroll), Some(0));
-        // 100 × 20：完整版 28 行 + padding 2 + 框線 2 = 32 行，框最高 20、裡面放得下 16 行 → 能捲 12 行
+        // 100 × 20：完整版 29 行 + padding 2 + 框線 2 = 33 行，框最高 20、裡面放得下 16 行 → 能捲 13 行
         let mut app = app_with_help(100, 20);
         press(&mut app, KeyCode::Tab);
         for _ in 0..15 {
             press(&mut app, KeyCode::Down);
         }
-        assert_eq!(app.help().map(|help| help.scroll), Some(12));
+        assert_eq!(app.help().map(|help| help.scroll), Some(13));
         press(&mut app, KeyCode::Char('k'));
-        assert_eq!(app.help().map(|help| help.scroll), Some(11));
+        assert_eq!(app.help().map(|help| help.scroll), Some(12));
         // 滾輪也一樣，底下的月曆不動
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
-        assert_eq!(app.help().map(|help| help.scroll), Some(9));
+        assert_eq!(app.help().map(|help| help.scroll), Some(10));
         assert_eq!(app.selected, date(2026, 10, 17));
         // Tab 換回精簡版：回到最上面
         press(&mut app, KeyCode::Tab);

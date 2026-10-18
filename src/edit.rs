@@ -117,6 +117,47 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     Ok((result, count))
 }
 
+/// 縮排 / 取消縮排：`item` 那一塊（連子任務、備註）每一行開頭 `item` 的縮排換成 `to`，回傳改好的整個檔案；
+/// 子任務多出來的縮排照留
+///
+/// 例：`to` = `  `：`- 東京 5 天`、`  - [ ] 訂機票` → `  - 東京 5 天`、`    - [ ] 訂機票`。
+/// 那一塊有一行開頭跟 `item` 的縮排寫法不一樣（tab、空白混用）：照寬度換成空白，上下層的關係不變
+pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let start = find_line(&lines, item)?;
+    let end = block_end(&lines, start);
+    let from = indent_of(&item.line_text);
+    let mut result = segments[..start].concat();
+    for segment in &segments[start..end] {
+        // 中間的空行照留
+        if segment.trim().is_empty() {
+            result.push_str(segment);
+            continue;
+        }
+        match segment.strip_prefix(from) {
+            Some(rest) => {
+                result.push_str(to);
+                result.push_str(rest);
+            }
+            None => {
+                let width = (tasks::indent_width(segment) + tasks::indent_width(to))
+                    .saturating_sub(tasks::indent_width(from));
+                result.push_str(&" ".repeat(width));
+                result.push_str(segment.trim_start());
+            }
+        }
+    }
+    result.push_str(&segments[end..].concat());
+    Ok(result)
+}
+
+/// 一行開頭的縮排（空白、tab）
+pub fn indent_of(line: &str) -> &str {
+    &line[..line.len() - line.trim_start().len()]
+}
+
 /// 寫檔前後的行號對照（從 1 開始），畫面記著的行號（選到的那件、展開的子任務）跟著搬
 ///
 /// 每次寫檔只改連續的一段（打勾、編輯、改期、新增、刪除、復原都是）：前面沒動的行號不變、後面的跟著加減；
@@ -426,6 +467,37 @@ mod tests {
         );
         // 在別處改過：不刪
         assert_eq!(delete("- [ ] 別的\n", &item(GROUPS, 0)), Err(Changed));
+    }
+
+    #[test]
+    fn reindent_moves_the_whole_block() {
+        // 寫報告往裡縮 2 格：子任務跟著多 2 格，中間的空行照留；後面的空行、下一組不動
+        assert_eq!(
+            reindent(GROUPS, &item(GROUPS, 0), "  "),
+            Ok(
+                "# 工作\n  - [ ] 寫報告 @2026-10-16\n    - [ ] 找資料\n\n    - [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n"
+                    .into()
+            )
+        );
+        // 列大綱往外：對齊父項目（不縮排）
+        assert_eq!(
+            reindent(GROUPS, &item(GROUPS, 2), ""),
+            Ok(
+                "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n- [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n"
+                    .into()
+            )
+        );
+        // tab 縮排：子任務多出來的 tab 照留；開頭不是 tab 的那行照寬度換成空白（6 - 4 = 2 格）；\r\n 照留
+        let tabs = "- a\r\n\t- b\r\n\t\t- c\r\n      - d\r\n";
+        assert_eq!(
+            reindent(tabs, &item(tabs, 1), ""),
+            Ok("- a\r\n- b\r\n\t- c\r\n  - d\r\n".into())
+        );
+        // 在別處改過：不改
+        assert_eq!(
+            reindent("- [ ] 別的\n", &item(GROUPS, 0), "  "),
+            Err(Changed)
+        );
     }
 
     #[test]

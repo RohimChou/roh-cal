@@ -1,8 +1,8 @@
 //! 任務頁（`4`）：整份任務檔照日曆（分組）列出來，子任務排成樹（預設收起來），沒日期的也列；
-//! `j` / `k` 上下、`l` / `h` 展開 / 收起
+//! `j` / `k` 上下、`l` / `h` 展開 / 收起（`+` / `-` 全部）、`L` / `H` 縮排 / 取消縮排
 
 use super::App;
-use crate::tasks::Item;
+use crate::{edit, tasks::Item};
 use ratatui::crossterm::event::KeyCode;
 
 /// 任務頁的一列
@@ -91,7 +91,8 @@ impl App {
         }
     }
 
-    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務，`+` / `-` 全部展開 / 全部收起；
+    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務，`+` / `-` 全部展開 / 全部收起，
+    /// `L` / `H` 縮排 / 取消縮排；
     /// 寫檔的鍵跟右邊的事項框一樣：`Space` / `x` 打勾、`e` / `Enter` 編輯、`a` 新增、`A` 新增子任務、`d` 刪除、`r` 改期
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
         match code {
@@ -101,6 +102,8 @@ impl App {
             KeyCode::Char('h') | KeyCode::Left => self.collapse_task(),
             KeyCode::Char('+') => self.expand_all(),
             KeyCode::Char('-') => self.collapse_all(),
+            KeyCode::Char('L') => self.indent_task(),
+            KeyCode::Char('H') => self.outdent_task(),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),
@@ -192,6 +195,66 @@ impl App {
             self.tasks_line = Some(line);
         }
         self.expanded.clear();
+    }
+
+    /// `L`：選到的那件（連子任務）往裡縮一層，變成上面同一層那件的子任務（縮排 = 那件的縮排 + 2 格，跟 `A` 一樣）；
+    /// 上面沒有同一層的（那一組、那一層的第一件）不動
+    fn indent_task(&mut self) {
+        let Some(item) = self.tasks_chosen().cloned() else {
+            return;
+        };
+        let Some(above) = self.sibling_above(&item).cloned() else {
+            return;
+        };
+        let to = format!("{}  ", edit::indent_of(&above.line_text));
+        // 新的父項目展開，縮進去的那件才看得到
+        self.reindent_task(&item, &to, above.line);
+    }
+
+    /// `H`：選到的那件（連子任務）往外一層，對齊它的父項目；它下面同一層的事變成它的子任務（跟 Obsidian 一樣）。
+    /// 本來就在最外層的不動
+    fn outdent_task(&mut self) {
+        let Some(item) = self.tasks_chosen().cloned() else {
+            return;
+        };
+        let Some(parent) = item.parent.and_then(|index| self.items.get(index)) else {
+            return;
+        };
+        let to = edit::indent_of(&parent.line_text).to_string();
+        // 它自己展開：下面變成它子任務的那幾件照樣看得到
+        self.reindent_task(&item, &to, item.line);
+    }
+
+    /// `item` 上面同一層的那件（同一個父項目、同一組；中間隔著的是那件的子任務）；沒有就是 `None`
+    fn sibling_above(&self, item: &Item) -> Option<&Item> {
+        let index = self
+            .items
+            .iter()
+            .position(|other| other.line == item.line)?;
+        self.items[..index]
+            .iter()
+            .rev()
+            .find(|other| other.depth <= item.depth)
+            .filter(|other| {
+                other.depth == item.depth
+                    && other.parent == item.parent
+                    && other.group == item.group
+            })
+    }
+
+    /// `item` 那一塊的縮排換成 `to`、寫回任務檔；寫成了就展開第 `expand` 行那件。在別處改過就重新載入
+    fn reindent_task(&mut self, item: &Item, to: &str, expand: usize) {
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::reindent(&text, item, to) {
+            Ok(after) => {
+                if self.write_tasks(&path, text, after, item.title.clone()) {
+                    self.expanded.insert(expand);
+                }
+            }
+            Err(edit::Changed) => self.reload(&text),
+        }
     }
 
     /// 點任務頁的第 `row` 列（`tasks_rows()` 裡的位置）：點一下選它，點的是 `▸` / `▾` 就展開 / 收起；
@@ -522,6 +585,71 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert!(read().contains("- [ ] 開會 @2026-10-20 10:00\n"));
         assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn shift_l_and_h_indent_and_outdent_with_the_subtasks() {
+        use super::super::write::tests::clean_up;
+        let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n  - [ ] 填表\n# 生活\n- 爬山\n";
+        let (mut app, path) = tasks_app_with_file("tasks-indent", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+        // 寫報告是第一件，上面沒有同一層的：L 不動
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(read(), text);
+        // 交週報 L：連填表一起縮進去，變成寫報告的子任務；寫報告展開，還選著交週報
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(
+            read(),
+            "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n  - [ ] 交週報\n    - [ ] 填表\n# 生活\n- 爬山\n"
+        );
+        assert_eq!(
+            shape(&app),
+            [
+                "#工作",
+                "-寫報告",
+                "  找資料",
+                "  列大綱",
+                "  +交週報",
+                "#生活",
+                "爬山"
+            ]
+        );
+        assert_eq!(chosen(&app).as_deref(), Some("交週報"));
+        // u 復原；往上選到找資料，H：對齊寫報告，下面的列大綱變成它的子任務、它展開
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), text);
+        press(&mut app, KeyCode::Char('k'));
+        press(&mut app, KeyCode::Char('k'));
+        assert_eq!(chosen(&app).as_deref(), Some("找資料"));
+        press(&mut app, KeyCode::Char('H'));
+        assert_eq!(
+            read(),
+            "# 工作\n- [ ] 寫報告\n- [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n  - [ ] 填表\n# 生活\n- 爬山\n"
+        );
+        assert_eq!(
+            shape(&app),
+            [
+                "#工作",
+                "寫報告",
+                "-找資料",
+                "  列大綱",
+                "+交週報",
+                "#生活",
+                "爬山"
+            ]
+        );
+        // 爬山：最外層（H 不動）、也是「生活」的第一件（上面的交週報是別組，L 不動）
+        let before = read();
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('j'));
+        }
+        assert_eq!(chosen(&app).as_deref(), Some("爬山"));
+        press(&mut app, KeyCode::Char('H'));
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(read(), before);
         clean_up(&path);
     }
 

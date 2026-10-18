@@ -191,6 +191,7 @@ const EN: Texts = Texts {
                 keys: &[
                     ("l / h", "expand / collapse"),
                     ("+ / -", "expand / collapse all"),
+                    ("L / H", "indent / outdent"),
                 ],
             },
             HelpSection {
@@ -331,7 +332,11 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "任務頁",
-                keys: &[("l / h", "展開 / 收起"), ("+ / -", "全部展開 / 全部收起")],
+                keys: &[
+                    ("l / h", "展開 / 收起"),
+                    ("+ / -", "全部展開 / 全部收起"),
+                    ("L / H", "縮排 / 取消縮排"),
+                ],
             },
             HelpSection {
                 title: "滑鼠",
