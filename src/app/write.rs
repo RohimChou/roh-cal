@@ -100,6 +100,19 @@ impl App {
         }
     }
 
+    /// 新增用：任務檔的位置和現在的內容；檔案還不存在（例：預設位置第一次用）就當作空的，存的時候會建起來
+    pub(super) fn read_tasks_for_adding(&mut self) -> Option<(PathBuf, String)> {
+        let path = self.tasks_path.clone()?;
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Some((path, text)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Some((path, String::new())),
+            Err(error) => {
+                self.notice = Some(Notice::Failed(error.kind()));
+                None
+            }
+        }
+    }
+
     /// 把 `after` 寫進任務檔，畫面的事跟著更新，記一步 undo（`before` = 寫之前的內容、`title` = 改到的那件事）；
     /// 失敗就記下提示（檔案、畫面都不動）
     pub(super) fn write_tasks(

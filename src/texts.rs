@@ -151,6 +151,16 @@ impl Texts {
         }
     }
 
+    /// 新增時編輯框上框線的標題：` 新增 ` / ` 新增子任務 `
+    pub fn add_title(&self, subtask: bool) -> &'static str {
+        match (self.lang, subtask) {
+            (Lang::En, false) => " New item ",
+            (Lang::En, true) => " New subtask ",
+            (Lang::ZhTw, false) => " 新增 ",
+            (Lang::ZhTw, true) => " 新增子任務 ",
+        }
+    }
+
     /// 編輯框下框線：怎麼存、怎麼取消
     pub fn editor_keys(&self) -> &'static str {
         match self.lang {
@@ -200,6 +210,8 @@ impl Texts {
             (Lang::ZhTw, Problem::NotAnItem) => {
                 " 要用「- 」開頭才是一件事（「- [ ] 」是任務、「- 」是行程）".into()
             }
+            (Lang::En, Problem::EmptyTitle) => " The title is empty".into(),
+            (Lang::ZhTw, Problem::EmptyTitle) => " 標題是空的".into(),
             (_, Problem::Mistake(kind)) => format!(" {}", self.mistake(kind)),
         }
     }

@@ -17,6 +17,19 @@ pub enum Problem {
     NotAnItem,
     /// 寫錯的地方，例：`@2026-13-01`（parser 會把它當成一般文字，存了就看不到日期）
     Mistake(WarningKind),
+    /// 標題是空的（例：只打了 `- [ ] @2026-10-17`）
+    EmptyTitle,
+}
+
+/// 新增的那一行放在檔案的哪裡
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Place {
+    /// `item` 那一組（同一個標題底下）的最後一件和它的子任務下面
+    InGroupOf(Item),
+    /// `item` 的子任務：放在它和它原本的子任務下面，縮排比它多 2 格
+    ChildOf(Item),
+    /// 檔案最後面
+    End,
 }
 
 /// 編輯框裡打的一行（不含縮排）讀起來是什麼：正好是一件事、沒有寫錯的地方才算數
@@ -31,7 +44,79 @@ pub fn check(line: &str) -> Result<Item, Problem> {
     if let Some(warning) = parsed.warnings.into_iter().next() {
         return Err(Problem::Mistake(warning.kind));
     }
-    parsed.items.into_iter().next().ok_or(Problem::NotAnItem)
+    let item = parsed.items.into_iter().next().ok_or(Problem::NotAnItem)?;
+    if item.title.is_empty() {
+        return Err(Problem::EmptyTitle);
+    }
+    Ok(item)
+}
+
+/// 新增：`new`（編輯框裡打的那一行）放到 `place`，回傳新的檔案內容和新的那一行是第幾行（從 1 開始）
+///
+/// 換行照檔案原本用的（`\n` 或 `\r\n`）；檔案最後一行沒有換行就先補一個。呼叫的人要先用 `check` 確認 `new` 沒問題
+pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    // 新的一行插在第幾段前面、縮排多少
+    let (at, indent) = match place {
+        Place::InGroupOf(item) => {
+            find_line(&lines, item)?;
+            // 同一組的最後一件（檔案現在的內容重新 parse，跟畫面認的一樣）
+            let items = tasks::parse(text).items;
+            let last = items
+                .iter()
+                .skip_while(|other| other.line != item.line)
+                .take_while(|other| other.group == item.group)
+                .last()
+                .ok_or(Changed)?;
+            // 跟那一組最外層的事一樣，不縮排
+            (block_end(&lines, last.line - 1), String::new())
+        }
+        Place::ChildOf(item) => {
+            let start = find_line(&lines, item)?;
+            let indent =
+                &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
+            (block_end(&lines, start), format!("{indent}  "))
+        }
+        Place::End => (segments.len(), String::new()),
+    };
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut result = segments[..at].concat();
+    // 前一行是檔案最後一行、沒有換行：先補一個
+    if !result.is_empty() && !result.ends_with('\n') {
+        result.push_str(newline);
+    }
+    result.push_str(&format!("{indent}{}{newline}", new.trim()));
+    result.push_str(&segments[at..].concat());
+    Ok((result, at + 1))
+}
+
+/// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
+fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
+    let index = item.line.checked_sub(1).ok_or(Changed)?;
+    if lines.get(index) == Some(&item.line_text.as_str()) {
+        Ok(index)
+    } else {
+        Err(Changed)
+    }
+}
+
+/// 第 `start` 行（從 0 開始）連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算）結束在哪：
+/// 回傳最後一行有內容的下一行。最後面的空行不算（那是跟下一件之間的空行）
+fn block_end(lines: &[&str], start: usize) -> usize {
+    let indent = tasks::indent_width(lines[start]);
+    let mut end = start + 1;
+    for (index, line) in lines.iter().enumerate().skip(start + 1) {
+        // 空行先跳過；遇到縮排沒有比它深的那行就停
+        if line.trim().is_empty() {
+            continue;
+        }
+        if tasks::indent_width(line) <= indent {
+            break;
+        }
+        end = index + 1;
+    }
+    end
 }
 
 /// 編輯：`item` 那一行換成 `new`（編輯框裡打的那一行，不含縮排），縮排照原本的；回傳改好的整個檔案
@@ -174,6 +259,73 @@ mod tests {
         assert_eq!(
             check("- 會議 @2026-10-12 25:00"),
             Err(Problem::Mistake(WarningKind::NoSuchTime("25:00".into())))
+        );
+    }
+
+    #[test]
+    fn check_refuses_an_empty_title() {
+        assert_eq!(check("- [ ]  @2026-10-17"), Err(Problem::EmptyTitle));
+        assert_eq!(check("- [ ]"), Err(Problem::EmptyTitle));
+    }
+
+    /// 新增的 test 用的檔案：「工作」有一件帶子任務和空行，後面接「生活」
+    const GROUPS: &str = "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n  - [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n";
+
+    #[test]
+    fn add_goes_after_the_last_item_of_the_group() {
+        // 「工作」的最後一件（寫報告）連子任務、中間的空行一起算；後面的空行不算
+        let (after, line) = add(
+            GROUPS,
+            "- [ ] 交週報 @2026-10-16",
+            &Place::InGroupOf(item(GROUPS, 0)),
+        )
+        .expect("add");
+        assert_eq!(
+            after,
+            "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n  - [x] 列大綱\n- [ ] 交週報 @2026-10-16\n\n# 生活\n- 爬山 @2026-10-18\n"
+        );
+        assert_eq!(line, 6);
+        // 選的是子任務也一樣：加在那一組最後面，不縮排
+        let (after, _) = add(GROUPS, "- x", &Place::InGroupOf(item(GROUPS, 1))).expect("add");
+        assert!(after.contains("  - [x] 列大綱\n- x\n\n# 生活"));
+        // 「生活」是最後一組：加在檔案最後
+        let (after, line) = add(
+            GROUPS,
+            "- 聚餐 @2026-10-17",
+            &Place::InGroupOf(item(GROUPS, 3)),
+        )
+        .expect("add");
+        assert!(after.ends_with("- 爬山 @2026-10-18\n- 聚餐 @2026-10-17\n"));
+        assert_eq!(line, 9);
+    }
+
+    #[test]
+    fn add_a_subtask_right_under_its_parent() {
+        // 寫報告的子任務：加在它原本的子任務下面，縮排多 2 格
+        let (after, line) =
+            add(GROUPS, "- [ ] 校稿", &Place::ChildOf(item(GROUPS, 0))).expect("add");
+        assert!(after.contains("  - [x] 列大綱\n  - [ ] 校稿\n\n# 生活"));
+        assert_eq!(line, 6);
+        // 子任務的子任務：再多 2 格
+        let (after, _) =
+            add(GROUPS, "- [ ] 查文獻", &Place::ChildOf(item(GROUPS, 1))).expect("add");
+        assert!(after.contains("  - [ ] 找資料\n    - [ ] 查文獻\n\n  - [x] 列大綱"));
+    }
+
+    #[test]
+    fn add_at_the_end_keeps_the_newlines() {
+        // 最後一行沒有換行：先補一個；\r\n 的檔案用 \r\n
+        assert_eq!(add("- a", "- b", &Place::End), Ok(("- a\n- b\n".into(), 2)));
+        assert_eq!(
+            add("- a\r\n", "- b", &Place::End),
+            Ok(("- a\r\n- b\r\n".into(), 2))
+        );
+        // 空的檔案（還不存在的任務檔）
+        assert_eq!(add("", "- b", &Place::End), Ok(("- b\n".into(), 1)));
+        // 選的那件在別處改過：不加
+        assert_eq!(
+            add("- [ ] 別的\n", "- b", &Place::InGroupOf(item(GROUPS, 0))),
+            Err(Changed)
         );
     }
 

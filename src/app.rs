@@ -4,7 +4,7 @@ mod editor;
 mod moving;
 mod write;
 
-pub use editor::Editor;
+pub use editor::{Editor, Target};
 pub use moving::Moving;
 pub use write::Notice;
 
@@ -313,13 +313,14 @@ impl App {
         }
     }
 
-    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）
+    /// 鍵盤在月曆：左右 = 前一天 / 後一天，上下 = 上一週 / 下一週（像 vim）；`a` 在選取那天新增一件
     fn handle_calendar_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
             KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
             KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
             KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
+            KeyCode::Char('a') => self.start_adding(),
             _ => {}
         }
     }
@@ -332,6 +333,8 @@ impl App {
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
+            KeyCode::Char('a') => self.start_adding(),
+            KeyCode::Char('A') => self.start_adding_subtask(),
             _ => {}
         }
     }
@@ -490,9 +493,13 @@ impl App {
         self.focus = Focus::Agenda;
     }
 
-    /// 寫檔之後，右邊選檔案第 `line` 行那件事（只改那一行，行號不變）：跨月的事選選取那天那個月的那一行；
-    /// 右邊沒有它了（例：日期拿掉了）就回到月曆
+    /// 寫檔之後，右邊選檔案第 `line` 行那件事：跨月的事選選取那天那個月的那一行；
+    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆
     fn choose_line(&mut self, line: usize) {
+        if self.view != View::Planner {
+            self.focus = Focus::Calendar;
+            return;
+        }
         let index = {
             let agenda = self.agenda();
             agenda

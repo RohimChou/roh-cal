@@ -48,7 +48,13 @@ impl App {
             }
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
-            code => self.handle_calendar_key(code),
+            // 只收移動日期的鍵（月曆上的 `a` 新增之類的不理）
+            code @ (KeyCode::Char('h' | 'j' | 'k' | 'l')
+            | KeyCode::Left
+            | KeyCode::Right
+            | KeyCode::Up
+            | KeyCode::Down) => self.handle_calendar_key(code),
+            _ => {}
         }
     }
 
@@ -176,13 +182,14 @@ mod tests {
         let (mut app, path) = app_with_task_file("move-keys", text);
         press(&mut app, KeyCode::Char('r'));
         // q、Tab、Space、u 都不理（不會離開、不會換框、不會打勾）
-        for code in ['q', ' ', 'u', 's', '3']
+        for code in ['q', ' ', 'u', 's', '3', 'a', 'e']
             .map(KeyCode::Char)
             .into_iter()
             .chain([KeyCode::Tab])
         {
             press(&mut app, code);
             assert!(app.moving.is_some(), "{code:?}");
+            assert!(app.editor.is_none(), "{code:?}");
         }
         assert!(!app.should_quit);
         assert_eq!(app.view, View::Planner);

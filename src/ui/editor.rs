@@ -1,6 +1,7 @@
 //! 一行編輯框：畫在最下面（操作說明的上面），整個 terminal 那麼寬
 
-use crate::app::{App, Editor};
+use crate::app::{App, Editor, Target};
+use crate::edit::Place;
 use ratatui::{
     Frame,
     layout::{Position, Rect},
@@ -23,7 +24,7 @@ pub fn area(screen: Rect) -> Rect {
     )
 }
 
-/// 畫編輯框：上框線寫在編第幾行、第 1 列是打的字（游標在打字的位置）、第 2 列即時顯示這行會讀成什麼
+/// 畫編輯框：上框線寫在編第幾行（或「新增」）、第 1 列是打的字（游標在打字的位置）、第 2 列即時顯示這行會讀成什麼
 /// （有問題就是紅字，說明哪裡不對、存不了）、下框線寫怎麼存
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
@@ -33,7 +34,12 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
         .title_top(Line::styled(
-            texts.edit_title(editor.item.line),
+            match &editor.target {
+                Target::Edit(item) => texts.edit_title(item.line),
+                Target::Add(place) => texts
+                    .add_title(matches!(place, Place::ChildOf(_)))
+                    .to_string(),
+            },
             Style::new().fg(theme.label),
         ))
         .title_bottom(Line::styled(

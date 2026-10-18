@@ -229,7 +229,7 @@ pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
 }
 
 /// 縮排寬度：空白算 1、tab 算 4（混用時才比得出誰比較深）
-fn indent_width(line: &str) -> usize {
+pub(crate) fn indent_width(line: &str) -> usize {
     line.chars()
         .take_while(|c| c.is_whitespace())
         .map(|c| if c == '\t' { 4 } else { 1 })
