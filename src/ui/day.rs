@@ -66,7 +66,8 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
 
 /// Draws the popup: first scroll so the chosen item is visible (only scroll when it falls outside the box, so
 /// clicking a visible item does not scroll it away; stored in `app.day_top`), clear the month grid underneath
-/// and one blank cell around the box (as far as the month grid goes), then one item per row. The chosen item's date gets brackets `[10/17]` (same as layout 1's agenda). When the
+/// and one blank cell around the box (as far as the month grid goes), then one item per row. The chosen item's
+/// date gets brackets `[10/17]` and its row the selection background (same as layout 1's agenda). When the
 /// items do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
@@ -98,14 +99,24 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let top = app.day_top;
     let rows = items.iter().enumerate().skip(top);
     for ((index, item), y) in rows.zip(inner.y..inner.bottom()) {
-        frame.render_widget(
-            item_line(item, app, index == app.day_index),
-            Rect {
-                y,
-                height: 1,
-                ..inner
-            },
-        );
+        let row = Rect {
+            y,
+            height: 1,
+            ..inner
+        };
+        let chosen = index == app.day_index;
+        frame.render_widget(item_line(item, app, chosen), row);
+        // The chosen item: the selection background from border to border (as in layout 1's agenda)
+        if chosen {
+            let bar = Rect {
+                x: area.x + 1,
+                width: area.width.saturating_sub(2),
+                ..row
+            };
+            frame
+                .buffer_mut()
+                .set_style(bar, Style::new().bg(theme.selection));
+        }
     }
     if items.len() > visible {
         let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);

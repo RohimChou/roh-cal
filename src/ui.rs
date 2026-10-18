@@ -2827,10 +2827,16 @@ mod tests {
             text_rows(buffer)[19],
             " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關"
         );
-        // The border has the color of where the keyboard is, the brackets the selected red
+        // The border has the color of where the keyboard is, the brackets the selected red; the chosen row
+        // (y 7) has the selection background from border to border (x 15-44, the padding cells too), the
+        // others none
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(14, 5)].fg, theme.focus);
         assert_eq!(buffer[(16, 7)].fg, theme.selected);
+        assert_eq!(buffer[(15, 7)].bg, theme.selection);
+        assert_eq!(buffer[(44, 7)].bg, theme.selection);
+        assert_eq!(buffer[(45, 7)].bg, Color::Reset);
+        assert_eq!(buffer[(16, 8)].bg, Color::Reset);
         // Too short (60 × 6, month grid 5 rows): no rows of padding (the cells left and right stay), the
         // box holds 3 items, and choosing the last one scrolls down one item; a scrollbar on the right
         // border
