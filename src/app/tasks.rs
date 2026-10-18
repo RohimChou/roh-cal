@@ -227,7 +227,7 @@ impl App {
         self.reindent_task(&item, &to, item.line);
     }
 
-    /// `item` 上面同一層的那件（同一個父項目、同一組；中間隔著的是那件的子任務）；沒有就是 `None`
+    /// `item` 上面同一層的那件（同一個父項目、同一段標題底下；中間隔著的是那件的子任務）；沒有就是 `None`
     fn sibling_above(&self, item: &Item) -> Option<&Item> {
         let index = self
             .items
@@ -240,11 +240,11 @@ impl App {
             .filter(|other| {
                 other.depth == item.depth
                     && other.parent == item.parent
-                    && other.group == item.group
+                    && other.section == item.section
             })
     }
 
-    /// `item` 下面同一層的那件（同一個父項目、同一組；中間隔著的是 `item` 自己的子任務）；沒有就是 `None`
+    /// `item` 下面同一層的那件（同一個父項目、同一段標題底下；中間隔著的是 `item` 自己的子任務）；沒有就是 `None`
     fn sibling_below(&self, item: &Item) -> Option<&Item> {
         let index = self
             .items
@@ -256,7 +256,7 @@ impl App {
             .filter(|other| {
                 other.depth == item.depth
                     && other.parent == item.parent
-                    && other.group == item.group
+                    && other.section == item.section
             })
     }
 
@@ -749,6 +749,26 @@ mod tests {
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(5));
         assert_eq!(chosen(&app).as_deref(), Some("列大綱"));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn indent_and_move_stay_inside_their_heading_section() {
+        use super::super::write::tests::clean_up;
+        // 兩段同名的「工作」中間夾著沒有事的「生活」：第二段的交週報上面沒有同一段的事，L、K 都不動（不白寫一次檔）
+        let text = "# 工作\n- [ ] 寫報告\n# 生活\n# 工作\n- [ ] 交週報\n";
+        let (mut app, path) = tasks_app_with_file("tasks-sections", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        app.tasks_line = Some(5);
+        for key in ['L', 'K'] {
+            press(&mut app, KeyCode::Char(key));
+            assert_eq!(read(), text, "{key}");
+        }
+        assert!(app.expanded.is_empty());
+        // 第一段的寫報告：下面也沒有同一段的事，J 不動
+        app.tasks_line = Some(2);
+        press(&mut app, KeyCode::Char('J'));
+        assert_eq!(read(), text);
         clean_up(&path);
     }
 

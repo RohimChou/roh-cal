@@ -39,6 +39,8 @@ pub struct Item {
     pub time: Option<Time>,
     /// 屬於哪個分組（上面最近的標題）；檔案開頭還沒有標題時是 `None`
     pub group: Option<Heading>,
+    /// 在檔案裡第幾個標題底下（開頭還沒有標題的是 0）：同名的兩段標題 `group` 一樣，這個不一樣
+    pub section: usize,
     /// 第幾層：0 = 最外層，子任務 1、子任務的子任務 2…
     pub depth: usize,
     /// 父項目在 `items` 裡的位置；最外層是 `None`
@@ -132,6 +134,8 @@ fn front_matter_end(text: &str) -> Option<usize> {
 pub fn parse(text: &str) -> Parsed {
     let mut parsed = Parsed::default();
     let mut group = None;
+    // 現在是第幾個標題底下（開頭還沒有標題是 0）
+    let mut section = 0;
     // 目前這一串項目的 (縮排寬度, 在 items 的位置)，用來找父項目
     let mut ancestors: Vec<(usize, usize)> = Vec::new();
     // 是否在 ``` code block 裡面（裡面的東西都不算）
@@ -159,6 +163,7 @@ pub fn parse(text: &str) -> Parsed {
         // 標題：換分組；新的分組裡，項目重新從最外層算起
         if let Some(heading) = parse_heading(raw) {
             group = Some(heading);
+            section += 1;
             ancestors.clear();
             continue;
         }
@@ -185,6 +190,7 @@ pub fn parse(text: &str) -> Parsed {
             end: when.end,
             time: when.time,
             group: group.clone(),
+            section,
             depth,
             parent,
             line,
@@ -603,6 +609,15 @@ mod tests {
         // 大寫、少了冒號都不算
         assert!(!group("# 假日 Type:Holiday\n- a").holiday);
         assert!(!group("# 假日 holiday\n- a").holiday);
+    }
+
+    #[test]
+    fn section_counts_headings_so_same_named_ones_differ() {
+        // 開頭沒標題是 0；同名的兩段「工作」group 一樣、section 不一樣
+        let items = parse("- a\n# 工作\n- b\n# 生活\n# 工作\n- c\n").items;
+        let sections: Vec<_> = items.iter().map(|item| item.section).collect();
+        assert_eq!(sections, [0, 1, 3]);
+        assert_eq!(items[1].group, items[2].group);
     }
 
     #[test]
