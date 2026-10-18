@@ -57,6 +57,8 @@ pub struct Theme {
     pub grid: Color,
     /// Days in the month grid (layout 3) outside the selected month: dates and items turn gray
     pub other_month: Color,
+    /// Background of a multi-day item's bar in the month grid (layout 3)
+    pub range: Color,
     /// Section names on the help page (`Move`, `Edit`…)
     pub help_section: Color,
     /// Keys on the help page (`hjkl`, `Space`…)
@@ -87,7 +89,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 21] = [
+pub const ROLES: [&str; 22] = [
     "text",
     "muted",
     "line",
@@ -107,6 +109,7 @@ pub const ROLES: [&str; 21] = [
     "error",
     "grid",
     "other_month",
+    "range",
     "help_section",
     "help_key",
 ];
@@ -273,6 +276,7 @@ impl Theme {
             "error" => self.error,
             "grid" => self.grid,
             "other_month" => self.other_month,
+            "range" => self.range,
             "help_section" => self.help_section,
             "help_key" => self.help_key,
             _ => return None,
@@ -371,9 +375,9 @@ mod tests {
     fn choices_are_the_palette_in_file_order_or_the_16_colors() {
         assert!(choices("no-such-theme").is_empty());
         let mocha = choices("catppuccin-mocha");
-        assert_eq!(mocha.len(), 13);
+        assert_eq!(mocha.len(), 14);
         assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
-        assert_eq!(mocha[12].0, "mauve");
+        assert_eq!(mocha[13].0, "mauve");
         let terminal = choices("terminal");
         assert_eq!(terminal.len(), 16);
         assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));

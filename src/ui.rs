@@ -2263,9 +2263,9 @@ mod tests {
 
     #[test]
     fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
-        // Business trip to NYC 10/20-25: listed in every day's cell; an item that starts earlier goes
-        // first in a day (10/22: Business trip to NYC first, then Buy gifts for the team);
-        // Manager OOO 10/28-11/3 is listed up to the last day on screen, 11/1
+        // Business trip to NYC 10/20-25: one bar on its days' first line, across the grid lines, the title
+        // written once; a one-day item on one of those days goes on the next line (10/22: Buy gifts for
+        // the team); Manager OOO 10/28-11/3: its bar ends with the row (10/31), November starts a new row
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), RANGE_TASKS);
         let terminal = draw_app(&mut app, 80, 30);
         assert_eq!(
@@ -2291,11 +2291,11 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
-                "│     │          │ ∙ Busines│ ∙ Busines│ ∙ Busine│ ∙ Busine│ ∙ Busine│ ∙ Busine│",
+                "│     │          │ Business trip to NYC                                        │",
                 "│     │          │          │          │ ∙ Buy gifts for the team    │         │",
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │         │",
-                "│     │          │          │ ∙ Manager│ ∙ Manage│ ∙ Manage│ ∙ Manager OOO     │",
+                "│     │          │          │ Manager OOO                            │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
@@ -2308,6 +2308,20 @@ mod tests {
         let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
         assert!(underlined(20, 19));
         assert!(!underlined(9, 19));
+        // The bar (y 20) has the range background from Tuesday's left edge (x 18) to Sunday's right edge
+        // (x 78), the grid lines between too (x 28, 39); not the grid line left of it, nor the next line
+        let theme = Theme::catppuccin_mocha();
+        for x in [18, 28, 39, 60, 78] {
+            assert_eq!(buffer[(x, 20)].bg, theme.range, "x {x}");
+        }
+        assert_eq!(buffer[(17, 20)].symbol(), "│");
+        assert_ne!(buffer[(17, 20)].bg, theme.range);
+        assert_ne!(buffer[(18, 21)].bg, theme.range);
+        // The title is normal text (not over yet), not the day's color
+        assert_eq!(
+            (buffer[(19, 20)].symbol(), buffer[(19, 20)].fg),
+            ("B", theme.text)
+        );
     }
 
     /// An app on the tasks page with today 2026/10/17 and the

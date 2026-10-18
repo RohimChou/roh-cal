@@ -357,8 +357,8 @@ mod tests {
         // indent and a name column 2 wider, so all values share one column;
         // the width is the larger of the longest description and the key hints on the bottom border
         // (42 cells + a blank on each side)
-        let (_, area, rows, buffer) = draw(SettingsPage::default(), 43);
-        assert_eq!(area, Rect::new(12, 1, 46, 41));
+        let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
+        assert_eq!(area, Rect::new(12, 1, 46, 42));
         assert_eq!(
             rows,
             [
@@ -397,6 +397,7 @@ mod tests {
                 "│    error                red                │",
                 "│    grid                 surface0           │",
                 "│    other_month          overlay0           │",
+                "│    range                surface1           │",
                 "│    help_section         blue               │",
                 "│    help_key             peach              │",
                 "│                                            │",
@@ -434,13 +435,13 @@ mod tests {
                 row: 6,
                 ..SettingsPage::default()
             },
-            43,
+            44,
         );
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(14, 17)].bg, theme.cursor_line);
         assert_eq!(buffer[(35, 17)].bg, theme.text);
         assert_eq!(buffer[(38, 17)].bg, theme.cursor_line);
-        assert_eq!(rows[38], "│  顏色：l 換色票的下一個，r 回到 theme 的   │");
+        assert_eq!(rows[39], "│  顏色：l 換色票的下一個，r 回到 theme 的   │");
     }
 
     #[test]
@@ -450,7 +451,7 @@ mod tests {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.settings.set_theme("terminal");
         app.apply_theme();
-        let (_, _, rows, buffer) = draw_app(app, SettingsPage::default(), 43);
+        let (_, _, rows, buffer) = draw_app(app, SettingsPage::default(), 44);
         assert_eq!(rows[16], "│    text                 Reset              │");
         assert_eq!(buffer[(35, 17)].bg, Color::Reset);
         assert_eq!(buffer[(36, 17)].bg, Color::Reset);
@@ -460,24 +461,23 @@ mod tests {
 
     #[test]
     fn a_short_screen_scrolls_to_the_chosen_row() {
-        // 70 × 23: the box is at most 23 tall and the list holds 17 lines (35 lines, so it scrolls);
-        // choosing the last row (help_key, list line 34) → scrolled to the end (line 18 at the top),
+        // 70 × 23: the box is at most 23 tall and the list holds 17 lines (36 lines, so it scrolls);
+        // choosing the last row (help_key, list line 35) → scrolled to the end (line 19 at the top),
         // and the description is still at the bottom
         let (app, area, rows, buffer) = draw(
             SettingsPage {
-                row: 26,
+                row: 27,
                 ..SettingsPage::default()
             },
             23,
         );
-        assert_eq!(app.settings_page().map(|page| page.top), Some(18));
+        assert_eq!(app.settings_page().map(|page| page.top), Some(19));
         assert_eq!(area, Rect::new(12, 0, 46, 23));
         assert_eq!(
             rows,
             [
                 "╭ roh-cal ∙ 設定 ────────────────────────────╮",
                 "│                                            │",
-                "│    label                lavender           │",
                 "│    week_number          yellow             │",
                 "│    week_number_dim      dim_yellow         │",
                 "│    weekend              blue               │",
@@ -492,6 +492,7 @@ mod tests {
                 "│    error                red                │",
                 "│    grid                 surface0           │",
                 "│    other_month          overlay0           │",
+                "│    range                surface1           │",
                 "│    help_section         blue               │",
                 "│    help_key             peach              │",
                 "│                                            │",
@@ -503,10 +504,10 @@ mod tests {
         // The scrollbar is on the bottom part of the right border
         assert_eq!(buffer[(57, 21)].symbol(), "┃");
         assert_eq!(buffer[(57, 1)].symbol(), "│");
-        // Clicking the bottom row: still help_key; the top row is label (row 11): mapped using
+        // Clicking the bottom row: still help_key; the top row is week_number (row 12): mapped using
         // the scroll position
-        assert_eq!(row_at(&app, app.screen, 20, 18), Some(26));
-        assert_eq!(row_at(&app, app.screen, 20, 2), Some(10));
+        assert_eq!(row_at(&app, app.screen, 20, 18), Some(27));
+        assert_eq!(row_at(&app, app.screen, 20, 2), Some(11));
     }
 
     #[test]
@@ -517,28 +518,28 @@ mod tests {
                 confirm_reset: true,
                 ..SettingsPage::default()
             },
-            43,
+            44,
         );
-        assert_eq!(rows[38], "│  大月曆：選取的那週固定在正中間            │");
-        assert_eq!(rows[40], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
+        assert_eq!(rows[39], "│  大月曆：選取的那週固定在正中間            │");
+        assert_eq!(rows[41], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
     }
 
     #[test]
     fn clicks_map_to_the_rows() {
-        let (app, _, _, _) = draw(SettingsPage::default(), 43);
+        let (app, _, _, _) = draw(SettingsPage::default(), 44);
         // theme is at y 3, relative_weeks at y 6, grid_lines at y 9, max_width at y 14, the last one,
-        // help_key, at y 37; section names, blank lines, the description and the border do not count
+        // help_key, at y 38; section names, blank lines, the description and the border do not count
         assert_eq!(row_at(&app, app.screen, 20, 3), Some(0));
         assert_eq!(row_at(&app, app.screen, 20, 6), Some(1));
         assert_eq!(row_at(&app, app.screen, 13, 9), Some(2));
         assert_eq!(row_at(&app, app.screen, 20, 14), Some(5));
-        assert_eq!(row_at(&app, app.screen, 56, 37), Some(26));
+        assert_eq!(row_at(&app, app.screen, 56, 38), Some(27));
         for (x, y) in [
             (20, 4),
             (20, 5),
             (20, 13),
             (20, 16),
-            (20, 39),
+            (20, 40),
             (12, 3),
             (57, 3),
             (20, 1),

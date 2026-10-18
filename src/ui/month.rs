@@ -25,7 +25,7 @@ use ratatui::{
     style::{Modifier, Style},
     symbols::line,
     text::{Line, Span},
-    widgets::{Block, BorderType},
+    widgets::{Block, BorderType, Clear},
 };
 
 /// How many rows to show at once
@@ -284,6 +284,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             number_area,
         );
         // Only the row's own days are drawn; the other days of that week stay empty
+        let row_days: Vec<Option<Date>> = days
+            .iter()
+            .map(|&day| (start..=end).contains(&day).then_some(day))
+            .collect();
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
         // The selected day's cell gets a background, top-left to bottom-right (like v1)
         let selected = days
@@ -294,19 +298,194 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 .buffer_mut()
                 .set_style(cells[column], Style::new().bg(theme.cursor_line));
         }
-        let lines: Vec<Vec<Line>> = days
+        let (bars, slots) = layout_row(&row_days, app);
+        let lines: Vec<Vec<Line>> = row_days
             .iter()
+            .zip(&slots)
             .zip(&cells)
-            .map(|(&day, cell)| {
-                if (start..=end).contains(&day) {
-                    cell_lines(day, month, &app.items_on(day), cell.height, app)
-                } else {
-                    Vec::new()
-                }
+            .map(|((day, slots), cell)| {
+                day.map_or_else(Vec::new, |day| {
+                    cell_lines(day, month, slots, cell.height, app)
+                })
             })
             .collect();
         render_week(frame, &cells, &lines, selected);
+        let shown: Vec<usize> = slots
+            .iter()
+            .zip(&cells)
+            .map(|(slots, cell)| shown_lines(slots.len(), cell.height))
+            .collect();
+        render_bars(
+            frame,
+            &cells,
+            &bars,
+            &shown,
+            start.first_of_month() != month,
+            app,
+        );
     }
+}
+
+/// What one line of a cell, below the date, holds
+#[derive(Debug, Clone, Copy)]
+enum Slot<'a> {
+    /// A multi-day item's bar (drawn across its days afterwards, see `render_bars`)
+    Bar(&'a Item),
+    /// A one-day item
+    Item(&'a Item),
+    /// Nothing: the line is kept free because a bar on another day of the row uses it
+    Empty,
+}
+
+/// A multi-day item's bar in one row: the line it is on (`lane`; 0 = the first line under the date) and the
+/// columns it covers (0 = Monday)
+struct Bar<'a> {
+    item: &'a Item,
+    lane: usize,
+    first: usize,
+    last: usize,
+    /// The item starts on the bar's first day (not a row before): the time is written there
+    starts: bool,
+}
+
+/// Lays out one row's items (`days` = Monday to Sunday, `None` for days that belong to the other month's
+/// row): every multi-day item covering some of the days gets a line of its own on all of them
+/// (`Bar::lane`), so its days line up into one bar; the earlier it starts in the row, the higher its line,
+/// and a line is used again once free. Each day's one-day items then fill that day's free lines from the
+/// top (in `App::items_on` order), then go below
+///
+/// Returns the bars and, for each day, what each line under its date holds
+fn layout_row<'a>(days: &[Option<Date>], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a>>>) {
+    let on_day: Vec<Vec<&Item>> = days
+        .iter()
+        .map(|day| day.map(|day| app.items_on(day)).unwrap_or_default())
+        .collect();
+    let mut bars: Vec<Bar> = Vec::new();
+    for (column, items) in on_day.iter().enumerate() {
+        for &item in items {
+            if item.end.is_none() || bars.iter().any(|bar| std::ptr::eq(bar.item, item)) {
+                continue;
+            }
+            let last = (column..on_day.len())
+                .take_while(|&next| on_day[next].iter().any(|&other| std::ptr::eq(other, item)))
+                .last()
+                .unwrap_or(column);
+            let lane = (0..)
+                .find(|&lane| {
+                    !bars
+                        .iter()
+                        .any(|bar| bar.lane == lane && bar.first <= last && column <= bar.last)
+                })
+                .unwrap_or(0);
+            bars.push(Bar {
+                item,
+                lane,
+                first: column,
+                last,
+                starts: item.date == days[column],
+            });
+        }
+    }
+    let slots = on_day
+        .iter()
+        .enumerate()
+        .map(|(column, items)| {
+            let mut slots: Vec<Slot> = Vec::new();
+            for bar in bars
+                .iter()
+                .filter(|bar| bar.first <= column && column <= bar.last)
+            {
+                if slots.len() <= bar.lane {
+                    slots.resize(bar.lane + 1, Slot::Empty);
+                }
+                slots[bar.lane] = Slot::Bar(bar.item);
+            }
+            for &item in items.iter().filter(|item| item.end.is_none()) {
+                match slots.iter_mut().find(|slot| matches!(slot, Slot::Empty)) {
+                    Some(slot) => *slot = Slot::Item(item),
+                    None => slots.push(Slot::Item(item)),
+                }
+            }
+            slots
+        })
+        .collect();
+    (bars, slots)
+}
+
+/// How many of a cell's `slots` lines under the date it shows, `rows` tall: all if they fit; otherwise one
+/// fewer, and `+N` goes on the last line; none in a 1-line cell (dots instead)
+fn shown_lines(slots: usize, rows: u16) -> usize {
+    let available = usize::from(rows).saturating_sub(1);
+    if slots <= available {
+        slots
+    } else {
+        available.saturating_sub(1)
+    }
+}
+
+/// Draws the row's bars over its cells: each bar is one band on its line in the `range` background, from
+/// its first day in the row to its last (over the grid lines between), with the title written once at the
+/// start; a day whose cell cannot show that line (it shows `+N` there instead) cuts the band.
+/// `other_month` = the row is not in the selected month (the text turns gray)
+fn render_bars(
+    frame: &mut Frame,
+    cells: &[Rect],
+    bars: &[Bar],
+    shown: &[usize],
+    other_month: bool,
+    app: &App,
+) {
+    for bar in bars {
+        let Ok(lane) = u16::try_from(bar.lane) else {
+            continue;
+        };
+        let mut column = bar.first;
+        while column <= bar.last {
+            if bar.lane >= shown[column] {
+                column += 1;
+                continue;
+            }
+            // A run of days that all show the bar's line
+            let first = column;
+            while column < bar.last && bar.lane < shown[column + 1] {
+                column += 1;
+            }
+            let (from, to) = (cells[first], cells[column]);
+            let area = Rect::new(from.x, from.y + 1 + lane, to.right() - from.x, 1);
+            let time = bar.starts && first == bar.first;
+            // Clear first: the grid lines under the band would otherwise still show through
+            frame.render_widget(Clear, area);
+            frame.render_widget(bar_line(bar.item, time, other_month, app), area);
+            column += 1;
+        }
+    }
+}
+
+/// A multi-day item's band: 「 09:00 New Year trip」 on the `range` background (the whole band, set on the
+/// `Line`); `time` = write the time (only where the item starts). The title is the normal text color, gray
+/// once the item is over (struck through when a done task), and in the other-month color for other months
+fn bar_line(item: &Item, time: bool, other_month: bool, app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let (color, time_color) = if other_month {
+        (theme.other_month, theme.other_month)
+    } else if item.is_open(app.today) {
+        (theme.text, theme.muted)
+    } else {
+        (theme.muted, theme.muted)
+    };
+    let mut spans = vec![Span::raw(" ")];
+    if let Some(at) = item.time.filter(|_| time) {
+        spans.push(Span::styled(
+            format!("{} ", at.strftime("%H:%M")),
+            Style::new().fg(time_color),
+        ));
+    }
+    let mut title = Style::new().fg(color);
+    if item.done {
+        title = title.add_modifier(Modifier::CROSSED_OUT);
+    }
+    spans.push(Span::styled(item.title.clone(), title));
+    Line::from(spans).style(Style::new().bg(theme.range))
 }
 
 /// The first days of the rows from `top` down (as many as asked for)
@@ -340,20 +519,27 @@ fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>], selected:
     }
 }
 
-/// The lines of one cell: the date first (see `date_line`), then one item per line,
-/// e.g. 「 ∙ 14:00 Code review」
+/// The lines of one cell: the date first (see `date_line`), then one line per slot (see `layout_row`):
+/// a one-day item, e.g. 「 ∙ 14:00 Code review」; a bar's line and a free line are left empty here (the
+/// bars are drawn over them afterwards)
 ///
-/// - List all items if they fit; otherwise list one fewer and put `+N` on the last line
-///   (N = the number of items not listed)
+/// - List all slots if they fit; otherwise list one fewer and put `+N` on the last line
+///   (N = the number of items not listed; free lines do not count)
 /// - Cell only 1 line tall (very short terminal): no items; dots after the date, one per item (at most 4)
 ///
 /// Each piece of text carries its color on its `Span` (not `Line::styled`), so when a long title borrows
 /// the empty neighbor cells to the right, the neighbor's grid line does not get colored too
-fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> Vec<Line<'static>> {
+fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let other_month = day.first_of_month() != month;
     let mut first = date_line(day, month, app);
-    let rows = usize::from(rows);
+    let items: Vec<&Item> = slots
+        .iter()
+        .filter_map(|slot| match slot {
+            Slot::Bar(item) | Slot::Item(item) => Some(*item),
+            Slot::Empty => None,
+        })
+        .collect();
     if rows <= 1 {
         // Dots: the day's color if some item is not over yet, muted if all are over; gray for other months
         let color = if other_month {
@@ -366,26 +552,24 @@ fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> 
         first.push_span(Span::styled(dots(items.len()), Style::new().fg(color)));
         return vec![first];
     }
-    let available = rows - 1;
-    let shown = if items.len() <= available {
-        items.len()
-    } else {
-        available - 1
-    };
+    let shown = shown_lines(slots.len(), rows);
     let mut lines = vec![first];
-    lines.extend(
-        items[..shown]
-            .iter()
-            .map(|item| item_line(item, other_month, app)),
-    );
-    if shown < items.len() {
+    lines.extend(slots[..shown].iter().map(|slot| match slot {
+        Slot::Item(item) => item_line(item, other_month, app),
+        Slot::Bar(_) | Slot::Empty => Line::default(),
+    }));
+    if shown < slots.len() {
         let color = if other_month {
             theme.other_month
         } else {
             theme.muted
         };
+        let hidden = slots[shown..]
+            .iter()
+            .filter(|slot| !matches!(slot, Slot::Empty))
+            .count();
         lines.push(Line::from(Span::styled(
-            format!(" +{}", items.len() - shown),
+            format!(" +{hidden}"),
             Style::new().fg(color),
         )));
     }
@@ -702,6 +886,78 @@ mod tests {
         assert_eq!(new_year_after(date(2026, 12, 28)), Some(0));
         assert_eq!(new_year_after(date(2026, 12, 7)), Some(3));
         assert_eq!(new_year_after(date(2026, 9, 28)), None);
+    }
+
+    #[test]
+    fn multi_day_items_keep_one_line_across_the_row() {
+        // The row 10/19 (Mon) - 10/25 (Sun): A 10/19-21, B 10/20-23 (overlaps A: the next line),
+        // C 10/22-28 (A is over by then: C takes A's line again); D and E are one-day items
+        let text = "- A @2026-10-19..2026-10-21\n- B @2026-10-20..2026-10-23\n\
+                    - C @2026-10-22..2026-10-28\n- D @2026-10-19\n- E @2026-10-22\n- F @2026-10-24\n";
+        let app = App::new(
+            crate::texts::Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        let days: Vec<Option<Date>> = date(2026, 10, 19)
+            .series(1.day())
+            .take(7)
+            .map(Some)
+            .collect();
+        let (bars, slots) = layout_row(&days, &app);
+        let bars: Vec<(&str, usize, usize, usize)> = bars
+            .iter()
+            .map(|bar| (bar.item.title.as_str(), bar.lane, bar.first, bar.last))
+            .collect();
+        assert_eq!(bars, [("A", 0, 0, 2), ("B", 1, 1, 4), ("C", 0, 3, 6)]);
+        // Each day's lines: bars on their own line (`=`), one-day items fill free lines from the top
+        // (F on Saturday takes the line B left free), then go below (E on Thursday)
+        let lines: Vec<String> = slots
+            .iter()
+            .map(|day| {
+                day.iter()
+                    .map(|slot| match slot {
+                        Slot::Bar(item) => format!("={}", item.title),
+                        Slot::Item(item) => item.title.clone(),
+                        Slot::Empty => "_".to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
+        assert_eq!(
+            lines,
+            ["=A D", "=A =B", "=A =B", "=C =B E", "=C =B", "=C F", "=C"]
+        );
+        // A day of the other month's row has nothing; a bar starting before the row does not write the time
+        let mut split = days.clone();
+        split[0] = None;
+        let (bars, slots) = layout_row(&split, &app);
+        assert!(slots[0].is_empty());
+        assert_eq!((bars[0].item.title.as_str(), bars[0].first), ("A", 1));
+        assert!(!bars[0].starts);
+        // Free lines left in the middle stay (so the bars line up): 10/26-11/1, C ends on Wednesday and
+        // nothing else is there, so no line is left free
+        let later: Vec<Option<Date>> = date(2026, 10, 26)
+            .series(1.day())
+            .take(6)
+            .map(Some)
+            .chain([None])
+            .collect();
+        let (_, slots) = layout_row(&later, &app);
+        assert_eq!(
+            slots.iter().map(Vec::len).collect::<Vec<_>>(),
+            [1, 1, 1, 0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn a_cell_shows_all_its_lines_or_one_fewer_and_plus_n() {
+        // 3 rows tall = the date + 2 lines: 2 fit; 3 do not, so 1 line and `+N` on the other
+        assert_eq!(shown_lines(2, 3), 2);
+        assert_eq!(shown_lines(3, 3), 1);
+        // 1 row tall: only the date (dots instead)
+        assert_eq!(shown_lines(2, 1), 0);
     }
 
     #[test]

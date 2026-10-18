@@ -3,6 +3,7 @@
 
 [palette]
 nord1 = "#3b4252"
+nord2 = "#434c5e"
 nord3 = "#4c566a"
 nord4 = "#d8dee9"
 # Light gray: nord4 and the background mixed 7:3. Fainter than normal text, for secondary text
@@ -38,5 +39,7 @@ notice = "nord13"
 error = "nord11"
 grid = "nord1"
 other_month = "nord3"
+# Multi-day bars in the month grid: a step lighter than the selected row
+range = "nord2"
 help_section = "nord9"
 help_key = "nord12"

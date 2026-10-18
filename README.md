@@ -73,7 +73,7 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | Key | View |
 | :- | :- |
 | `1` | Calendar + agenda: the calendar on the left scrolls through the months; the agenda on the right lists each month's items next to it |
-| `3` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
+| `3` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once; every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
 | `4` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red |
 
 A terminal at least 120 columns wide also shows the calendar list on the left; narrower, `s` calls it up.

@@ -11,6 +11,7 @@ text = "#cdd6f4"
 subtext0 = "#a6adc8"
 overlay0 = "#6c7086"
 surface2 = "#585b70"
+surface1 = "#45475a"
 surface0 = "#313244"
 lavender = "#b4befe"
 blue = "#89b4fa"
@@ -44,6 +45,8 @@ error = "red"
 # Grid lines and other months: same as v1
 grid = "surface0"
 other_month = "overlay0"
+# Multi-day bars in the month grid: a step lighter than the selected row
+range = "surface1"
 # Help page: same as v1
 help_section = "blue"
 help_key = "peach"

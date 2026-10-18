@@ -402,26 +402,70 @@ def month_screen(lang, w, h, selected, top, items, groups):
         # Week number: from the row's first day
         c.put(0, week_y(i), f" {week_number(start, selected):>3} ", 5)
         week_cells = []  # the lines of each of this row's 7 cells (empty for days outside the row)
+        # Items on each day of the row (a multi-day item on each of its days; items are already sorted by
+        # start day and time); nothing for days that belong to the other month's row
+        in_row = [d if start <= d <= end else None for d in days]
+        day_items = [[it for it in items if d and it[0] <= d <= (it[4] or it[0])] for d in in_row]
+        # Multi-day items get one line each for the whole row: [item, line, first column, last column];
+        # going from Monday, the first one met gets the topmost line that is free on all its days
+        bars = []
+        for k in range(7):
+            for it in day_items[k]:
+                if not it[4] or any(b[0] is it for b in bars):
+                    continue
+                last = k
+                while last + 1 < 7 and any(x is it for x in day_items[last + 1]):
+                    last += 1
+                lane = 0
+                while any(b[1] == lane and b[2] <= last and k <= b[3] for b in bars):
+                    lane += 1
+                bars.append([it, lane, k, last])
+        # Each day's lines under the date: its bars on their lines, one-day items filling the free lines
+        # from the top, then below (None = a free line)
+        slots = []
+        for k in range(7):
+            day = []
+            for it, lane, first_k, last_k in bars:
+                if first_k <= k <= last_k:
+                    day += [None] * (lane + 1 - len(day))
+                    day[lane] = ("bar", it)
+            for it in day_items[k]:
+                if it[4]:
+                    continue
+                if None in day:
+                    day[day.index(None)] = ("item", it)
+                else:
+                    day.append(("item", it))
+            slots.append(day)
+        shown_by_day = []
         for k, d in enumerate(days):
             if not start <= d <= end:
                 week_cells.append([])
+                shown_by_day.append(0)
                 continue
             # The selected day has no brackets; its cell gets a background instead (colors are not checked here)
             first = " " + str(d.day) + " " + (t["month"](d.month) if d.day == 1 else "")
-            # Items that cover this day (a multi-day item is listed on each of its days);
-            # items are already sorted by start day and time
-            day_items = [it for it in items if it[0] <= d <= (it[4] or it[0])]
+            count = len([s for s in slots[k] if s])
             if wh <= 1:
                 # The cell has only 1 line: draw dots after the date (one per item, at most 4)
-                cell = [first + ["", "⠂", "⠒", "⠖", "⠶"][min(len(day_items), 4)]]
+                cell = [first + ["", "⠂", "⠒", "⠖", "⠶"][min(count, 4)]]
+                shown = 0
             else:
-                # List them all if they fit; if not, list one fewer and put +N on the last line
-                shown = len(day_items) if len(day_items) <= wh - 1 else wh - 2
+                # List them all if they fit; if not, list one fewer and put +N on the last line (free lines
+                # do not count); a bar's line stays empty here, the bar is drawn over it below
+                shown = len(slots[k]) if len(slots[k]) <= wh - 1 else wh - 2
                 icon = " " if NO_ICONS else " ∙ "
-                cell = [first] + [icon + (time + " " if time else "") + title for _, time, title, _, _ in day_items[:shown]]
-                if shown < len(day_items):
-                    cell.append(f" +{len(day_items) - shown}")
+                cell = [first]
+                for s in slots[k][:shown]:
+                    if s and s[0] == "item":
+                        _, time, title, _, _ = s[1]
+                        cell.append(icon + (time + " " if time else "") + title)
+                    else:
+                        cell.append("")
+                if shown < len(slots[k]):
+                    cell.append(f" +{len([s for s in slots[k][shown:] if s])}")
             week_cells.append(cell)
+            shown_by_day.append(shown)
         # Except on the first line, text may run right into the next cell as long as that cell's line
         # is empty (all the way to a cell with something in it, the selected day's cell, or Sunday)
         for k, cell in enumerate(week_cells):
@@ -431,6 +475,25 @@ def month_screen(lang, w, h, selected, top, items, groups):
                        and not (days[end + 1] == selected and start <= selected <= row_end(start))):
                     end += 1
                 c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
+        # Bars, over the cells: one band per run of days that show the bar's line, from the run's first cell
+        # to its last (over the grid lines between, which disappear), the title written once at the start;
+        # the time only where the item really starts
+        for it, lane, first_k, last_k in bars:
+            k = first_k
+            while k <= last_k:
+                if lane >= shown_by_day[k]:
+                    k += 1
+                    continue
+                run = k
+                while k < last_k and lane < shown_by_day[k + 1]:
+                    k += 1
+                x, y = xs[run + 1], week_y(i) + 1 + lane
+                band = xs[k + 1] + widths[k + 1] - x
+                c.put(x, y, " " * band)
+                _, time, title, _, _ = it
+                starts = run == first_k and it[0] == days[run]
+                c.put(x, y, " " + (time + " " if time and starts else "") + title, band)
+                k += 1
     # Outer border: the selected day in the middle of the top border (an odd leftover cell goes to the right);
     # vertical lines meet the bottom border as ┴
     title = " " + t["date"](selected) + " "

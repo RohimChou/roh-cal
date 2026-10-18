@@ -38,5 +38,7 @@ notice = "yellow"
 error = "red"
 grid = "bg_highlight"
 other_month = "comment"
+# Multi-day bars in the month grid: a step lighter than the selected row
+range = "terminal_black"
 help_section = "cyan"
 help_key = "orange"
