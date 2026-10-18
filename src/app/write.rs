@@ -335,6 +335,37 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_notice_from_a_click_stays_after_the_button_is_released() {
+        // 70 × 23、10 月在最上面：右邊第一列（y 3）是 10/10 的行程；點兩下 = 想打勾，行程不能打勾
+        let text = "- 開會 @2026-10-10\n";
+        let (mut app, path) = app_with_task_file("click-notice", text);
+        app.focus = Focus::Calendar;
+        app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+        app.calendar_top = Some(0);
+        let mouse = |kind, column| MouseEvent {
+            kind,
+            column,
+            row: 3,
+            modifiers: KeyModifiers::NONE,
+        };
+        let down = MouseEventKind::Down(MouseButton::Left);
+        let up = MouseEventKind::Up(MouseButton::Left);
+        for _ in 0..2 {
+            app.handle_mouse(mouse(down, 40));
+            app.handle_mouse(mouse(up, 40));
+        }
+        // 「放開」不會把提示清掉；移動、拖曳也不會
+        assert_eq!(app.notice, Some(Notice::NotATask));
+        app.handle_mouse(mouse(MouseEventKind::Moved, 50));
+        app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), 50));
+        assert_eq!(app.notice, Some(Notice::NotATask));
+        // 下一次按下：看過了，清掉
+        app.handle_mouse(mouse(down, 5));
+        assert_eq!(app.notice, None);
+        clean_up(&path);
+    }
+
+    #[test]
     fn clicking_the_chosen_item_again_checks_it_off() {
         // 70 × 23、10 月在最上面：右邊第一列（y 3、從 x 36 開始）是 10/10 早上
         let text = "- [ ] 早上 @2026-10-10\n";

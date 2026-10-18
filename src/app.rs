@@ -458,8 +458,12 @@ impl App {
     /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件、
     /// 點 side menu 的日曆 = 選那個（再點一次已經選到的 = 勾選 / 取消勾選）
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // 上一次的提示看過了：點擊、滾輪也算
-        if !matches!(mouse.kind, MouseEventKind::Moved) {
+        // 上一次的提示看過了：按下滑鼠鍵、滾輪才算。放開、移動、拖曳不算：點一下會先後送「按下」和「放開」，
+        // 「放開」也清的話，點出來的提示（例：行程不能打勾）馬上就不見了
+        if matches!(
+            mouse.kind,
+            MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+        ) {
             self.notice = None;
         }
         // 說明頁開著：滾輪捲說明頁、點框外關掉
