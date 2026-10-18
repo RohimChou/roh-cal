@@ -292,9 +292,10 @@ mod tests {
         assert!(read().contains("- [ ] Triage bugs @2026-10-17\n"));
         click(&mut app);
         assert_eq!(read(), DAY);
-        // e, add 18:00: it moves to the end, and the popup still has it chosen
+        // e, add the time 18:00 (written @18:00: the day's date is left out in the editor): it moves to the
+        // end, and the popup still has it chosen
         press(&mut app, KeyCode::Char('e'));
-        type_text(&mut app, " 18:00");
+        type_text(&mut app, " @18:00");
         press(&mut app, KeyCode::Enter);
         assert!(read().contains("- [x] Triage bugs @2026-10-17 18:00\n"));
         assert_eq!(

@@ -1404,7 +1404,7 @@ mod tests {
         assert_eq!(rows[1].trim_end_matches([' ', '│']), "");
         assert_eq!(
             rows[2].trim_end_matches([' ', '│']),
-            "│  - [ ] Pick up the cake 🎂 @2026-10-16 17:30"
+            "│  - [ ] Pick up the cake 🎂 @17:30"
         );
         assert_eq!(
             rows[3].trim_end_matches([' ', '│']),
@@ -1416,11 +1416,12 @@ mod tests {
             "{}",
             rows[5]
         );
-        // The cursor is right after the typed text, at box x 2 + border 1 + padding 1 + space 1 +
-        // 「- [ ] Pick up the cake 🎂 @2026-10-16 17:30」 43 cells (42 chars)
+        // The item is on the selected day (choosing it in the agenda selected 10/16), so its date is left
+        // out and the time stays as @17:30. The cursor is right after the typed text, at box x 2 + border
+        // 1 + padding 1 + space 1 + 「- [ ] Pick up the cake 🎂 @17:30」 32 cells (31 chars)
         assert_eq!(
             terminal.get_cursor_position().expect("cursor"),
-            Position::new(48, 3)
+            Position::new(37, 3)
         );
         // What the line parses as is shown muted; change it to a time
         // that does not exist: that row becomes a red explanation
@@ -1483,7 +1484,8 @@ mod tests {
         click(&mut app, 40, 20);
         assert!(app.editor().is_none());
         // Narrower than 30: no blank cell left of the text (one blank in front of the typed text, which
-        // scrolls so the cursor at its end shows); too short: no blank rows, the text on the row below the
+        // scrolls so the cursor at its end shows: 26 cells for 「- [ ] Send the weekly update」 28 chars
+        // and the cursor → 3 chars scrolled away); too short: no blank rows, the text on the row below the
         // border
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
         let narrow = Rect::new(0, 0, 29, 12);
@@ -1491,7 +1493,11 @@ mod tests {
             draw_app(&mut app, 29, 12).backend().buffer(),
             editor_area(narrow),
         );
-        assert!(rows[2].starts_with("│ weekly update"), "{}", rows[2]);
+        assert!(
+            rows[2].starts_with("│  ] Send the weekly update"),
+            "{}",
+            rows[2]
+        );
         let short = Rect::new(0, 0, 80, 6);
         let rows = area_rows(
             draw_app(&mut app, 80, 6).backend().buffer(),

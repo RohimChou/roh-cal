@@ -4,8 +4,10 @@
 //!
 //! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page)
 //! - `a`: add an item (in the chosen item's group; on the calendar, in the group of the selected day's
-//!   first item, or at the end of the file if that day has none), with the selected day filled in
-//!   (not on the tasks page)
+//!   first item, or at the end of the file if that day has none), on the selected day (not on the tasks
+//!   page)
+//! - on the calendar views, the selected day's own date is left out of the typed text (a time stays as
+//!   `@10:00`) and put back on save (`Editor::day`); a multi-day item and the tasks page show the whole line
 //! - `A`: add a subtask to the chosen item
 //! - with no calendar in the file yet, a new item goes into a new `# 預設` (`# Default`) calendar
 //! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading)
@@ -14,6 +16,7 @@
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
 use crate::tasks::{Heading, HeadingLine, Item};
+use jiff::civil::Date;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui_input::{Input, backend::crossterm::to_input_request};
 
@@ -24,6 +27,9 @@ pub struct Editor {
     pub input: Input,
     /// Which item to edit, or where to add the new one
     pub target: Target,
+    /// Editing or adding on this day: its `@date` is left out of the typed text and put back on save
+    /// (`edit::hide_day` / `edit::show_day`); `None` = the typed text is the line as it is
+    pub day: Option<Date>,
 }
 
 /// What the editor does when it saves
@@ -53,33 +59,49 @@ pub enum Reading {
 }
 
 impl Editor {
+    /// The line the typed text stands for: the typed text, with the hidden day put back (see `day`)
+    pub fn line(&self) -> String {
+        let text = self.input.value();
+        match self.day {
+            Some(day) => edit::show_day(text, day),
+            None => text.to_string(),
+        }
+    }
+
     /// How the text typed so far reads (shown live on screen; if there is a problem it cannot be saved)
     pub fn check(&self) -> Result<Reading, edit::Problem> {
         match &self.target {
             Target::AddCalendar { taken } | Target::RenameCalendar { taken, .. } => {
                 edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
             }
-            Target::Edit(_) | Target::Add(_) => edit::check(self.input.value()).map(Reading::Item),
+            Target::Edit(_) | Target::Add(_) => edit::check(&self.line()).map(Reading::Item),
         }
     }
 }
 
 impl App {
     /// `e` / `Enter`: opens the editor with the line of the chosen item in
-    /// the agenda (or the tasks page), without indentation, cursor at the end
+    /// the agenda (or the tasks page), without indentation, cursor at the end. An item on the selected
+    /// day (not on the tasks page) shows without its date (`edit::hide_day`, which leaves a multi-day
+    /// range as it is)
     pub(super) fn start_editing(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
         };
-        let input = Input::new(item.line_text.trim().to_string());
+        let line = item.line_text.trim();
+        let day = Some(self.selected)
+            .filter(|&day| self.view != super::View::Tasks && item.date == Some(day));
+        let input =
+            Input::new(day.map_or_else(|| line.to_string(), |day| edit::hide_day(line, day)));
         self.mode = Mode::Editor(Editor {
             input,
             target: Target::Edit(item),
+            day,
         });
     }
 
-    /// `a`: adds an item, prefilled with `- [ ]  @<selected day>`,
-    /// cursor where the title goes (no date on the tasks page)
+    /// `a`: adds an item, prefilled with `- [ ] `; it goes on the selected day (the date is put back on
+    /// save, see `Editor::day`), except on the tasks page (no date)
     ///
     /// Keyboard in the agenda, the tasks page or layout 2's popup: placed in the
     /// chosen item's group; on the calendar: placed in the group of the selected
@@ -93,16 +115,12 @@ impl App {
                 .map(|item| (*item).clone()),
         };
         let place = near.map_or(Place::End, Place::InGroupOf);
-        let prefix = "- [ ] ";
-        // The tasks page has no selected day: no date filled in
-        let input = if self.view == super::View::Tasks {
-            Input::new(prefix.to_string())
-        } else {
-            Input::new(format!("{prefix} @{}", self.selected)).with_cursor(prefix.chars().count())
-        };
+        // The tasks page has no selected day: no date
+        let day = (self.view != super::View::Tasks).then_some(self.selected);
         self.mode = Mode::Editor(Editor {
-            input,
+            input: Input::new("- [ ] ".to_string()),
             target: Target::Add(place),
+            day,
         });
     }
 
@@ -115,6 +133,7 @@ impl App {
         self.mode = Mode::Editor(Editor {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(Place::ChildOf(item)),
+            day: None,
         });
     }
 
@@ -130,6 +149,7 @@ impl App {
         self.mode = Mode::Editor(Editor {
             input: Input::default(),
             target: Target::AddCalendar { taken },
+            day: None,
         });
     }
 
@@ -152,6 +172,7 @@ impl App {
         self.mode = Mode::Editor(Editor {
             input: Input::new(text),
             target: Target::RenameCalendar { headings, taken },
+            day: None,
         });
     }
 
@@ -189,7 +210,14 @@ impl App {
         let Ok(reading) = editor.check() else {
             return;
         };
-        let new = editor.input.value().trim().to_string();
+        let new = editor.line().trim().to_string();
+        // Opened and saved without touching it: nothing to write (even if putting the hidden day back
+        // would move the date to another place in the line)
+        let untouched = |item: &Item| {
+            editor.day.map_or(new == item.line_text.trim(), |day| {
+                editor.input.value().trim() == edit::hide_day(item.line_text.trim(), day)
+            })
+        };
         let target = editor.target.clone();
         match (target, reading) {
             (Target::AddCalendar { .. }, Reading::Calendar(heading)) => {
@@ -199,7 +227,7 @@ impl App {
                 self.save_renamed_calendar(&headings, &new, &heading.name);
             }
             (Target::Edit(item), _) => {
-                if new != item.line_text.trim() {
+                if !untouched(&item) {
                     let Some((path, text)) = self.read_tasks() else {
                         return;
                     };
@@ -466,10 +494,11 @@ mod tests {
         let mode = |mode| std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode));
         mode(0o555).expect("read-only");
         press(&mut app, KeyCode::Enter);
-        // The editor is still open, the typed text is still there, and the bottom row says why
+        // The editor is still open, the typed text is still there (the selected day's date left out), and
+        // the bottom row says why
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
-            Some("- [ ] Review PRs @2026-10-10 for Amy")
+            Some("- [ ] Review PRs for Amy")
         );
         assert_eq!(
             app.notice,
@@ -482,7 +511,7 @@ mod tests {
         assert!(app.editor().is_none());
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
-            "- [ ] Review PRs @2026-10-10 for Amy\n"
+            "- [ ] Review PRs for Amy @2026-10-10\n"
         );
         clean_up(&path);
     }
@@ -491,14 +520,13 @@ mod tests {
     fn e_opens_the_line_and_enter_saves_what_was_typed() {
         let text = "# Recurring\n  - [ ] Send the weekly update @2026-10-16 17:30\n";
         let (mut app, path) = app_with_task_file("edit", text);
-        // e: the editor holds that line (without indentation), cursor at the end
+        // e: the editor holds that line (without indentation), cursor at the end; the item is on the
+        // selected day (10/16), so its date is left out and the time stays as @17:30
         press(&mut app, KeyCode::Char('e'));
         let editor = app.editor().expect("editor");
-        assert_eq!(
-            editor.input.value(),
-            "- [ ] Send the weekly update @2026-10-16 17:30"
-        );
-        // Change 17:30 to 18:00: the cursor is at the end, press Backspace 5 times, then type
+        assert_eq!(editor.input.value(), "- [ ] Send the weekly update @17:30");
+        // Change 17:30 to 18:00: the cursor is at the end, press Backspace 5 times, then type; saving puts
+        // the day back
         for _ in 0..5 {
             press(&mut app, KeyCode::Backspace);
         }
@@ -525,15 +553,15 @@ mod tests {
         let text =
             "# Work\n- [ ] Write the design doc @2026-10-16\n# Personal\n- Go hiking @2026-10-18\n";
         let (mut app, path) = app_with_task_file("add", text);
-        // a: the selected day is prefilled, cursor where the title goes; the top border says 「新增」
-        // (zh-TW for "New item")
+        // a: only the box is prefilled, cursor where the title goes (the selected day is not shown: it is
+        // put on when saving)
         press(&mut app, KeyCode::Char('a'));
         let editor = app.editor().expect("editor");
-        assert_eq!(editor.input.value(), "- [ ]  @2026-10-16");
+        assert_eq!(editor.input.value(), "- [ ] ");
         assert_eq!(editor.input.cursor(), 6);
         type_text(&mut app, "Send the weekly update");
         press(&mut app, KeyCode::Enter);
-        // Added at the end of "Work"; the agenda chooses the new item
+        // Added at the end of "Work", on the selected day; the agenda chooses the new item
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "# Work\n- [ ] Write the design doc @2026-10-16\n- [ ] Send the weekly update @2026-10-16\n# Personal\n- Go hiking @2026-10-18\n"
@@ -687,12 +715,9 @@ mod tests {
         let text = "- [ ] Send the weekly update @2026-10-16\n";
         let (mut app, path) = app_with_task_file("edit-mistake", text);
         press(&mut app, KeyCode::Enter);
-        // Change the date to 10/32, which does not exist: Enter does
-        // not save, the editor stays open, the check result is an error
-        for _ in 0..2 {
-            press(&mut app, KeyCode::Backspace);
-        }
-        type_text(&mut app, "32");
+        // Type a date that does not exist (10/32; the item's own date is left out in the editor): Enter
+        // does not save, the editor stays open, the check result is an error
+        type_text(&mut app, " @2026-10-32");
         press(&mut app, KeyCode::Enter);
         let editor = app.editor().expect("still open");
         assert!(editor.check().is_err());
@@ -722,7 +747,7 @@ mod tests {
         assert!(!app.should_quit);
         assert_eq!(
             app.editor().map(|editor| editor.input.value()),
-            Some("- [ ] Send the weekly update @2026-10-16 qu j")
+            Some("- [ ] Send the weekly update qu j")
         );
         // Saving with no change: nothing is written, no undo is recorded
         press(&mut app, KeyCode::Esc);
@@ -735,11 +760,67 @@ mod tests {
 
     #[test]
     fn taking_the_date_away_leaves_the_agenda() {
-        // Date removed: after saving, the agenda no longer has it and the keyboard goes back to the calendar
-        let text = "- [ ] Send the weekly update @2026-10-16\n";
+        // A multi-day item shows its whole range in the editor; range removed: after saving, the agenda no
+        // longer has it and the keyboard goes back to the calendar
+        let text = "- Conference @2026-10-16..2026-10-18\n";
         let (mut app, path) = app_with_task_file("edit-undated", text);
         press(&mut app, KeyCode::Char('e'));
-        for _ in 0.." @2026-10-16".chars().count() {
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- Conference @2026-10-16..2026-10-18")
+        );
+        for _ in 0.." @2026-10-16..2026-10-18".chars().count() {
+            press(&mut app, KeyCode::Backspace);
+        }
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- Conference\n"
+        );
+        // The selected day stays: 10/17 was one of the conference's days, so choosing it did not move it
+        assert_eq!(app.focus, Focus::Calendar);
+        assert_eq!(app.selected, date(2026, 10, 17));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn saving_an_untouched_line_writes_nothing() {
+        // The date is written before the title: the editor shows 「- [ ] Pack」, and putting the day back
+        // would move it to the end. Opened and saved without a change: the file stays as it is
+        let text = "- [ ] @2026-10-16 Pack the bag\n";
+        let (mut app, path) = app_with_task_file("edit-untouched", text);
+        press(&mut app, KeyCode::Char('e'));
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] Pack the bag")
+        );
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_none());
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        // A change is saved, with the day put back at the end
+        press(&mut app, KeyCode::Char('e'));
+        type_text(&mut app, "s");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] Pack the bags @2026-10-16\n"
+        );
+        clean_up(&path);
+    }
+
+    #[test]
+    fn the_tasks_page_edits_and_adds_the_whole_line() {
+        // The tasks page has no selected day: the editor shows the line with its date, a new item has no
+        // date, and taking the date away makes the item undated
+        let text = "- [ ] Send the weekly update @2026-10-16 17:30\n";
+        let (mut app, path) = app_with_task_file("edit-tasks-page", text);
+        press(&mut app, KeyCode::Char('3'));
+        press(&mut app, KeyCode::Char('e'));
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] Send the weekly update @2026-10-16 17:30")
+        );
+        for _ in 0.." @2026-10-16 17:30".chars().count() {
             press(&mut app, KeyCode::Backspace);
         }
         press(&mut app, KeyCode::Enter);
@@ -747,8 +828,6 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] Send the weekly update\n"
         );
-        assert_eq!(app.focus, Focus::Calendar);
-        assert_eq!(app.selected, date(2026, 10, 16));
         clean_up(&path);
     }
 }

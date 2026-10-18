@@ -382,7 +382,7 @@ pub(crate) fn is_block_id(word: &str) -> bool {
 }
 
 /// Whether it looks like `YYYY-MM-DD` (checks the format only, not whether the date exists)
-fn looks_like_date(text: &str) -> bool {
+pub(crate) fn looks_like_date(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.len() == 10
         && bytes.iter().enumerate().all(|(i, &b)| match i {
@@ -392,13 +392,13 @@ fn looks_like_date(text: &str) -> bool {
 }
 
 /// Whether it looks like `YYYY-MM-DD..YYYY-MM-DD` (multi-day; format only, not whether the dates exist)
-fn looks_like_range(text: &str) -> bool {
+pub(crate) fn looks_like_range(text: &str) -> bool {
     text.split_once("..")
         .is_some_and(|(first, last)| looks_like_date(first) && looks_like_date(last))
 }
 
 /// Whether it looks like `HH:MM` (checks the format only, not whether the time exists)
-fn looks_like_time(text: &str) -> bool {
+pub(crate) fn looks_like_time(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.len() == 5
         && bytes.iter().enumerate().all(|(i, &b)| match i {

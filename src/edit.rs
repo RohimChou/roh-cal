@@ -687,6 +687,94 @@ fn replace_line(text: &str, item: &Item, new: &str) -> Result<String, Changed> {
     if replaced { Ok(result) } else { Err(Changed) }
 }
 
+/// Each whitespace-separated word of `text` with where it starts and ends (byte offsets)
+fn word_spans(text: &str) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let mut start = None;
+    for (index, c) in text.char_indices() {
+        match (c.is_whitespace(), start) {
+            (true, Some(from)) => {
+                spans.push((from, index));
+                start = None;
+            }
+            (false, None) => start = Some(index),
+            _ => {}
+        }
+    }
+    if let Some(from) = start {
+        spans.push((from, text.len()));
+    }
+    spans
+}
+
+/// Whether the word is shaped like an item's date: `@date` or `@date..date`
+fn is_date_word(word: &str) -> bool {
+    word.strip_prefix('@')
+        .is_some_and(|rest| tasks::looks_like_date(rest) || tasks::looks_like_range(rest))
+}
+
+/// The line as the editor shows it when editing on `day`: the item's own `@day` is left out (it is that
+/// day anyway) and a time right after it stays as `@HH:MM`, e.g. `- Team sync @2026-10-19 10:00` →
+/// `- Team sync @10:00`. Anything else (another day, a range, more than one date-shaped word) stays as it
+/// is. `show_day` puts the day back
+pub fn hide_day(line: &str, day: Date) -> String {
+    let words = word_spans(line);
+    let dates: Vec<usize> = (0..words.len())
+        .filter(|&index| is_date_word(&line[words[index].0..words[index].1]))
+        .collect();
+    let [position] = dates[..] else {
+        return line.to_string();
+    };
+    let (from, to) = words[position];
+    if line[from..to] != format!("@{day}") {
+        return line.to_string();
+    }
+    match words.get(position + 1) {
+        Some(&(time_from, time_to)) if tasks::looks_like_time(&line[time_from..time_to]) => {
+            format!(
+                "{}@{}{}",
+                &line[..from],
+                &line[time_from..time_to],
+                &line[time_to..]
+            )
+        }
+        // Take the word out with the spaces before it
+        _ => format!("{}{}", line[..from].trim_end(), &line[to..]),
+    }
+}
+
+/// The editor's text back to a task-file line on `day` (see `hide_day`): without a date it gets `@day`,
+/// in place of `@HH:MM` if it has one (`@day HH:MM`), otherwise at the end (before an Obsidian block
+/// id); a text with its own date stays as it is
+///
+/// E.g. `- Team sync @10:00` → `- Team sync @2026-10-19 10:00`; `- [ ] Pack` → `- [ ] Pack @2026-10-19`
+pub fn show_day(text: &str, day: Date) -> String {
+    let text = text.trim_end();
+    let words = word_spans(text);
+    let word = |&(from, to): &(usize, usize)| &text[from..to];
+    if words.iter().any(|span| is_date_word(word(span))) {
+        return text.to_string();
+    }
+    if let Some(&(from, to)) = words.iter().find(|span| {
+        word(span)
+            .strip_prefix('@')
+            .is_some_and(tasks::looks_like_time)
+    }) {
+        return format!(
+            "{}@{day} {}{}",
+            &text[..from],
+            &text[from + 1..to],
+            &text[to..]
+        );
+    }
+    match words.last() {
+        Some(&(from, _)) if tasks::is_block_id(&text[from..]) => {
+            format!("{} @{day} {}", text[..from].trim_end(), &text[from..])
+        }
+        _ => format!("{text} @{day}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1338,5 +1426,37 @@ mod tests {
         ] {
             assert_eq!(toggle(changed, &b), Err(Changed), "{changed:?}");
         }
+    }
+
+    #[test]
+    fn the_day_is_left_out_in_the_editor_and_put_back_when_saving() {
+        let day = date(2026, 10, 19);
+        // (line in the file, what the editor shows on 10/19)
+        for (line, shown) in [
+            ("- Team sync @2026-10-19 10:00", "- Team sync @10:00"),
+            ("- [ ] Pack the bag @2026-10-19", "- [ ] Pack the bag"),
+            ("- [ ] Pack @2026-10-19 ^abc-1", "- [ ] Pack ^abc-1"),
+            ("- [x] Done @2026-10-19 08:30 ^id", "- [x] Done @08:30 ^id"),
+        ] {
+            assert_eq!(hide_day(line, day), shown, "{line}");
+            assert_eq!(show_day(shown, day), line, "{shown}");
+        }
+        // Left as they are: another day, a range, no date, two date-shaped words
+        for line in [
+            "- Team sync @2026-10-20 10:00",
+            "- Trip @2026-10-19..2026-10-21",
+            "- [ ] Someday",
+            "- Moved @2026-10-19 from @2026-10-12",
+        ] {
+            assert_eq!(hide_day(line, day), line);
+        }
+        // Saving: a text with its own date keeps it; the date of a new item goes at the end; trailing
+        // spaces do not count; only the prefix typed: the date still goes on (the title is still missing)
+        assert_eq!(show_day("- Trip @2026-10-20", day), "- Trip @2026-10-20");
+        assert_eq!(
+            show_day("- [ ] Call Mom  ", day),
+            "- [ ] Call Mom @2026-10-19"
+        );
+        assert_eq!(show_day("- [ ] ", day), "- [ ] @2026-10-19");
     }
 }

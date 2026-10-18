@@ -119,8 +119,8 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous item |
 | `Space` / `x` | Check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
-| `e` / `Enter` | Edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears |
-| `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, the selected day already filled in (the tasks page fills in no date) / add a subtask under the chosen item |
+| `e` / `Enter` | Edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears. On the calendar views an item on the selected day shows without its date (a time as `@10:00`), and the date is put back when saving; a multi-day item shows its whole range. The tasks page shows the whole line, so take a date away there |
+| `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, on the selected day (the date is added when saving; type your own `@2026-10-20` for another day, `@10:00` for a time; the tasks page adds no date) / add a subtask under the chosen item |
 | `r` | Reschedule the chosen item (the tasks page borrows layout 1's calendar; an undated item gets the day you pick). The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
 | `d` | Delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
 
