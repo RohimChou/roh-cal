@@ -37,7 +37,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 大多在這**（說明頁、設定頁的在各自的檔案） | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
-| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`） | ✓ |
+| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`）；放不下時捲到選到的那個看得到（上下各留 2 列，跟任務頁一樣；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
 | `src/ui/month.rs` | 版型 3（大月曆）：6 週等高的格子（`Grid`，畫畫面和滑鼠換算都用它）、一週一週捲（`App::month_top`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 

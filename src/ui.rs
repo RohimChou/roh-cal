@@ -237,7 +237,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
-    // 主畫面在 side menu 之後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了；跳窗再蓋在它上面
+    // side menu、主畫面會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了；跳窗再蓋在它上面
     match app.view {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
@@ -593,6 +593,50 @@ mod tests {
         app.side_hidden = true;
         let hidden = areas(Rect::new(0, 0, 120, 20), &app);
         assert_eq!((hidden.side.width, hidden.calendar.x), (0, 0));
+    }
+
+    #[test]
+    fn a_long_calendar_list_scrolls_to_the_chosen_one() {
+        // 121 × 10：side menu 裡放得下 5 個日曆（y 3～7），有 12 個（c01～c12，各 1 件）
+        let text: String = (1..=12)
+            .map(|n| format!("# c{n:02}\n- a @2026-10-{n:02}\n"))
+            .collect();
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(&text).items,
+        );
+        app.screen = Rect::new(0, 0, 121, 10);
+        app.focus = Focus::Side;
+        let names = |app: &mut App| {
+            let terminal = draw_app(app, 121, 10);
+            let buffer = terminal.backend().buffer();
+            let rows = area_rows(buffer, Rect::new(0, 3, 21, 5));
+            let thumb: Vec<u16> = (3..8)
+                .filter(|&y| buffer[(21, y)].symbol() == "┃")
+                .collect();
+            // 每一列「│ ☑ c01 … 1」用空白切開，第 3 段是名字
+            let names = rows
+                .iter()
+                .map(|row| row.split_whitespace().nth(2).unwrap_or("").to_string());
+            (names.collect::<Vec<_>>(), thumb)
+        };
+        // 選第 1 個：不捲，捲軸在最上面
+        let (rows, thumb) = names(&mut app);
+        assert_eq!(rows, ["c01", "c02", "c03", "c04", "c05"]);
+        assert_eq!(thumb.first(), Some(&3));
+        // 選第 9 個：往下捲到它下面留 2 列（最上面 c07）
+        app.group_index = 8;
+        assert_eq!(names(&mut app).0, ["c07", "c08", "c09", "c10", "c11"]);
+        // 最後一個：不捲過頭（最上面 c08），捲軸在最下面
+        app.group_index = 11;
+        let (rows, thumb) = names(&mut app);
+        assert_eq!(rows, ["c08", "c09", "c10", "c11", "c12"]);
+        assert_eq!(thumb.last(), Some(&7));
+        // 往回選第 8 個：往上捲到它上面留 2 列（最上面 c06）；點第一列 = c06
+        app.group_index = 7;
+        assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
+        assert_eq!(click_at(&app, 5, 3), Some(Click::Group(5)));
     }
 
     #[test]

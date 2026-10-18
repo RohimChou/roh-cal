@@ -1,6 +1,6 @@
 //! side menu：最左邊的日曆清單（日曆 = 任務檔的分組），terminal 夠寬才畫
 
-use super::{Click, planner::inner_areas};
+use super::{Click, months::scrolled_top, planner::inner_areas, render_scrollbar};
 use crate::{
     app::{App, Focus, Group},
     texts::Texts,
@@ -18,6 +18,8 @@ use ratatui::{
 const MIN_WIDTH: u16 = 22;
 /// side menu 最寬幾格（含左右框線）；名字再長就切掉
 const MAX_WIDTH: u16 = 30;
+/// 選到的日曆離上下邊緣至少留幾列，不夠才捲（跟任務頁一樣）
+const SCROLLOFF: i64 = 2;
 
 /// side menu 的寬度（含左右框線）：剛好放得下最長的那個日曆，例：「 ☑ 付款 API 改版 12 」，
 /// 但在 `MIN_WIDTH` ～ `MAX_WIDTH` 之間
@@ -53,8 +55,23 @@ fn count_text(app: &App, group: &Group) -> String {
 
 /// 畫 side menu：表頭「日曆」，下面一個日曆一列，例：「 ☑ 工作            12 」
 ///
-/// 勾選的是 `☑`、沒勾的是 `☐`（它的事不顯示）；名字太長（框已經是 `MAX_WIDTH`）就切掉，放不下的日曆不畫。鍵盤在 side menu 時，框線亮起來、選到的那個日曆墊底色
-pub fn render(frame: &mut Frame, area: Rect, app: &App) {
+/// 勾選的是 `☑`、沒勾的是 `☐`（它的事不顯示）；名字太長（框已經是 `MAX_WIDTH`）就切掉。日曆多到放不下時，先捲到選到的那個看得到
+/// （記在 `app.side_top`），右框線上畫捲軸。鍵盤在 side menu 時，框線亮起來、選到的那個日曆墊底色
+pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
+    // 表頭跟另外兩個框一樣：一列字 + 一條線
+    let [header, rule, body] = inner_areas(area);
+    let height = i64::from(body.height);
+    let top = scrolled_top(
+        i64::try_from(app.side_top).unwrap_or(0),
+        i64::try_from(app.group_index).unwrap_or(0),
+        height,
+        SCROLLOFF,
+    );
+    // 不捲過頭：最後一個日曆貼著底就好
+    let max = i64::try_from(app.groups.len()).unwrap_or(0) - height;
+    app.side_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
+    // 接下來只讀
+    let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
     let focused = app.focus == Focus::Side;
@@ -62,8 +79,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(if focused { theme.focus } else { theme.line }));
     frame.render_widget(block, area);
-    // 表頭跟另外兩個框一樣：一列字 + 一條線
-    let [header, rule, body] = inner_areas(area);
     frame.render_widget(
         Line::styled(texts.header_side, Style::new().fg(theme.muted)),
         header,
@@ -75,7 +90,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         ),
         rule,
     );
-    for ((index, group), y) in app.groups.iter().enumerate().zip(body.y..body.bottom()) {
+    let visible = app.groups.iter().enumerate().skip(app.side_top);
+    for ((index, group), y) in visible.zip(body.y..body.bottom()) {
         let row = Rect::new(body.x, y, body.width, 1);
         let count = count_text(app, group);
         // 名字在左、數字靠右；名字太長時切掉，不會蓋到數字（數字和空白都是 1 格寬）
@@ -106,16 +122,28 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 .set_style(row, Style::new().bg(theme.cursor_line));
         }
     }
+    // 放不下：右框線上、日曆那幾列旁邊畫捲軸
+    if let Ok(max) = u16::try_from(max)
+        && max > 0
+    {
+        let rows = Rect {
+            y: body.y - 1,
+            height: body.height + 2,
+            ..area
+        };
+        let top = u16::try_from(app.side_top).unwrap_or(u16::MAX);
+        render_scrollbar(frame, rows, top, max, body.height, theme);
+    }
 }
 
 /// 滑鼠點在 side menu（`area`）的 (`column`, `row`) 點到哪個日曆；點在表頭、框線、下面的空白回傳 `None`
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, body] = inner_areas(area);
-    // 一個日曆一列，從 `body` 的第一列開始
+    // 一個日曆一列，從 `body` 的第一列開始（捲過的話是第 `side_top` 個）
     if !body.contains(Position::new(column, row)) {
         return None;
     }
-    let index = usize::from(row - body.y);
+    let index = app.side_top + usize::from(row - body.y);
     (index < app.groups.len()).then_some(Click::Group(index))
 }
 

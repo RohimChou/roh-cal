@@ -147,6 +147,8 @@ pub struct App {
     pub side_hidden: bool,
     /// side menu 選到第幾個日曆（`groups` 裡的位置）；鍵盤在 side menu 時才用
     pub group_index: usize,
+    /// side menu 捲到哪：最上面是第幾個日曆（`groups` 裡的位置）；日曆多到放不下時才會捲
+    pub side_top: usize,
     /// 鍵盤在哪個框
     pub focus: Focus,
     /// 用哪個版型
@@ -197,6 +199,7 @@ impl App {
             groups: Group::list(&items),
             side_hidden: false,
             group_index: 0,
+            side_top: 0,
             items,
             warnings: Vec::new(),
             focus: Focus::Calendar,
