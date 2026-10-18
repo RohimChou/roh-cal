@@ -496,6 +496,7 @@ impl App {
             KeyCode::Esc if self.view == View::Tasks => self.set_view(View::Planner),
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
+            KeyCode::BackTab => self.previous_focus(),
             // Back to today and scroll its month to the top (the tasks page has no calendar, so ignored)
             KeyCode::Char('t') if self.view != View::Tasks => {
                 self.go_today();
@@ -762,6 +763,28 @@ impl App {
         }
     }
 
+    /// `Shift+Tab`: `Tab` backwards: calendar → side menu (only if drawn) → agenda (skipped if there are no
+    /// items, or in layout 3) → calendar;
+    /// on the tasks page: tasks page ⇄ side menu (only if drawn); ignored while layout 3's popup is open
+    fn previous_focus(&mut self) {
+        match self.focus {
+            Focus::Day => {}
+            Focus::Calendar | Focus::Tasks if self.side_shown() => self.focus = Focus::Side,
+            Focus::Calendar => {
+                if self.view == View::Planner {
+                    self.enter_agenda();
+                }
+            }
+            Focus::Side if self.view == View::Planner => {
+                self.enter_agenda();
+                if self.focus == Focus::Side {
+                    self.focus = Focus::Calendar;
+                }
+            }
+            Focus::Agenda | Focus::Side | Focus::Tasks => self.focus = self.home_focus(),
+        }
+    }
+
     /// Click on calendar number `index` in the side menu: one click chooses it (the keyboard moves to the
     /// side menu); clicking the chosen one again = check / uncheck
     fn click_group(&mut self, index: usize) {
@@ -990,6 +1013,58 @@ mod tests {
             Some("d")
         );
         assert_eq!(app.selected, date(2026, 10, 20));
+    }
+
+    #[test]
+    fn shift_tab_goes_through_the_panes_backwards() {
+        // Wide enough for the side menu: calendar → side menu → agenda (10/17's first item, b) → calendar
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 140, 30);
+        let mut order = Vec::new();
+        for _ in 0..3 {
+            press(&mut app, KeyCode::BackTab);
+            order.push(app.focus);
+        }
+        assert_eq!(order, [Focus::Side, Focus::Agenda, Focus::Calendar]);
+        // Narrow (no side menu): calendar ⇄ agenda; with no items it stays on the calendar
+        let mut app = app_with(ITEMS);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(
+            (
+                app.focus,
+                app.chosen().map(|entry| entry.item.title.as_str())
+            ),
+            (Focus::Agenda, Some("b"))
+        );
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Calendar);
+        let mut app = app_with("- No date\n");
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Calendar);
+        // Side menu with no items: side menu → calendar (the agenda is skipped)
+        app.screen = Rect::new(0, 0, 140, 30);
+        press(&mut app, KeyCode::BackTab);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Calendar);
+        // Layout 3: calendar ⇄ side menu; the day popup ignores it
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 140, 30);
+        app.view = View::Month;
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Side);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Calendar);
+        press(&mut app, KeyCode::Enter);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Day);
+        // Tasks page: tasks page ⇄ side menu
+        let mut app = app_with(ITEMS);
+        app.screen = Rect::new(0, 0, 140, 30);
+        press(&mut app, KeyCode::Char('4'));
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Side);
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(app.focus, Focus::Tasks);
     }
 
     #[test]

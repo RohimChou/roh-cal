@@ -95,7 +95,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Key | Action |
 | :- | :- |
 | `1` / `3` / `4` | Switch to the calendar + agenda / the month grid / the tasks page |
-| `Tab` | Switch between the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 3's day popup is open |
+| `Tab` / `Shift+Tab` | Switch to the next / previous pane: the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 3's day popup is open |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups) when the terminal is at least 120 columns wide; narrower, `s` calls it up over the left of the screen with the keyboard in it, and `s`, `Esc`, `q` or clicking outside put it away, back to the pane you were in |
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
