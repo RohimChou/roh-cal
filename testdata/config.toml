@@ -23,6 +23,8 @@ center_cursor = true
 [calendar_list]
 # The widest it gets; it follows the longest calendar name up to this, from 22 to 60 (default 36)
 max_width = 30
+# Hide done tasks (and their subtasks) everywhere; also switched at the bottom of the list (default false)
+hide_done = true
 
 # Override some of the theme's roles (for role names see [roles] in themes/): a color, or a palette
 # name from that theme

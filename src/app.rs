@@ -19,7 +19,7 @@ pub use write::Notice;
 
 use crate::{
     config::Settings,
-    tasks::{Heading, HeadingLine, Item, Warning},
+    tasks::{Heading, HeadingLine, Item, Kind, Warning},
     texts::Lang,
     theme::Theme,
     ui::{self, Click},
@@ -458,12 +458,29 @@ impl App {
     }
 
     /// Whether this item is shown: only if its calendar (group) and every calendar that one is inside are
-    /// checked
+    /// checked, and it is not a done task hidden by `[calendar_list] hide_done`
     pub fn is_shown(&self, item: &Item) -> bool {
         self.groups
             .iter()
             .filter(|group| group.holds(item))
             .all(|group| group.shown)
+            && !self.hidden_as_done(item)
+    }
+
+    /// Hiding done tasks (`[calendar_list] hide_done`) and `item` is a done task, or inside one (its subtasks
+    /// go with it)
+    fn hidden_as_done(&self, item: &Item) -> bool {
+        if !self.settings.calendar_list.hide_done {
+            return false;
+        }
+        let mut current = Some(item);
+        while let Some(each) = current {
+            if each.kind == Kind::Task && each.done {
+                return true;
+            }
+            current = each.parent.and_then(|parent| self.items.get(parent));
+        }
+        false
     }
 
     /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)
@@ -1425,6 +1442,38 @@ mod tests {
         // Checked again: listed again
         app.groups[1].shown = true;
         assert_eq!(app.agenda().len(), 4);
+    }
+
+    #[test]
+    fn hide_done_hides_done_tasks_and_their_subtasks() {
+        // A done task and its subtasks (even an open one) are hidden everywhere: the agenda, the day's
+        // items, the tasks page; open tasks and events stay, past events too
+        let mut app = app_with(
+            "- [x] Ship v1 @2026-10-16\n  - [ ] Write the blog post @2026-10-17\n- [ ] Pack @2026-10-17\n- Farmers market @2026-10-10\n",
+        );
+        let titles = |app: &App| -> Vec<String> {
+            app.agenda()
+                .iter()
+                .map(|entry| entry.item.title.clone())
+                .collect()
+        };
+        assert_eq!(titles(&app).len(), 4);
+        app.settings.calendar_list.hide_done = true;
+        assert_eq!(titles(&app), ["Farmers market", "Pack"]);
+        assert_eq!(app.items_on(date(2026, 10, 17)).len(), 1);
+        app.view = View::Tasks;
+        let items: Vec<usize> = app
+            .tasks_rows()
+            .iter()
+            .filter_map(|row| match row {
+                TaskRow::Item { index, .. } => Some(*index),
+                TaskRow::Heading { .. } => None,
+            })
+            .collect();
+        assert_eq!(items, [2, 3]);
+        // Off again: back
+        app.settings.calendar_list.hide_done = false;
+        assert_eq!(titles(&app).len(), 4);
     }
 
     /// An app 120 cells wide (with a side menu) and `text` as the task file

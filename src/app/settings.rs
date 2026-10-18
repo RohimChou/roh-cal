@@ -44,6 +44,8 @@ pub enum Row {
     CenterCursor,
     /// `[calendar_list] max_width`: a number, not a switch
     ListWidth,
+    /// `[calendar_list] hide_done`
+    HideDone,
     /// One role in `[colors]` (a name in `theme::ROLES`): overrides that color of the theme
     Color(&'static str),
 }
@@ -57,6 +59,7 @@ pub fn rows() -> Vec<Row> {
         Row::GridLines,
         Row::CenterCursor,
         Row::ListWidth,
+        Row::HideDone,
     ];
     rows.extend(theme::ROLES.map(Row::Color));
     rows
@@ -70,7 +73,7 @@ impl Row {
             Self::Theme => None,
             Self::RelativeWeeks => Some("calendar"),
             Self::GridLines | Self::CenterCursor => Some("month"),
-            Self::ListWidth => Some("calendar_list"),
+            Self::ListWidth | Self::HideDone => Some("calendar_list"),
             Self::Color(_) => Some("colors"),
         }
     }
@@ -81,7 +84,7 @@ impl Row {
         match self {
             Self::RelativeWeeks => Some(&[View::Planner, View::Month]),
             Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
-            Self::Theme | Self::ListWidth | Self::Color(_) => None,
+            Self::Theme | Self::ListWidth | Self::HideDone | Self::Color(_) => None,
         }
     }
 
@@ -98,6 +101,7 @@ impl Row {
             Self::GridLines => "grid_lines",
             Self::CenterCursor => "center_cursor",
             Self::ListWidth => "max_width",
+            Self::HideDone => "hide_done",
             Self::Color(role) => role,
         }
     }
@@ -110,6 +114,7 @@ impl Row {
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
             Self::GridLines => Some(&mut settings.month.grid_lines),
             Self::CenterCursor => Some(&mut settings.month.center_cursor),
+            Self::HideDone => Some(&mut settings.calendar_list.hide_done),
         }
     }
 
@@ -133,6 +138,7 @@ impl Row {
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::CenterCursor => on_off(settings.month.center_cursor),
+            Self::HideDone => on_off(settings.calendar_list.hide_done),
             Self::ListWidth => settings.calendar_list.max_width().to_string(),
         }
     }
@@ -446,9 +452,9 @@ mod tests {
     #[test]
     fn color_rows_go_through_the_palette_and_keep_only_overrides() {
         let mut app = app_with_settings();
-        // Row 6 is text's color: l switches to the palette's next color
+        // Row 7 is text's color: l switches to the palette's next color
         // (subtext0), records it in [colors], and the screen changes right away
-        for _ in 0..5 {
+        for _ in 0..6 {
             press(&mut app, KeyCode::Char('j'));
         }
         press(&mut app, KeyCode::Char('l'));
@@ -552,9 +558,13 @@ mod tests {
                     grid_lines: _,
                     center_cursor: _,
                 },
-            calendar_list: CalendarListSettings { max_width: _ },
+            calendar_list:
+                CalendarListSettings {
+                    max_width: _,
+                    hide_done: _,
+                },
         } = Settings::default();
-        assert_eq!(rows().len(), 5 + theme::ROLES.len());
+        assert_eq!(rows().len(), 6 + theme::ROLES.len());
     }
 
     #[test]

@@ -111,6 +111,8 @@ pub struct CalendarListSettings {
     /// The widest the list gets, in cells (incl. its border): it follows the longest calendar name up to
     /// this, and longer names get cut off. Only `MIN_WIDTH` to `MAX_WIDTH` counts (see `max_width()`)
     pub max_width: u16,
+    /// Hide done tasks (and their subtasks) everywhere; switched at the bottom of the calendar list too
+    pub hide_done: bool,
 }
 
 impl CalendarListSettings {
@@ -127,7 +129,10 @@ impl CalendarListSettings {
 
 impl Default for CalendarListSettings {
     fn default() -> Self {
-        Self { max_width: 36 }
+        Self {
+            max_width: 36,
+            hide_done: false,
+        }
     }
 }
 
@@ -374,7 +379,10 @@ mod tests {
                     grid_lines: false,
                     center_cursor: true,
                 },
-                calendar_list: CalendarListSettings { max_width: 30 },
+                calendar_list: CalendarListSettings {
+                    max_width: 30,
+                    hide_done: true,
+                },
                 colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),
             }
         );
