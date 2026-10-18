@@ -2678,9 +2678,14 @@ mod tests {
         // The header's 「1 處寫錯」 and the bottom row are both red
         assert_eq!(buffer[(60, 1)].fg, theme.error);
         assert_eq!(buffer[(2, 13)].fg, theme.error);
-        // The title in the Pay property tax row (y 9) is red (titles start at x 8); other rows are not
+        // The title in the Pay property tax row (y 9) is red and underlined, so it does not look like a
+        // `!!!` title (titles start at x 8); other rows are neither
+        let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
         assert_eq!(buffer[(8, 9)].fg, theme.error);
+        // Its last character (28 characters: x 8-35), and not the blank after it
+        assert!(underlined(8, 9) && underlined(35, 9) && !underlined(36, 9));
         assert_eq!(buffer[(8, 8)].fg, theme.text);
+        assert!(!underlined(8, 8));
     }
 
     #[test]
