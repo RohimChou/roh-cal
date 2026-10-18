@@ -235,6 +235,32 @@ mod tests {
     }
 
     #[test]
+    fn a_reschedule_that_does_not_happen_goes_back_to_the_same_day() {
+        use super::super::write::Notice;
+        let (mut app, path) = popup_with_file("day-popup-not-moved");
+        let chosen_day = |app: &App| (app.selected, app.focus, chosen(app));
+        let before = (date(2026, 10, 17), Focus::Day, Some("整理書櫃".to_string()));
+        // 整理書櫃 r → 往後 3 天 → Esc 取消：回到 10/17 的跳窗、還選著它
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('r'));
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('l'));
+        }
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(chosen_day(&app), before);
+        // 再 r → 往後 3 天 → 任務檔不見了、Enter：沒搬，一樣回到 10/17 的跳窗，最下面說寫不了
+        press(&mut app, KeyCode::Char('r'));
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('l'));
+        }
+        std::fs::remove_file(&path).expect("remove");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(chosen_day(&app), before);
+        assert!(matches!(app.notice, Some(Notice::Failed(_))));
+        clean_up(&path);
+    }
+
+    #[test]
     fn deleting_moving_and_adding_from_the_popup() {
         let (mut app, path) = popup_with_file("day-popup-write");
         let read = || std::fs::read_to_string(&path).expect("read");

@@ -109,6 +109,8 @@ impl App {
         let mut moved = true;
         if let Some(new_first) = new_first {
             let Some((path, text)) = self.read_tasks() else {
+                // 讀不到任務檔：沒搬，選取的日期回到按 `r` 那時候（跟取消一樣）
+                self.selected = from;
                 self.go_back(back);
                 return;
             };
