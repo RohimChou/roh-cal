@@ -1,10 +1,10 @@
-# Task file format (spec v0.3)
+# Task file format (spec v0.4)
 One plain-text file, **one item per line**, written with Markdown list syntax. An item with a checkbox is a **task** you check off; one without is an **event** (a meeting, a holiday, a release date) that is simply over once its day has passed. The file is meant to be hand-edited in any editor, diffed in git and searched with `grep`; roh-cal reads it and writes it back (see [Writing](#writing)).
 
 ```markdown
 # Payments API
 - [ ] Estimate the v2.3 tickets @2026-10-12
-- [ ] Follow up with Sarah on the retry policy @2026-10-12 14:00
+- [ ] Follow up with Sarah on the retry policy !! @2026-10-12 14:00
 - [x] Fix duplicate rows in the CSV export @2026-10-06
   - [x] Found the cause: the query was missing a DISTINCT
 - Code freeze @2026-10-19
@@ -32,6 +32,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 4 | `# Name` (any heading level) | Starts a **group** (project, calendar); applies to the items below until the next heading. A heading with no items under it is still a group (an empty calendar). Groups **nest by heading level**: a heading is inside the nearest heading above it with fewer `#` (`# Payments API` → `## Refunds`). A group is its whole path: `Work > SFAP` and `Personal > SFAP` are two groups, while a heading that repeats the same path (`# Work` again further down) continues the same group. Hiding a group hides the groups inside it |
 | 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn like a weekend (a day off). The token is not part of the group's name. Write holidays as events (no box), e.g. `- Thanksgiving break @2026-11-26..2026-11-29` |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
+| 6 | `!`, `!!` or `!!!` anywhere in an item, as a word of its own | **Priority**: low, medium, high. Only the first counts, and it is removed from the displayed title; `!!!!` or a `!` stuck to a word (`Ship it!`) is plain text. Convention: put it before the date |
 
 Everything else (blank lines, prose, code blocks, other Markdown) is ignored when reading and kept byte-for-byte when writing. So is front matter: when the first line is `---`, everything up to the next `---` (an Obsidian note's properties, e.g. a `tags:` list) is skipped.
 
@@ -65,7 +66,7 @@ roh-cal writes the file when you check an item off, reschedule, edit, add or del
 | Undo | roh-cal keeps the whole file from before each of its writes (the last 50). `u` puts it back only if the file is still exactly what roh-cal wrote; otherwise it reloads and forgets that history |
 
 ## Not in v0
-Recurring items, due vs scheduled dates, priorities, inline `#tags`, time ranges within a day, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.
+Recurring items, due vs scheduled dates, inline `#tags`, time ranges within a day, reminders, multiple task files. Each can be added later as a `key:value` field or a new rule without breaking existing files.
 
 Planned to revisit:
 - **Completion dates** when checking a task off (e.g. `done:2026-10-11`), useful for showing what was finished on each day
@@ -76,6 +77,7 @@ Planned to revisit:
 | One item per line, tiny spec, `key:value` extensions | [todo.txt](https://github.com/todotxt/todo.txt) |
 | Projects as headings + indentation instead of repeating `+project` on every line; `@` marks metadata | [TaskPaper](https://www.taskpaper.com) |
 | `- [ ]` / `- [x]` checkboxes | GitHub-flavored Markdown (renders in GitHub, Obsidian, most editors) |
+| `!` / `!!` / `!!!` for low / medium / high priority | Apple Reminders |
 
 ## History
 - v0 (2026-10-11): first version
@@ -85,3 +87,4 @@ Planned to revisit:
 - v0.2 (same day): holiday calendars, `type:holiday` in a heading (rule 4b)
 - v0.2 (same day): a trailing Obsidian block id is not part of the title
 - v0.3 (same day): groups nest by heading level, and a group is its whole path (rule 4)
+- v0.4 (same day): priorities `!` / `!!` / `!!!` (rule 6)

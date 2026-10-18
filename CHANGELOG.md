@@ -10,6 +10,7 @@ v2, a rewrite from scratch. The first version (never released) lives on the [`v1
 - Tasks page (`3`): the whole task file as a tree by calendar, undated items too; expand and collapse (`l` `h`, `+` `-`), indent and outdent (`L` `H`), reorder (`J` `K`); format mistakes are marked
 - Writing back to the task file: check off, add, add a subtask, edit in a one-line editor, reschedule with the calendar as the date picker, delete, and undo the last 50 writes; only the changed lines are rewritten, through a temp file, and a file changed elsewhere is reloaded instead of overwritten
 - Task file format v0.2: events (items without a box), multi-day ranges `@2026-10-20..2026-10-25`, holiday calendars (`type:holiday`), Obsidian block ids at the end of a line
+- Priorities (task file format v0.4): `!`, `!!` or `!!!` in an item; the editor's check row says which one it read
 - Calendar list on the left: show or hide each `#` group; on terminals narrower than 120 columns `s` calls it up over the screen; long lists scroll
 - Help page (`?`) with the keys for where the keyboard is, settings page (`,`) and the config file `config.toml`
 - Six built-in themes as TOML files (`catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `terminal`) and per-role color overrides

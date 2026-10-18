@@ -20,7 +20,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 
 ## Features
 - **Three views**: a calendar with the agenda next to it, a six-week month grid with each day's items in its cell, and a tasks page with the whole file as a tree
-- **Plain text**: tasks (`- [ ]`) and events, dates, times, multi-day ranges, subtasks, `#` headings as calendars; mistakes such as `@2026-13-01` are pointed out instead of silently dropped
+- **Plain text**: tasks (`- [ ]`) and events, dates, times, multi-day ranges, priorities (`!` `!!` `!!!`), subtasks, `#` headings as calendars; mistakes such as `@2026-13-01` are pointed out instead of silently dropped
 - **Edit in place**: check off, add, edit, reschedule (the calendar is the date picker), delete, indent and reorder, and undo the last 50 writes
 - **Safe writes**: only the changed lines are rewritten, through a temp file; if the file changed elsewhere since roh-cal read it, roh-cal reloads instead of overwriting
 - **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` makes its days holidays, colored like weekends
@@ -57,7 +57,7 @@ Press `?` for the keys, `2` and `3` for the other views, `q` to quit. Without `-
 
 ```markdown
 # Work
-- [ ] Review the payment API @2026-10-14
+- [ ] Review the payment API !! @2026-10-14
   - [ ] Write the integration tests @2026-10-13
 - Weekly meeting @2026-10-19 10:00
 - Business trip @2026-10-28..2026-11-03

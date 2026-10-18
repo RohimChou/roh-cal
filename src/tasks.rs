@@ -55,6 +55,8 @@ pub struct Item {
     pub end: Option<Date>,
     /// The time (only when a date is written; for a multi-day item, the time on the first day)
     pub time: Option<Time>,
+    /// How urgent it is (`!` / `!!` / `!!!` in the text); `None` without one
+    pub priority: Option<Priority>,
     /// Which group it belongs to (the nearest heading above); `None` before the file's first heading
     pub group: Option<Heading>,
     /// The number of the heading it is under in the file (0 before the first heading): two headings with the
@@ -91,6 +93,29 @@ impl Item {
     pub fn covers(&self, day: Date) -> bool {
         self.date.is_some_and(|first| first <= day)
             && self.last_day().is_some_and(|last| day <= last)
+    }
+}
+
+/// How urgent an item is (rule 6 of the spec): more `!` = more urgent; the screen colors the title by it
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Priority {
+    /// `!`
+    Low,
+    /// `!!`
+    Medium,
+    /// `!!!`
+    High,
+}
+
+impl Priority {
+    /// The priority a word stands for: exactly `!`, `!!` or `!!!`; anything else (`!!!!`, `wow!`) is `None`
+    fn from_word(word: &str) -> Option<Self> {
+        match word {
+            "!" => Some(Self::Low),
+            "!!" => Some(Self::Medium),
+            "!!!" => Some(Self::High),
+            _ => None,
+        }
     }
 }
 
@@ -221,7 +246,7 @@ pub fn parse(text: &str) -> Parsed {
         let parent = ancestors.last().map(|&(_, position)| position);
         let depth = ancestors.len();
 
-        let (title, when) = parse_title(rest, line, &mut parsed.warnings);
+        let (title, when, priority) = parse_title(rest, line, &mut parsed.warnings);
         ancestors.push((indent, parsed.items.len()));
         parsed.items.push(Item {
             kind,
@@ -230,6 +255,7 @@ pub fn parse(text: &str) -> Parsed {
             date: when.date,
             end: when.end,
             time: when.time,
+            priority,
             group: group.clone(),
             section,
             depth,
@@ -308,18 +334,30 @@ pub(crate) fn indent_width(line: &str) -> usize {
         .sum()
 }
 
-/// Take the first `@date` or `@date..date` (and the time right after it) out of an item's text;
-/// what is left is the title
+/// Take the first `@date` or `@date..date` (and the time right after it) and the first `!` / `!!` / `!!!`
+/// out of an item's text; what is left is the title
 ///
-/// E.g. `Implement the refund API @2026-10-14` → (`Implement the refund API`, 10/14, no time);
+/// E.g. `Implement the refund API @2026-10-14` → (`Implement the refund API`, 10/14, no time, no priority);
 /// `Business trip to NYC @2026-10-20..2026-10-25 09:00` → (`Business trip to NYC`, 10/20 to 10/25,
-/// 9 o'clock)
-fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String, When) {
+/// 9 o'clock); `Fix the audit log !!! @2026-10-21` → (`Fix the audit log`, 10/21, high)
+fn parse_title(
+    text: &str,
+    line: usize,
+    warnings: &mut Vec<Warning>,
+) -> (String, When, Option<Priority>) {
     let mut words = Vec::new();
     let mut when = When::default();
+    let mut priority = None;
     let mut tokens = text.split_whitespace().peekable();
 
     while let Some(token) = tokens.next() {
+        // `!` / `!!` / `!!!`: only the first counts, a later one stays text
+        if priority.is_none()
+            && let Some(found) = Priority::from_word(token)
+        {
+            priority = Some(found);
+            continue;
+        }
         // Already has a date (only the first counts), or not shaped like `@date` / `@date..date` → plain text
         let candidate = token
             .strip_prefix('@')
@@ -371,7 +409,7 @@ fn parse_title(text: &str, line: usize, warnings: &mut Vec<Warning>) -> (String,
     if words.last().is_some_and(|word| is_block_id(word)) {
         words.pop();
     }
-    (words.join(" "), when)
+    (words.join(" "), when, priority)
 }
 
 /// Whether it is an Obsidian block id: `^` followed by ASCII letters, digits, `-`, e.g. `^csfds-01`
@@ -615,6 +653,45 @@ mod tests {
         assert_eq!(parsed.items[0].date, None);
         assert_eq!(parsed.items[1].title, "Trip @2026-10-20..25");
         assert!(parsed.warnings.is_empty());
+    }
+
+    #[test]
+    fn rule6_exclamation_marks_set_the_priority() {
+        // `!` / `!!` / `!!!` anywhere in the item, and they are not part of the title; no mark = no priority
+        let item = one("- [ ] Fix the audit log !!! @2026-10-21 14:00 ^cais-09");
+        assert_eq!(item.priority, Some(Priority::High));
+        assert_eq!(item.title, "Fix the audit log");
+        assert_eq!(
+            (item.date, item.time),
+            (Some(date(2026, 10, 21)), Some(time(14, 0, 0, 0)))
+        );
+        assert_eq!(
+            one("- [ ] !! Call the bank").priority,
+            Some(Priority::Medium)
+        );
+        assert_eq!(
+            one("- Code freeze ! @2026-10-19").priority,
+            Some(Priority::Low)
+        );
+        assert_eq!(one("- [ ] Pack").priority, None);
+        // Only the first counts, a later one stays text
+        let item = one("- [ ] Pay the fine !! !!!");
+        assert_eq!(
+            (item.priority, item.title.as_str()),
+            (Some(Priority::Medium), "Pay the fine !!!")
+        );
+        // Only a word made of 1 to 3 `!`: four of them, or `!` stuck to a word, stay text
+        let item = one("- [ ] Ship it!!! !!!!");
+        assert_eq!(
+            (item.priority, item.title.as_str()),
+            (None, "Ship it!!! !!!!")
+        );
+        // A `!` before a block id: the id is still taken off the end
+        let item = one("- [ ] Renew the passport ! ^life-05");
+        assert_eq!(
+            (item.priority, item.title.as_str()),
+            (Some(Priority::Low), "Renew the passport")
+        );
     }
 
     #[test]

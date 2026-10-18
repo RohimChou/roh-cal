@@ -2,7 +2,7 @@
 
 use crate::app::{Focus, Notice, Row, View};
 use crate::edit::Problem;
-use crate::tasks::{Heading, Item, Kind, WarningKind};
+use crate::tasks::{Heading, Item, Kind, Priority, WarningKind};
 use jiff::civil::Date;
 
 /// Supported languages
@@ -643,7 +643,8 @@ impl Texts {
         }
     }
 
-    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`
+    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`,
+    /// `任務 · 優先度高 · 沒有日期 · 「Pay the fine」`
     pub fn preview(&self, item: &Item) -> String {
         let kind = match (self.lang, item.kind, item.done) {
             (Lang::En, Kind::Task, false) => "Task",
@@ -669,9 +670,19 @@ impl Texts {
                 when
             }
         };
+        // With a priority: right after the kind, e.g. 「任務 · 優先度高 · …」
+        let priority = match (self.lang, item.priority) {
+            (_, None) => "",
+            (Lang::En, Some(Priority::High)) => " · high priority",
+            (Lang::En, Some(Priority::Medium)) => " · medium priority",
+            (Lang::En, Some(Priority::Low)) => " · low priority",
+            (Lang::ZhTw, Some(Priority::High)) => " · 優先度高",
+            (Lang::ZhTw, Some(Priority::Medium)) => " · 優先度中",
+            (Lang::ZhTw, Some(Priority::Low)) => " · 優先度低",
+        };
         match self.lang {
-            Lang::En => format!(" {kind} · {when} · \"{}\"", item.title),
-            Lang::ZhTw => format!(" {kind} · {when} · 「{}」", item.title),
+            Lang::En => format!(" {kind}{priority} · {when} · \"{}\"", item.title),
+            Lang::ZhTw => format!(" {kind}{priority} · {when} · 「{}」", item.title),
         }
     }
 
@@ -926,10 +937,22 @@ mod tests {
             zh.preview(&item("- [x] Organize the bookshelf")),
             " 做完的任務 · 沒有日期 · 「Organize the bookshelf」"
         );
+        assert_eq!(
+            zh.preview(&item("- [ ] Pay the fine !!!")),
+            " 任務 · 優先度高 · 沒有日期 · 「Pay the fine」"
+        );
         let en = Lang::En.texts();
         assert_eq!(
             en.preview(&item("- Dentist appointment @2026-10-14 10:30")),
             " Event · Wed Oct 14, 2026 10:30 · \"Dentist appointment\""
+        );
+        assert_eq!(
+            en.preview(&item("- [ ] ! Call the bank @2026-10-14")),
+            " Task · low priority · Wed Oct 14, 2026 · \"Call the bank\""
+        );
+        assert_eq!(
+            en.preview(&item("- [ ] Call the bank !!")),
+            " Task · medium priority · no date · \"Call the bank\""
         );
         assert_eq!(
             en.problem(&Problem::Mistake(WarningKind::NoSuchDate(
