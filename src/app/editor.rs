@@ -39,7 +39,7 @@ impl Editor {
 impl App {
     /// `e` / `Enter`：打開編輯框，裡面是右邊選到的那件事的那一行（不含縮排），游標在最後面
     pub(super) fn start_editing(&mut self) {
-        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+        let Some(item) = self.chosen_item().cloned() else {
             return;
         };
         let input = Input::new(item.line_text.trim().to_string());
@@ -49,9 +49,9 @@ impl App {
         });
     }
 
-    /// `a`：新增一件，預先填好 `- [ ]  @選取的日期`，游標在標題的位置
+    /// `a`：新增一件，預先填好 `- [ ]  @選取的日期`，游標在標題的位置（任務頁不填日期）
     ///
-    /// 鍵盤在右邊：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
+    /// 鍵盤在右邊、任務頁：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item.clone()),
@@ -63,8 +63,12 @@ impl App {
         };
         let place = near.map_or(Place::End, Place::InGroupOf);
         let prefix = "- [ ] ";
-        let input =
-            Input::new(format!("{prefix} @{}", self.selected)).with_cursor(prefix.chars().count());
+        // 任務頁沒有選取的日期：不填日期
+        let input = if self.view == super::View::Tasks {
+            Input::new(prefix.to_string())
+        } else {
+            Input::new(format!("{prefix} @{}", self.selected)).with_cursor(prefix.chars().count())
+        };
         self.editor = Some(Editor {
             input,
             target: Target::Add(place),
@@ -73,7 +77,7 @@ impl App {
 
     /// `A`：新增右邊選到的那件事的子任務（預先填好 `- [ ] `，子任務常常沒有自己的日期）
     pub(super) fn start_adding_subtask(&mut self) {
-        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+        let Some(item) = self.chosen_item().cloned() else {
             return;
         };
         self.editor = Some(Editor {
@@ -140,8 +144,10 @@ impl App {
                 match edit::add(&text, new, &place) {
                     Ok((after, line)) => {
                         self.write_tasks(&path, text, after, title);
-                        // 右邊選著新的那件；它不在右邊（例：沒有日期的子任務）就還是選著原本那件（它的行號沒變）
-                        let shown = self.agenda().iter().any(|entry| entry.item.line == line);
+                        // 右邊選著新的那件（任務頁一定看得到）；它不在右邊（例：沒有日期的子任務）就還是選著原本那件
+                        // （它的行號沒變）
+                        let shown = self.view == super::View::Tasks
+                            || self.agenda().iter().any(|entry| entry.item.line == line);
                         match &place {
                             _ if shown => self.choose_line(line),
                             Place::InGroupOf(item) | Place::ChildOf(item)

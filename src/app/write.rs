@@ -39,7 +39,7 @@ impl App {
     ///
     /// 沒有任務檔（test）、沒選到事就什麼都不做
     pub(super) fn toggle_chosen(&mut self) {
-        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+        let Some(item) = self.chosen_item().cloned() else {
             return;
         };
         if item.kind == Kind::Event {
@@ -57,7 +57,7 @@ impl App {
 
     /// `d`：先算刪掉選到的那件會刪掉幾件（含子任務），最下面一列問使用者（`y` 才刪）
     pub(super) fn ask_delete(&mut self) {
-        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+        let Some(item) = self.chosen_item().cloned() else {
             return;
         };
         let Some((_, text)) = self.read_tasks() else {
@@ -79,12 +79,22 @@ impl App {
         if code != KeyCode::Char('y') {
             return;
         }
+        // 任務頁：刪之前選到的是第幾列（刪完選那個位置）
+        let row = {
+            let rows = self.tasks_rows();
+            self.tasks_cursor(&rows).unwrap_or(0)
+        };
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
         match edit::delete(&text, &item) {
             Ok((after, deleted)) if deleted == count => {
                 self.write_tasks(&path, text, after, item.title);
+                if self.view == super::View::Tasks {
+                    // 任務頁：選原本那一列（現在是下一件）；刪到最後面就選最後一件
+                    self.choose_task_row_near(row);
+                    return;
+                }
                 // 右邊選下一件（原本的位置）；刪到沒有了就回到月曆
                 match self.agenda().len().checked_sub(1) {
                     Some(last) => self.choose(self.agenda_index.min(last)),
@@ -128,6 +138,7 @@ impl App {
             self.notice = Some(Notice::Failed(error.kind()));
             return;
         }
+        self.remap_lines(edit::line_map(&step.after, &step.before));
         self.set_items(tasks::parse(&step.before).items);
         self.notice = Some(Notice::Undone(step.title));
     }
@@ -170,6 +181,8 @@ impl App {
             self.notice = Some(Notice::Failed(error.kind()));
             return;
         }
+        // 畫面記著的行號（選到的那件、展開的子任務）跟著搬
+        self.remap_lines(edit::line_map(&before, &after));
         self.set_items(tasks::parse(&after).items);
         self.undo.push(UndoStep {
             before,
@@ -187,6 +200,12 @@ impl App {
         self.set_items(tasks::parse(text).items);
         self.undo.clear();
         self.notice = Some(Notice::Reloaded);
+    }
+
+    /// 畫面記著的行號（任務頁選到的那件、展開的子任務）照 `map` 換成寫檔之後的行號；對不到的（刪掉了）就忘掉
+    fn remap_lines(&mut self, map: impl Fn(usize) -> Option<usize>) {
+        self.expanded = self.expanded.iter().filter_map(|&line| map(line)).collect();
+        self.tasks_line = self.tasks_line.and_then(&map);
     }
 
     /// 換一份新的事（寫檔、重新載入之後）；side menu 的日曆照新的檔案重列，原本有的日曆保留勾選的狀態

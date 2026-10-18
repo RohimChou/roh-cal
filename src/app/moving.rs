@@ -23,13 +23,20 @@ pub struct Moving {
 impl App {
     /// `r`：開始搬右邊選到的那件事（鍵盤換到月曆，選取的日期還是那件事的日子）
     pub(super) fn start_moving(&mut self) {
-        let Some(item) = self.chosen().map(|entry| entry.item.clone()) else {
+        let Some(item) = self.chosen_item().cloned() else {
             return;
         };
+        let back = (self.view, self.focus);
+        // 任務頁沒有月曆：借版型 1 的月曆來選，從那件事的日子（沒日期就從今天）開始
+        if self.view == View::Tasks {
+            self.view = View::Planner;
+            self.selected = item.date.unwrap_or(self.today);
+            self.scroll_to_month();
+        }
         self.moving = Some(Moving {
             item,
             from: self.selected,
-            back: (self.view, self.focus),
+            back,
         });
         self.focus = Focus::Calendar;
     }
@@ -73,15 +80,17 @@ impl App {
             return;
         };
         let to = self.selected;
-        // 選取的日期沒動就不寫
-        if let Some(first) = item.date
-            && to != from
-        {
+        // 新的日子：選取的日期移了幾天就搬幾天（沒動就不寫）；還沒排日期的就是選的那天
+        let new_first = match item.date {
+            Some(first) if to != from => Some(first.saturating_add((to - from).get_days().days())),
+            Some(_) => None,
+            None => Some(to),
+        };
+        if let Some(new_first) = new_first {
             let Some((path, text)) = self.read_tasks() else {
                 self.go_back(back);
                 return;
             };
-            let new_first = first.saturating_add((to - from).get_days().days());
             match edit::reschedule(&text, &item, new_first) {
                 Ok(after) => self.write_tasks(&path, text, after, item.title.clone()),
                 Err(edit::Changed) => self.reload(&text),

@@ -25,14 +25,14 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day; in the agenda `j` `k` / ↓ ↑ choose the next / previous item, in the calendar list the next / previous calendar |
 | `Tab` | Switch between the calendar, the agenda and the calendar list (the focused pane's border lights up) |
 | `Space` / `Enter` | In the calendar list: check / uncheck a calendar; an unchecked calendar's items are hidden |
-| `Space` / `x` | In the agenda: check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
+| `Space` / `x` | In the agenda or on the tasks page: check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
-| `r` | In the agenda: reschedule the chosen item. The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
+| `r` | In the agenda or on the tasks page: reschedule the chosen item (the tasks page borrows layout 1's calendar; an undated item gets the day you pick). The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
 | `Enter` | On the calendar: go into the selected day's items (the agenda's first item that day; layout 3 switches to layout 1). Clicking the selected day again does the same |
-| `e` / `Enter` | In the agenda: edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears |
-| `a` / `A` | Add an item in the same one-line editor, the selected day already filled in: in the agenda to the chosen item's calendar, on the calendar to the selected day / add a subtask under the chosen item |
-| `d` | In the agenda: delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
+| `e` / `Enter` | In the agenda or on the tasks page: edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears |
+| `a` / `A` | Add an item in the same one-line editor, the selected day already filled in: in the agenda or on the tasks page to the chosen item's calendar (the tasks page fills in no date), on the calendar to the selected day / add a subtask under the chosen item |
+| `d` | In the agenda or on the tasks page: delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
 | `1` / `3` / `4` | Layout 1 (calendar + agenda) / layout 3 (a big month grid, six weeks with each day's items in its cell) / the tasks page (the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file) |
 | `l` / `h` | On the tasks page: expand / collapse the chosen item's subtasks (`l` again goes to the first subtask, `h` again to the parent); click `▸` to do the same |

@@ -81,13 +81,20 @@ impl App {
         }
     }
 
-    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務
+    /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務；
+    /// 寫檔的鍵跟右邊的事項框一樣：`Space` / `x` 打勾、`e` / `Enter` 編輯、`a` 新增、`A` 新增子任務、`d` 刪除、`r` 改期
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_task(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_task(-1),
             KeyCode::Char('l') | KeyCode::Right => self.expand_task(),
             KeyCode::Char('h') | KeyCode::Left => self.collapse_task(),
+            KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
+            KeyCode::Char('a') => self.start_adding(),
+            KeyCode::Char('A') => self.start_adding_subtask(),
+            KeyCode::Char('d') => self.ask_delete(),
+            KeyCode::Char('r') => self.start_moving(),
             _ => {}
         }
     }
@@ -155,11 +162,48 @@ impl App {
         let Some(line) = self.items.get(index).map(|item| item.line) else {
             return;
         };
+        if on_marker && children {
+            if !self.expanded.remove(&line) {
+                self.expanded.insert(line);
+            }
+        } else if self.focus == super::Focus::Tasks && self.tasks_line == Some(line) {
+            // 再點一次已經選到的那件 = 打勾（跟右邊的事項框一樣）
+            self.toggle_chosen();
+            return;
+        }
         self.tasks_line = Some(line);
         self.focus = super::Focus::Tasks;
-        if on_marker && children && !self.expanded.remove(&line) {
-            self.expanded.insert(line);
+    }
+
+    /// 寫檔之後，任務頁選著第 `line` 行那件事；它在收起來的父項目底下就把上面每一層都展開
+    pub(super) fn choose_task_line(&mut self, line: usize) {
+        self.tasks_line = Some(line);
+        let mut parent = self
+            .items
+            .iter()
+            .find(|item| item.line == line)
+            .and_then(|item| item.parent);
+        while let Some(index) = parent {
+            let Some(ancestor) = self.items.get(index) else {
+                break;
+            };
+            self.expanded.insert(ancestor.line);
+            parent = ancestor.parent;
         }
+    }
+
+    /// 刪除之後，任務頁選第 `row` 列（`tasks_rows()` 裡的位置）那件或它後面第一件；後面沒有就選最後一件
+    pub(super) fn choose_task_row_near(&mut self, row: usize) {
+        let rows = self.tasks_rows();
+        let line_of = |row: &TaskRow| match row {
+            TaskRow::Item { index, .. } => self.items.get(*index).map(|item| item.line),
+            TaskRow::Heading { .. } => None,
+        };
+        self.tasks_line = rows
+            .iter()
+            .skip(row)
+            .find_map(line_of)
+            .or_else(|| rows.iter().rev().find_map(line_of));
     }
 }
 
@@ -311,6 +355,122 @@ mod tests {
         let mut app = tasks_app(TREE);
         app.groups[1].shown = false;
         assert_eq!(shape(&app), ["#", "沒分組", "#生活", "爬山"]);
+    }
+
+    /// 暫存資料夾裡的任務檔（內容 `text`）、開著任務頁的 app；用完要 `clean_up`
+    fn tasks_app_with_file(name: &str, text: &str) -> (App, std::path::PathBuf) {
+        let (mut app, path) = super::super::write::tests::app_with_task_file(name, text);
+        press(&mut app, KeyCode::Char('4'));
+        (app, path)
+    }
+
+    /// 一個字一個字打進編輯框
+    fn type_text(app: &mut App, text: &str) {
+        for c in text.chars() {
+            press(app, KeyCode::Char(c));
+        }
+    }
+
+    #[test]
+    fn the_writing_keys_work_on_the_tasks_page() {
+        use super::super::write::tests::clean_up;
+        let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n- [ ] 交週報 @2026-10-16\n# 生活\n- 爬山 @2026-10-18\n";
+        let (mut app, path) = tasks_app_with_file("tasks-keys", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        // Space：沒日期的也能打勾；還選著同一件
+        press(&mut app, KeyCode::Char(' '));
+        assert!(read().contains("- [x] 寫報告\n"));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("寫報告")
+        );
+        // A：子任務加在它的子任務下面；父項目展開、選著新的那件
+        press(&mut app, KeyCode::Char('A'));
+        type_text(&mut app, "列大綱");
+        press(&mut app, KeyCode::Enter);
+        assert!(read().contains("  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報"));
+        assert!(app.expanded.contains(&2));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("列大綱")
+        );
+        // d、y：刪掉；選著下一件（交週報，現在是第 4 行）
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert!(!read().contains("列大綱"));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("交週報")
+        );
+        // u：列大綱回來；交週報跟著往下一行，還是選著它
+        press(&mut app, KeyCode::Char('u'));
+        assert!(read().contains("列大綱"));
+        assert_eq!(app.tasks_line, Some(5));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("交週報")
+        );
+        // a：任務頁不填日期；加在「工作」最後面，選著新的那件
+        press(&mut app, KeyCode::Char('a'));
+        assert_eq!(
+            app.editor.as_ref().map(|editor| editor.input.value()),
+            Some("- [ ] ")
+        );
+        type_text(&mut app, "開會 @2026-10-20");
+        press(&mut app, KeyCode::Enter);
+        assert!(read().contains("- [ ] 交週報 @2026-10-16\n- [ ] 開會 @2026-10-20\n# 生活"));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("開會")
+        );
+        // e：編輯選到的那件
+        press(&mut app, KeyCode::Char('e'));
+        type_text(&mut app, " 10:00");
+        press(&mut app, KeyCode::Enter);
+        assert!(read().contains("- [ ] 開會 @2026-10-20 10:00\n"));
+        assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn r_on_the_tasks_page_borrows_the_calendar() {
+        use super::super::write::tests::clean_up;
+        // 還沒排日期的整理書櫃：r 換到版型 1 的月曆，從今天開始選；往後一天、Enter → 排在 10/18，回到任務頁
+        let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
+        let (mut app, path) = tasks_app_with_file("tasks-move", text);
+        press(&mut app, KeyCode::Char('r'));
+        assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
+        assert_eq!(app.selected, date(2026, 10, 17));
+        press(&mut app, KeyCode::Char('l'));
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "- [ ] 整理書櫃 @2026-10-18\n- [ ] 交週報 @2026-10-16\n"
+        );
+        assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("整理書櫃")
+        );
+        // Esc 取消：也回到任務頁
+        press(&mut app, KeyCode::Char('r'));
+        press(&mut app, KeyCode::Esc);
+        assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn expanded_items_follow_their_lines_after_a_delete_above() {
+        use super::super::write::tests::clean_up;
+        // b（第 2 行）展開著；刪掉上面的 a 之後 b 變成第 1 行，還是展開著
+        let text = "- [ ] a\n- [ ] b\n  - [ ] c\n";
+        let (mut app, path) = tasks_app_with_file("tasks-remap", text);
+        app.expanded.insert(2);
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [1]);
+        assert_eq!(shape(&app), ["#", "-b", "  c"]);
+        clean_up(&path);
     }
 
     #[test]

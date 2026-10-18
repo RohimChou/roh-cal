@@ -108,6 +108,36 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     Ok((result, count))
 }
 
+/// 寫檔前後的行號對照（從 1 開始），畫面記著的行號（選到的那件、展開的子任務）跟著搬
+///
+/// 每次寫檔只改連續的一段（打勾、編輯、新增、刪除都是）：前面沒動的行號不變、後面的跟著加減；
+/// 改到的那一段：行數沒變（換掉一行）就照舊，變了（新增、刪除）就對不到（`None`）
+pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + use<> {
+    let old: Vec<&str> = before.lines().collect();
+    let new: Vec<&str> = after.lines().collect();
+    // 前面一樣的有幾行、後面一樣的有幾行（不跟前面那段重疊）
+    let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
+    let suffix = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take_while(|(a, b)| a == b)
+        .count()
+        .min(old.len().min(new.len()) - prefix);
+    let (old_len, new_len) = (old.len(), new.len());
+    move |line| {
+        if line <= prefix {
+            Some(line)
+        } else if line > old_len - suffix {
+            (line + new_len).checked_sub(old_len)
+        } else if old_len == new_len {
+            Some(line)
+        } else {
+            None
+        }
+    }
+}
+
 /// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
 fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     let index = item.line.checked_sub(1).ok_or(Changed)?;
@@ -368,6 +398,24 @@ mod tests {
         );
         // 在別處改過：不刪
         assert_eq!(delete("- [ ] 別的\n", &item(GROUPS, 0)), Err(Changed));
+    }
+
+    #[test]
+    fn line_map_follows_the_lines_that_moved() {
+        // 換掉一行：每一行都照舊
+        let map = line_map("a\nb\nc\n", "a\nB\nc\n");
+        assert_eq!([1, 2, 3].map(&map), [Some(1), Some(2), Some(3)]);
+        // 在第 2 行插一行：後面的往下一行
+        let map = line_map("a\nb\nc\n", "a\nnew\nb\nc\n");
+        assert_eq!([1, 2, 3].map(&map), [Some(1), Some(3), Some(4)]);
+        // 刪掉第 2、3 行：刪掉的對不到，後面的往上兩行
+        let map = line_map("a\nb\nc\nd\n", "a\nd\n");
+        assert_eq!([1, 2, 3, 4].map(&map), [Some(1), None, None, Some(2)]);
+        // 加在最後面、刪掉最後面
+        let map = line_map("a\nb\n", "a\nb\nc\n");
+        assert_eq!([1, 2].map(&map), [Some(1), Some(2)]);
+        let map = line_map("a\nb\n", "a\n");
+        assert_eq!([1, 2].map(&map), [Some(1), None]);
     }
 
     #[test]

@@ -249,6 +249,15 @@ impl App {
         }
     }
 
+    /// 鍵盤選到的那件事：右邊選到的、或任務頁選到的；鍵盤在月曆、side menu 是 `None`（打勾、編輯、刪除、改期都用這件）
+    pub fn chosen_item(&self) -> Option<&Item> {
+        match self.focus {
+            Focus::Agenda => self.chosen().map(|entry| entry.item),
+            Focus::Tasks => self.tasks_chosen(),
+            Focus::Calendar | Focus::Side => None,
+        }
+    }
+
     /// 這一次有沒有畫 side menu：terminal 夠寬、沒按 `s` 收起
     fn side_shown(&self) -> bool {
         ui::side_fits(self.screen) && !self.side_hidden
@@ -557,8 +566,12 @@ impl App {
     }
 
     /// 寫檔之後，右邊選檔案第 `line` 行那件事：跨月的事選選取那天那個月的那一行；
-    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆
+    /// 右邊沒有它（例：日期拿掉了、版型 3 沒有右邊）就回到月曆；任務頁就選那一列
     fn choose_line(&mut self, line: usize) {
+        if self.view == View::Tasks {
+            self.choose_task_line(line);
+            return;
+        }
         if self.view != View::Planner {
             self.focus = Focus::Calendar;
             return;
