@@ -5,7 +5,9 @@
 foreground = "#abb2bf"
 # Light gray: foreground and the background mixed 7:3. Fainter than normal text, for secondary text
 fg_dim = "#848a95"
-comment_grey = "#5c6370"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#6a6f7a"
 gutter_fg_grey = "#4b5263"
 special_grey = "#3b4048"
 red = "#e06c75"
@@ -42,7 +44,7 @@ checked = "purple"
 notice = "yellow"
 error = "red"
 grid = "special_grey"
-other_month = "comment_grey"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
 # Priorities (!!! / !! / !): red, orange, yellow

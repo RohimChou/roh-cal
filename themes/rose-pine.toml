@@ -5,7 +5,9 @@
 [palette]
 text = "#e0def4"
 subtle = "#908caa"
-muted = "#6e6a86"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#7d7b8c"
 highlight_high = "#524f67"
 overlay = "#26233a"
 love = "#eb6f92"
@@ -40,7 +42,7 @@ checked = "iris"
 notice = "gold"
 error = "love"
 grid = "overlay"
-other_month = "muted"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_foam"
 # Priorities (!!! / !! / !): love (red), rose, gold

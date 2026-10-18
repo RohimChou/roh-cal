@@ -4,9 +4,11 @@
 [palette]
 light1 = "#ebdbb2"
 light4 = "#a89984"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#8a826d"
 dark1 = "#3c3836"
 dark3 = "#665c54"
-dark4 = "#7c6f64"
 aqua = "#8ec07c"
 blue = "#83a598"
 green = "#b8bb26"
@@ -40,7 +42,7 @@ checked = "purple"
 notice = "yellow"
 error = "red"
 grid = "dark1"
-other_month = "dark4"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_blue"
 # Priorities (!!! / !! / !): red, orange, yellow

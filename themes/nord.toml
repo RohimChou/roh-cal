@@ -7,6 +7,9 @@ nord3 = "#4c566a"
 nord4 = "#d8dee9"
 # Light gray: nord4 and the background mixed 7:3. Fainter than normal text, for secondary text
 nord4_dim = "#a5abb6"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#838995"
 nord8 = "#88c0d0"
 nord9 = "#81a1c1"
 nord11 = "#bf616a"
@@ -40,7 +43,7 @@ checked = "nord15"
 notice = "nord13"
 error = "nord11"
 grid = "nord1"
-other_month = "nord3"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "nord8_dim"
 # Priorities (!!! / !! / !): red, orange, yellow

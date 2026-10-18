@@ -160,6 +160,21 @@ fn every_builtin_theme_reads() {
         Theme::builtin("terminal").map(|theme| theme.text),
         Some(Color::Reset)
     );
+    // Dimmed text (what does not work here): text and the background half and half, e.g. nord4 #d8dee9
+    // and nord0 #2e3440 → #838995; fainter than muted (secondary) text in every theme with RGB colors
+    assert_eq!(
+        Theme::builtin("nord").map(|theme| theme.other_month),
+        Some(Color::Rgb(0x83, 0x89, 0x95))
+    );
+    let brightness = |color: Color| match color {
+        Color::Rgb(r, g, b) => Some(u32::from(r) + u32::from(g) + u32::from(b)),
+        _ => None,
+    };
+    for theme in &themes {
+        if let (Some(dim), Some(muted)) = (brightness(theme.other_month), brightness(theme.muted)) {
+            assert!(dim < muted, "{theme:?}");
+        }
+    }
 }
 
 #[test]

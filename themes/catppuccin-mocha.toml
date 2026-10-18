@@ -9,7 +9,9 @@
 [palette]
 text = "#cdd6f4"
 subtext0 = "#a6adc8"
-overlay0 = "#6c7086"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#767a91"
 surface2 = "#585b70"
 surface0 = "#313244"
 lavender = "#b4befe"
@@ -44,9 +46,9 @@ focus = "mauve"
 checked = "mauve"
 notice = "yellow"
 error = "red"
-# Grid lines and other months: same as v1
+# Grid lines: same as v1
 grid = "surface0"
-other_month = "overlay0"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_sapphire"
 # Priorities (!!! / !! / !): red, orange, yellow

@@ -4,7 +4,9 @@
 [palette]
 fg = "#c0caf5"
 fg_dark = "#a9b1d6"
-comment = "#565f89"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#6d738e"
 terminal_black = "#414868"
 bg_highlight = "#292e42"
 blue = "#7aa2f7"
@@ -40,7 +42,7 @@ checked = "magenta"
 notice = "yellow"
 error = "red"
 grid = "bg_highlight"
-other_month = "comment"
+other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
 # Priorities (!!! / !! / !): red, orange, yellow

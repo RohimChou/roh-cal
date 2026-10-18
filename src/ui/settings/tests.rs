@@ -204,7 +204,7 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
             "│    notice               yellow          │",
             "│    error                red             │",
             "│    grid                 surface0        │",
-            "│    other_month          overlay0        │",
+            "│    other_month          faint           │",
             "│    range                dim_sapphire    │",
             "│    priority_high        red             │",
             "│    priority_medium      peach           │",
