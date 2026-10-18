@@ -34,8 +34,9 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `a` / `A` | Add an item in the same one-line editor, the selected day already filled in: in the agenda to the chosen item's calendar, on the calendar to the selected day / add a subtask under the chosen item |
 | `d` | In the agenda: delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
-| `1` / `3` | Layout 1 (calendar + agenda) / layout 3 (a big month grid, six weeks with each day's items in its cell) |
+| `1` / `3` / `4` | Layout 1 (calendar + agenda) / layout 3 (a big month grid, six weeks with each day's items in its cell) / the tasks page (the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file) |
+| `l` / `h` | On the tasks page: expand / collapse the chosen item's subtasks (`l` again goes to the first subtask, `h` again to the parent); click `▸` to do the same |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups); only when the terminal is at least 120 columns wide |
 | Mouse wheel / click | Move one week (in the agenda: one item, in the calendar list: one calendar) / select a day, an item or a calendar (click a selected calendar again to check / uncheck it, a chosen task again to check it off; hold `Shift` to select text in the terminal) |
-| `Esc` | Back to the calendar from the agenda or the calendar list; quit from the calendar |
+| `Esc` | Back to the calendar from the agenda or the calendar list, or from the tasks page to layout 1; quit from the calendar |
 | `q` / `Ctrl+C` | Quit |

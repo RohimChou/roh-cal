@@ -65,6 +65,12 @@ pub struct Texts {
     pub header_items: &'static str,
     /// side menu（日曆清單）的表頭
     pub header_side: &'static str,
+    /// 任務頁的表頭
+    pub header_tasks: &'static str,
+    /// 任務頁最下面一列的操作說明
+    pub hints_tasks: &'static str,
+    /// 任務頁最下面一列的操作說明：terminal 夠寬、有 side menu 的時候（多一個 `s`）
+    pub hints_tasks_side: &'static str,
     /// side menu：檔案開頭、還沒有標題的項目
     pub ungrouped: &'static str,
 }
@@ -77,6 +83,9 @@ const EN: Texts = Texts {
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
+    header_tasks: " Tasks",
+    hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  q quit",
+    hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  q quit",
     ungrouped: "Ungrouped",
 };
 
@@ -88,6 +97,9 @@ const ZH_TW: Texts = Texts {
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
+    header_tasks: " 任務",
+    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
+    hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  q 離開",
     ungrouped: "未分組",
 };
 
@@ -140,6 +152,14 @@ impl Texts {
             (Lang::ZhTw, Notice::Undone(title)) => format!(" 已復原：{title}"),
             (Lang::En, Notice::NothingToUndo) => " Nothing to undo".into(),
             (Lang::ZhTw, Notice::NothingToUndo) => " 沒有可以復原的".into(),
+        }
+    }
+
+    /// 任務頁最下面一列：選到的那一行在檔案的第幾行、原本的文字，例：` 第 6 行  - [ ] 實作退款 API @2026-10-14`
+    pub fn tasks_detail(&self, line: usize, text: &str) -> String {
+        match self.lang {
+            Lang::En => format!(" Line {line}  {text}"),
+            Lang::ZhTw => format!(" 第 {line} 行  {text}"),
         }
     }
 

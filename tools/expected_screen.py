@@ -7,6 +7,8 @@
 例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
 版型 3（環境變數 LAYOUT=3）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那週的星期一 YYYY-MM-DD] < 任務檔
 （沒給最上面那週 = 剛打開：選取那個月 1 號的前一週，選取的那週不在 6 週裡再捲）
+任務頁（環境變數 LAYOUT=4）：python3 tools/expected_screen.py zh|en 寬 高 今天以外沒用到的日期 < 任務檔；
+EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = 選到的那件在第幾行（沒給 = 第一件）
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
 HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
@@ -21,12 +23,18 @@ import unicodedata
 
 TEXTS = {
     "en": dict(hints=" hjkl move  Tab switch  [] month  t today  q quit",
+               hints_tasks=" jk move  hl fold  Space check  e edit  a add  Esc calendar  q quit",
+               hints_tasks_side=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  q quit",
+               tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}",
                hints_side=" hjkl move  Tab switch  [] month  t today  s calendars  q quit",
                side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
     "zh": dict(hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
+               hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
+               hints_tasks_side=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  q 離開",
+               tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}",
                hints_side=" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
                side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
@@ -117,17 +125,13 @@ def range_text(it):
 
 
 def read_groups(text):
-    """分組（side menu 的日曆），照第一次出現的順序；回傳 [(名稱（標題之前的是 None）, 有日期的有幾件)]"""
+    """分組（side menu 的日曆），照第一次出現的順序；回傳 [(名稱（標題之前的是 None）, 有日期的有幾件)]
+    （用 read_tree 讀：code block 裡的不算、不存在的日期不算有日期）"""
     groups = {}  # dict 會照放進去的順序
-    name = None
-    for line in text.splitlines():
-        heading = re.match(r"#+ (.*)", line)
-        if heading:
-            # `type:holiday` 不算名字
-            name = " ".join(w for w in heading.group(1).split() if w != "type:holiday")
-        elif re.match(r"\s*- ", line):
-            groups.setdefault(name, 0)
-            groups[name] += bool(re.search(r" @\d{4}-\d{2}-\d{2}", line))
+    for it in read_tree(text):
+        name = it["group"][0] if it["group"] else None
+        groups.setdefault(name, 0)
+        groups[name] += it["date"] is not None
     return list(groups.items())
 
 
@@ -362,6 +366,141 @@ def month_screen(lang, w, h, selected, top, items, groups):
     return [ljust(cut(line, w), w) for line in lines]
 
 
+def read_tree(text):
+    """任務頁用：讀整份檔案的每一件事（沒日期的也算），另外寫的簡單版 parser。
+    回傳 [dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]，照檔案的順序"""
+    items, stack, group, in_code = [], [], None, False
+    for n, raw in enumerate(text.splitlines(), start=1):
+        stripped = raw.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        heading = re.match(r"(#{1,6}) (.*)", raw)
+        if heading:
+            name = " ".join(w for w in heading.group(2).split() if w != "type:holiday")
+            group, stack = (name, len(heading.group(1))), []
+            continue
+        if not stripped.startswith("- "):
+            continue
+        indent = sum(4 if c == "\t" else 1 for c in raw[: len(raw) - len(stripped)])
+        rest = stripped[2:]
+        box = re.match(r"\[([ xX])\](?: |$)", rest)
+        task = box is not None
+        done = task and box.group(1) in "xX"
+        if task:
+            rest = rest[3:]
+        # 第一個合法的日期（或範圍）和緊接的時間拿掉，剩下的是標題；行尾的 ^id 也不算
+        words, date, end, time = rest.split(), None, None, None
+        out, i = [], 0
+        while i < len(words):
+            w = words[i]
+            m = re.fullmatch(r"@(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?", w)
+            if m and date is None:
+                try:
+                    first = datetime.date.fromisoformat(m.group(1))
+                    last = datetime.date.fromisoformat(m.group(2)) if m.group(2) else first
+                    ok = last >= first
+                except ValueError:
+                    ok = False
+                if ok:
+                    date, end = first, (last if last > first else None)
+                    if i + 1 < len(words) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", words[i + 1]):
+                        time = words[i + 1]
+                        i += 1
+                    i += 1
+                    continue
+            out.append(w)
+            i += 1
+        if out and re.fullmatch(r"\^[A-Za-z0-9-]+", out[-1]):
+            out.pop()
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        parent = stack[-1][1] if stack else None
+        items.append(dict(line=n, text=raw.strip(), indent=indent, depth=len(stack), parent=parent, task=task,
+                          done=done, title=" ".join(out), date=date, end=end, time=time, group=group))
+        stack.append((indent, len(items) - 1))
+    return items
+
+
+def tasks_screen(lang, w, h, text, groups):
+    """任務頁：side menu（夠寬才有）+ 任務框（表頭、樹狀的每一列、最下面選到的那一行原本的文字）"""
+    t = TEXTS[lang]
+    items = read_tree(text)
+    hidden_names = {groups[i][0] for i in HIDDEN}
+    expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
+    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
+    iw, ih = w - sw - 2, h - 3
+    body_h = ih - 4
+
+    def visible(k):
+        # 上面每一層都展開了才看得到
+        p = items[k]["parent"]
+        while p is not None:
+            if items[p]["line"] not in expanded:
+                return False
+            p = items[p]["parent"]
+        return True
+
+    rows, previous = [], object()
+    for k, it in enumerate(items):
+        name = it["group"][0] if it["group"] else None
+        if name in hidden_names or not visible(k):
+            continue
+        if it["group"] != previous:
+            rows.append(("heading", it["group"]))
+            previous = it["group"]
+        rows.append(("item", k))
+    item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
+    chosen_line = int(os.environ["CHOSEN_LINE"]) if "CHOSEN_LINE" in os.environ else None
+    cursor = next((r for r in item_rows if items[rows[r][1]]["line"] == chosen_line), item_rows[0] if item_rows else None)
+    # 捲動：從最上面開始，選到的那件離上下緣至少留 2 列；不捲過頭
+    top = 0
+    if cursor is not None:
+        margin = min(2, (body_h - 1) // 2)
+        if cursor >= top + body_h - margin:
+            top = cursor + margin + 1 - body_h
+        top = max(0, min(top, len(rows) - body_h))
+
+    def item_line(k):
+        it = items[k]
+        children = [c for c in items if c["parent"] == k]
+        marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
+        check = ("[x]" if it["done"] else "[ ]") if it["task"] else " ∙ "
+        left = " " + "  " * it["depth"] + marker + " " + check + " " + it["title"]
+        subtasks = [c for c in children if c["task"]]
+        if subtasks:
+            left += f"  {sum(c['done'] for c in subtasks)}/{len(subtasks)}"
+        right = ""
+        if it["date"]:
+            d = range_text((it["date"], None, None, None, it["end"]))
+            if it["date"].year != 2026:
+                d = f"{it['date'].year}/" + d
+            right = d + (" " + it["time"] if it["time"] else "") + " "
+        left = cut(left, iw - width(right) - 1)
+        return left + " " * (iw - width(left) - width(right)) + right
+
+    body = []
+    for row in rows[top:top + body_h]:
+        if row[0] == "heading":
+            name, level = row[1] if row[1] else (None, 1)
+            body.append(ljust(cut(" " + "  " * (level - 1) + (t["ungrouped"] if name is None else name), iw), iw))
+        else:
+            body.append(item_line(row[1]))
+    body += [" " * iw] * (body_h - len(body))
+    detail = ""
+    if cursor is not None:
+        it = items[rows[cursor][1]]
+        detail = t["detail"](it["line"], it["text"])
+    inner = [ljust(t["tasks"], iw), "─" * iw] + body + ["─" * iw, ljust(cut(detail, iw), iw)]
+    lines = ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in inner] + ["╰" + "─" * iw + "╯"]
+    if sw:
+        lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
+    lines.append(t["hints_tasks_side"] if w >= 120 else t["hints_tasks"])
+    return [ljust(cut(line, w), w) for line in lines]
+
+
 def month_top(selected, given):
     """最上面那週的星期一：有給就用；沒給 = 選取那個月 1 號那週的前一週。選取的那週不在這 6 週裡就捲到剛好看得到"""
     monday = lambda x: x - datetime.timedelta(days=x.weekday())
@@ -378,11 +517,14 @@ lang, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 selected = datetime.date.fromisoformat(sys.argv[4])
 text = sys.stdin.read()
 groups = read_groups(text)
-items = read_items(text, {groups[i][0] for i in HIDDEN})
-if os.environ.get("LAYOUT") == "3":
+if os.environ.get("LAYOUT") == "4":
+    out = tasks_screen(lang, w, h, text, groups)
+elif os.environ.get("LAYOUT") == "3":
+    items = read_items(text, {groups[i][0] for i in HIDDEN})
     top = month_top(selected, sys.argv[5] if len(sys.argv) > 5 else None)
     out = month_screen(lang, w, h, selected, top, items, groups)
 else:
+    items = read_items(text, {groups[i][0] for i in HIDDEN})
     if len(sys.argv) > 6:
         first = tuple(int(part) for part in sys.argv[5].split("-"))
         skip = int(sys.argv[6])

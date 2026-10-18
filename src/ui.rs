@@ -5,6 +5,7 @@ mod month;
 mod months;
 mod planner;
 mod side;
+mod tasks;
 
 use crate::app::{App, View};
 use jiff::civil::Date;
@@ -78,6 +79,8 @@ pub enum Click {
     Item(usize),
     /// side menu 上的一個日曆：`App::groups` 裡的位置
     Group(usize),
+    /// 任務頁的一列：`App::tasks_rows()` 裡的位置；`on_marker` = 點在 `▸` / `▾` 上（展開 / 收起）
+    TaskRow { row: usize, on_marker: bool },
 }
 
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期、事、日曆上回傳 `None`
@@ -89,6 +92,7 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     match app.view {
         View::Planner => planner::click_at(areas.calendar, areas.agenda, app, column, row),
         View::Month => month::click_at(areas.main, app, column, row),
+        View::Tasks => tasks::click_at(areas.main, app, column, row),
     }
 }
 
@@ -127,10 +131,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         );
     } else {
         // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）
-        let hint_text = if side_fits(frame.area()) {
-            texts.hints_side
-        } else {
-            texts.hints
+        let hint_text = match (app.view, side_fits(frame.area())) {
+            (View::Tasks, true) => texts.hints_tasks_side,
+            (View::Tasks, false) => texts.hints_tasks,
+            (_, true) => texts.hints_side,
+            (_, false) => texts.hints,
         };
         frame.render_widget(Line::styled(hint_text, Style::new().fg(theme.muted)), hints);
     }
@@ -141,6 +146,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     match app.view {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
+        View::Tasks => tasks::render(frame, main_area, app),
     }
     // 編輯框蓋在最上面
     if let Some(editor) = &app.editor {
@@ -178,7 +184,7 @@ mod tests {
         match click_at(app, column, row)? {
             Click::Day(date) => Some(date),
             Click::Item(index) => Some(app.agenda()[index].date),
-            Click::Group(_) => None,
+            Click::Group(_) | Click::TaskRow { .. } => None,
         }
     }
 
@@ -1729,6 +1735,179 @@ mod tests {
         let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
         assert!(underlined(20, 19));
         assert!(!underlined(9, 19));
+    }
+
+    /// 任務頁、今天 2026/10/17、任務檔是範例檔的 app
+    fn tasks_app(lang: Lang) -> App {
+        let mut app = App::new(
+            lang,
+            date(2026, 10, 17),
+            crate::tasks::parse(include_str!("../testdata/tasks.md")).items,
+        );
+        app.view = View::Tasks;
+        app.focus = Focus::Tasks;
+        app
+    }
+
+    #[test]
+    fn tasks_page_lists_the_file_as_a_tree() {
+        // 70 × 30：整份任務檔照日曆列出來，沒日期的也列；子任務收著（▸）、後面寫子任務做完幾件；
+        // 日期靠右；最下面一列是選到的那件（第一件）原本的文字
+        let mut app = tasks_app(Lang::ZhTw);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
+            [
+                "╭────────────────────────────────────────────────────────────────────╮",
+                "│ 任務                                                               │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│ 付款 API 改版                                                      │",
+                "│   [x] 跟 PM 對齊退款流程規格                                  9/28 │",
+                "│   [x] 拆 ticket、估人天                                 9/30 10:00 │",
+                "│ ▸ [ ] 實作退款 API  1/4                                      10/14 │",
+                "│   [ ] Code review：Amy 的 PR #482                      10/12 14:00 │",
+                "│   [ ] 跟 SRE 確認監控告警                              10/13 15:00 │",
+                "│   [ ] 回覆 Kevin 的 error code 問題                          10/14 │",
+                "│   [x] 修 staging 的 DB migration                              10/8 │",
+                "│    ∙  上線 freeze                                            10/23 │",
+                "│   [ ] 準備上線清冊 @2026-10-23                               10/22 │",
+                "│   [ ] 寫 runbook，參考 https://wiki.example.com/payments/runbook   │",
+                "│    ∙  Release v2.3                                     10/27 09:30 │",
+                "│ 例行                                                               │",
+                "│    ∙  週會                                             10/12 10:00 │",
+                "│    ∙  週會                                             10/19 10:00 │",
+                "│    ∙  週會                                             10/26 10:00 │",
+                "│   [ ] 交週報                                           10/16 17:30 │",
+                "│   [ ] 整理本週筆記                                           10/16 │",
+                "│   [ ] 更新 release note 草稿                                 10/16 │",
+                "│    ∙  團隊聚餐                                         10/16 18:30 │",
+                "│    ∙  跟 PM 開需求會議                                  10/8 14:00 │",
+                "│    ∙  部門月會                                          10/8 16:00 │",
+                "│    ∙  團隊 offsite                                           10/29 │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│ 第 4 行  - [x] 跟 PM 對齊退款流程規格 @2026-09-28                  │",
+                "╰────────────────────────────────────────────────────────────────────╯",
+                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
+            ]
+        );
+        // 展開幾件（▾）、選到第 61 行（三層深）：往下捲到它看得到、離下緣留 2 列
+        let mut app = tasks_app(Lang::En);
+        app.expanded.extend([6, 59, 60]);
+        app.tasks_line = Some(61);
+        assert_eq!(
+            text_rows(draw_app(&mut app, 70, 16).backend().buffer()),
+            [
+                "╭────────────────────────────────────────────────────────────────────╮",
+                "│ Tasks                                                              │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│    ∙  光復節                                                 10/25 │",
+                "│ 學習 Rust                                                          │",
+                "│   [x] 讀完 The Book 第 4 章 ownership                         10/3 │",
+                "│   [ ] 讀 Ratatui 的 Layout 文件                                    │",
+                "│ ▾ [ ] 寫 roh-cal 的任務檔 parser  0/1                        10/11 │",
+                "│   ▾ [ ] 每條規則都寫 test  0/1                                     │",
+                "│       [ ] 測 `@Rukis` 不算日期                                     │",
+                "│    ∙  RustConf 線上直播 @Rukis                         10/29 23:00 │",
+                "│    ∙  讀書會：Rust async                               10/14 19:30 │",
+                "│────────────────────────────────────────────────────────────────────│",
+                "│ Line 61  - [ ] 測 `@Rukis` 不算日期                                │",
+                "╰────────────────────────────────────────────────────────────────────╯",
+                " jk move  hl fold  Space check  e edit  a add  Esc calendar  q quit",
+            ]
+        );
+    }
+
+    #[test]
+    fn tasks_page_colors_and_clicks() {
+        // 不是今年的日期前面加年份；做完的灰、劃線；過去的行程灰、不劃線；日期用那天的顏色；選到的那列墊底色
+        let text = "# 工作\n- [ ] 交週報 @2026-10-16\n- [x] 修 bug @2026-10-15\n- 國慶日 @2026-10-10\n\
+                    - 跨年 @2027-01-02\n  - [ ] 買票\n";
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        app.view = View::Tasks;
+        app.focus = Focus::Tasks;
+        app.screen = Rect::new(0, 0, 40, 14);
+        let terminal = draw_app(&mut app, 40, 14);
+        let rows = text_rows(terminal.backend().buffer());
+        assert_eq!(rows[7], "│ ▸  ∙  跨年  0/1             2027/1/2 │");
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| {
+            let cell = &buffer[(x, y)];
+            (
+                cell.symbol(),
+                cell.fg,
+                cell.modifier.contains(Modifier::CROSSED_OUT),
+            )
+        };
+        // 標題：工作（label 色、粗體）
+        assert_eq!(buffer[(2, 3)].fg, theme.label);
+        assert!(buffer[(2, 3)].modifier.contains(Modifier::BOLD));
+        // 交週報（y 4）：沒做完 → 一般的字、日期（x 33～37）橘色；選到的那列整列墊底色
+        assert_eq!(cell(8, 4), ("交", theme.text, false));
+        assert_eq!(cell(34, 4), ("0", theme.has_item, false));
+        assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
+        assert_eq!(buffer[(1, 5)].bg, Color::Reset);
+        // 修 bug（y 5）：做完 → 灰、劃線；國慶日（y 6）：過去的行程 → 灰、不劃線
+        assert_eq!(cell(8, 5), ("修", theme.muted, true));
+        assert_eq!(cell(8, 6), ("國", theme.muted, false));
+        // ▸ 淡色
+        assert_eq!(cell(2, 7), ("▸", theme.muted, false));
+        // 點跨年（y 7）那列：選它；點 ▸（x 2）：展開
+        let click = |app: &mut App, column, row| {
+            use ratatui::crossterm::event::{
+                KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+            };
+            app.handle_mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            });
+        };
+        click(&mut app, 10, 7);
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("跨年")
+        );
+        assert!(app.expanded.is_empty());
+        click(&mut app, 2, 7);
+        assert!(app.expanded.contains(&5));
+        // 點標題那列：不理
+        click(&mut app, 5, 3);
+        assert_eq!(
+            app.tasks_chosen().map(|item| item.title.as_str()),
+            Some("跨年")
+        );
+    }
+
+    #[test]
+    fn tasks_page_with_the_side_menu() {
+        // 121 格寬：side menu 在左邊；沒勾的日曆（未分組、付款 API 改版）整組不列
+        let mut app = tasks_app(Lang::ZhTw);
+        app.groups[0].shown = false;
+        app.groups[1].shown = false;
+        assert_eq!(
+            text_rows(draw_app(&mut app, 121, 14).backend().buffer()),
+            [
+                "╭───────────────────────╮╭──────────────────────────────────────────────────────────────────────────────────────────────╮",
+                "│ 日曆                  ││ 任務                                                                                         │",
+                "│───────────────────────││──────────────────────────────────────────────────────────────────────────────────────────────│",
+                "│ ☐ 付款 API 改版    12 ││ 個人                                                                                         │",
+                "│ ☐ 例行             14 ││   [ ] 繳信用卡                                                                         10/25 │",
+                "│ ☑ 個人              5 ││    ∙  看牙醫                                                                     10/14 10:30 │",
+                "│ ☑ 搬家              4 ││   [ ] 整理書櫃                                                                               │",
+                "│ ☑ 國定假日          2 ││   [ ] 買生日禮物給媽媽                                                                  11/2 │",
+                "│ ☑ 學習 Rust         4 ││   [ ] 預約年度健檢                                                                     10/16 │",
+                "│ ☑ 2026 年底日本旅行 5 ││    ∙  媽媽生日                                                                         10/29 │",
+                "│                       ││──────────────────────────────────────────────────────────────────────────────────────────────│",
+                "│                       ││ 第 37 行  - [ ] 繳信用卡 @2026-10-25                                                         │",
+                "╰───────────────────────╯╰──────────────────────────────────────────────────────────────────────────────────────────────╯",
+                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  q 離開",
+            ]
+        );
     }
 
     #[test]

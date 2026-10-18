@@ -19,6 +19,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務（`Target`）；直接打那一行的文字（tui-input），`edit::check` 即時檢查，有問題就存不了（`App::editor`） | |
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
+| `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
+| `src/ui/tasks.rs` | 畫任務頁：表頭、樹狀的每一列（日期靠右）、最下面選到的那一行原本的文字；捲到哪記在 `App::tasks_top` | ✓ |
 | `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫；在別處改過就重新載入；結果放在 `App::notice`（最下面一列） | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週 | |
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
@@ -73,7 +75,7 @@ App::run 的迴圈
 ## 改了畫面之後
 1. 改 Rust，跑 `cargo test`：失敗的就是畫面變了的 test
 2. 預期畫面**不要從 Rust 畫出來的結果抄**：照新的規格改 `tools/expected_screen.py`（它是另外寫的一份，兩邊一樣才算對），再跑 `python3 tools/regen_ui_screens.py`，用 `git diff src/ui.rs` 看預期畫面變了哪裡、是不是你要的
-3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆；版型 3 的畫面加環境變數 `LAYOUT=3`（參數見 `expected_screen.py` 開頭）
+3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆；版型 3 的畫面加環境變數 `LAYOUT=3`、任務頁 `LAYOUT=4`（參數見 `expected_screen.py` 開頭）
 4. 顏色不在 Python 裡：用 test 量關鍵格子的顏色（例：`colors_by_role`）
 
 ## 寫法規矩

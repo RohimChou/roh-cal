@@ -55,6 +55,7 @@ impl App {
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item.clone()),
+            Focus::Tasks => self.tasks_chosen().cloned(),
             Focus::Calendar | Focus::Side => self
                 .items_on(self.selected)
                 .first()

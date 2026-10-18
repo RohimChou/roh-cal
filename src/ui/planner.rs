@@ -423,7 +423,7 @@ pub(super) fn in_multi_day(day: Date, app: &App) -> bool {
 }
 
 /// 右邊的日期：`10/5`；跨多天的寫範圍：`10/20~25`、跨月 `10/28~11/3`、跨年 `12/30~1/2`
-fn date_text(item: &Item) -> String {
+pub(super) fn date_text(item: &Item) -> String {
     let Some(first) = item.date else {
         return String::new();
     };

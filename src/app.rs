@@ -2,10 +2,12 @@
 
 mod editor;
 mod moving;
+mod tasks;
 mod write;
 
 pub use editor::{Editor, Target};
 pub use moving::Moving;
+pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
@@ -23,6 +25,7 @@ use ratatui::{
     },
     layout::{Position, Rect},
 };
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 /// 鍵盤在哪個框
@@ -34,6 +37,8 @@ pub enum Focus {
     Agenda,
     /// 最左邊的 side menu（夠寬才有）：`j` / `k` 選日曆、`Space` 勾選
     Side,
+    /// 任務頁（`4`）：`j` / `k` 一件一件選、`l` / `h` 展開 / 收起子任務
+    Tasks,
 }
 
 /// 用哪個版型（數字鍵切換）
@@ -43,6 +48,8 @@ pub enum View {
     Planner,
     /// 版型 3（`3`）：大月曆，一次 6 週，格子裡列那天的事
     Month,
+    /// 任務頁（`4`）：整份任務檔照日曆列出來，子任務排成樹，沒日期的也列
+    Tasks,
 }
 
 /// side menu 上的一個日曆（= 任務檔的一個分組）
@@ -135,6 +142,12 @@ pub struct App {
     pub editor: Option<Editor>,
     /// 按了 `d`、正在問要不要刪：要刪的那件和會刪掉幾件（含子任務）
     pub confirm_delete: Option<(Item, usize)>,
+    /// 任務頁選到的那件事在檔案的第幾行；`None` = 還沒選（選第一件）
+    pub tasks_line: Option<usize>,
+    /// 任務頁上展開了子任務的事（檔案的第幾行）
+    pub expanded: BTreeSet<usize>,
+    /// 任務頁捲到哪：畫面最上面是第幾列（`tasks_rows()` 裡的位置）
+    pub tasks_top: usize,
     /// `true` = 這一輪畫完就結束主迴圈
     should_quit: bool,
 }
@@ -164,6 +177,9 @@ impl App {
             moving: None,
             editor: None,
             confirm_delete: None,
+            tasks_line: None,
+            expanded: BTreeSet::new(),
+            tasks_top: 0,
             should_quit: false,
         }
     }
@@ -229,7 +245,7 @@ impl App {
     pub fn chosen(&self) -> Option<Entry<'_>> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
-            Focus::Calendar | Focus::Side => None,
+            Focus::Calendar | Focus::Side | Focus::Tasks => None,
         }
     }
 
@@ -238,11 +254,19 @@ impl App {
         ui::side_fits(self.screen) && !self.side_hidden
     }
 
-    /// 記下 terminal 的大小；terminal 變窄、side menu 不見了，鍵盤在上面的話回到月曆
+    /// 記下 terminal 的大小；terminal 變窄、side menu 不見了，鍵盤在上面的話回到主框
     fn resize(&mut self, screen: Rect) {
         self.screen = screen;
         if self.focus == Focus::Side && !self.side_shown() {
-            self.focus = Focus::Calendar;
+            self.focus = self.home_focus();
+        }
+    }
+
+    /// 這個版型的主框：月曆（版型 1、3）或任務頁；`Esc`、side menu 收起來時鍵盤回到這裡
+    fn home_focus(&self) -> Focus {
+        match self.view {
+            View::Planner | View::Month => Focus::Calendar,
+            View::Tasks => Focus::Tasks,
         }
     }
 
@@ -290,11 +314,13 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            KeyCode::Esc if self.focus != Focus::Calendar => self.focus = Focus::Calendar,
+            KeyCode::Esc if self.focus != self.home_focus() => self.focus = self.home_focus(),
+            // 任務頁：回到版型 1 的月曆；月曆：離開
+            KeyCode::Esc if self.view == View::Tasks => self.set_view(View::Planner),
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
-            // 回今天，並把今天那個月捲到最上面
-            KeyCode::Char('t') => {
+            // 回今天，並把今天那個月捲到最上面（任務頁沒有月曆，不理）
+            KeyCode::Char('t') if self.view != View::Tasks => {
                 self.selected = self.today;
                 self.scroll_to_month();
                 self.focus = Focus::Calendar;
@@ -303,20 +329,22 @@ impl App {
             KeyCode::Char('u') => self.undo(),
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('3') => self.set_view(View::Month),
-            // 上個月 / 下個月的 1 號，並把那個月捲到最上面
-            KeyCode::Char('[') => self.jump_month(-1),
-            KeyCode::Char(']') => self.jump_month(1),
-            // terminal 不夠寬時本來就沒有 side menu，按了不算；收起時鍵盤在上面的話回到月曆
+            KeyCode::Char('4') => self.set_view(View::Tasks),
+            // 上個月 / 下個月的 1 號，並把那個月捲到最上面（任務頁沒有月曆，不理）
+            KeyCode::Char('[') if self.view != View::Tasks => self.jump_month(-1),
+            KeyCode::Char(']') if self.view != View::Tasks => self.jump_month(1),
+            // terminal 不夠寬時本來就沒有 side menu，按了不算；收起時鍵盤在上面的話回到主框
             KeyCode::Char('s') if ui::side_fits(self.screen) => {
                 self.side_hidden = !self.side_hidden;
                 if self.focus == Focus::Side {
-                    self.focus = Focus::Calendar;
+                    self.focus = self.home_focus();
                 }
             }
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
                 Focus::Side => self.handle_side_key(key.code),
+                Focus::Tasks => self.handle_tasks_key(key.code),
             },
         }
     }
@@ -381,7 +409,7 @@ impl App {
 
     /// 滑鼠：滾輪上下（月曆移一週、右邊移一件事、side menu 移一個日曆）；左鍵點月曆上的日期 = 選那天、點右邊的事 = 選那件、
     /// 點 side menu 的日曆 = 選那個（再點一次已經選到的 = 勾選 / 取消勾選）
-    fn handle_mouse(&mut self, mouse: MouseEvent) {
+    pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent) {
         // 上一次的提示看過了：點擊、滾輪也算
         if !matches!(mouse.kind, MouseEventKind::Moved) {
             self.notice = None;
@@ -425,6 +453,7 @@ impl App {
                     }
                     Some(Click::Item(index)) => self.choose(index),
                     Some(Click::Group(index)) => self.click_group(index),
+                    Some(Click::TaskRow { row, on_marker }) => self.click_task(row, on_marker),
                     None => {}
                 }
             }
@@ -433,12 +462,13 @@ impl App {
         }
     }
 
-    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊就移一件事，在 side menu 就移一個日曆
+    /// 滾輪往下（`step` = 1）/ 往上（-1）：鍵盤在月曆就移一週，在右邊、任務頁就移一件事，在 side menu 就移一個日曆
     fn scroll(&mut self, step: i8) {
         match self.focus {
             Focus::Calendar => self.move_by(7 * i64::from(step)),
             Focus::Agenda => self.choose_next(isize::from(step)),
             Focus::Side => self.choose_group(isize::from(step)),
+            Focus::Tasks => self.choose_task(isize::from(step)),
         }
     }
 
@@ -446,8 +476,12 @@ impl App {
     fn set_view(&mut self, view: View) {
         self.view = view;
         self.scroll_to_month();
-        if view == View::Month && self.focus == Focus::Agenda {
-            self.focus = Focus::Calendar;
+        // side menu 照舊；其他的換到這個版型的主框（版型 3 沒有右邊的事項框、任務頁沒有月曆）
+        if self.focus != Focus::Side {
+            self.focus = match (view, self.focus) {
+                (View::Planner, Focus::Agenda) => Focus::Agenda,
+                _ => self.home_focus(),
+            };
         }
     }
 
@@ -468,8 +502,8 @@ impl App {
                     self.focus = Focus::Side;
                 }
             }
-            Focus::Agenda if self.side_shown() => self.focus = Focus::Side,
-            Focus::Agenda | Focus::Side => self.focus = Focus::Calendar,
+            Focus::Agenda | Focus::Tasks if self.side_shown() => self.focus = Focus::Side,
+            Focus::Agenda | Focus::Side | Focus::Tasks => self.focus = self.home_focus(),
         }
     }
 
