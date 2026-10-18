@@ -193,7 +193,7 @@ fn section_blocks(
         .map(|section| {
             let gray = here.is_some_and(|focus| !section.works_in(focus));
             let (title_style, key_style, action_style) = if gray {
-                let dim = Style::new().fg(theme.other_month);
+                let dim = theme.dimmed();
                 (dim, dim, dim)
             } else {
                 let bold = Modifier::BOLD;

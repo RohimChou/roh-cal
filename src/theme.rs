@@ -4,7 +4,7 @@
 //! A theme is one TOML file (the built-in ones are in the repo's `themes/`, compiled into the binary)
 
 use crate::tasks::Priority;
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
 #[cfg(test)]
 use serde::Serialize;
@@ -300,6 +300,16 @@ impl Theme {
             _ => return None,
         };
         Some(color)
+    }
+
+    /// The style for what does not work here (settings rows, help sections): `other_month`'s color;
+    /// `reset` there asks the terminal for its faint text instead (the text color dimmed; the terminal
+    /// theme's 16 colors cannot mix the text with the background)
+    pub fn dimmed(&self) -> Style {
+        match self.other_month {
+            Color::Reset => Style::new().add_modifier(Modifier::DIM),
+            color => Style::new().fg(color),
+        }
     }
 
     /// The color of a priority (`!!!` → `priority_high`…)

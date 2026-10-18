@@ -20,7 +20,9 @@ checked = "magenta"
 notice = "yellow"
 error = "red"
 grid = "dark-gray"
-other_month = "dark-gray"
+# Dimmed text (what does not work here): the 16 colors cannot mix the text with the background, so "reset"
+# here = the terminal's own faint text (the text color dimmed)
+other_month = "reset"
 # Multi-day bars in the month grid: dark-gray is taken by the selected row
 range = "blue"
 # Priorities (!!! / !! / !): the 16 colors have no orange, so the middle one is bright red

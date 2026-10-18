@@ -296,6 +296,16 @@ fn full_page_grays_out_the_sections_that_do_not_work_here() {
         color_of(Focus::Tasks, "  事項、跳窗、任務頁"),
         theme.help_section
     );
+    // The terminal theme (16 colors) grays out with the terminal's faint text instead
+    let app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("terminal");
+    let (lines, _) = layout(&app, Rect::new(0, 0, 100, 38), true);
+    let style = lines
+        .iter()
+        .flat_map(|line| line.spans.iter())
+        .find(|span| span.content.trim_end() == "  任務頁")
+        .map(|span| span.style)
+        .expect("tasks page section");
+    assert!(style.add_modifier.contains(Modifier::DIM));
     // The top border says what gray means
     let (_, rows, _) = draw(
         Lang::ZhTw,

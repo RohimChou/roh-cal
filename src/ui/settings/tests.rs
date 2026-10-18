@@ -185,6 +185,32 @@ fn a_reset_color_gets_no_swatch() {
 }
 
 #[test]
+fn the_terminal_theme_dims_with_the_terminals_faint_text() {
+    // Its 16 colors cannot mix the text with the background: a row that does nothing here (layout 1:
+    // grid_lines) is the terminal's default text color, faint; a row that works is not faint
+    let app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("terminal");
+    let (_, area, _, buffer) = draw_app(app, SettingsPage::default(), 44);
+    let at = |dx, dy| cell(&buffer, area, dx, dy);
+    for dx in [NAME, VALUE] {
+        let dimmed = at(dx, y_of(Row::GridLines));
+        assert_eq!(dimmed.fg, Color::Reset);
+        assert!(dimmed.modifier.contains(Modifier::DIM));
+        assert!(
+            !at(dx, y_of(Row::RelativeWeeks))
+                .modifier
+                .contains(Modifier::DIM)
+        );
+    }
+    // A theme with real colors only uses the color (mocha: not faint)
+    let (_, area, _, buffer) = draw(SettingsPage::default(), 44);
+    assert!(
+        !cell(&buffer, area, NAME, y_of(Row::GridLines))
+            .modifier
+            .contains(Modifier::DIM)
+    );
+}
+
+#[test]
 fn a_short_screen_scrolls_to_the_chosen_row() {
     // 70 × 16: the box is at most 16 tall and the list holds 11 lines (16 − border 2 − the 3 lines
     // below the list), so it scrolls; choosing the last row (help_key) → `[colors]` shows its last 10

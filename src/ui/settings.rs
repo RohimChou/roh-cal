@@ -253,12 +253,11 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
             Entry::Row(index) => {
                 let row = rows[index];
                 let applies = row.applies_to(app.view);
-                let (name_color, value_color) = if applies {
-                    (theme.help_key, theme.text)
+                let (name_style, mut value_style) = if applies {
+                    (Style::new().fg(theme.help_key), Style::new().fg(theme.text))
                 } else {
-                    (theme.other_month, theme.other_month)
+                    (theme.dimmed(), theme.dimmed())
                 };
-                let mut value_style = Style::new().fg(value_color);
                 if index == page.row {
                     value_style = value_style.add_modifier(Modifier::BOLD);
                 }
@@ -269,7 +268,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
                 };
                 let mut spans = vec![Span::styled(
                     format!("{indent}{:<width$}", row.name()),
-                    Style::new().fg(name_color),
+                    name_style,
                 )];
                 // Colors: draw the swatch first (background = the role's current color; `Reset` =
                 // the terminal's default color, which looks empty)
