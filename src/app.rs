@@ -3,12 +3,14 @@
 mod editor;
 mod help;
 mod moving;
+mod settings;
 mod tasks;
 mod write;
 
 pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
+pub use settings::{ROWS, Row, SettingsPage};
 pub use tasks::TaskRow;
 pub use write::Notice;
 
@@ -151,6 +153,8 @@ pub struct App {
     pub confirm_delete: Option<(Item, usize)>,
     /// 說明頁（按了 `?`）；`None` = 沒開
     pub help: Option<Help>,
+    /// 設定頁（按了 `,`）；`None` = 沒開
+    pub settings_page: Option<SettingsPage>,
     /// 任務頁選到的那件事在檔案的第幾行；`None` = 還沒選（選第一件）
     pub tasks_line: Option<usize>,
     /// 任務頁上展開了子任務的事（檔案的第幾行）
@@ -189,6 +193,7 @@ impl App {
             editor: None,
             confirm_delete: None,
             help: None,
+            settings_page: None,
             tasks_line: None,
             expanded: BTreeSet::new(),
             tasks_top: 0,
@@ -309,7 +314,7 @@ impl App {
         Ok(())
     }
 
-    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` / `4` 換版型、`s` 收起 / 打開 side menu、`?` 說明頁、
+    /// 按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`1` / `3` / `4` 換版型、`s` 收起 / 打開 side menu、`?` 說明頁、`,` 設定頁、
     /// `q` / `Ctrl+C` 離開、`Esc` 回月曆（已經在月曆就離開）；其他鍵看鍵盤在哪個框
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
@@ -317,6 +322,11 @@ impl App {
         // 說明頁開著：只收捲動、換版、關掉
         if self.help.is_some() {
             self.handle_help_key(key);
+            return;
+        }
+        // 設定頁開著：只收選列、改值、還原、關掉
+        if self.settings_page.is_some() {
+            self.handle_settings_key(key);
             return;
         }
         // 正在問要不要刪：`y` 刪，其他鍵只是取消
@@ -354,6 +364,7 @@ impl App {
             // 復原上一次寫檔（打勾、編輯…）
             KeyCode::Char('u') => self.undo(),
             KeyCode::Char('?') => self.help = Some(Help::default()),
+            KeyCode::Char(',') => self.open_settings(),
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('3') => self.set_view(View::Month),
             KeyCode::Char('4') => self.set_view(View::Tasks),
@@ -444,6 +455,11 @@ impl App {
         // 說明頁開著：滾輪捲說明頁、點框外關掉
         if self.help.is_some() {
             self.handle_help_mouse(mouse);
+            return;
+        }
+        // 設定頁開著：滾輪選列、點列、點框外關掉
+        if self.settings_page.is_some() {
+            self.handle_settings_mouse(mouse);
             return;
         }
         // 編輯框開著：點框外 = 取消（Esc），其他不理

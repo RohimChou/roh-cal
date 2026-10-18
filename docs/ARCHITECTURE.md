@@ -22,6 +22,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/editor.rs` | 畫編輯框：最下面、整個 terminal 寬，下面那列是即時檢查的結果 | ✓ |
 | `src/app/help.rs` | 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、點框外關掉（`App::help`） | |
 | `src/ui/help.rs` | 畫說明頁：畫面正中間、左右兩欄（太窄排成一欄、太矮可以捲）；內容在 `texts.rs` 的 `help_short` / `help_full` | ✓ |
+| `src/app/settings.rs` | 設定頁（`,`）：設定檔的開關一列一列（`Row`、`ROWS`，名字 = 設定檔的名字）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，畫面馬上跟著變 | |
+| `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，最下面一行說明選到的那一列 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（日期靠右，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
@@ -114,6 +116,6 @@ App::run 的迴圈
 - 畫面 test 寫死很多座標：版面一動（例：拿掉一列）就要改一大片；可以改成先找到某個字在哪，再檢查它的顏色
 - `App::agenda()` 每次呼叫都重新排序：事很多（幾千件）時可能要先排好存起來
 - `App::tasks_rows()` 每按一個鍵、每畫一次都重算，找子任務是兩層迴圈：事很多時可以先算好每件的子任務
-- `App::handle_key` 前面一串「說明頁開著 / 正在問要不要刪 / 編輯框開著 / 改期中」的判斷：再多一種（例：設定頁）就該改成一個「現在在哪個模式」的 enum，一個模式一個 function
+- `App::handle_key`、`handle_mouse` 前面一串「說明頁開著 / 設定頁開著 / 正在問要不要刪 / 編輯框開著 / 改期中」的判斷：已經 5 種，該改成一個「現在在哪個模式」的 enum（同時只會有一種），一個模式一個 function
 - 任務頁選到的那件、展開的子任務是用行號記的：roh-cal 自己寫檔時會用 `edit::line_map` 跟著搬，但在別處改過、重新載入時沒辦法對，可能選到別件
 - `tools/expected_screen.py` 有 4 種畫面（版型 1、3、任務頁、side menu）擠在一個檔：可以一個版型一個檔，共用的（字寬、讀任務檔）放一起

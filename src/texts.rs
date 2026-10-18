@@ -1,6 +1,6 @@
 //! 畫面上的字：英文、繁體中文各一份；換語言 = 換一組 `Texts`
 
-use crate::app::Notice;
+use crate::app::{Notice, Row};
 use crate::edit::Problem;
 use crate::tasks::{Item, Kind, WarningKind};
 use jiff::civil::Date;
@@ -77,6 +77,12 @@ pub struct Texts {
     pub help_short: HelpPage,
     /// 說明頁的完整版（`Tab`）：所有的鍵，包括編輯框、改期、滑鼠
     pub help_full: HelpPage,
+    /// 設定頁上框線的 `roh-cal ∙ 設定` 的 `設定`
+    pub settings_title: &'static str,
+    /// 設定頁下框線的操作說明
+    pub settings_hint: &'static str,
+    /// 設定頁按了 `R`：下框線換成這句，問要不要全部還原
+    pub settings_reset_all: &'static str,
 }
 
 /// 說明頁的一版：上下框線的字、左右兩欄的段落
@@ -150,7 +156,7 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "System",
-                keys: &[("?", "help"), ("q", "quit")],
+                keys: &[("?", "help"), (",", "settings"), ("q", "quit")],
             },
         ],
     },
@@ -189,7 +195,7 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "System",
-                keys: &[("?", "help"), ("q / Ctrl+C", "quit")],
+                keys: &[("?", "help"), (",", "settings"), ("q / Ctrl+C", "quit")],
             },
         ],
         right: &[
@@ -222,8 +228,19 @@ const EN: Texts = Texts {
                 title: "Calendar list",
                 keys: &[("j / k", "choose"), ("Space / Enter", "check / uncheck")],
             },
+            HelpSection {
+                title: "Settings",
+                keys: &[
+                    ("j / k", "choose a row"),
+                    ("h / l", "change it"),
+                    ("r / R", "reset it / all"),
+                ],
+            },
         ],
     },
+    settings_title: "settings",
+    settings_hint: "jk choose  hl change  r reset  R reset all  Esc close",
+    settings_reset_all: "Reset everything? y resets, any other key cancels",
 };
 
 const ZH_TW: Texts = Texts {
@@ -275,7 +292,7 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "系統",
-                keys: &[("?", "說明"), ("q", "離開")],
+                keys: &[("?", "說明"), (",", "設定"), ("q", "離開")],
             },
         ],
     },
@@ -314,7 +331,7 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "系統",
-                keys: &[("?", "說明"), ("q / Ctrl+C", "離開")],
+                keys: &[("?", "說明"), (",", "設定"), ("q / Ctrl+C", "離開")],
             },
         ],
         right: &[
@@ -347,8 +364,19 @@ const ZH_TW: Texts = Texts {
                 title: "日曆清單",
                 keys: &[("j / k", "選日曆"), ("Space / Enter", "勾選 / 取消")],
             },
+            HelpSection {
+                title: "設定頁",
+                keys: &[
+                    ("j / k", "選一列"),
+                    ("h / l", "改值"),
+                    ("r / R", "還原一列 / 全部"),
+                ],
+            },
         ],
     },
+    settings_title: "設定",
+    settings_hint: "jk 選  hl 改  r 還原  R 全部還原  Esc 關閉",
+    settings_reset_all: "全部還原成預設？y 還原，其他鍵取消",
 };
 
 /// 英文的月份縮寫，`[0]` 是一月
@@ -547,6 +575,22 @@ impl Texts {
                 format!(" Reschedule \"{title}\": move to the new day  Enter done  Esc cancel")
             }
             Lang::ZhTw => format!(" 改期「{title}」：移到新的日期  Enter 確定  Esc 取消"),
+        }
+    }
+
+    /// 設定頁最下面：選到的那一列在做什麼
+    pub fn setting_description(&self, row: Row) -> &'static str {
+        match (self.lang, row) {
+            (Lang::En, Row::RelativeWeeks) => {
+                "Week column: the others count from the selected week"
+            }
+            (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：選取那週寫週數，其他週寫差幾週",
+            (Lang::En, Row::GridLines) => "Month grid: faint lines between the cells",
+            (Lang::ZhTw, Row::GridLines) => "大月曆：格子之間畫淡淡的格線",
+            (Lang::En, Row::ItemIcons) => "Month grid: a dot before each item",
+            (Lang::ZhTw, Row::ItemIcons) => "大月曆：每件事前面加一個點",
+            (Lang::En, Row::CenterCursor) => "Month grid: the selected week stays in the middle",
+            (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
         }
     }
 

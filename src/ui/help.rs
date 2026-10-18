@@ -331,8 +331,8 @@ mod tests {
                 "│                                               │",
                 "│  畫面                        系統             │",
                 "│    1       月曆 + 事項         ?       說明   │",
-                "│    3       大月曆              q       離開   │",
-                "│    4       任務頁                             │",
+                "│    3       大月曆              ,       設定   │",
+                "│    4       任務頁              q       離開   │",
                 "│    s       日曆清單                           │",
                 "│                                               │",
                 "╰ Tab 全部按鍵  ?/q/Esc 關閉 ───────────────────╯",
@@ -352,7 +352,7 @@ mod tests {
     fn a_narrow_screen_stacks_the_columns() {
         // 44 格放不下兩欄（左欄 28 + 右欄 16 + 框線 2 = 46）：右欄接在左欄下面，中間空一行
         let (area, rows, _) = draw(Lang::ZhTw, 44, 30, Help::default());
-        assert_eq!(area, Rect::new(6, 2, 32, 27));
+        assert_eq!(area, Rect::new(6, 1, 32, 28));
         assert_eq!(
             rows,
             [
@@ -380,6 +380,7 @@ mod tests {
                 "│                              │",
                 "│  系統                        │",
                 "│    ?       說明              │",
+                "│    ,       設定              │",
                 "│    q       離開              │",
                 "│                              │",
                 "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──╯",
@@ -389,7 +390,7 @@ mod tests {
 
     #[test]
     fn a_short_screen_scrolls_with_a_bar_on_the_right_border() {
-        // 44 × 20：一欄 23 行，框最高 20、裡面放得下 16 行 → 能捲 7 行；捲軸畫在右框線上
+        // 44 × 20：一欄 24 行，框最高 20、裡面放得下 16 行 → 能捲 8 行；捲軸畫在右框線上
         let (area, rows, _) = draw(Lang::ZhTw, 44, 20, Help::default());
         assert_eq!(area, Rect::new(6, 0, 32, 20));
         let bar = |rows: &[String]| -> Vec<usize> {
@@ -422,14 +423,14 @@ mod tests {
             let (area, rows, _) = draw(
                 lang,
                 100,
-                30,
+                34,
                 Help {
                     full: true,
                     scroll: 0,
                 },
             );
-            // 23 行 + padding 2 + 框線 2，放得下不用捲
-            assert_eq!(area.height, 27, "{lang:?}");
+            // 右欄 28 行 + padding 2 + 框線 2，放得下不用捲
+            assert_eq!(area.height, 32, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {
                 assert!(text.contains(section.title), "{}", section.title);

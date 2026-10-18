@@ -5,6 +5,7 @@ mod help;
 mod month;
 mod months;
 mod planner;
+mod settings;
 mod side;
 mod tasks;
 
@@ -34,6 +35,16 @@ pub fn help_area(app: &App, full: bool) -> Rect {
 /// 說明頁最多能往下捲幾行（照 terminal 現在的大小算）
 pub fn help_max_scroll(app: &App, full: bool) -> u16 {
     help::max_scroll(app, app.screen, full)
+}
+
+/// 設定頁的框在畫面上的位置（滑鼠點框外 = 關掉用）
+pub fn settings_area(app: &App) -> Rect {
+    settings::area(app, app.screen)
+}
+
+/// 滑鼠點在 (`column`, `row`) 點到設定頁的哪一列（`app::ROWS` 的位置）
+pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
+    settings::row_at(app, app.screen, column, row)
 }
 
 /// 跳窗（`area`）左邊那格如果是中文字（佔 2 格），它的後半格會蓋到跳窗的左框線（terminal 只收到中文字、收不到框線）：
@@ -175,12 +186,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         View::Month => month::render(frame, main_area, app),
         View::Tasks => tasks::render(frame, main_area, app),
     }
-    // 編輯框、說明頁蓋在最上面
+    // 編輯框、說明頁、設定頁蓋在最上面
     if let Some(editor) = &app.editor {
         editor::render(frame, editor, app);
     }
     if let Some(help) = app.help {
         help::render(frame, app, help);
+    }
+    if let Some(page) = app.settings_page {
+        settings::render(frame, app, page);
     }
 }
 
