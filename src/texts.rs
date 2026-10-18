@@ -199,7 +199,8 @@ const EN: Texts = Texts {
                 title: "Mouse",
                 keys: &[
                     ("wheel", "a week / an item"),
-                    ("click", "select; again: open / check"),
+                    ("click", "select; again: check"),
+                    ("double-click", "open a day"),
                     ("click outside", "close the box"),
                 ],
             },
@@ -343,7 +344,8 @@ const ZH_TW: Texts = Texts {
                 title: "滑鼠",
                 keys: &[
                     ("wheel", "移一週 / 一件"),
-                    ("click", "選；再點一次：打開 / 打勾"),
+                    ("click", "選；再點一次：打勾"),
+                    ("double-click", "打開那天的事"),
                     ("click outside", "關掉跳窗"),
                 ],
             },
