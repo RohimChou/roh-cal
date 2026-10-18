@@ -110,15 +110,15 @@ pub struct HelpSection {
 /// 英文的字
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl move  Tab switch  [] month  t today  ? help  q quit",
-    hints_side: " hjkl move  Tab switch  [] month  t today  s calendars  ? help  q quit",
+    hints: " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+    hints_side: " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
     header_tasks: " Tasks",
-    hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  q quit",
-    hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  q quit",
+    hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  , settings  q quit",
+    hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
     ungrouped: "Ungrouped",
     help_short: HelpPage {
         title: "keys",
@@ -247,15 +247,15 @@ const EN: Texts = Texts {
 /// 繁體中文的字
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  q 離開",
-    hints_side: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  q 離開",
+    hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+    hints_side: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
     header_tasks: " 任務",
-    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  q 離開",
-    hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  q 離開",
+    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  , 設定  q 離開",
+    hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
     ungrouped: "未分組",
     help_short: HelpPage {
         title: "按鍵",
