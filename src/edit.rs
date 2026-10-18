@@ -63,12 +63,17 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
             find_line(&lines, item)?;
             // 同一組的最後一件（檔案現在的內容重新 parse，跟畫面認的一樣）
             let items = tasks::parse(text).items;
-            let last = items
+            let mut last = items
                 .iter()
                 .skip_while(|other| other.line != item.line)
                 .take_while(|other| other.group == item.group)
                 .last()
                 .ok_or(Changed)?;
+            // 最後一件是子任務：往上找到它最外層的那件，從那件算整塊（子任務、底下的備註都在裡面），
+            // 新的才不會插在備註前面、把備註搶過去
+            while let Some(parent) = last.parent {
+                last = &items[parent];
+            }
             // 跟那一組最外層的事一樣，不縮排
             (block_end(&lines, last.line - 1), String::new())
         }
@@ -344,6 +349,18 @@ mod tests {
         .expect("add");
         assert!(after.ends_with("- 爬山 @2026-10-18\n- 聚餐 @2026-10-17\n"));
         assert_eq!(line, 9);
+    }
+
+    #[test]
+    fn add_keeps_the_last_items_notes_with_it() {
+        // 寫報告的備註（跟子任務一樣縮排）在最後一個子任務後面：新的一件放在備註後面，備註還是寫報告的
+        let text = "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  備註：下週交\n# 生活\n";
+        let (after, line) = add(text, "- [ ] 新的", &Place::InGroupOf(item(text, 0))).expect("add");
+        assert_eq!(
+            after,
+            "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  備註：下週交\n- [ ] 新的\n# 生活\n"
+        );
+        assert_eq!(line, 5);
     }
 
     #[test]
