@@ -779,7 +779,7 @@ mod tests {
                 "│ ☑ 未分組                       2 ││  10月 40 │           1  2  3  4 ││ 10/10 Farmers market                           │",
                 "│ ☑ Personal                     5 ││       41 │  5  6  7  8  9 10 11 ││ 10/15 Fix the login bug                        ┃",
                 "│ ☑ Work                         1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/16 17:30 Send the weekly update             ┃",
-                "│ ☑ Year-end odds and ends and p 2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/17 Dinner with friends                      ┃",
+                "│   ☑ Year-end odds and ends and 2 ││       43 │ 19 20 21 22 23 24 25 ││ 10/17 Dinner with friends                      ┃",
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││ 10/17 08:00 Coffee chat                        ┃",
                 "│                                  ││          │                      ││ 10/18 07:00 Go hiking                          │",
                 "│                                  ││──────────┼──────────────────────││──────────────────────────────────── 還有 1 件 ─│",
@@ -839,7 +839,7 @@ mod tests {
                 "│ ☑ Ungrouped                    2 ││   Oct 40 │           1  2  3  4 ││ 10/15 Fix the login bug                        │",
                 "│ ☐ Personal                     5 ││       41 │  5  6  7  8  9 10 11 ││ 10/16 17:30 Send the weekly update             │",
                 "│ ☑ Work                         1 ││       42 │ 12 13 14 15 16[17]18 ││ 10/20 A really long title that just keeps going│",
-                "│ ☑ Year-end odds and ends and p 2 ││       43 │ 19 20 21 22 23 24 25 ││                                                │",
+                "│   ☑ Year-end odds and ends and 2 ││       43 │ 19 20 21 22 23 24 25 ││                                                │",
                 "│                                  ││       44 │ 26 27 28 29 30 31    ││                                                │",
                 "│                                  ││──────────┼──────────────────────││────────────────────────────────────────────────│",
                 "│                                  ││   Nov 44 │                    1 ││  11/3 09:30 Release v2.3                       │",
@@ -860,6 +860,32 @@ mod tests {
         assert_eq!(cell(50, 4), ("5", theme.text));
         assert_eq!(cell(65, 4), ("0", theme.weekend));
         assert_eq!(cell(62, 5), ("6", theme.has_item));
+    }
+
+    #[test]
+    fn a_calendar_inside_an_unchecked_one_is_gray() {
+        // Work unchecked: SFAP inside it keeps its ☑ but is gray like Work (it is hidden too); Personal is not
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+        app.set_items(crate::tasks::parse(
+            "# Work\n## SFAP\n- a @2026-10-10\n# Personal\n- b @2026-10-11\n",
+        ));
+        app.groups[0].shown = false;
+        let terminal = draw_app(&mut app, 121, 14);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(
+            area_rows(buffer, Rect::new(0, 3, 22, 3)),
+            [
+                "│ ☐ Work           0 │",
+                "│   ☑ SFAP         1 │",
+                "│ ☑ Personal       1 │",
+            ]
+        );
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(4, 4), ("☑", theme.muted));
+        assert_eq!(cell(6, 4), ("S", theme.muted));
+        assert_eq!(cell(2, 5), ("☑", theme.checked));
+        assert_eq!(cell(4, 5), ("P", theme.text));
     }
 
     #[test]
@@ -2529,7 +2555,7 @@ mod tests {
                 "│ ☐ Payments API v2 12 ││ Personal                                                                                      │",
                 "│ ☐ Recurring       14 ││   [ ] Pay the credit card bill                                                    10/25       │",
                 "│ ☑ Personal         5 ││    ∙  Dentist appointment                                                         10/14 10:30 │",
-                "│ ☑ Moving           4 ││   [ ] Organize the bookshelf                                                                  │",
+                "│   ☑ Moving         4 ││   [ ] Organize the bookshelf                                                                  │",
                 "│ ☑ US holidays      2 ││   [ ] Buy Mom's birthday gift                                                      11/2       │",
                 "│ ☑ Learning Rust 🦀 4 ││   [ ] Book the annual physical                                                    10/16       │",
                 "│ ☑ Tokyo trip       5 ││    ∙  Mom's birthday 🎂                                                           10/29       │",

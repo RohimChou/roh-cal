@@ -109,13 +109,17 @@ struct When {
 /// A group heading, e.g. `# Payments API v2`, `# US holidays type:holiday`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
-    /// How many `#`: the tasks page indents the heading by this. Groups are not nested yet;
-    /// when nested groups come later, existing task files won't need to change
+    /// How many `#`: fewer `#` = a level up (`#` Work → `##` SFAP is a calendar inside Work); the tasks
+    /// page indents the heading by this
     pub level: usize,
     /// The heading text (without `type:holiday`)
     pub name: String,
     /// Holiday calendar: the heading has `type:holiday`, so the days of the items under it are holidays
     pub holiday: bool,
+    /// The names of the calendars it is inside, outermost first: the nearest heading above with fewer `#`,
+    /// then that one's, and so on (empty for a top-level calendar). A calendar is its whole path
+    /// (`parents` + `name`): `Work > SFAP` and `Personal > SFAP` are two calendars
+    pub parents: Vec<String>,
 }
 
 /// A problem found while parsing that does not stop the file from being read
@@ -160,6 +164,8 @@ fn front_matter_end(text: &str) -> Option<usize> {
 pub fn parse(text: &str) -> Parsed {
     let mut parsed = Parsed::default();
     let mut group = None;
+    // (level, name) of the headings the current one is inside, outermost first, and the current one
+    let mut outline: Vec<(usize, String)> = Vec::new();
     // The number of the heading we are under (0 before the first heading)
     let mut section = 0;
     // (indent width, index in items) of the current chain of items, used to find the parent
@@ -187,7 +193,11 @@ pub fn parse(text: &str) -> Parsed {
         }
 
         // A heading: switch group; in the new group, items start again from the outermost level
-        if let Some(heading) = parse_heading(raw) {
+        if let Some(mut heading) = parse_heading(raw) {
+            // Its parents: the headings above with fewer `#`
+            outline.retain(|&(level, _)| level < heading.level);
+            heading.parents = outline.iter().map(|(_, name)| name.clone()).collect();
+            outline.push((heading.level, heading.name.clone()));
             parsed.headings.push(HeadingLine {
                 line,
                 text: raw.to_string(),
@@ -251,6 +261,7 @@ fn parse_heading(line: &str) -> Option<Heading> {
         level,
         name,
         holiday,
+        parents: Vec::new(),
     })
 }
 
@@ -635,20 +646,60 @@ mod tests {
     }
 
     #[test]
+    fn rule4_fewer_hashes_is_a_level_up() {
+        // A heading is inside the nearest heading above with fewer `#` (a skipped level counts the same);
+        // SFAP under Work and SFAP under Personal are two calendars
+        let parsed =
+            parse("# Work\n## SFAP\n### Bugs\n## 11RC\n# Personal\n## SFAP\n#### Deep\n# Later\n");
+        let paths: Vec<String> = parsed
+            .headings
+            .iter()
+            .map(|line| {
+                let heading = &line.heading;
+                heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" > ")
+            })
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "Work",
+                "Work > SFAP",
+                "Work > SFAP > Bugs",
+                "Work > 11RC",
+                "Personal",
+                "Personal > SFAP",
+                "Personal > SFAP > Deep",
+                "Later"
+            ]
+        );
+    }
+
+    #[test]
     fn rule4_headings_set_the_group_and_keep_their_level() {
         let parsed =
             parse("- No group\n# Personal\n- [ ] Pay the credit card bill\n## Moving\n- [ ] Pack");
         let groups: Vec<_> = parsed.items.iter().map(|item| item.group.clone()).collect();
-        let heading = |level, name: &str| {
+        let heading = |level, name: &str, parents: &[&str]| {
             Some(Heading {
                 level,
                 name: name.into(),
                 holiday: false,
+                parents: parents.iter().map(|&parent| parent.into()).collect(),
             })
         };
         assert_eq!(
             groups,
-            vec![None, heading(1, "Personal"), heading(2, "Moving")]
+            vec![
+                None,
+                heading(1, "Personal", &[]),
+                heading(2, "Moving", &["Personal"])
+            ]
         );
         // `#tag` (no space) and 7 #s are not headings
         assert_eq!(parse("#tag\n- a").items[0].group, None);

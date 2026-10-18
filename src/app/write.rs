@@ -4,7 +4,7 @@
 use super::{App, Focus, Mode, View};
 use crate::edit;
 use crate::files;
-use crate::tasks::{self, HeadingLine, Kind, Parsed};
+use crate::tasks::{self, Kind, Parsed};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -146,25 +146,14 @@ impl App {
         }
     }
 
-    /// `d` in the calendar list: first counts how many items deleting the chosen calendar would remove, then
+    /// `d` in the calendar list: first counts how many items deleting the chosen calendar (with the calendars
+    /// inside it) would remove, then
     /// asks in the bottom row (only `y` deletes); 「Ungrouped」 has no heading, so nothing happens
     pub(super) fn ask_delete_calendar(&mut self) {
-        let Some(name) = self
-            .groups
-            .get(self.group_index)
-            .and_then(|group| group.name.clone())
-        else {
+        let headings = self.chosen_calendar_headings();
+        let Some(name) = headings.first().map(|line| line.heading.name.clone()) else {
             return;
         };
-        let headings: Vec<HeadingLine> = self
-            .headings
-            .iter()
-            .filter(|line| line.heading.name == name)
-            .cloned()
-            .collect();
-        if headings.is_empty() {
-            return;
-        }
         let Some((_, text)) = self.read_tasks() else {
             return;
         };
@@ -358,7 +347,7 @@ impl App {
     ) {
         let mut groups = super::Group::list(&items, &headings);
         for group in &mut groups {
-            if let Some(old) = self.groups.iter().find(|old| old.name == group.name) {
+            if let Some(old) = self.groups.iter().find(|old| old.same(group)) {
                 group.shown = old.shown;
             }
         }

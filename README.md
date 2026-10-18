@@ -23,7 +23,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **Plain text**: tasks (`- [ ]`) and events, dates, times, multi-day ranges, subtasks, `#` headings as calendars; mistakes such as `@2026-13-01` are pointed out instead of silently dropped
 - **Edit in place**: check off, add, edit, reschedule (the calendar is the date picker), delete, indent and reorder, and undo the last 50 writes
 - **Safe writes**: only the changed lines are rewritten, through a temp file; if the file changed elsewhere since roh-cal read it, roh-cal reloads instead of overwriting
-- **Calendars**: show or hide each `#` group; a heading marked `type:holiday` colors its days as holidays
+- **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` colors its days as holidays
 - **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day, a second click checks off
 - **Themes**: six built in, and any color can be overridden per role from a settings page
 - **English and 繁體中文**
@@ -139,10 +139,10 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Key | Action |
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
-| `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden |
-| `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another calendar already has cannot be saved |
+| `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden, and so are the calendars inside it (they turn gray) |
+| `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved |
 | `e` | Rename the chosen calendar in the same editor: it starts with the heading's text (`type:holiday` included, so a holiday calendar stays one unless you take it out); every heading of that calendar is rewritten, each keeping its `#` level. Ungrouped items have no heading to rename |
-| `d` | Delete the chosen calendar: its headings and everything under them up to the next heading, items too. The bottom row asks first and says how many items go with it; only `y` deletes, `u` brings it back |
+| `d` | Delete the chosen calendar: its headings and everything under them, the calendars inside it too, up to the next heading with as many `#` or fewer. The bottom row asks first and says how many items go with it; only `y` deletes, `u` brings it back |
 
 **Mouse**
 

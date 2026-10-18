@@ -143,8 +143,9 @@ pub fn rename_calendar(text: &str, headings: &[HeadingLine], new: &str) -> Resul
     }
 }
 
-/// Delete a calendar: each of its heading lines (`headings`) and everything under it, up to the next heading
-/// (of any calendar; a `#` line in a code block does not count) or the end of the file; return the whole file
+/// Delete a calendar: each of its heading lines (`headings`) and everything under it, the calendars inside
+/// it too, up to the next heading with as many `#` or fewer (a `#` line in a code block does not count) or the
+/// end of the file; return the whole file
 /// after deleting and how many items were deleted. `Changed` if one of the heading lines now differs from
 /// when it was read
 ///
@@ -160,20 +161,19 @@ pub fn delete_calendar(text: &str, headings: &[HeadingLine]) -> Result<(String, 
     {
         return Err(Changed);
     }
-    // Where every heading starts (0-based), as the parser sees them
-    let starts: Vec<usize> = tasks::parse(text)
+    // Where every heading starts (0-based) and its number of `#`, as the parser sees them
+    let starts: Vec<(usize, usize)> = tasks::parse(text)
         .headings
         .iter()
-        .map(|heading| heading.line - 1)
+        .map(|heading| (heading.line - 1, heading.heading.level))
         .collect();
     let mut deleted = vec![false; segments.len()];
     for heading in headings {
         let start = heading.line - 1;
         let end = starts
             .iter()
-            .copied()
-            .find(|&next| next > start)
-            .unwrap_or(segments.len());
+            .find(|&&(next, level)| next > start && level <= heading.heading.level)
+            .map_or(segments.len(), |&(next, _)| next);
         deleted[start..end].fill(true);
     }
     let kept = |keep: bool| -> String {
@@ -711,6 +711,16 @@ mod tests {
         assert_eq!(
             delete_calendar(&text.replace("## Work", "## Wrok"), &work),
             Err(Changed)
+        );
+        // A calendar with one inside it: both go, up to the next heading with as many `#` or fewer
+        let nested = "# A\n- a\n## B\n- b\n### C\n- c\n## D\n- d\n# E\n- e\n";
+        assert_eq!(
+            delete_calendar(nested, &calendar(nested, "B")),
+            Ok(("# A\n- a\n## D\n- d\n# E\n- e\n".into(), 2))
+        );
+        assert_eq!(
+            delete_calendar(nested, &calendar(nested, "A")),
+            Ok(("# E\n- e\n".into(), 4))
         );
         // \r\n endings stay
         let crlf = "# A\r\n- a\r\n# B\r\n- b\r\n";

@@ -17,7 +17,7 @@ pub use write::Notice;
 
 use crate::{
     config::Settings,
-    tasks::{HeadingLine, Item, Warning},
+    tasks::{Heading, HeadingLine, Item, Warning},
     texts::Lang,
     theme::Theme,
     ui::{self, Click},
@@ -70,40 +70,114 @@ pub enum View {
 pub struct Group {
     /// Group name; `None` = items at the start of the file, before any heading
     pub name: Option<String>,
-    /// Whether it is checked (all are checked at start)
+    /// The calendars it is inside, outermost first (see `Heading::parents`); empty at the top level
+    pub parents: Vec<String>,
+    /// Whether it is checked (all are checked at start); unchecking it hides the calendars inside it too
     pub shown: bool,
 }
 
 impl Group {
-    /// All groups in the task file, in order of first appearance: the groups of `items` and every heading
-    /// in `headings` (so a heading with no items under it yet is a calendar too); headings with the same
-    /// name count as one
+    /// All groups in the task file: the groups of `items` and every heading in `headings` (so a heading
+    /// with no items under it yet is a calendar too); headings with the same path count as one.
+    /// In tree order: each calendar right after the one it is inside, calendars at the same level in
+    /// order of first appearance
     fn list(items: &[Item], headings: &[HeadingLine]) -> Vec<Self> {
-        let mut names: Vec<(usize, Option<String>)> = items
+        let mut found: Vec<(usize, Option<&Heading>)> = items
             .iter()
-            .map(|item| {
-                let name = item.group.as_ref().map(|heading| heading.name.clone());
-                (item.line, name)
-            })
+            .map(|item| (item.line, item.group.as_ref()))
             .chain(
                 headings
                     .iter()
-                    .map(|heading| (heading.line, Some(heading.heading.name.clone()))),
+                    .map(|heading| (heading.line, Some(&heading.heading))),
             )
             .collect();
-        names.sort_by_key(|&(line, _)| line);
+        found.sort_by_key(|&(line, _)| line);
         let mut groups: Vec<Self> = Vec::new();
-        for (_, name) in names {
-            if !groups.iter().any(|group| group.name == name) {
-                groups.push(Self { name, shown: true });
+        for (_, heading) in found {
+            let group = Self {
+                name: heading.map(|heading| heading.name.clone()),
+                parents: heading
+                    .map(|heading| heading.parents.clone())
+                    .unwrap_or_default(),
+                shown: true,
+            };
+            if !groups.iter().any(|other| other.same(&group)) {
+                groups.push(group);
             }
         }
-        groups
+        // Tree order: sort by where each calendar on its path first appeared, outermost first (a parent's
+        // key is the start of its children's keys, so it comes right before them)
+        let keys: Vec<Vec<usize>> = groups
+            .iter()
+            .map(|group| {
+                (1..=group.parents.len())
+                    .filter_map(|depth| {
+                        groups.iter().position(|other| {
+                            other.parents == group.parents[..depth - 1]
+                                && other.name.as_deref() == Some(group.parents[depth - 1].as_str())
+                        })
+                    })
+                    .chain(groups.iter().position(|other| other.same(group)))
+                    .collect()
+            })
+            .collect();
+        let mut order: Vec<usize> = (0..groups.len()).collect();
+        order.sort_by(|&a, &b| keys[a].cmp(&keys[b]));
+        let mut groups: Vec<Option<Self>> = groups.into_iter().map(Some).collect();
+        order
+            .into_iter()
+            .filter_map(|index| groups[index].take())
+            .collect()
     }
 
-    /// Whether `item` belongs to this group
+    /// Its path: the calendars it is inside, then its own name (empty for 「Ungrouped」)
+    pub fn path(&self) -> Vec<String> {
+        self.parents
+            .iter()
+            .cloned()
+            .chain(self.name.clone())
+            .collect()
+    }
+
+    /// Whether it is inside `other` (any number of levels down)
+    pub fn inside(&self, other: &Self) -> bool {
+        let (path, outer) = (self.path(), other.path());
+        !outer.is_empty() && path.len() > outer.len() && path[..outer.len()] == outer[..]
+    }
+
+    /// Whether it is the same calendar as `other` (same path)
+    pub fn same(&self, other: &Self) -> bool {
+        self.name == other.name && self.parents == other.parents
+    }
+
+    /// Whether `heading` is one of this calendar's headings
+    pub fn is(&self, heading: &Heading) -> bool {
+        self.name.as_deref() == Some(heading.name.as_str()) && self.parents == heading.parents
+    }
+
+    /// Whether `item` belongs to this group (not to a calendar inside it)
     pub fn includes(&self, item: &Item) -> bool {
-        self.name.as_deref() == item.group.as_ref().map(|heading| heading.name.as_str())
+        match &item.group {
+            Some(heading) => self.is(heading),
+            None => self.name.is_none(),
+        }
+    }
+
+    /// Whether this group is `item`'s calendar or one of the calendars that calendar is inside
+    pub fn holds(&self, item: &Item) -> bool {
+        let Some(heading) = &item.group else {
+            return self.name.is_none();
+        };
+        let Some(name) = &self.name else {
+            return false;
+        };
+        let path: Vec<&String> = heading.parents.iter().chain([&heading.name]).collect();
+        path.len() > self.parents.len()
+            && path[..self.parents.len()]
+                .iter()
+                .copied()
+                .eq(self.parents.iter())
+            && path[self.parents.len()] == name
     }
 }
 
@@ -338,12 +412,26 @@ impl App {
         }
     }
 
-    /// Whether this item is shown: only if its calendar (group) is checked
+    /// The heading lines of the calendar chosen in the side menu (every heading with its path, as read last);
+    /// empty for 「Ungrouped」
+    fn chosen_calendar_headings(&self) -> Vec<HeadingLine> {
+        let Some(group) = self.groups.get(self.group_index) else {
+            return Vec::new();
+        };
+        self.headings
+            .iter()
+            .filter(|line| group.is(&line.heading))
+            .cloned()
+            .collect()
+    }
+
+    /// Whether this item is shown: only if its calendar (group) and every calendar that one is inside are
+    /// checked
     pub fn is_shown(&self, item: &Item) -> bool {
         self.groups
             .iter()
-            .find(|group| group.includes(item))
-            .is_none_or(|group| group.shown)
+            .filter(|group| group.holds(item))
+            .all(|group| group.shown)
     }
 
     /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)
@@ -1235,6 +1323,49 @@ mod tests {
         // d is under the second "# Work" and also counts as "Work"
         assert!(app.groups[1].includes(&app.items[3]));
         assert!(!app.groups[0].includes(&app.items[3]));
+    }
+
+    #[test]
+    fn calendars_nest_by_heading_level_and_list_as_a_tree() {
+        // Work's second part (with B) comes after Personal in the file, but B is listed inside Work;
+        // X inside Work and X inside Personal are two calendars
+        let mut app = app_with("");
+        app.set_items(crate::tasks::parse(
+            "# Work\n## A\n- a @2026-10-10\n## X\n# Personal\n## X\n- p @2026-10-11\n# Work\n## B\n- b @2026-10-12\n",
+        ));
+        let paths: Vec<String> = app
+            .groups
+            .iter()
+            .map(|group| group.path().join(" > "))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "Work",
+                "Work > A",
+                "Work > X",
+                "Work > B",
+                "Personal",
+                "Personal > X"
+            ]
+        );
+        // Unchecking Work hides the items of the calendars inside it too, not Personal's
+        app.groups[0].shown = false;
+        let titles: Vec<&str> = app
+            .agenda()
+            .iter()
+            .map(|entry| entry.item.title.as_str())
+            .collect();
+        assert_eq!(titles, ["p"]);
+        // Checking Work again brings them back; B unchecked on its own hides only b
+        app.groups[0].shown = true;
+        app.groups[3].shown = false;
+        let titles: Vec<&str> = app
+            .agenda()
+            .iter()
+            .map(|entry| entry.item.title.as_str())
+            .collect();
+        assert_eq!(titles, ["a", "p"]);
     }
 
     #[test]

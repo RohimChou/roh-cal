@@ -117,11 +117,13 @@ impl App {
         });
     }
 
-    /// `a` in the calendar list: opens an empty editor for the new calendar's name
+    /// `a` in the calendar list: opens an empty editor for the new calendar's name (it goes at the top
+    /// level, so it cannot take a top-level calendar's name)
     pub(super) fn start_adding_calendar(&mut self) {
         let taken = self
             .groups
             .iter()
+            .filter(|group| group.parents.is_empty())
             .filter_map(|group| group.name.clone())
             .collect();
         self.mode = Mode::Editor(Editor {
@@ -132,21 +134,10 @@ impl App {
 
     /// `e` in the calendar list: opens the editor with the chosen calendar's heading text, without the `#`s
     /// (e.g. `US holidays type:holiday`, so a holiday calendar stays one unless `type:holiday` is taken
-    /// out); 「Ungrouped」 has no heading, so nothing happens
+    /// out); 「Ungrouped」 has no heading, so nothing happens. It cannot take the name of another calendar
+    /// at the same place (inside the same calendar)
     pub(super) fn start_renaming_calendar(&mut self) {
-        let Some(name) = self
-            .groups
-            .get(self.group_index)
-            .and_then(|group| group.name.clone())
-        else {
-            return;
-        };
-        let headings: Vec<HeadingLine> = self
-            .headings
-            .iter()
-            .filter(|line| line.heading.name == name)
-            .cloned()
-            .collect();
+        let headings = self.chosen_calendar_headings();
         let Some(first) = headings.first() else {
             return;
         };
@@ -154,8 +145,8 @@ impl App {
         let taken = self
             .groups
             .iter()
+            .filter(|group| group.parents == first.heading.parents && !group.is(&first.heading))
             .filter_map(|group| group.name.clone())
-            .filter(|other| *other != name)
             .collect();
         self.mode = Mode::Editor(Editor {
             input: Input::new(text),
@@ -282,7 +273,7 @@ impl App {
         if let Some(index) = self
             .groups
             .iter()
-            .position(|group| group.name.as_deref() == Some(name))
+            .position(|group| group.parents.is_empty() && group.name.as_deref() == Some(name))
         {
             self.group_index = index;
         }
@@ -291,30 +282,44 @@ impl App {
 
 impl App {
     /// Saves a calendar's new name: each of its heading lines (`headings`) becomes `<its #s> <new>`; the
-    /// calendar stays chosen and keeps its checked state. Nothing changed: nothing is written. If the
-    /// task file cannot be read or written, the editor stays open and the bottom row says why; if it was
-    /// changed elsewhere: reload and close the editor
+    /// calendar stays chosen, and it and the calendars inside it keep their checked state (their paths
+    /// change with the name). Nothing changed: nothing is written. If the task file cannot be read or
+    /// written, the editor stays open and the bottom row says why; if it was changed elsewhere: reload and
+    /// close the editor
     fn save_renamed_calendar(&mut self, headings: &[HeadingLine], new: &str, name: &str) {
+        let Some(first) = headings.first().map(|line| line.heading.clone()) else {
+            return;
+        };
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
-        let shown = self
+        let checked: Vec<(Vec<String>, bool)> = self
             .groups
-            .get(self.group_index)
-            .is_none_or(|group| group.shown);
+            .iter()
+            .map(|group| (group.path(), group.shown))
+            .collect();
         match edit::rename_calendar(&text, headings, new) {
             Ok(after) => {
                 if after != text && !self.write_tasks(&path, text, after, name.to_string()) {
                     return;
                 }
                 self.mode = Mode::Normal;
-                if let Some(index) = self
-                    .groups
-                    .iter()
-                    .position(|group| group.name.as_deref() == Some(name))
-                {
+                // The renamed calendar is at `depth` in its own path and in the paths of those inside it
+                let depth = first.parents.len();
+                for group in &mut self.groups {
+                    let mut old = group.path();
+                    if old.len() > depth && old[..depth] == first.parents[..] && old[depth] == name
+                    {
+                        old[depth].clone_from(&first.name);
+                        if let Some((_, shown)) = checked.iter().find(|(path, _)| *path == old) {
+                            group.shown = *shown;
+                        }
+                    }
+                }
+                if let Some(index) = self.groups.iter().position(|group| {
+                    group.parents == first.parents && group.name.as_deref() == Some(name)
+                }) {
                     self.group_index = index;
-                    self.groups[index].shown = shown;
                 }
             }
             Err(edit::Changed) => {
@@ -381,17 +386,25 @@ mod tests {
 
     #[test]
     fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
-        let text = "# Work\n- [ ] Review PRs @2026-10-10\n# Days off type:holiday\n\
-                    - Long weekend @2026-10-12\n## Work\n- [ ] Deploy @2026-10-20\n";
+        // Work appears twice (one calendar) and has SFAP inside it
+        let text = "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug @2026-10-11\n\
+                    # Days off type:holiday\n- Long weekend @2026-10-12\n# Work\n- [ ] Deploy @2026-10-20\n";
         let (mut app, path) = app_with_task_file("rename-calendar", text);
+        let names = |app: &App| -> Vec<(String, bool)> {
+            app.groups
+                .iter()
+                .map(|group| (group.path().join(" > "), group.shown))
+                .collect()
+        };
         app.focus = Focus::Side;
-        // The holiday calendar, unchecked: the editor holds its heading text, type:holiday too
-        app.group_index = 1;
-        app.groups[1].shown = false;
+        // The holiday calendar (third in the tree), unchecked: the editor holds its heading text,
+        // type:holiday too
+        app.group_index = 2;
+        app.groups[2].shown = false;
         press(&mut app, KeyCode::Char('e'));
         let typed = "Days off type:holiday";
         assert_eq!(app.editor().map(|editor| editor.input.value()), Some(typed));
-        // The other calendar's name cannot be taken
+        // The name of another calendar at the same level cannot be taken
         for _ in typed.chars() {
             press(&mut app, KeyCode::Backspace);
         }
@@ -404,28 +417,31 @@ mod tests {
         }
         type_text(&mut app, "Holidays type:holiday");
         press(&mut app, KeyCode::Enter);
-        assert_eq!(
-            std::fs::read_to_string(&path).expect("read"),
-            text.replace("# Days off", "# Holidays")
-        );
-        assert_eq!(app.group_index, 1);
-        assert_eq!(
-            (app.groups[1].name.as_deref(), app.groups[1].shown),
-            (Some("Holidays"), false)
-        );
-        // Work has two headings at different levels: both renamed, each keeps its #s
-        press(&mut app, KeyCode::Char('k'));
+        let holidays = text.replace("# Days off", "# Holidays");
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), holidays);
+        assert_eq!(app.group_index, 2);
+        assert_eq!(names(&app)[2], ("Holidays".to_string(), false));
+        // Work, with SFAP unchecked: both Work headings are renamed, and SFAP (now inside Day job) stays
+        // unchecked
+        app.groups[1].shown = false;
+        app.group_index = 0;
         press(&mut app, KeyCode::Char('e'));
         for _ in 0..4 {
             press(&mut app, KeyCode::Backspace);
         }
         type_text(&mut app, "Day job");
         press(&mut app, KeyCode::Enter);
-        let renamed = text
-            .replace("# Days off", "# Holidays")
-            .replace("# Work", "# Day job");
-        assert!(renamed.contains("## Day job\n"));
+        let renamed = holidays.replace("# Work", "# Day job");
         assert_eq!(std::fs::read_to_string(&path).expect("read"), renamed);
+        assert_eq!(
+            names(&app),
+            [
+                ("Day job".to_string(), true),
+                ("Day job > SFAP".to_string(), false),
+                ("Holidays".to_string(), false),
+            ]
+        );
+        assert_eq!(app.group_index, 0);
         // Enter without changing anything: nothing written (no undo step)
         let steps = app.undo.len();
         press(&mut app, KeyCode::Char('e'));
@@ -434,10 +450,7 @@ mod tests {
         assert_eq!(app.undo.len(), steps);
         // u brings the old name back
         press(&mut app, KeyCode::Char('u'));
-        assert_eq!(
-            std::fs::read_to_string(&path).expect("read"),
-            text.replace("# Days off", "# Holidays")
-        );
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), holidays);
         clean_up(&path);
     }
 

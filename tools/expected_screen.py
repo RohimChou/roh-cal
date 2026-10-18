@@ -100,19 +100,45 @@ def week_number(d, selected=None):
     return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
-def read_items(text, hidden_names):
+def calendar_paths(text):
+    """Which calendar each line is in: a tuple of names, outermost first (a heading is inside the nearest
+    heading above it with fewer #), or None before the first heading; `type:holiday` is not part of a name,
+    and a heading inside a code block does not count.
+    Returns ({line number from 1: path}, the set of the heading lines' numbers)"""
+    by_line, heading_lines, outline, current, in_code = {}, set(), [], None, False
+    for n, raw in enumerate(text.splitlines(), start=1):
+        stripped = raw.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code = not in_code
+        elif not in_code:
+            heading = re.match(r"(#{1,6}) (.*)", raw)
+            if heading:
+                level = len(heading.group(1))
+                name = " ".join(w for w in heading.group(2).split() if w != "type:holiday")
+                outline = [(lv, nm) for lv, nm in outline if lv < level] + [(level, name)]
+                current = tuple(nm for _, nm in outline)
+                heading_lines.add(n)
+        by_line[n] = current
+    return by_line, heading_lines
+
+
+def is_hidden(path, hidden):
+    """Whether a calendar's items are hidden: it, or a calendar it is inside, is unchecked"""
+    if path is None:
+        return None in hidden
+    return any(path[:k] in hidden for k in range(1, len(path) + 1))
+
+
+def read_items(text, hidden):
     """Simple version: lines that start with `- ` and end with `@YYYY-MM-DD` or `@YYYY-MM-DD..YYYY-MM-DD`
-    (a time may follow). Lines whose calendar (the nearest `#` heading above) is unchecked are skipped.
+    (a time may follow). Lines whose calendar is hidden (`hidden` = paths of the unchecked calendars,
+    see `is_hidden`) are skipped.
     Returns (date, time, title, line index, last day of a multi-day item or None), sorted"""
     items = []
-    name = None
+    paths, _ = calendar_paths(text)
     for i, line in enumerate(text.splitlines()):
-        heading = re.match(r"#+ (.*)", line)
-        if heading:
-            # `type:holiday` is not part of the name
-            name = " ".join(w for w in heading.group(1).split() if w != "type:holiday")
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
-        if m and name not in hidden_names:
+        if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
             items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), m.group(1), i, end))
     # By date, time (items without a time first), then file order
@@ -151,45 +177,54 @@ def range_text(it):
 
 
 def read_groups(text):
-    """Groups (the side menu's calendars) in order of first appearance, a heading with no items under it
-    included; returns [(name (None for items before any heading), number of items with a date)]
+    """Groups (the side menu's calendars), a heading with no items under it included; returns
+    [(path (None for items before any heading), number of items with a date)] in tree order: each calendar
+    right after the one it is inside, calendars at the same level in order of first appearance
     (items read with read_tree: items in code blocks do not count, and a day that does not exist is not
     a date)"""
-    groups = {}  # dict keeps insertion order
+    groups = {}  # path -> count; dict keeps the order of first appearance
     items = {it["line"]: it for it in read_tree(text)[0]}
-    in_code = False
-    for n, raw in enumerate(text.splitlines(), start=1):
-        stripped = raw.lstrip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_code = not in_code
-            continue
-        heading = None if in_code else re.match(r"(#{1,6}) (.*)", raw)
-        if heading:
-            groups.setdefault(" ".join(w for w in heading.group(2).split() if w != "type:holiday"), 0)
+    paths, heading_lines = calendar_paths(text)
+    for n in range(1, len(text.splitlines()) + 1):
+        if n in heading_lines:
+            groups.setdefault(paths[n], 0)
         if n in items:
-            it = items[n]
-            name = it["group"][0] if it["group"] else None
-            groups.setdefault(name, 0)
-            groups[name] += it["date"] is not None
-    return list(groups.items())
+            groups.setdefault(paths[n], 0)
+            groups[paths[n]] += items[n]["date"] is not None
+    first = list(groups)
+    # Sort key: where each calendar along the path first appeared, outermost first
+    def key(path):
+        if path is None:
+            return [first.index(None)]
+        return [first.index(path[:k]) for k in range(1, len(path) + 1) if path[:k] in groups]
+    return sorted(groups.items(), key=lambda group: key(group[0]))
+
+
+def group_label(t, path):
+    """A side menu row's indent and name: 2 cells per level it is inside; 「未分組」 for items before any
+    heading"""
+    if path is None:
+        return "", t["ungrouped"]
+    return "  " * (len(path) - 1), path[-1]
 
 
 def side_width(t, groups):
-    """side menu width (borders included): the longest row 「 ☑ name count 」 plus borders,
+    """side menu width (borders included): the longest row 「 ☑ name count 」 (with its indent) plus borders,
     between SIDE_MIN and SIDE_MAX"""
-    longest = max((3 + width(t["ungrouped"] if name is None else name) + len(f" {count} ")
-                   for name, count in groups), default=0)
+    longest = max((width("".join(group_label(t, path))) + 3 + len(f" {count} ")
+                   for path, count in groups), default=0)
     return min(max(longest + 2, SIDE_MIN), SIDE_MAX)
 
 
 def side_lines(t, h, groups):
     """Each row of the side menu column (top and bottom borders included, the hints line not):
-    one row per calendar 「 ☑ name    count 」"""
+    one row per calendar 「 ☑ name    count 」, indented 2 cells per level"""
     iw = side_width(t, groups) - 2
     rows = [ljust(t["side"], iw), "─" * iw]
-    for i, (name, count) in enumerate(groups):
+    for i, (path, count) in enumerate(groups):
         count = f" {count} "
-        left = (" ☐ " if i in HIDDEN else " ☑ ") + (t["ungrouped"] if name is None else name)
+        indent, name = group_label(t, path)
+        left = indent + (" ☐ " if i in HIDDEN else " ☑ ") + name
         rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
     rows = (rows + [" " * iw] * h)[: h - 3]
     return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
@@ -585,7 +620,8 @@ def tasks_screen(lang, w, h, text, groups):
     bottom the original text of the chosen line)"""
     t = TEXTS[lang]
     items, mistakes = read_tree(text)
-    hidden_names = {groups[i][0] for i in HIDDEN}
+    hidden = {groups[i][0] for i in HIDDEN}
+    paths, _ = calendar_paths(text)
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     iw, ih = w - sw - 2, h - 3
@@ -602,12 +638,13 @@ def tasks_screen(lang, w, h, text, groups):
 
     rows, previous = [], object()
     for k, it in enumerate(items):
-        name = it["group"][0] if it["group"] else None
-        if name in hidden_names or not visible(k):
+        path = paths[it["line"]]
+        if is_hidden(path, hidden) or not visible(k):
             continue
-        if it["group"] != previous:
+        # A new calendar (path) gets a heading row
+        if (path, it["group"]) != previous:
             rows.append(("heading", it["group"]))
-            previous = it["group"]
+            previous = (path, it["group"])
         rows.append(("item", k))
     item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
     chosen_line = int(os.environ["CHOSEN_LINE"]) if "CHOSEN_LINE" in os.environ else None

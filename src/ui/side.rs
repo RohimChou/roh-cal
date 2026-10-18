@@ -26,14 +26,24 @@ pub fn width(app: &App) -> u16 {
     let longest = app
         .groups
         .iter()
-        // 「 ☑ 」 is 3 cells + name + count
-        .map(|group| 3 + Span::raw(name(group, texts)).width() + count_text(app, group).len())
+        // The indent, 「 ☑ 」 3 cells, name, count
+        .map(|group| {
+            indent(group).len()
+                + 3
+                + Span::raw(name(group, texts)).width()
+                + count_text(app, group).len()
+        })
         .max()
         .unwrap_or(0);
     // Add the left and right border
     u16::try_from(longest + 2)
         .unwrap_or(max)
         .clamp(CalendarListSettings::MIN_WIDTH, max)
+}
+
+/// A calendar inside another one is indented: 2 cells per level
+fn indent(group: &Group) -> String {
+    "  ".repeat(group.parents.len())
 }
 
 /// The calendar's name; items at the top of the file, before any heading, are 「未分組」
@@ -52,7 +62,8 @@ fn count_text(app: &App, group: &Group) -> String {
     format!(" {count} ")
 }
 
-/// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ Work            12 」
+/// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ Work            12 」; a
+/// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」
 ///
 /// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long (box already at
 /// `[calendar_list] max_width`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
@@ -103,14 +114,20 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(count.len() as u16)])
                 .areas(row);
         // Checked: ☑ in the `checked` color and the name in normal text color;
-        // unchecked: ☐ and the name are both muted
-        let (mark, mark_color, name_color) = if group.shown {
-            ("☑", theme.checked, theme.text)
-        } else {
-            ("☐", theme.muted, theme.muted)
+        // unchecked: ☐ and the name are both muted; checked but inside an unchecked calendar (hidden too):
+        // ☑ and the name muted
+        let hidden_above = app
+            .groups
+            .iter()
+            .any(|other| !other.shown && group.inside(other));
+        let (mark, mark_color, name_color) = match (group.shown, hidden_above) {
+            (true, false) => ("☑", theme.checked, theme.text),
+            (true, true) => ("☑", theme.muted, theme.muted),
+            (false, _) => ("☐", theme.muted, theme.muted),
         };
         frame.render_widget(
             Line::from(vec![
+                Span::raw(indent(group)),
                 Span::styled(format!(" {mark} "), Style::new().fg(mark_color)),
                 Span::styled(name(group, texts), Style::new().fg(name_color)),
             ]),
