@@ -84,6 +84,12 @@ impl Row {
         match self {
             Self::RelativeWeeks => Some(&[View::Planner, View::Month]),
             Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
+            // Colors only the calendars draw: the year line, week numbers, the selected brackets; the month
+            // grid's own: its grid lines and multi-day bars
+            Self::Color("year_line" | "week_number" | "week_number_dim" | "selected") => {
+                Some(&[View::Planner, View::Month])
+            }
+            Self::Color("grid" | "range") => Some(&[View::Month]),
             Self::Theme | Self::ListWidth | Self::HideDone | Self::Color(_) => None,
         }
     }
@@ -543,6 +549,32 @@ mod tests {
         app.apply_theme();
         assert_eq!(app.settings.theme, "tokyo-night");
         assert_eq!(app.theme.weekend, ratatui::style::Color::Cyan);
+    }
+
+    #[test]
+    fn colors_a_view_does_not_draw_are_for_the_other_views() {
+        // The tasks page draws no week numbers, year line, selected brackets, grid lines or bars; layout 1
+        // draws no grid lines or bars; the rest (text, today and day-off colors in the date column…) are
+        // everywhere
+        for role in ["year_line", "week_number", "week_number_dim", "selected"] {
+            let row = Row::Color(role);
+            assert!(!row.applies_to(View::Tasks), "{role}");
+            assert!(
+                row.applies_to(View::Planner) && row.applies_to(View::Month),
+                "{role}"
+            );
+        }
+        for role in ["grid", "range"] {
+            let row = Row::Color(role);
+            assert!(
+                !row.applies_to(View::Tasks) && !row.applies_to(View::Planner),
+                "{role}"
+            );
+            assert!(row.applies_to(View::Month), "{role}");
+        }
+        for role in ["text", "today", "weekend", "selection", "priority_high"] {
+            assert_eq!(Row::Color(role).views(), None, "{role}");
+        }
     }
 
     #[test]
