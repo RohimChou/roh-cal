@@ -13,7 +13,7 @@ use ratatui::crossterm::event::{
 };
 
 /// 改期中：要搬的那件事，和搬完（或取消）要回去的版型、框
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Moving {
     /// 要搬的那件事（按 `r` 那時候讀到的樣子）
     pub item: Item,
@@ -52,10 +52,7 @@ impl App {
             }
             KeyCode::Enter => self.finish_moving(),
             KeyCode::Esc => self.cancel_moving(),
-            KeyCode::Char('t') => {
-                self.selected = self.today;
-                self.scroll_to_month();
-            }
+            KeyCode::Char('t') => self.go_today(),
             KeyCode::Char('[') => self.jump_month(-1),
             KeyCode::Char(']') => self.jump_month(1),
             // 只收移動日期的鍵（月曆上的 `a` 新增之類的不理）
@@ -116,7 +113,7 @@ impl App {
                 return;
             };
             moved = match edit::reschedule(&text, &item, new_first) {
-                Ok(after) => self.write_tasks(&path, text, after, item.title.clone()),
+                Ok(after) => self.write_tasks(&path, text, after, item.title),
                 Err(edit::Changed) => {
                     self.reload(&text);
                     false

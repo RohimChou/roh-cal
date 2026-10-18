@@ -1,6 +1,6 @@
 //! 寫任務檔：打勾、刪除、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
 
-use super::{App, Focus, Mode};
+use super::{App, Focus, Mode, View};
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Kind, Parsed};
@@ -33,8 +33,11 @@ pub enum Notice {
 /// 一次寫檔的紀錄（undo 用）：寫之前、寫之後的整個檔案，和改到的那件事的標題（提示用）
 #[derive(Debug)]
 pub(super) struct UndoStep {
+    /// roh-cal 寫之前的整個檔案（復原就是寫回這個）
     before: String,
+    /// roh-cal 寫進去的整個檔案（檔案現在要跟這個一模一樣才復原，不然就是在別處改過）
     after: String,
+    /// 改到的那件事的標題（`已復原：週會`）
     title: String,
 }
 
@@ -95,9 +98,10 @@ impl App {
             return;
         }
         // 任務頁：刪之前選到的是第幾列（刪完選那個位置）
-        let row = {
-            let rows = self.tasks_rows();
-            self.tasks_cursor(&rows).unwrap_or(0)
+        let row = if self.view == View::Tasks {
+            self.tasks_cursor(&self.tasks_rows()).unwrap_or(0)
+        } else {
+            0
         };
         let Some((path, text)) = self.read_tasks() else {
             return;
@@ -105,7 +109,7 @@ impl App {
         match edit::delete(&text, &item) {
             Ok((after, deleted)) if deleted == count => {
                 self.write_tasks(&path, text, after, item.title);
-                if self.view == super::View::Tasks {
+                if self.view == View::Tasks {
                     // 任務頁：選原本那一列（現在是下一件）；刪到最後面就選最後一件
                     self.choose_task_row_near(row);
                     return;

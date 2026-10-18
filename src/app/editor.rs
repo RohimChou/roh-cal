@@ -12,7 +12,7 @@ use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui_input::{Input, backend::crossterm::to_input_request};
 
 /// 編輯框：打的字、要做什麼
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Editor {
     /// 打的字（那一行，不含縮排）和游標
     pub input: Input,
@@ -54,8 +54,7 @@ impl App {
     /// 鍵盤在右邊、任務頁：放在選到的那件那一組；在月曆：放在選取那天第一件事那一組，那天沒事就放在檔案最後
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
-            Focus::Agenda => self.chosen().map(|entry| entry.item.clone()),
-            Focus::Tasks => self.tasks_chosen().cloned(),
+            Focus::Agenda | Focus::Tasks => self.chosen_item().cloned(),
             Focus::Calendar | Focus::Side => self
                 .items_on(self.selected)
                 .first()
@@ -126,7 +125,7 @@ impl App {
                     };
                     match edit::replace(&text, &item, &new) {
                         Ok(after) => {
-                            if !self.write_tasks(&path, text, after, item.title.clone()) {
+                            if !self.write_tasks(&path, text, after, item.title) {
                                 return;
                             }
                         }

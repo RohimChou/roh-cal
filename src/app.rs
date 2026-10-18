@@ -328,7 +328,7 @@ impl App {
     }
 
     /// 鍵盤選到的那件事：右邊選到的、或任務頁選到的；鍵盤在月曆、side menu 是 `None`（打勾、編輯、刪除、改期都用這件）
-    pub fn chosen_item(&self) -> Option<&Item> {
+    fn chosen_item(&self) -> Option<&Item> {
         match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item),
             Focus::Tasks => self.tasks_chosen(),
@@ -410,8 +410,7 @@ impl App {
             KeyCode::Tab => self.next_focus(),
             // 回今天，並把今天那個月捲到最上面（任務頁沒有月曆，不理）
             KeyCode::Char('t') if self.view != View::Tasks => {
-                self.selected = self.today;
-                self.scroll_to_month();
+                self.go_today();
                 self.focus = Focus::Calendar;
             }
             // 復原上一次寫檔（打勾、編輯…）
@@ -595,6 +594,12 @@ impl App {
                 _ => self.home_focus(),
             };
         }
+    }
+
+    /// `t`：選取今天，今天那個月捲到最上面
+    fn go_today(&mut self) {
+        self.selected = self.today;
+        self.scroll_to_month();
     }
 
     /// 下一次畫的時候，把選取那天的那個月捲到最上面（兩個版型都是）
