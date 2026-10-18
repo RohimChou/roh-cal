@@ -181,7 +181,7 @@ fn arrange(
 
 /// Lays out each section of one column as lines: the section name (indent 2), then one line per key
 /// (indent 4, key column `key_width` cells wide). With `here`, a section that does not work with the
-/// keyboard there is all muted
+/// keyboard there is all in the other-month gray (a step darker than muted text)
 fn section_blocks(
     sections: &[HelpSection],
     key_width: usize,
@@ -193,8 +193,8 @@ fn section_blocks(
         .map(|section| {
             let gray = here.is_some_and(|focus| !section.works_in(focus));
             let (title_style, key_style, action_style) = if gray {
-                let muted = Style::new().fg(theme.muted);
-                (muted, muted, muted)
+                let dim = Style::new().fg(theme.other_month);
+                (dim, dim, dim)
             } else {
                 let bold = Modifier::BOLD;
                 (
@@ -543,19 +543,19 @@ mod tests {
                 .expect(text)
         };
         // Keyboard on the calendar: the calendar's keys and the ones that work anywhere are lit; the tasks
-        // page's and the calendar list's are muted, keys and descriptions too
+        // page's and the calendar list's are dimmed, keys and descriptions too
         let calendar = Focus::Calendar;
         assert_eq!(color_of(calendar, "  月曆"), theme.help_section);
         assert_eq!(color_of(calendar, "  畫面"), theme.help_section);
         assert_eq!(color_of(calendar, "  編輯框"), theme.help_section);
-        assert_eq!(color_of(calendar, "  任務頁"), theme.muted);
-        assert_eq!(color_of(calendar, "  日曆清單"), theme.muted);
-        assert_eq!(color_of(calendar, "+ / -"), theme.muted);
-        assert_eq!(color_of(calendar, "全部展開 / 全部收起"), theme.muted);
+        assert_eq!(color_of(calendar, "  任務頁"), theme.other_month);
+        assert_eq!(color_of(calendar, "  日曆清單"), theme.other_month);
+        assert_eq!(color_of(calendar, "+ / -"), theme.other_month);
+        assert_eq!(color_of(calendar, "全部展開 / 全部收起"), theme.other_month);
         // On the tasks page: the other way round for the calendar and the tasks page
         assert_eq!(color_of(Focus::Tasks, "  任務頁"), theme.help_section);
         assert_eq!(color_of(Focus::Tasks, "+ / -"), theme.help_key);
-        assert_eq!(color_of(Focus::Tasks, "  月曆"), theme.muted);
+        assert_eq!(color_of(Focus::Tasks, "  月曆"), theme.other_month);
         assert_eq!(
             color_of(Focus::Tasks, "  事項、跳窗、任務頁"),
             theme.help_section

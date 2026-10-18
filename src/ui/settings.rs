@@ -199,8 +199,8 @@ fn hint_text(app: &App, page: SettingsPage) -> &'static str {
 
 /// Draws the settings page: each row is "name value" (top-level indented 2, table rows indented 4,
 /// values aligned in one column; colors have a swatch in front; rows that do nothing on the current view
-/// are muted), the chosen row gets a background color; drawing starts at line `page.top` (scrolled first
-/// with `scrolled`); the bottom says what the chosen row does (and, when it is muted, which views it is
+/// are dimmed to the other-month gray, a step darker than muted text), the chosen row gets a background color; drawing starts at line `page.top` (scrolled first
+/// with `scrolled`); the bottom says what the chosen row does (and, when it is dimmed, which views it is
 /// for)
 pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
     let theme = &app.theme;
@@ -237,7 +237,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
                 let (name_color, value_color) = if applies {
                     (theme.help_key, theme.text)
                 } else {
-                    (theme.muted, theme.muted)
+                    (theme.other_month, theme.other_month)
                 };
                 let mut value_style = Style::new().fg(value_color);
                 if index == page.row {
@@ -584,7 +584,8 @@ mod tests {
 
     #[test]
     fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
-        // Layout 1: the month grid's grid_lines (row 2, y 9) and center_cursor are muted, relative_weeks
+        // Layout 1: the month grid's grid_lines (row 2, y 9) and center_cursor are dimmed (the other-month
+        // gray, darker than muted text), relative_weeks
         // (y 6) is not; choosing grid_lines says below the description which view it is for
         let theme = Theme::catppuccin_mocha();
         let page = |row: usize| SettingsPage {
@@ -592,9 +593,9 @@ mod tests {
             ..SettingsPage::default()
         };
         let (_, _, rows, buffer) = draw(page(2), 44);
-        assert_eq!(buffer[(17, 9)].fg, theme.muted);
-        assert_eq!(buffer[(35, 9)].fg, theme.muted);
-        assert_eq!(buffer[(17, 10)].fg, theme.muted);
+        assert_eq!(buffer[(17, 9)].fg, theme.other_month);
+        assert_eq!(buffer[(35, 9)].fg, theme.other_month);
+        assert_eq!(buffer[(17, 10)].fg, theme.other_month);
         assert_eq!(buffer[(17, 6)].fg, theme.help_key);
         assert_eq!(
             rows[38].trim_end_matches([' ', '│']),
@@ -615,7 +616,7 @@ mod tests {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.view = crate::app::View::Tasks;
         let (_, _, rows, buffer) = draw_app(app, page(1), 44);
-        assert_eq!(buffer[(17, 6)].fg, theme.muted);
+        assert_eq!(buffer[(17, 6)].fg, theme.other_month);
         assert_eq!(buffer[(15, 3)].fg, theme.help_key);
         assert_eq!(
             rows[39].trim_end_matches([' ', '│']),

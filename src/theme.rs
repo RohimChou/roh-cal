@@ -55,7 +55,8 @@ pub struct Theme {
     pub error: Color,
     /// The faint grid lines between cells in the month grid (layout 2)
     pub grid: Color,
-    /// Days in the month grid (layout 2) outside the selected month: dates and items turn gray
+    /// Days in the month grid (layout 2) outside the selected month: dates and items turn gray; also the
+    /// settings and help sections that do nothing where the keyboard is (a step darker than `muted`)
     pub other_month: Color,
     /// Background of a multi-day item's bar in the month grid (layout 2)
     pub range: Color,
