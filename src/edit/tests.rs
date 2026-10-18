@@ -775,3 +775,61 @@ fn the_day_is_left_out_in_the_editor_and_put_back_when_saving() {
     );
     assert_eq!(show_day("- [ ] ", day), "- [ ] @2026-10-19");
 }
+
+#[test]
+fn add_calendar_in_goes_at_the_end_of_the_parent_with_one_more_hash() {
+    // Inside Work > SFAP: after SFAP's last item, before the blank line in front of `# Personal`
+    assert_eq!(
+        add_calendar_in(
+            "# Work\n- a\n## SFAP\n- b\n\n# Personal\n- c\n",
+            &["Work".to_string(), "SFAP".to_string()],
+            "Bugs"
+        ),
+        Ok((
+            "# Work\n- a\n## SFAP\n- b\n\n### Bugs\n\n# Personal\n- c\n".to_string(),
+            6
+        ))
+    );
+    // Inside Work: after the calendars inside it too
+    assert_eq!(
+        add_calendar_in(
+            "# Work\n## SFAP\n- b\n# Personal\n",
+            &["Work".to_string()],
+            "Bugs"
+        ),
+        Ok((
+            "# Work\n## SFAP\n- b\n\n## Bugs\n# Personal\n".to_string(),
+            5
+        ))
+    );
+    // Work twice in the file: its last section; the last line without a newline gets one
+    assert_eq!(
+        add_calendar_in(
+            "# Work\n- a\n# Home\n# Work\n- z",
+            &["Work".to_string()],
+            "Bugs"
+        ),
+        Ok((
+            "# Work\n- a\n# Home\n# Work\n- z\n\n## Bugs\n".to_string(),
+            7
+        ))
+    );
+    // \r\n stays \r\n; no parent = the top level (add_calendar)
+    assert_eq!(
+        add_calendar_in("# Work\r\n- a\r\n", &["Work".to_string()], "Bugs"),
+        Ok(("# Work\r\n- a\r\n\r\n## Bugs\r\n".to_string(), 4))
+    );
+    assert_eq!(
+        add_calendar_in("# Work\n", &[], "Home"),
+        Ok(add_calendar("# Work\n", "Home"))
+    );
+    // No such calendar (e.g. deleted elsewhere), or already 6 `#`: Changed
+    assert_eq!(
+        add_calendar_in("# Work\n", &["Home".to_string()], "Bugs"),
+        Err(Changed)
+    );
+    assert_eq!(
+        add_calendar_in("###### Deep\n", &["Deep".to_string()], "Deeper"),
+        Err(Changed)
+    );
+}

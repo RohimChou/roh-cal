@@ -115,6 +115,68 @@ pub fn add_calendar(text: &str, name: &str) -> (String, usize) {
     (result, line)
 }
 
+/// Add a calendar inside the calendar with this `parent` path (empty = at the top level, `add_calendar`): the
+/// heading `<one # more than the parent's> <name>` after a blank line, at the end of the parent's last
+/// section (after its items and the calendars inside it, before the blank lines in front of the next heading
+/// with as many `#` or fewer); return the new file content and the heading's line number (from 1).
+/// `Changed` when there is no such calendar, or it already has 6 `#` (the editor does not offer that)
+///
+/// E.g. adding `Bugs` in `Work > SFAP` (`## SFAP`, `- b`, blank, `# Personal`) → `## SFAP`, `- b`, blank,
+/// `### Bugs`, blank, `# Personal`
+pub fn add_calendar_in(
+    text: &str,
+    parent: &[String],
+    name: &str,
+) -> Result<(String, usize), Changed> {
+    if parent.is_empty() {
+        return Ok(add_calendar(text, name));
+    }
+    let (at, level) = section_end(text, parent).ok_or(Changed)?;
+    if level >= 6 {
+        return Err(Changed);
+    }
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let mut result = segments[..at].concat();
+    // The line before is the file's last line and has no newline: add one first
+    if !result.ends_with('\n') {
+        result.push_str(newline);
+    }
+    result.push_str(&format!(
+        "{newline}{} {}{newline}",
+        "#".repeat(level + 1),
+        name.trim()
+    ));
+    result.push_str(&segments[at..].concat());
+    Ok((result, at + 2))
+}
+
+/// Where the last section of the calendar with this `path` ends, and its number of `#`: the index of the line
+/// right after its last line that is not blank, before the next heading with as many `#` or fewer (or the
+/// end of the file); `None` when there is no such calendar
+fn section_end(text: &str, path: &[String]) -> Option<(usize, usize)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let headings = tasks::parse(text).headings;
+    let last = headings.iter().rev().find(|line| {
+        let heading = &line.heading;
+        heading
+            .parents
+            .iter()
+            .chain([&heading.name])
+            .eq(path.iter())
+    })?;
+    let end = headings
+        .iter()
+        .find(|other| other.line > last.line && other.heading.level <= last.heading.level)
+        .map_or(lines.len(), |other| other.line - 1);
+    // Back over the blank lines in front of the next heading (the heading line itself stays)
+    let mut at = end;
+    while at > last.line && lines[at - 1].trim().is_empty() {
+        at -= 1;
+    }
+    Some((at, last.heading.level))
+}
+
 /// Rename a calendar: each of its heading lines (`headings`; headings with the same name are one calendar)
 /// becomes `<its own #s> <new>` (`new` = what was typed in the editor, checked with `check_calendar` first);
 /// return the whole changed file. `Changed` if one of those lines now differs from when it was read

@@ -141,6 +141,10 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
                 Target::Add(place) => texts
                     .add_title(matches!(place, Place::ChildOf(_)))
                     .to_string(),
+                // A calendar inside another one: where it goes, e.g. 「 新增日曆 ∙ Work > SFAP 」
+                Target::AddCalendar { parent, .. } if !parent.is_empty() => {
+                    format!("{}∙ {} ", texts.add_calendar_title, parent.join(" > "))
+                }
                 Target::AddCalendar { .. } => texts.add_calendar_title.to_string(),
                 Target::RenameCalendar { .. } => texts.rename_calendar_title.to_string(),
             },

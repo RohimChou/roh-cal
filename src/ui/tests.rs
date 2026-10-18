@@ -449,7 +449,7 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
     // Keyboard in the side menu: the key hints are the calendar list's
     assert_eq!(
         text_rows(buffer)[13].trim_end(),
-        " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去"
+        " jk 移動  Space 勾選  a/A 新增日曆  e 改名  d 刪除  Esc 回去"
     );
     // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
     // the end is cut off)
@@ -1203,6 +1203,37 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
         "{}",
         rows[6]
     );
+}
+
+#[test]
+fn the_calendar_editor_says_where_a_new_calendar_goes() {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+    // A in the calendar list on Work > SFAP: 「新增日曆 ∙ Work > SFAP」; a on the top level: no path
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(
+        "# Work\n## SFAP\n- [ ] Fix the login bug\n",
+    ));
+    app.focus = Focus::Side;
+    app.group_index = 1;
+    app.handle_key(KeyEvent::from(KeyCode::Char('A')));
+    let terminal = draw_app(&mut app, 80, 24);
+    let rows = area_rows(
+        terminal.backend().buffer(),
+        editor::area(Rect::new(0, 0, 80, 23)),
+    );
+    assert!(
+        rows[0].starts_with("╭ 新增日曆 ∙ Work > SFAP ─"),
+        "{}",
+        rows[0]
+    );
+    app.handle_key(KeyEvent::from(KeyCode::Esc));
+    app.handle_key(KeyEvent::from(KeyCode::Char('a')));
+    let terminal = draw_app(&mut app, 80, 24);
+    let rows = area_rows(
+        terminal.backend().buffer(),
+        editor::area(Rect::new(0, 0, 80, 23)),
+    );
+    assert!(rows[0].starts_with("╭ 新增日曆 ─"), "{}", rows[0]);
 }
 
 #[test]

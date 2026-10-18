@@ -13,7 +13,8 @@
 //!   `@10:00`) and put back on save (`Editor::day`); a multi-day item and the tasks page show the whole line
 //! - `A`: add a subtask to the chosen item
 //! - with no calendar in the file yet, a new item goes into a new `# 預設` (`# Default`) calendar
-//! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading)
+//! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading); `A`: add it
+//!   inside the chosen calendar (one `#` more, at the end of that calendar)
 //! - `e` in the calendar list: rename the chosen calendar
 
 use super::{App, Focus, Mode};
@@ -66,8 +67,12 @@ pub enum Target {
     },
     /// Add a new item, placed here
     Add(Place),
-    /// Add a calendar; `taken` = the names the calendars already have (as the editor opened)
-    AddCalendar { taken: Vec<String> },
+    /// Add a calendar inside the calendar with the path `parent` (empty = at the top level); `taken` = the
+    /// names the calendars there already have (as the editor opened)
+    AddCalendar {
+        taken: Vec<String>,
+        parent: Vec<String>,
+    },
     /// Rename a calendar: `headings` = its heading lines (as read when the editor opened), `taken` = the
     /// names the other calendars have
     RenameCalendar {
@@ -184,7 +189,7 @@ impl Editor {
     /// How the text typed so far reads (shown live on screen; if there is a problem it cannot be saved)
     pub fn check(&self) -> Result<Reading, edit::Problem> {
         match &self.target {
-            Target::AddCalendar { taken } | Target::RenameCalendar { taken, .. } => {
+            Target::AddCalendar { taken, .. } | Target::RenameCalendar { taken, .. } => {
                 edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
             }
             Target::Edit { .. } | Target::Add(_) => edit::check(&self.line()).map(Reading::Item),
@@ -286,18 +291,58 @@ impl App {
     /// `a` in the calendar list: opens an empty editor for the new calendar's name (it goes at the top
     /// level, so it cannot take a top-level calendar's name)
     pub(super) fn start_adding_calendar(&mut self) {
+        self.open_calendar_adder(Vec::new());
+    }
+
+    /// `A` in the calendar list: like `a`, but the new calendar goes inside the chosen one (at its end, one
+    /// `#` more); nothing happens on 「Ungrouped」 (no heading), the 「隱藏做完的」 row, or a calendar that
+    /// already has 6 `#`
+    pub(super) fn start_adding_subcalendar(&mut self) {
+        let Some(parent) = self
+            .groups
+            .get(self.group_index)
+            .filter(|group| group.name.is_some())
+            .map(super::Group::path)
+        else {
+            return;
+        };
+        if self.calendar_level(&parent) >= 6 {
+            return;
+        }
+        self.open_calendar_adder(parent);
+    }
+
+    /// Opens an empty editor for a new calendar inside `parent` (empty = the top level); it cannot take the
+    /// name of a calendar already there
+    fn open_calendar_adder(&mut self, parent: Vec<String>) {
         let taken = self
             .groups
             .iter()
-            .filter(|group| group.parents.is_empty())
+            .filter(|group| group.parents == parent)
             .filter_map(|group| group.name.clone())
             .collect();
         self.mode = Mode::Editor(Editor {
             input: Input::default(),
-            target: Target::AddCalendar { taken },
+            target: Target::AddCalendar { taken, parent },
             day: None,
             hash_list: HashList::default(),
         });
+    }
+
+    /// How many `#` the calendar with this path has (its last heading); 0 when there is none
+    fn calendar_level(&self, path: &[String]) -> usize {
+        self.headings
+            .iter()
+            .rev()
+            .map(|line| &line.heading)
+            .find(|heading| {
+                heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .eq(path.iter())
+            })
+            .map_or(0, |heading| heading.level)
     }
 
     /// `e` in the calendar list: opens the editor with the chosen calendar's heading text, without the `#`s
@@ -440,8 +485,8 @@ impl App {
         };
         let target = editor.target.clone();
         match (target, reading) {
-            (Target::AddCalendar { .. }, Reading::Calendar(heading)) => {
-                self.save_new_calendar(&new, &heading.name);
+            (Target::AddCalendar { parent, .. }, Reading::Calendar(heading)) => {
+                self.save_new_calendar(&parent, &new, &heading.name);
             }
             (Target::RenameCalendar { headings, .. }, Reading::Calendar(heading)) => {
                 self.save_renamed_calendar(&headings, &new, &heading.name);
@@ -527,14 +572,22 @@ impl App {
         }
     }
 
-    /// Saves a new calendar: `# <new>` at the end of the task file; the calendar list chooses it (the
-    /// keyboard stays there). If the task file cannot be read or written, the editor stays open and the
-    /// bottom row says why
-    fn save_new_calendar(&mut self, new: &str, name: &str) {
+    /// Saves a new calendar: `# <new>` at the end of the task file, or inside `parent` (`edit::add_calendar_in`);
+    /// the calendar list chooses it (the keyboard stays there). If the task file cannot be read or written,
+    /// the editor stays open and the bottom row says why; if the parent is gone (changed elsewhere): reload
+    /// and close the editor
+    fn save_new_calendar(&mut self, parent: &[String], new: &str, name: &str) {
         let Some((path, text)) = self.read_tasks_for_adding() else {
             return;
         };
-        let (after, _) = edit::add_calendar(&text, new);
+        let after = match edit::add_calendar_in(&text, parent, new) {
+            Ok((after, _)) => after,
+            Err(edit::Changed) => {
+                self.mode = Mode::Normal;
+                self.reload(&text);
+                return;
+            }
+        };
         if !self.write_tasks(&path, text, after, name.to_string()) {
             return;
         }
@@ -542,7 +595,7 @@ impl App {
         if let Some(index) = self
             .groups
             .iter()
-            .position(|group| group.parents.is_empty() && group.name.as_deref() == Some(name))
+            .position(|group| group.parents == parent && group.name.as_deref() == Some(name))
         {
             self.group_index = index;
         }

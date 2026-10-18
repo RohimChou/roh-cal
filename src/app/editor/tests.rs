@@ -51,6 +51,48 @@ fn a_in_the_calendar_list_adds_a_calendar_at_the_end() {
 }
 
 #[test]
+fn capital_a_in_the_calendar_list_adds_a_calendar_inside_the_chosen_one() {
+    let text = "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug\n\n# Personal\n- Gym\n";
+    let (mut app, path) = app_with_task_file("new-subcalendar", text);
+    app.focus = Focus::Side;
+    // Work chosen: A opens the editor for a calendar inside it; the top border says where it goes
+    press(&mut app, KeyCode::Char('A'));
+    let editor = app.editor().expect("editor");
+    assert!(matches!(&editor.target, Target::AddCalendar { parent, .. } if *parent == ["Work"]));
+    // A name already inside Work cannot be saved; one that is only taken elsewhere (Personal) can
+    type_text(&mut app, "SFAP");
+    assert_eq!(
+        app.editor().map(Editor::check),
+        Some(Err(edit::Problem::NameTaken))
+    );
+    for _ in 0..4 {
+        press(&mut app, KeyCode::Backspace);
+    }
+    type_text(&mut app, "Personal");
+    assert!(app.editor().is_some_and(|editor| editor.check().is_ok()));
+    for _ in 0..8 {
+        press(&mut app, KeyCode::Backspace);
+    }
+    // Saved: `## CAIS` at the end of Work (after SFAP, before the blank line in front of Personal); the
+    // calendar list chooses it (Work, Work > SFAP, Work > CAIS, Personal)
+    type_text(&mut app, "CAIS");
+    press(&mut app, KeyCode::Enter);
+    assert!(app.editor().is_none());
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug\n\n## CAIS\n\n# Personal\n- Gym\n"
+    );
+    let paths: Vec<Vec<String>> = app.groups.iter().map(crate::app::Group::path).collect();
+    assert_eq!(app.group_index, 2);
+    assert_eq!(paths[2], ["Work", "CAIS"]);
+    // On 「Hide done」 (below the calendars): A does nothing
+    app.group_index = app.groups.len();
+    press(&mut app, KeyCode::Char('A'));
+    assert!(app.editor().is_none());
+    clean_up(&path);
+}
+
+#[test]
 fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
     // Work appears twice (one calendar) and has SFAP inside it
     let text = "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug @2026-10-11\n\

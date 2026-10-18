@@ -108,7 +108,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    j / k    選                    1        月曆 + 事項   │",
             "│    gg / G   第一個 / 最後一個     2        大月曆        │",
             "│    Space    勾選                  3        任務頁        │",
-            "│    a        新增日曆              s        日曆清單      │",
+            "│    a / A    新增 / 新增子日曆     s        日曆清單      │",
             "│    e        改名                  Tab      換框          │",
             "│    d        刪除                                         │",
             "│    L / H    往內 / 往外一層     系統                     │",

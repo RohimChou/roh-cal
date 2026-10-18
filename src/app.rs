@@ -764,7 +764,8 @@ impl App {
 
     /// Keyboard in the side menu: up / down choose a calendar, `gg` / `G` the first / last row (like vim; the
     /// last row is the 「隱藏做完的」 switch),
-    /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar,
+    /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar
+    /// (`A` inside the chosen one),
     /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
     /// (`after_g`: the key before this one was `g`)
     fn handle_side_key(&mut self, code: KeyCode, after_g: bool) {
@@ -777,6 +778,7 @@ impl App {
             KeyCode::Char('G') => self.group_index = self.groups.len(),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
+            KeyCode::Char('A') => self.start_adding_subcalendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
             KeyCode::Char('d') => self.ask_delete_calendar(),
             KeyCode::Char('L') => self.shift_calendar(true),
