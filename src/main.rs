@@ -130,7 +130,7 @@ struct Args {
         long,
         value_name = "NAME",
         value_parser = parse_theme,
-        help = "Color theme: catppuccin-mocha, catppuccin-latte or terminal [default: the config file's, else catppuccin-mocha]"
+        help = "Color theme: catppuccin-mocha, catppuccin-latte, gruvbox-dark, tokyo-night or terminal [default: the config file's, else catppuccin-mocha]"
     )]
     theme: Option<String>,
     /// `--tasks`：任務檔的路徑；沒給就用預設位置

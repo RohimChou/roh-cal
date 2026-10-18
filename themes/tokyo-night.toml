@@ -1,0 +1,41 @@
+# Tokyo Night：藍紫色調的暗色配色（nvim、terminal 很常見）
+# 色票：https://github.com/folke/tokyonight.nvim 的 night（底色 #1a1b26）
+
+[palette]
+fg = "#c0caf5"
+fg_dark = "#a9b1d6"
+comment = "#565f89"
+terminal_black = "#414868"
+bg_highlight = "#292e42"
+blue = "#7aa2f7"
+cyan = "#7dcfff"
+green = "#9ece6a"
+yellow = "#e0af68"
+# 黃色和底色（bg #1a1b26）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+dim_yellow = "#a58354"
+orange = "#ff9e64"
+red = "#f7768e"
+magenta = "#bb9af7"
+
+[roles]
+text = "fg"
+muted = "fg_dark"
+line = "terminal_black"
+year_line = "blue"
+label = "blue"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "cyan"
+has_item = "orange"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "bg_highlight"
+focus = "magenta"
+checked = "magenta"
+notice = "yellow"
+error = "red"
+grid = "bg_highlight"
+other_month = "comment"
+help_section = "cyan"
+help_key = "orange"

@@ -1,0 +1,41 @@
+# Gruvbox Dark：暖色調的暗色配色（vim、terminal 很常見）
+# 色票：https://github.com/morhetz/gruvbox 的 dark（字用 light、強調色用 bright 那組）
+
+[palette]
+light1 = "#ebdbb2"
+light4 = "#a89984"
+dark1 = "#3c3836"
+dark3 = "#665c54"
+dark4 = "#7c6f64"
+aqua = "#8ec07c"
+blue = "#83a598"
+green = "#b8bb26"
+yellow = "#fabd2f"
+# 黃色和底色（dark0 #282828）7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+dim_yellow = "#bb902d"
+orange = "#fe8019"
+red = "#fb4934"
+purple = "#d3869b"
+
+[roles]
+text = "light1"
+muted = "light4"
+line = "dark3"
+year_line = "aqua"
+label = "aqua"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "blue"
+has_item = "orange"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "dark1"
+focus = "purple"
+checked = "purple"
+notice = "yellow"
+error = "red"
+grid = "dark1"
+other_month = "dark4"
+help_section = "blue"
+help_key = "orange"

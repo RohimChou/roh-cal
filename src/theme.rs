@@ -57,7 +57,7 @@ pub struct Theme {
 }
 
 /// 內建的 theme：(名字, theme 檔的內容)；檔案在 repo 的 `themes/`，編進執行檔
-pub const BUILTIN: [(&str, &str); 3] = [
+pub const BUILTIN: [(&str, &str); 5] = [
     (
         "catppuccin-mocha",
         include_str!("../themes/catppuccin-mocha.toml"),
@@ -66,6 +66,8 @@ pub const BUILTIN: [(&str, &str); 3] = [
         "catppuccin-latte",
         include_str!("../themes/catppuccin-latte.toml"),
     ),
+    ("gruvbox-dark", include_str!("../themes/gruvbox-dark.toml")),
+    ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
     ("terminal", include_str!("../themes/terminal.toml")),
 ];
 
@@ -319,9 +321,21 @@ mod tests {
             .iter()
             .filter_map(|name| Theme::builtin(name))
             .collect();
-        assert_eq!(themes.len(), 3);
-        assert_ne!(themes[0], themes[1]);
-        assert_ne!(themes[1], themes[2]);
+        assert_eq!(themes.len(), BUILTIN.len());
+        for (index, theme) in themes.iter().enumerate() {
+            for other in &themes[index + 1..] {
+                assert_ne!(theme, other);
+            }
+        }
+        // 每一套從原本的專案抄的色票，抽一個角色對照
+        assert_eq!(
+            Theme::builtin("gruvbox-dark").map(|theme| theme.today),
+            Some(Color::Rgb(0xb8, 0xbb, 0x26))
+        );
+        assert_eq!(
+            Theme::builtin("tokyo-night").map(|theme| theme.focus),
+            Some(Color::Rgb(0xbb, 0x9a, 0xf7))
+        );
         assert_eq!(
             Theme::builtin("catppuccin-latte").map(|theme| theme.today),
             Some(Color::Rgb(0x40, 0xa0, 0x2b))

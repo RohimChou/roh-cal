@@ -463,9 +463,16 @@ mod tests {
             Some(&app.theme),
             Theme::builtin("catppuccin-latte").as_ref()
         );
-        press(&mut app, KeyCode::Char('l'));
-        press(&mut app, KeyCode::Char('l'));
-        assert_eq!(app.settings.theme, "catppuccin-mocha");
+        // 照 `theme::BUILTIN` 的順序：latte → gruvbox-dark → tokyo-night → terminal → 回到 mocha
+        for expected in [
+            "gruvbox-dark",
+            "tokyo-night",
+            "terminal",
+            "catppuccin-mocha",
+        ] {
+            press(&mut app, KeyCode::Char('l'));
+            assert_eq!(app.settings.theme, expected);
+        }
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(app.settings.theme, "terminal");
         assert_eq!(app.theme.text, ratatui::style::Color::Reset);

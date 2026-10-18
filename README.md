@@ -11,7 +11,7 @@ cargo run --release -- --tasks testdata/tasks.md    # try it with the sample tas
 | Option | Meaning |
 | :- | :- |
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
-| `--theme <name>` | Color theme: `catppuccin-mocha` (default), `catppuccin-latte` (light backgrounds) or `terminal` (the terminal's own 16 colors). Default: the config file's `theme` |
+| `--theme <name>` | Color theme: `catppuccin-mocha` (default), `catppuccin-latte` (light backgrounds), `gruvbox-dark`, `tokyo-night` or `terminal` (the terminal's own 16 colors). Default: the config file's `theme` |
 | `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
 | `-h`, `--help` | Print the options |
 | `-v`, `-V`, `--version` | Print the version |
