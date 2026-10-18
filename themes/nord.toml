@@ -3,7 +3,6 @@
 
 [palette]
 nord1 = "#3b4252"
-nord2 = "#434c5e"
 nord3 = "#4c566a"
 nord4 = "#d8dee9"
 # Light gray: nord4 and the background mixed 7:3. Fainter than normal text, for secondary text
@@ -18,6 +17,8 @@ nord13 = "#ebcb8b"
 nord13_dim = "#b29e74"
 nord14 = "#a3be8c"
 nord15 = "#b48ead"
+# Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
+nord8_dim = "#495e6b"
 
 [roles]
 text = "nord4"
@@ -37,7 +38,7 @@ notice = "nord13"
 error = "nord11"
 grid = "nord1"
 other_month = "nord3"
-# Multi-day bars in the month grid: a step lighter than the selected row
-range = "nord2"
+# Multi-day bars in the month grid: a tinted band
+range = "nord8_dim"
 help_section = "nord9"
 help_key = "nord12"

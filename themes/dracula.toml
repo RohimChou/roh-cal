@@ -17,6 +17,8 @@ orange = "#ffb86c"
 red = "#ff5555"
 pink = "#ff79c6"
 purple = "#bd93f9"
+# Multi-day bars: cyan and the background mixed 3:7. A tinted band, dark enough for text on it
+dim_cyan = "#466372"
 
 [roles]
 text = "foreground"
@@ -36,7 +38,7 @@ notice = "yellow"
 error = "red"
 grid = "current_line"
 other_month = "comment"
-# Multi-day bars in the month grid: a step lighter than the selected row
-range = "comment"
+# Multi-day bars in the month grid: a tinted band
+range = "dim_cyan"
 help_section = "cyan"
 help_key = "orange"

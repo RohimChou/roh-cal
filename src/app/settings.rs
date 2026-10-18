@@ -446,11 +446,11 @@ mod tests {
         // h goes back to the theme's own color: not recorded (the config file only records changes)
         press(&mut app, KeyCode::Char('h'));
         assert!(app.settings.colors.is_empty());
-        // h again: wraps around to the palette's last color (mauve); r resets
+        // h again: wraps around to the palette's last color (dim_sapphire); r resets
         press(&mut app, KeyCode::Char('h'));
         assert_eq!(
             app.settings.colors.get("text").map(String::as_str),
-            Some("#cba6f7")
+            Some("#385167")
         );
         press(&mut app, KeyCode::Char('r'));
         assert!(app.settings.colors.is_empty());

@@ -5,7 +5,6 @@
 light1 = "#ebdbb2"
 light4 = "#a89984"
 dark1 = "#3c3836"
-dark2 = "#504945"
 dark3 = "#665c54"
 dark4 = "#7c6f64"
 aqua = "#8ec07c"
@@ -18,6 +17,8 @@ dim_yellow = "#bb902d"
 orange = "#fe8019"
 red = "#fb4934"
 purple = "#d3869b"
+# Multi-day bars: blue and the background (dark0 #282828) mixed 3:7. A tinted band, dark enough for text on it
+dim_blue = "#434e4a"
 
 [roles]
 text = "light1"
@@ -37,7 +38,7 @@ notice = "yellow"
 error = "red"
 grid = "dark1"
 other_month = "dark4"
-# Multi-day bars in the month grid: a step lighter than the selected row
-range = "dark2"
+# Multi-day bars in the month grid: a tinted band
+range = "dim_blue"
 help_section = "blue"
 help_key = "orange"

@@ -371,7 +371,7 @@ mod tests {
         let mocha = choices("catppuccin-mocha");
         assert_eq!(mocha.len(), 14);
         assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
-        assert_eq!(mocha[13].0, "mauve");
+        assert_eq!(mocha[13].0, "dim_sapphire");
         let terminal = choices("terminal");
         assert_eq!(terminal.len(), 16);
         assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
@@ -406,6 +406,26 @@ mod tests {
         for (index, theme) in themes.iter().enumerate() {
             for other in &themes[index + 1..] {
                 assert_ne!(theme, other);
+            }
+            // A multi-day bar must not look like the selected cell's background
+            assert_ne!(theme.range, theme.cursor_line, "{}", names()[index]);
+        }
+        assert_eq!(
+            Theme::catppuccin_mocha().range,
+            Color::Rgb(0x38, 0x51, 0x67)
+        );
+        // Every palette color is used by some role (no leftovers from roles that are gone)
+        for (name, text) in BUILTIN {
+            let doc: DocumentMut = text.parse().expect("toml");
+            let Some(palette) = doc.get("palette").and_then(|item| item.as_table()) else {
+                continue;
+            };
+            let roles = doc["roles"].as_table().expect("roles");
+            for (color, _) in palette {
+                assert!(
+                    roles.iter().any(|(_, role)| role.as_str() == Some(color)),
+                    "{name}: {color} is used by no role"
+                );
             }
         }
         // Each theme's palette was copied from the original project; check one role of each against it

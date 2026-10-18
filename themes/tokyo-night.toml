@@ -17,6 +17,8 @@ dim_yellow = "#a58354"
 orange = "#ff9e64"
 red = "#f7768e"
 magenta = "#bb9af7"
+# Multi-day bars: cyan and the background (bg #1a1b26) mixed 3:7. A tinted band, dark enough for text on it
+dim_cyan = "#385167"
 
 [roles]
 text = "fg"
@@ -36,7 +38,7 @@ notice = "yellow"
 error = "red"
 grid = "bg_highlight"
 other_month = "comment"
-# Multi-day bars in the month grid: a step lighter than the selected row
-range = "terminal_black"
+# Multi-day bars in the month grid: a tinted band
+range = "dim_cyan"
 help_section = "cyan"
 help_key = "orange"
