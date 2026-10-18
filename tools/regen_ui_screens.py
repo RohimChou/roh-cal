@@ -33,6 +33,7 @@ PLAN = {
     "month_view_lists_each_days_items_in_its_cell": [(["zh", "80", "30", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "80", "16", "2026-10-17"], "month.md", {"LAYOUT": "3"})],
     "month_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3"}), (["zh", "121", "22", "2026-10-17"], "month.md", {"LAYOUT": "3", "HIDDEN": "1"})],
     "month_view_without_grid_lines_gives_the_cells_more_room": [(["zh", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3", "NO_GRID": "1"})],
+    "month_view_without_item_icons": [(["en", "80", "24", "2026-10-17"], "month.md", {"LAYOUT": "3", "NO_ICONS": "1"})],
     "month_view_lists_a_multi_day_item_on_each_of_its_days": [(["zh", "80", "30", "2026-10-17"], "ranges.md", {"LAYOUT": "3"})],
     "tasks_page_lists_the_file_as_a_tree": [(["zh", "70", "30", "2026-10-17"], "tasks.md", {"LAYOUT": "4"}), (["en", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "EXPANDED": "6,59,60", "CHOSEN_LINE": "61"})],
     "tasks_page_points_at_format_mistakes": [(["zh", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "CHOSEN_LINE": "43"})],
@@ -43,7 +44,7 @@ PLAN = {
 
 def generate(args, data, extra):
     """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
-    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN", "LAYOUT", "EXPANDED", "CHOSEN_LINE", "NO_GRID")}
+    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN", "LAYOUT", "EXPANDED", "CHOSEN_LINE", "NO_GRID", "NO_ICONS")}
     env.update(extra)
     if isinstance(data, str):
         text = (ROOT / "testdata" / data).read_text()

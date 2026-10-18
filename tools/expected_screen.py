@@ -11,7 +11,7 @@
 EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = 選到的那件在第幾行（沒給 = 第一件）
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
-NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；
+NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；NO_ICONS = 版型 3 的事前面不加點（`item_icons = false`）；
 HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
 今天固定是 2026-10-17。
 """
@@ -48,6 +48,7 @@ CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
+NO_ICONS = "NO_ICONS" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
 
@@ -344,7 +345,8 @@ def month_screen(lang, w, h, selected, top, items, groups):
             else:
                 # 放得下就全列；放不下就少列一件，最後一行 +N
                 shown = len(day_items) if len(day_items) <= wh - 1 else wh - 2
-                cell = [first] + [" ∙ " + (time + " " if time else "") + title for _, time, title, _, _ in day_items[:shown]]
+                icon = " " if NO_ICONS else " ∙ "
+                cell = [first] + [icon + (time + " " if time else "") + title for _, time, title, _, _ in day_items[:shown]]
                 if shown < len(day_items):
                     cell.append(f" +{len(day_items) - shown}")
             week_cells.append(cell)

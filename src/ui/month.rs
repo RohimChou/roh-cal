@@ -263,7 +263,7 @@ fn cell_lines(day: Date, month: Date, items: &[&Item], rows: u16, app: &App) -> 
     lines
 }
 
-/// 格子裡的一件事：「 ∙ 14:00 標題」（有時間才寫時間）
+/// 格子裡的一件事：「 ∙ 14:00 標題」（有時間才寫時間；設定檔 `[month] item_icons = false` 時沒有點：「 14:00 標題」）
 ///
 /// 跟版型 1 右邊的事一樣：還沒結束的用那天在月曆上的顏色、時間淡色；結束了的整行灰（做完的任務標題再劃線）；
 /// 其他月份的整行灰
@@ -281,7 +281,12 @@ fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
     } else {
         theme.muted
     };
-    let mut spans = vec![Span::styled(" ∙ ", Style::new().fg(color))];
+    let icon = if app.settings.month.item_icons {
+        " ∙ "
+    } else {
+        " "
+    };
+    let mut spans = vec![Span::styled(icon, Style::new().fg(color))];
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
