@@ -61,17 +61,15 @@ pub struct Theme {
 }
 
 /// 內建的 theme：(名字, theme 檔的內容)；檔案在 repo 的 `themes/`，編進執行檔
-pub const BUILTIN: [(&str, &str); 5] = [
+pub const BUILTIN: [(&str, &str); 6] = [
     (
         "catppuccin-mocha",
         include_str!("../themes/catppuccin-mocha.toml"),
     ),
-    (
-        "catppuccin-latte",
-        include_str!("../themes/catppuccin-latte.toml"),
-    ),
     ("gruvbox-dark", include_str!("../themes/gruvbox-dark.toml")),
     ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
+    ("dracula", include_str!("../themes/dracula.toml")),
+    ("nord", include_str!("../themes/nord.toml")),
     ("terminal", include_str!("../themes/terminal.toml")),
 ];
 
@@ -338,7 +336,7 @@ mod tests {
         let terminal = Theme::build("terminal", &colors(&[("weekend", "red")])).expect("valid");
         assert_eq!(terminal.weekend, Color::Red);
         // 錯誤：沒有這套 theme、角色名字打錯、不是顏色；訊息說得出是哪一個
-        assert!(Theme::build("dracula", &BTreeMap::new()).is_err());
+        assert!(Theme::build("solarized", &BTreeMap::new()).is_err());
         let error =
             Theme::build("catppuccin-mocha", &colors(&[("todya", "red")])).expect_err("role");
         assert!(error.contains("todya: no such role"), "{error}");
@@ -402,8 +400,12 @@ mod tests {
             Some(Color::Rgb(0xbb, 0x9a, 0xf7))
         );
         assert_eq!(
-            Theme::builtin("catppuccin-latte").map(|theme| theme.today),
-            Some(Color::Rgb(0x40, 0xa0, 0x2b))
+            Theme::builtin("dracula").map(|theme| theme.cursor_line),
+            Some(Color::Rgb(0x44, 0x47, 0x5a))
+        );
+        assert_eq!(
+            Theme::builtin("nord").map(|theme| theme.weekend),
+            Some(Color::Rgb(0x81, 0xa1, 0xc1))
         );
         assert_eq!(
             Theme::builtin("terminal").map(|theme| theme.text),

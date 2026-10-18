@@ -1,0 +1,41 @@
+# Dracula：高對比、偏紫粉的暗色配色（各家編輯器、terminal 都有）
+# 色票：https://draculatheme.com 的 Color Palette（底色 Background #282a36）
+
+[palette]
+foreground = "#f8f8f2"
+# 字和底色 7:3 混出來的淡灰：比一般的字淡，次要的字用
+fg_dim = "#bababa"
+comment = "#6272a4"
+current_line = "#44475a"
+cyan = "#8be9fd"
+green = "#50fa7b"
+yellow = "#f1fa8c"
+# 黃色和底色 7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+dim_yellow = "#b5bc72"
+orange = "#ffb86c"
+red = "#ff5555"
+pink = "#ff79c6"
+purple = "#bd93f9"
+
+[roles]
+text = "foreground"
+muted = "fg_dim"
+line = "comment"
+year_line = "purple"
+label = "purple"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "cyan"
+has_item = "orange"
+holiday = "red"
+today = "green"
+selected = "red"
+cursor_line = "current_line"
+focus = "pink"
+checked = "pink"
+notice = "yellow"
+error = "red"
+grid = "current_line"
+other_month = "comment"
+help_section = "cyan"
+help_key = "orange"

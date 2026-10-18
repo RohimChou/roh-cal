@@ -1,0 +1,41 @@
+# Nord：冷色調、低對比的暗色配色（北極的藍灰色；各家編輯器、terminal 都有）
+# 色票：https://www.nordtheme.com 的 nord0～nord15（底色 nord0 #2e3440）
+
+[palette]
+nord1 = "#3b4252"
+nord3 = "#4c566a"
+nord4 = "#d8dee9"
+# nord4 和底色 7:3 混出來的淡灰：比一般的字淡，次要的字用
+nord4_dim = "#a5abb6"
+nord8 = "#88c0d0"
+nord9 = "#81a1c1"
+nord11 = "#bf616a"
+nord12 = "#d08770"
+nord13 = "#ebcb8b"
+# nord13（黃）和底色 7:3 混出來的暗黃：看得出是黃色，但比選取那週暗
+nord13_dim = "#b29e74"
+nord14 = "#a3be8c"
+nord15 = "#b48ead"
+
+[roles]
+text = "nord4"
+muted = "nord4_dim"
+line = "nord3"
+year_line = "nord8"
+label = "nord8"
+week_number = "nord13"
+week_number_dim = "nord13_dim"
+weekend = "nord9"
+has_item = "nord12"
+holiday = "nord11"
+today = "nord14"
+selected = "nord11"
+cursor_line = "nord1"
+focus = "nord15"
+checked = "nord15"
+notice = "nord13"
+error = "nord11"
+grid = "nord1"
+other_month = "nord3"
+help_section = "nord9"
+help_key = "nord12"

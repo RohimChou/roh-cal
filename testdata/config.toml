@@ -1,8 +1,8 @@
 # roh-cal v2 設定檔範例（真正的位置：~/.config/roh-cal/config-v2.toml）
 # 只寫想改的就好，沒寫的用預設值；這裡每個開關都寫成跟預設相反
 
-# 顏色：內建的 catppuccin-mocha（預設）、catppuccin-latte（亮色背景）、gruvbox-dark、tokyo-night、terminal（只用 terminal 的 16 色）
-theme = "catppuccin-latte"
+# 顏色：內建的 catppuccin-mocha（預設）、gruvbox-dark、tokyo-night、dracula、nord、terminal（只用 terminal 的 16 色）
+theme = "nord"
 
 # 月曆（版型 1、3）共用
 [calendar]
@@ -20,5 +20,5 @@ center_cursor = true
 
 # 蓋掉 theme 的幾個角色（角色的名字見 themes/ 裡的 [roles]）：顏色、或那套 theme 的色票名字
 [colors]
-# 週末用 latte 的紅色
-weekend = "red"
+# 週末用 nord 色票的紅色（nord11）
+weekend = "nord11"

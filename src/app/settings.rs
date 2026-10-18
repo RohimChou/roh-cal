@@ -512,15 +512,13 @@ mod tests {
         assert_eq!(app.settings_page(), Some(SettingsPage::default()));
         // 第一列 theme：l 換下一套（畫面的顏色馬上跟著換）、到最後一套再 l 回到第一套、h 往回
         press(&mut app, KeyCode::Char('l'));
-        assert_eq!(app.settings.theme, "catppuccin-latte");
-        assert_eq!(
-            Some(&app.theme),
-            Theme::builtin("catppuccin-latte").as_ref()
-        );
-        // 照 `theme::BUILTIN` 的順序：latte → gruvbox-dark → tokyo-night → terminal → 回到 mocha
+        assert_eq!(app.settings.theme, "gruvbox-dark");
+        assert_eq!(Some(&app.theme), Theme::builtin("gruvbox-dark").as_ref());
+        // 照 `theme::BUILTIN` 的順序：gruvbox-dark → tokyo-night → dracula → nord → terminal → 回到 mocha
         for expected in [
-            "gruvbox-dark",
             "tokyo-night",
+            "dracula",
+            "nord",
             "terminal",
             "catppuccin-mocha",
         ] {
@@ -557,7 +555,7 @@ mod tests {
     #[test]
     fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         let mut app = app_with_settings();
-        // theme 換成 latte，relative_weeks 打開、grid_lines 關掉
+        // theme 換成 gruvbox-dark，relative_weeks 打開、grid_lines 關掉
         press(&mut app, KeyCode::Char('l'));
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
@@ -567,7 +565,7 @@ mod tests {
         press(&mut app, KeyCode::Char('r'));
         assert!(app.settings.month.grid_lines);
         assert!(app.settings.calendar.relative_weeks);
-        assert_eq!(app.settings.theme, "catppuccin-latte");
+        assert_eq!(app.settings.theme, "gruvbox-dark");
         // R 之後按別的鍵：只是取消，那個鍵也不做事（j 不會移動）
         press(&mut app, KeyCode::Char('R'));
         assert_eq!(

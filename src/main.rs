@@ -196,7 +196,7 @@ mod tests {
             "--tasks",
             "--lang ja",
             "--foo bar",
-            "--theme dracula",
+            "--theme solarized",
         ] {
             assert!(args(line).is_err(), "{line}");
         }

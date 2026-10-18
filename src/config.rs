@@ -24,7 +24,7 @@ use toml_edit::{DocumentMut, Item, Table, TableLike};
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
-    /// 用哪一套內建的 theme（`theme::BUILTIN` 的名字），例：`catppuccin-latte`
+    /// 用哪一套內建的 theme（`theme::BUILTIN` 的名字），例：`nord`
     pub theme: String,
     /// `[calendar]`：版型 1、3 的月曆共用的開關
     pub calendar: CalendarSettings,
@@ -290,7 +290,7 @@ mod tests {
             // v1 的名字（v1 的 week_numbers = true 是相對週數，v2 改叫 relative_weeks）
             "[calendar]\nweek_numbers = true",
             // 沒有這套 theme
-            "theme = \"dracula\"",
+            "theme = \"solarized\"",
             // 角色名字打錯、不是顏色、terminal 沒有 catppuccin 的色票名字
             "[colors]\ntodya = \"red\"",
             "[colors]\ntoday = \"redd\"",
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(
             settings,
             Settings {
-                theme: "catppuccin-latte".to_string(),
+                theme: "nord".to_string(),
                 calendar: CalendarSettings {
                     relative_weeks: true
                 },
@@ -316,7 +316,7 @@ mod tests {
                     item_icons: false,
                     center_cursor: true,
                 },
-                colors: BTreeMap::from([("weekend".to_string(), "red".to_string())]),
+                colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),
             }
         );
         // 檔案不存在 → 預設值
@@ -379,15 +379,12 @@ mod tests {
     fn updated_puts_the_theme_above_the_tables() {
         // theme 寫在最上層：TOML 規定要在所有 `[表]` 前面，不然會被當成最後那個表的
         let settings = Settings {
-            theme: "catppuccin-latte".to_string(),
+            theme: "nord".to_string(),
             ..Settings::default()
         };
         let text = "[month]\ngrid_lines = true\n";
         let new_text = updated_file(text, &settings).expect("valid file");
-        assert_eq!(
-            new_text,
-            "theme = \"catppuccin-latte\"\n[month]\ngrid_lines = true\n"
-        );
+        assert_eq!(new_text, "theme = \"nord\"\n[month]\ngrid_lines = true\n");
         assert_eq!(parse(&new_text).expect("reads back"), settings);
     }
 
