@@ -2170,9 +2170,10 @@ mod tests {
 
     #[test]
     fn month_view_without_grid_lines_gives_the_cells_more_room() {
-        // Config `[month] grid_lines = false`: no grid lines, the cells touch,
-        // and no line under the header either; 80 × 24: day width 78 − 5 = 73
-        // (Mon-Wed 11 cells, the others 10), each week (21 − 1) ÷ 6 = 3 rows
+        // Config `[month] grid_lines = false`: no grid lines, the cells touch, and no line under the header
+        // either; only where a month ends, its edge (a row after the first week for September's, a row
+        // above and below the week of 10/26 for October's); 80 × 24: day width 78 − 5 = 73 (Mon-Wed 11
+        // cells, the others 10), each week (21 − 1 − 3) ÷ 6 = 2 rows
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
         app.settings.month.grid_lines = false;
         app.screen = Rect::new(0, 0, 80, 24);
@@ -2181,22 +2182,22 @@ mod tests {
             [
                 "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
                 "│  週  一         二         三         四        五        六        日       │",
-                "│  40  28         29         30         1 10月    2         3         4        │",
-                "│ 10月            Backyard BBQ                                                 │",
-                "│                                                                              │",
+                "│  40  28         29         30        │1 10月    2         3         4        │",
+                "│ 10月            Backyard BBQ         │                                       │",
+                "├──────────────────────────────────────┘                                       │",
                 "│  41  5          6          7          8         9         10        11       │",
                 "│      Pay the phone bill                                   Farmers market     │",
-                "│                                                                              │",
                 "│  42  12         13         14         15        16        17        18       │",
-                "│      14:00 Code 15:00 Confirm alertin Fix the l Clean up  Dinner wi 07:00 Go │",
-                "│                                                 +3        08:00 Coffee chat  │",
+                "│      14:00 Code 15:00 Confirm alertin Fix the l +4        +2        07:00 Go │",
                 "│  43  19         20         21         22        23        24        25       │",
                 "│                 A really long title that spills over                         │",
-                "│                                                                              │",
-                "│  44  26         27         28         29        30        31        1 11月   │",
-                "│ 11月                                                                Buy a bir│",
-                "│                                                                              │",
+                "│                                                                    ┌─────────┤",
+                "│  44  26         27         28         29        30        31       │1 11月   │",
+                "│ 11月                                                               │Buy a bir│",
+                "├────────────────────────────────────────────────────────────────────┘         │",
                 "│  45  2          3          4          5         6         7         8        │",
+                "│                                                                              │",
+                "│                                                                              │",
                 "│                                                                              │",
                 "│                                                                              │",
                 "│                                                                              │",
@@ -2205,11 +2206,12 @@ mod tests {
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
-        // Mouse: the cells without grid lines can be clicked too.
-        // Tuesday is x 17-27, week 2 (the week of 10/5) is y 5-7
+        // Mouse: the cells without grid lines can be clicked too. Tuesday is x 17-27, week 2 (the week of
+        // 10/5) is y 5-6, below September's edge at y 4 (nothing to click there)
         assert_eq!(click_at(&app, 17, 5), Some(Click::Day(date(2026, 10, 6))));
-        assert_eq!(click_at(&app, 27, 7), Some(Click::Day(date(2026, 10, 6))));
-        assert_eq!(click_at(&app, 28, 7), Some(Click::Day(date(2026, 10, 7))));
+        assert_eq!(click_at(&app, 27, 6), Some(Click::Day(date(2026, 10, 6))));
+        assert_eq!(click_at(&app, 28, 6), Some(Click::Day(date(2026, 10, 7))));
+        assert_eq!(click_at(&app, 20, 4), None);
     }
 
     #[test]
@@ -2860,9 +2862,10 @@ mod tests {
     }
 
     #[test]
-    fn month_view_without_grid_lines_draws_no_line_for_the_new_year() {
-        // 80 × 24 without grid lines, 2027/1/1 selected: no line at all, a new year neither; rows are 3 tall
-        // (22 − header 1 = 21, 21 / 6 = 3, the leftover 3 rows at the bottom)
+    fn month_view_without_grid_lines_draws_only_the_months_edges() {
+        // 80 × 24 without grid lines, 2027/1/1 selected: no grid, only where a month ends: the year's edge
+        // thick (between 12/31 and 1/1 in the first column of 1/1's cell, x 49; under 12/28-31 on its own
+        // row, y 5), February's straight (2/1 is a Monday; y 18); rows are 3 tall (21 − header 1 − 2 = 18)
         let mut app = month_app(Lang::ZhTw, date(2027, 1, 1), "");
         app.settings.month.grid_lines = false;
         let terminal = draw_app(&mut app, 80, 24);
@@ -2871,9 +2874,10 @@ mod tests {
             [
                 "╭─────────────────────────────── 2027/1/1（五） ───────────────────────────────╮",
                 "│  週  一         二         三         四        五        六        日       │",
-                "│   1  28         29         30         31        1 1月     2         3        │",
-                "│ 1月                                                                          │",
-                "│ 2027                                                                         │",
+                "│   1  28         29         30         31       ┃1 1月     2         3        │",
+                "│ 1月                                            ┃                             │",
+                "│ 2027                                           ┃                             │",
+                "┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛                             │",
                 "│   2  4          5          6          7         8         9         10       │",
                 "│                                                                              │",
                 "│                                                                              │",
@@ -2886,17 +2890,29 @@ mod tests {
                 "│   5  25         26         27         28        29        30        31       │",
                 "│                                                                              │",
                 "│                                                                              │",
+                "├──────────────────────────────────────────────────────────────────────────────┤",
                 "│   6  1 2月      2          3          4         5         6         7        │",
                 "│ 2月                                                                          │",
-                "│                                                                              │",
-                "│                                                                              │",
                 "│                                                                              │",
                 "╰──────────────────────────────────────────────────────────────────────────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         let buffer = terminal.backend().buffer();
-        assert!(buffer.content().iter().all(|cell| cell.symbol() != "━"));
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(49, 3), ("┃", theme.year_line));
+        assert_eq!(cell(49, 5), ("┛", theme.year_line));
+        assert_eq!(cell(20, 5), ("━", theme.year_line));
+        assert_eq!(cell(3, 5), ("━", theme.year_line));
+        assert_eq!(cell(0, 5), ("┝", theme.focus));
+        assert_eq!(cell(60, 5).0, " ");
+        assert_eq!(cell(79, 5).0, "│");
+        assert_eq!(cell(20, 18), ("─", theme.line));
+        assert_eq!(cell(0, 18), ("├", theme.focus));
+        assert_eq!(cell(79, 18), ("┤", theme.focus));
+        // Between other weeks there is no line: the week of 1/11 comes right after the week of 1/4
+        assert_eq!(cell(20, 8).0, " ");
     }
 
     #[test]

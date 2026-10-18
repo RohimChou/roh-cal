@@ -45,7 +45,7 @@ PLAN = {
     "tasks_page_points_at_format_mistakes": [(["zh", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "3", "CHOSEN_LINE": "43"})],
     "tasks_page_with_the_side_menu": [(["zh", "121", "14", "2026-10-17"], "tasks.md", {"LAYOUT": "3", "HIDDEN": "0,1"})],
     "month_view_puts_the_week_across_the_new_year_on_one_row": [(["en", "80", "30", "2027-01-01"], False, {"LAYOUT": "2"})],
-    "month_view_without_grid_lines_draws_no_line_for_the_new_year": [(["zh", "80", "24", "2027-01-01"], False, {"LAYOUT": "2", "NO_GRID": "1"})],
+    "month_view_without_grid_lines_draws_only_the_months_edges": [(["zh", "80", "24", "2027-01-01"], False, {"LAYOUT": "2", "NO_GRID": "1"})],
     "month_view_scrolls_a_row_at_a_time": [(["en", "80", "16", "2026-11-16", "2026-09-28"], False, {"LAYOUT": "2"}), (["zh", "80", "16", "2026-09-20", "2026-10-12"], False, {"LAYOUT": "2"})],
 }
 

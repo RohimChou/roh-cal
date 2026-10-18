@@ -420,20 +420,27 @@ def month_screen(lang, w, h, selected, top, items, groups):
     lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # vertical lines: right of each column
                                                                     # (right of Sunday is the outer border)
     mondays = [top + datetime.timedelta(weeks=i) for i in range(6)]
-    wh = (ih - 1 - gap - 5 * gap) // 6  # rows per week (leftover rows stay at the bottom;
-                                        # vertical lines still run down to the bottom border)
-    week_y = lambda i: 1 + gap + i * (wh + gap)
+    # A month's edge between week i and week i + 1: some day and the same weekday a week later are in
+    # different months
+    day_of = lambda i, k: mondays[i] + datetime.timedelta(days=k)
+    new_month = lambda a, b: (a.year, a.month) != (b.year, b.month)
+    edge_after = [any(new_month(day_of(i, k), day_of(i + 1, k)) for k in range(7)) for i in range(5)]
+    # The rows between weeks: with grid lines a line between every two weeks; without, only where a month
+    # ends (its edge goes there)
+    week_gaps = [1 if gap or edge_after[i] else 0 for i in range(5)]
+    wh = (ih - 1 - gap - sum(week_gaps)) // 6  # rows per week (leftover rows stay at the bottom;
+                                               # vertical lines still run down to the bottom border)
+    week_y = lambda i: 1 + gap + i * wh + sum(week_gaps[:i])
     c = Canvas(iw, ih)
     left, right = ["│"] * ih, ["│"] * ih  # left and right outer border of each row
     bottom_border = ["─"] * iw
     # Each stretch of grid line is thick where it lies between two years (Dec 31 | Jan 1); only the
     # characters are checked here, the colors (faint / border color at a month's edge) are not
-    day = lambda i, k: mondays[i] + datetime.timedelta(days=k)
     thick = lambda a, b: a.year != b.year
     # Vertical line j (0: right of the week-number column, never thick; j: between day j-1 and day j)
-    v_thick = lambda i, j: j > 0 and thick(day(i, j - 1), day(i, j))
+    v_thick = lambda i, j: j > 0 and thick(day_of(i, j - 1), day_of(i, j))
     # Horizontal stretch under column k (0: the week-number column, same as Monday) of week i
-    h_thick = lambda i, k: thick(day(i, max(k, 1) - 1), day(i + 1, max(k, 1) - 1))
+    h_thick = lambda i, k: thick(day_of(i, max(k, 1) - 1), day_of(i + 1, max(k, 1) - 1))
     if gap:
         for j, x in enumerate(lines_x):
             for i in range(6):
@@ -560,6 +567,39 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 starts = run == first_k and it[0] == days[run]
                 c.put(x, y, " " + (time + " " if time and starts else "") + title, band)
                 k += 1
+    # Without grid lines: only a month's edge, drawn over the cells: the vertical stretch between the last
+    # day and the 1st in the first column of the 1st's cell, the horizontal ones on the row between the
+    # two weeks, corners where they meet
+    v_edge = lambda i, j: j > 0 and new_month(day_of(i, j - 1), day_of(i, j))
+    h_edge = lambda i, k: new_month(day_of(i, max(k, 1) - 1), day_of(i + 1, max(k, 1) - 1))
+    if not gap:
+        for i in range(6):
+            for j in range(1, 7):
+                if v_edge(i, j):
+                    to = ih if i == 5 else week_y(i) + wh
+                    for y in range(week_y(i), to):
+                        c.rows[y][xs[j + 1]] = "┃" if v_thick(i, j) else "│"
+                    if i == 5:
+                        bottom_border[xs[j + 1]] = box(up=v_thick(i, j), left=False, right=False)
+        for i in range(5):
+            if not edge_after[i]:
+                continue
+            y = week_y(i) + wh
+            for k in range(8):
+                if h_edge(i, k):
+                    for x in range(xs[k], xs[k] + widths[k]):
+                        c.rows[y][x] = "━" if h_thick(i, k) else "─"
+            arm = lambda present, heavy: heavy if present else None
+            for j in range(1, 7):
+                if v_edge(i, j) or v_edge(i + 1, j):
+                    c.rows[y][xs[j + 1]] = box(up=arm(v_edge(i, j), v_thick(i, j)),
+                                               down=arm(v_edge(i + 1, j), v_thick(i + 1, j)),
+                                               left=arm(h_edge(i, j), h_thick(i, j)),
+                                               right=arm(h_edge(i, j + 1), h_thick(i, j + 1)))
+            if h_edge(i, 0):
+                left[y] = box(up=False, down=False, right=h_thick(i, 0))
+            if h_edge(i, 7):
+                right[y] = box(up=False, down=False, left=h_thick(i, 7))
     # Outer border: the selected day in the middle of the top border (an odd leftover cell goes to the right);
     # vertical lines meet the bottom border as ┴
     title = " " + t["date"](selected) + " "
