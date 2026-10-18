@@ -1,5 +1,6 @@
-//! Keys and mouse while the help page (`?`) is open: `Tab` switches short / full version; scroll up / down
-//! when it does not fit; `?` / `q` / `Esc` or a click outside closes it
+//! Keys and mouse while the help page (`?`) is open: `Tab` switches short / full version, `?` again goes
+//! from the short version to the full one and closes the full one; scroll up / down when it does not fit;
+//! `q` / `Esc` or a click outside closes it
 
 use super::{App, Mode};
 use crate::ui;
@@ -19,8 +20,9 @@ pub struct Help {
 
 impl App {
     /// Keys while the help page is open: `j` / `k` (`↓` / `↑`) scroll when it does not fit; `Tab` switches
-    /// short / full version (back to the top);
-    /// `?` / `q` / `Esc` close it; `Ctrl+C` quits; other keys are ignored
+    /// short / full version (back to the top); `?` on the short version shows the full one (so `?` three
+    /// times = short, full, closed), on the full one it closes;
+    /// `q` / `Esc` close it; `Ctrl+C` quits; other keys are ignored
     pub(super) fn handle_help_key(&mut self, key: KeyEvent) {
         let Some(help) = self.help() else {
             return;
@@ -34,6 +36,12 @@ impl App {
             KeyCode::Tab | KeyCode::BackTab => {
                 self.mode = Mode::Help(Help {
                     full: !help.full,
+                    scroll: 0,
+                });
+            }
+            KeyCode::Char('?') if !help.full => {
+                self.mode = Mode::Help(Help {
+                    full: true,
                     scroll: 0,
                 });
             }

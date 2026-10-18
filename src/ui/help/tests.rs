@@ -58,7 +58,7 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
             "│                                ,       設定          │",
             "│                                q       離開          │",
             "│                                                      │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──────────────────────────╯",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────╯",
         ]
     );
     // Colors: the border is lit (keyboard focus is here); section names, keys and descriptions each have
@@ -95,7 +95,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│                                  ,       設定          │",
             "│                                  q       離開          │",
             "│                                                        │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Side, Lang::ZhTw, 70, 23, Help::default());
@@ -116,7 +116,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│                                   ,        設定          │",
             "│                                   q        離開          │",
             "│                                                          │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Agenda, Lang::ZhTw, 70, 23, Help::default());
@@ -137,7 +137,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│                                   ,       設定          │",
             "│                                   q       離開          │",
             "│                                                         │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ─────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ─────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Day, Lang::ZhTw, 70, 23, Help::default());
@@ -179,7 +179,7 @@ fn a_narrow_screen_stacks_the_columns() {
             "│    ,       設定              │",
             "│    q       離開              │",
             "│                              │",
-            "╰ Tab 全部按鍵  ?/q/Esc 關閉 ──╯",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──╯",
         ]
     );
 }

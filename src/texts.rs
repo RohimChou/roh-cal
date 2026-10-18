@@ -163,7 +163,7 @@ const EN: Texts = Texts {
     ungrouped: "Ungrouped",
     help: HelpPage {
         short_title: "keys",
-        short_hint: "Tab all keys  ?/q/Esc close",
+        short_hint: "?/Tab all keys  q/Esc close",
         full_title: "all keys, gray: not here",
         full_hint: "Tab keys for here  ?/q/Esc close",
         short: &[
@@ -373,7 +373,7 @@ const ZH_TW: Texts = Texts {
     ungrouped: "未分組",
     help: HelpPage {
         short_title: "按鍵",
-        short_hint: "Tab 全部按鍵  ?/q/Esc 關閉",
+        short_hint: "?/Tab 全部按鍵  q/Esc 關閉",
         full_title: "全部按鍵，灰的這裡用不到",
         full_hint: "Tab 這裡的按鍵  ?/q/Esc 關閉",
         short: &[

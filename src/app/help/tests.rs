@@ -43,12 +43,43 @@ fn question_mark_opens_the_short_page_and_tab_switches() {
 }
 
 #[test]
-fn question_mark_q_and_esc_close_it_without_quitting() {
-    for code in [KeyCode::Char('?'), KeyCode::Char('q'), KeyCode::Esc] {
-        let mut app = app_with_help(100, 40);
-        press(&mut app, code);
-        assert_eq!(app.help(), None, "{code:?}");
-        assert!(!app.should_quit, "{code:?}");
+fn question_mark_again_shows_all_keys_and_a_third_time_closes_it() {
+    // ? on the short version: the full one (back to the top); ? on the full one: closed, without quitting.
+    // 44 × 20: the short version does not fit either, so j scrolls it first
+    let mut app = app_with_help(44, 20);
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.help().map(|help| help.scroll), Some(1));
+    press(&mut app, KeyCode::Char('?'));
+    assert_eq!(
+        app.help(),
+        Some(Help {
+            full: true,
+            scroll: 0
+        })
+    );
+    press(&mut app, KeyCode::Char('?'));
+    assert_eq!(app.help(), None);
+    assert!(!app.should_quit);
+    // Tab back to the short version first: ? shows the full one again
+    let mut app = app_with_help(100, 40);
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('?'));
+    assert_eq!(app.help().map(|help| help.full), Some(true));
+}
+
+#[test]
+fn q_and_esc_close_it_without_quitting() {
+    for code in [KeyCode::Char('q'), KeyCode::Esc] {
+        for full in [false, true] {
+            let mut app = app_with_help(100, 40);
+            if full {
+                press(&mut app, KeyCode::Tab);
+            }
+            press(&mut app, code);
+            assert_eq!(app.help(), None, "{code:?} {full}");
+            assert!(!app.should_quit, "{code:?} {full}");
+        }
     }
 }
 
