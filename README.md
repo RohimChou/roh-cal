@@ -24,7 +24,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **Edit in place**: check off, add, edit, reschedule (the calendar is the date picker), delete, indent and reorder, and undo the last 50 writes
 - **Safe writes**: only the changed lines are rewritten, through a temp file; if the file changed elsewhere since roh-cal read it, roh-cal reloads instead of overwriting
 - **Calendars**: show or hide each `#` group; a heading marked `type:holiday` colors its days as holidays
-- **Mouse**: the wheel scrolls and clicks select everywhere; a second click opens or checks off
+- **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day, a second click checks off
 - **Themes**: six built in, and any color can be overridden per role from a settings page
 - **English and 繁體中文**
 
@@ -110,7 +110,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
-| `Enter` | Go into the selected day's items: in layout 1 the agenda's first item that day; layout 3 opens a popup over the month grid with all of that day's items, the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: in layout 1 click the selected day again, in layout 3 double-click a day |
+| `Enter` | Go into the selected day's items: in layout 1 the agenda's first item that day; layout 3 opens a popup over the month grid with all of that day's items, the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day |
 | `a` | Add an item on the selected day, in the calendar of that day's first item (or at the end of the file when the day has none) |
 
 **On an item** (the agenda, layout 3's day popup, the tasks page)
@@ -145,7 +145,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Action | Effect |
 | :- | :- |
 | Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar) |
-| Click | Select a day, an item or a calendar; click a selected day again (in layout 3, double-click a day) to go into its items, a chosen task again to check it off, a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
+| Click | Select a day, an item or a calendar; double-click a day to go into its items; click a chosen task again to check it off, a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
 
 ## Config file
 `~/.config/roh-cal/config-v2.toml` (`$XDG_CONFIG_HOME` respected; v1's `config.toml` next to it is left alone). It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says what is wrong (the line, or for `[colors]` the role and value). The settings page (`,`) edits it for you. Example: [testdata/config.toml](testdata/config.toml).

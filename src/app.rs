@@ -33,7 +33,10 @@ use ratatui::{
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// Two clicks on the same day at most this far apart count as a double click
+const DOUBLE_CLICK: Duration = Duration::from_millis(500);
 
 /// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,7 +177,7 @@ pub struct App {
     pub day_clicked: bool,
     /// Popup scroll: which item is at the top (it scrolls only when the chosen item leaves the box)
     pub day_top: usize,
-    /// Layout 3: the day and time of the last click on the month grid, to tell a double click
+    /// The day and time of the last click on a calendar day (both layouts), to tell a double click
     last_click: Option<(Date, Instant)>,
     /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
     /// day's month at the top)
@@ -548,7 +551,7 @@ impl App {
         }
     }
 
-    /// `Enter` on the calendar (or clicking the selected day again): go into that day's items; the keyboard
+    /// `Enter` on the calendar (or double-clicking a day): go into that day's items; the keyboard
     /// moves to the agenda and the day's first item is chosen;
     /// layout 3 has no agenda, so it opens the day popup instead; nothing happens if the day has no items
     fn open_day(&mut self) {
@@ -642,7 +645,7 @@ impl App {
 
     /// Mouse when no popup is open: the wheel moves up / down (a week on the calendar, one item in the agenda
     /// or on the tasks page, one calendar in the side menu);
-    /// a left click on a calendar date selects it (again = go into that day's items), on an agenda item
+    /// a left click on a calendar date selects it (a double click = go into that day's items), on an agenda item
     /// chooses it (again = check it),
     /// on a tasks page row chooses it (again = check it; on `▸` = expand / collapse), on a side menu calendar
     /// chooses it (again = check / uncheck)
@@ -665,21 +668,7 @@ impl App {
             // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
-                    // Layout 3: only a real double click opens the day popup
-                    Some(Click::Day(date)) if self.view == View::Month => {
-                        self.click_month_day(date, Instant::now());
-                    }
-                    // Clicking the selected day again (keyboard on the calendar) = go into that
-                    // day's items (like Enter)
-                    Some(Click::Day(date))
-                        if date == self.selected && self.focus == Focus::Calendar =>
-                    {
-                        self.open_day();
-                    }
-                    Some(Click::Day(date)) => {
-                        self.selected = date;
-                        self.focus = Focus::Calendar;
-                    }
+                    Some(Click::Day(date)) => self.click_calendar_day(date, Instant::now()),
                     // Clicking the chosen item again = check it
                     Some(Click::Item(index))
                         if self.focus == Focus::Agenda && self.agenda_index == index =>
@@ -694,6 +683,24 @@ impl App {
             }
             // Anything else (right click, drag, move) is ignored
             _ => {}
+        }
+    }
+
+    /// A click on a calendar day at time `now` (both layouts): selects the day; a second click on the same
+    /// day within `DOUBLE_CLICK` (a double click) goes into that day's items, like `Enter`. Clicking the
+    /// selected day again later only selects it, so a stray click does not move the keyboard or open a popup
+    fn click_calendar_day(&mut self, day: Date, now: Instant) {
+        let double = self
+            .last_click
+            .is_some_and(|(last, at)| last == day && now.duration_since(at) <= DOUBLE_CLICK);
+        self.selected = day;
+        self.focus = Focus::Calendar;
+        if double {
+            // A third quick click starts over instead of counting as another double click
+            self.last_click = None;
+            self.open_day();
+        } else {
+            self.last_click = Some((day, now));
         }
     }
 
@@ -1427,12 +1434,40 @@ mod tests {
             (app.view, app.focus, app.day_index),
             (View::Month, Focus::Day, 0)
         );
-        // Clicking the selected day again works too (70 × 23, October at the top: 10/17 is at x 27-29, y 5)
+        // With the mouse it takes a double click (70 × 23, October at the top: 10/17 is at x 27-29, y 5):
+        // one click on the selected day only selects it, a second one right away goes in
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
+        assert_eq!(app.focus, Focus::Calendar);
+        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
         assert_eq!(app.focus, Focus::Agenda);
+    }
+
+    #[test]
+    fn only_a_double_click_goes_into_the_day_in_layout_1() {
+        let mut app = app_with(ITEMS);
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let (oct16, oct17) = (date(2026, 10, 16), date(2026, 10, 17));
+        // The selected day clicked again 0.9 s later: only selected, the keyboard stays on the calendar
+        app.click_calendar_day(oct17, at(0));
+        app.click_calendar_day(oct17, at(900));
+        assert_eq!(app.focus, Focus::Calendar);
+        // Another click 0.3 s after that one: a double click, the agenda's first item that day (b)
+        app.click_calendar_day(oct17, at(1200));
+        assert_eq!(
+            (
+                app.focus,
+                app.chosen().map(|entry| entry.item.title.as_str())
+            ),
+            (Focus::Agenda, Some("b"))
+        );
+        // Two quick clicks on different days: the second day is selected, the keyboard back on the calendar
+        app.click_calendar_day(oct16, at(2000));
+        app.click_calendar_day(oct17, at(2200));
+        assert_eq!((app.selected, app.focus), (oct17, Focus::Calendar));
     }
 
     #[test]

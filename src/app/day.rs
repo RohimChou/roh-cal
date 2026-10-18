@@ -4,32 +4,9 @@
 
 use super::{App, Focus};
 use crate::ui;
-use jiff::civil::Date;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
-use std::time::{Duration, Instant};
-
-/// Two clicks on the same day at most this far apart count as a double click
-const DOUBLE_CLICK: Duration = Duration::from_millis(500);
 
 impl App {
-    /// A click on a day in the month grid at time `now`: selects the day; a second click on the same day
-    /// within `DOUBLE_CLICK` (a double click) opens the day popup. Clicking the selected day again later
-    /// only selects it, so a stray click does not cover the grid with the popup
-    pub(super) fn click_month_day(&mut self, day: Date, now: Instant) {
-        let double = self
-            .last_click
-            .is_some_and(|(last, at)| last == day && now.duration_since(at) <= DOUBLE_CLICK);
-        self.selected = day;
-        self.focus = Focus::Calendar;
-        if double {
-            // A third quick click starts over instead of counting as another double click
-            self.last_click = None;
-            self.open_day_popup();
-        } else {
-            self.last_click = Some((day, now));
-        }
-    }
-
     /// Opens the popup with the first item chosen; does not open if the day has no items
     pub(super) fn open_day_popup(&mut self) {
         if self.items_on(self.selected).is_empty() {
@@ -187,23 +164,23 @@ mod tests {
         let at = |ms: u64| start + Duration::from_millis(ms);
         let (oct16, oct17, oct18) = (date(2026, 10, 16), date(2026, 10, 17), date(2026, 10, 18));
         // The selected day clicked again 0.9 s later: only selected, no popup
-        app.click_month_day(oct17, at(0));
-        app.click_month_day(oct17, at(900));
+        app.click_calendar_day(oct17, at(0));
+        app.click_calendar_day(oct17, at(900));
         assert_eq!(app.focus, Focus::Calendar);
         // Another click 0.3 s after that one: a double click, the popup opens
-        app.click_month_day(oct17, at(1200));
+        app.click_calendar_day(oct17, at(1200));
         assert_eq!(
             (app.focus, chosen(&app).as_deref()),
             (Focus::Day, Some("Trip to NYC"))
         );
         // Two quick clicks on different days: the second day is selected, no popup
         press(&mut app, KeyCode::Esc);
-        app.click_month_day(oct16, at(2000));
-        app.click_month_day(oct17, at(2200));
+        app.click_calendar_day(oct16, at(2000));
+        app.click_calendar_day(oct17, at(2200));
         assert_eq!((app.selected, app.focus), (oct17, Focus::Calendar));
         // A day that was not selected, double-clicked: the first click selects it, the second opens it
-        app.click_month_day(oct18, at(3000));
-        app.click_month_day(oct18, at(3300));
+        app.click_calendar_day(oct18, at(3000));
+        app.click_calendar_day(oct18, at(3300));
         assert_eq!((app.selected, app.focus), (oct18, Focus::Day));
     }
 
