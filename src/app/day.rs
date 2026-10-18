@@ -13,6 +13,7 @@ impl App {
         }
         self.day_index = 0;
         self.day_clicked = false;
+        self.day_top = 0;
         self.focus = Focus::Day;
     }
 

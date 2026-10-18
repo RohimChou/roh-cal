@@ -625,18 +625,37 @@ mod tests {
         let (rows, thumb) = names(&mut app);
         assert_eq!(rows, ["c01", "c02", "c03", "c04", "c05"]);
         assert_eq!(thumb.first(), Some(&3));
-        // 選第 9 個：往下捲到它下面留 2 列（最上面 c07）
+        // 選第 9 個：跑出框外才捲，捲到它剛好在最後一列（最上面 c05）
         app.group_index = 8;
-        assert_eq!(names(&mut app).0, ["c07", "c08", "c09", "c10", "c11"]);
-        // 最後一個：不捲過頭（最上面 c08），捲軸在最下面
+        assert_eq!(names(&mut app).0, ["c05", "c06", "c07", "c08", "c09"]);
+        // 最後一個：捲軸在最下面
         app.group_index = 11;
         let (rows, thumb) = names(&mut app);
         assert_eq!(rows, ["c08", "c09", "c10", "c11", "c12"]);
         assert_eq!(thumb.last(), Some(&7));
-        // 往回選第 8 個：往上捲到它上面留 2 列（最上面 c06）；點第一列 = c06
+        // 往回選第 8 個：還看得到，不捲；選第 6 個：捲到它剛好在第一列（最上面 c06）；點第一列 = c06
         app.group_index = 7;
+        assert_eq!(names(&mut app).0, ["c08", "c09", "c10", "c11", "c12"]);
+        app.group_index = 5;
         assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
         assert_eq!(click_at(&app, 5, 3), Some(Click::Group(5)));
+        // 點最後一列（c10）：選它，不會捲走；再點同一個地方 = 同一個日曆，取消勾選
+        let click = |app: &mut App| {
+            use ratatui::crossterm::event::{
+                KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+            };
+            app.handle_mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 5,
+                row: 7,
+                modifiers: KeyModifiers::NONE,
+            });
+        };
+        click(&mut app);
+        assert_eq!(app.group_index, 9);
+        assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
+        click(&mut app);
+        assert!(!app.groups[9].shown);
     }
 
     #[test]
@@ -2410,6 +2429,28 @@ mod tests {
             ]
         );
         assert!((1..4).any(|y| buffer[(44, y)].symbol() == "┃"));
+        // 點最上面那列（整理書櫃）：選它，捲到哪不變；再點同一個地方還是它（沒有任務檔，打勾不寫）
+        app.screen = Rect::new(0, 0, 60, 6);
+        let click = |app: &mut App| {
+            use ratatui::crossterm::event::{
+                KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+            };
+            app.handle_mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 17,
+                row: 1,
+                modifiers: KeyModifiers::NONE,
+            });
+        };
+        click(&mut app);
+        assert_eq!(app.day_index, 1);
+        let terminal = draw_app(&mut app, 60, 6);
+        assert_eq!(
+            area_rows(terminal.backend().buffer(), Rect::new(15, 1, 29, 1)),
+            ["│[10/17]整理書櫃             "]
+        );
+        click(&mut app);
+        assert_eq!(app.day_index, 1);
     }
 
     #[test]

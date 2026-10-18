@@ -160,6 +160,8 @@ pub struct App {
     /// 跳窗打開之後，滑鼠在跳窗裡點過了沒：還沒點過時點到選到的那件只算選、不打勾
     /// （連點兩下選取的那天：第一下打開跳窗，第二下剛好落在跳窗的第一件上）
     pub day_clicked: bool,
+    /// 跳窗捲到哪：最上面是第幾件（選到的那件跑出框外才捲）
+    pub day_top: usize,
     /// 月曆捲到哪：畫面最上面是第幾列（`None` = 下一次畫的時候把選取那天的那個月放在最上面）
     pub calendar_top: Option<i64>,
     /// 右邊捲到哪：(哪個月的 1 號, 那個月右邊最上面是排好的第幾列)；事太多、那個月放不下時才會捲
@@ -210,6 +212,7 @@ impl App {
             agenda_index: 0,
             day_index: 0,
             day_clicked: false,
+            day_top: 0,
             calendar_top: None,
             agenda_window: None,
             month_top: None,

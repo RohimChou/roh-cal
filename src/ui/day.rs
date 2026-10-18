@@ -1,6 +1,6 @@
 //! 版型 3 的「那天的事」跳窗：疊在大月曆正中間，一件事一列（跟版型 1 右邊的事項框同一種寫法），上框線寫選取的日期
 
-use super::{clear_wide_left_of, planner::item_line, render_scrollbar};
+use super::{clear_wide_left_of, months::scrolled_top, planner::item_line, render_scrollbar};
 use crate::app::App;
 use ratatui::{
     Frame,
@@ -38,16 +38,24 @@ pub fn area(app: &App, main: Rect) -> Rect {
     )
 }
 
-/// 捲到哪：最上面是第幾件。選到的那件超出框底才往下捲，捲到它剛好在最後一列；`visible` = 框裡放得下幾件
-fn top(app: &App, visible: usize) -> usize {
-    (app.day_index + 1).saturating_sub(visible)
-}
-
-/// 畫跳窗：先清掉底下的大月曆，再一件一列；選到的那件日期加括號 `[10/17]`（跟版型 1 右邊一樣）；放不下時右框線上有捲軸
-pub fn render(frame: &mut Frame, main: Rect, app: &App) {
+/// 畫跳窗：先捲到選到的那件看得到（選到的跑出框外才捲，點看得到的那件不會捲走；記在 `app.day_top`），
+/// 清掉底下的大月曆，再一件一列；選到的那件日期加括號 `[10/17]`（跟版型 1 右邊一樣）；放不下時右框線上有捲軸
+pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
+    let area = area(app, main);
+    let visible = i64::from(Block::bordered().inner(area).height);
+    let top = scrolled_top(
+        i64::try_from(app.day_top).unwrap_or(0),
+        i64::try_from(app.day_index).unwrap_or(0),
+        visible,
+        0,
+    );
+    // 不捲過頭：最後一件貼著底就好
+    let max = i64::try_from(app.items_on(app.selected).len()).unwrap_or(0) - visible;
+    app.day_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
+    // 接下來只讀
+    let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let area = area(app, main);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
@@ -61,7 +69,7 @@ pub fn render(frame: &mut Frame, main: Rect, app: &App) {
     frame.render_widget(block, area);
     let items = app.items_on(app.selected);
     let visible = usize::from(inner.height);
-    let top = top(app, visible);
+    let top = app.day_top;
     let rows = items.iter().enumerate().skip(top);
     for ((index, item), y) in rows.zip(inner.y..inner.bottom()) {
         frame.render_widget(
@@ -92,6 +100,6 @@ pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     if !inner.contains(Position::new(column, row)) {
         return None;
     }
-    let index = top(app, usize::from(inner.height)) + usize::from(row - inner.y);
+    let index = app.day_top + usize::from(row - inner.y);
     (index < app.items_on(app.selected).len()).then_some(index)
 }

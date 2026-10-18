@@ -18,8 +18,6 @@ use ratatui::{
 const MIN_WIDTH: u16 = 22;
 /// side menu 最寬幾格（含左右框線）；名字再長就切掉
 const MAX_WIDTH: u16 = 30;
-/// 選到的日曆離上下邊緣至少留幾列，不夠才捲（跟任務頁一樣）
-const SCROLLOFF: i64 = 2;
 
 /// side menu 的寬度（含左右框線）：剛好放得下最長的那個日曆，例：「 ☑ 付款 API 改版 12 」，
 /// 但在 `MIN_WIDTH` ～ `MAX_WIDTH` 之間
@@ -65,7 +63,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         i64::try_from(app.side_top).unwrap_or(0),
         i64::try_from(app.group_index).unwrap_or(0),
         height,
-        SCROLLOFF,
+        // 選到的跑出框外才捲：點看得到的那個日曆不會捲走（再點一次才點得到同一個）
+        0,
     );
     // 不捲過頭：最後一個日曆貼著底就好
     let max = i64::try_from(app.groups.len()).unwrap_or(0) - height;

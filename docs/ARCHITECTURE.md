@@ -25,7 +25,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`rows()`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換，顏色那幾列在 theme 的色票裡換、`[colors]` 只記跟 theme 不一樣的）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
 | `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，顏色前面有色塊；放不下時捲到選到的那列（`SettingsPage::top`），最下面一行說明選到的那一列 | ✓ |
 | `src/app/day.rs` | 版型 3「那天的事」跳窗：月曆上 `Enter` 打開（`Focus::Day`，選到第幾件記在 `App::day_index`，順序 = `App::items_on(selected)`）；按鍵跟版型 1 右邊一樣，寫檔走同一套（`chosen_item()` 回傳跳窗選到的那件），寫完 `keep_day_choice` / `choose_day_line` 調整選的位置，那天沒事了就關掉 | |
-| `src/ui/day.rs` | 畫跳窗：疊在大月曆正中間，一件一列（用版型 1 的 `planner::item_line`），放不下就捲、右框線上有捲軸 | ✓ |
+| `src/ui/day.rs` | 畫跳窗：疊在大月曆正中間，一件一列（用版型 1 的 `planner::item_line`），放不下就捲（跑出框外才捲，記在 `App::day_top`）、右框線上有捲軸 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h` `+` `-`、縮排 `L` `H`、上下搬 `J` `K`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（右邊日期、時間各一欄、上下對齊，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
@@ -37,7 +37,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 大多在這**（說明頁、設定頁的在各自的檔案） | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
-| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`）；放不下時捲到選到的那個看得到（上下各留 2 列，跟任務頁一樣；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
+| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
 | `src/ui/month.rs` | 版型 3（大月曆）：6 週等高的格子（`Grid`，畫畫面和滑鼠換算都用它）、一週一週捲（`App::month_top`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 
