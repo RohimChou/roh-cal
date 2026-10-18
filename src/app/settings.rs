@@ -24,6 +24,9 @@ pub struct SettingsPage {
     /// When it does not fit on screen, which line is at the top of the box
     /// (each draw scrolls so the chosen row is visible, see `ui::settings`)
     pub top: usize,
+    /// The first color shown in `[colors]` (0 = `text`): the section shows a few colors at a time and
+    /// scrolls inside to the chosen one (see `ui::settings`)
+    pub colors_top: usize,
     /// `R` was pressed and it is asking whether to reset everything (the bottom border becomes the question)
     pub confirm_reset: bool,
 }

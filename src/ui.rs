@@ -13,7 +13,7 @@ mod settings;
 mod side;
 mod tasks;
 
-use crate::app::{App, Focus, Mode, SettingsPage, View};
+use crate::app::{App, Focus, Mode, View};
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
@@ -290,11 +290,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::Editor(editor) => editor::render(frame, editor, app),
         Mode::Help(help) => help::render(frame, app, *help),
         Mode::Settings { page, .. } => {
-            // First scroll so the chosen row is visible (kept in the settings page's `top`), then draw
-            let page = SettingsPage {
-                top: settings::scrolled(app, frame.area(), *page),
-                ..*page
-            };
+            // First scroll so the chosen row is visible (kept in the settings page's `top` and
+            // `colors_top`), then draw
+            let page = settings::scrolled(app, frame.area(), *page);
             if let Mode::Settings { page: stored, .. } = &mut app.mode {
                 *stored = page;
             }

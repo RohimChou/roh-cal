@@ -12,16 +12,17 @@
 //! │    relative_weeks   off                 │
 //! │  ...                                    │
 //! │  [colors]                               │
-//! │    text             ██ text             │  ← swatch = the role's current color, then its palette name
-//! │  ...                                    ┃  ← scrolls when it does not fit (the chosen row is
-//! │                                         │     always visible), scrollbar on the right border
+//! │    text             ██ text             ┃  ← swatch = the role's current color, then its palette name;
+//! │  ...                                    │     at most `COLOR_ROWS` colors at once, the section scrolls
+//! │                                         │     inside to the chosen one (scrollbar beside it); the
+//! │                                         │     whole list scrolls too when the screen is short
 //! │  顏色：l 換下一套 theme，h 換上一套     │  ← the description stays at the bottom and does not scroll
 //! │                                         │  ← for a dimmed row: 「這個畫面用不到：2 大月曆」
 //! │                                         │
 //! ╰ jk 選  hl 改  r 還原  R 全部還原  Esc 關閉 ╯
 //! ```
 
-use crate::app::{App, SettingsPage, rows};
+use crate::app::{App, Row, SettingsPage, rows};
 use crate::theme;
 use ratatui::{
     Frame,
@@ -44,6 +45,8 @@ const SWATCH: &str = "  ";
 const FOOTER: u16 = 3;
 /// When scrolling, the minimum lines between the chosen row and the top or bottom edge
 const SCROLLOFF: i64 = 1;
+/// The most colors `[colors]` shows at once; the rest scroll inside the section
+pub const COLOR_ROWS: usize = 10;
 
 /// One line in the list: a section name, a setting row (an index into `rows()`), or a blank line
 enum Entry {
@@ -55,10 +58,23 @@ enum Entry {
     Blank,
 }
 
-/// What each line of the list is, top to bottom: top-level rows first (no section name); each section
-/// is its name + its rows, with a blank line between sections
-fn entries() -> Vec<Entry> {
+/// Where the colors start in `rows()` (they are the last rows) and how many there are
+fn colors() -> (usize, usize) {
     let rows = rows();
+    let first = rows
+        .iter()
+        .position(|row| matches!(row, Row::Color(_)))
+        .unwrap_or(rows.len());
+    (first, rows.len() - first)
+}
+
+/// What each line of the list is, top to bottom: top-level rows first (no section name); each section
+/// is its name + its rows, with a blank line between sections. `[colors]` lists only `COLOR_ROWS` colors,
+/// from the `colors_top`-th
+fn entries(colors_top: usize) -> Vec<Entry> {
+    let rows = rows();
+    let (first_color, _) = colors();
+    let window = first_color + colors_top..first_color + colors_top + COLOR_ROWS;
     let mut entries = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         let new_section = index == 0 || rows[index - 1].section() != row.section();
@@ -70,14 +86,17 @@ fn entries() -> Vec<Entry> {
                 entries.push(Entry::Section(section));
             }
         }
-        entries.push(Entry::Row(index));
+        if index < first_color || window.contains(&index) {
+            entries.push(Entry::Row(index));
+        }
     }
     entries
 }
 
-/// Which list line row `row` (an index into `rows()`) is on
-fn line_of(row: usize) -> Option<usize> {
-    entries()
+/// Which list line row `row` (an index into `rows()`) is on; `None` for a color scrolled out of
+/// `[colors]`
+fn line_of(row: usize, colors_top: usize) -> Option<usize> {
+    entries(colors_top)
         .iter()
         .position(|entry| matches!(entry, Entry::Row(index) if *index == row))
 }
@@ -132,7 +151,7 @@ pub fn area(app: &App, screen: Rect) -> Rect {
         .max(title(app).width())
         .max(hint_width);
     let width = u16::try_from(inside + 2).unwrap_or(u16::MAX);
-    let height = u16::try_from(entries().len())
+    let height = u16::try_from(entries(0).len())
         .unwrap_or(u16::MAX)
         .saturating_add(FOOTER + PADDING.top + PADDING.bottom + 2);
     screen.centered(
@@ -155,19 +174,29 @@ fn list_area(area: Rect) -> Rect {
     }
 }
 
-/// Where to scroll: starting from `page.top`, keep the chosen row at least `SCROLLOFF` lines from the
-/// top and bottom edges, scrolling only when needed; never overscroll
-pub fn scrolled(app: &App, screen: Rect, page: SettingsPage) -> usize {
+/// Where to scroll, only when needed and never past the end: first `[colors]` (`page.colors_top`), so a
+/// chosen color is among the colors shown, at least `SCROLLOFF` from the section's ends; then the whole
+/// list (`page.top`), so the chosen row is on screen, at least `SCROLLOFF` lines from the box's edges
+pub fn scrolled(app: &App, screen: Rect, page: SettingsPage) -> SettingsPage {
+    let to_i64 = |n: usize| i64::try_from(n).unwrap_or(0);
+    let to_usize = |n: i64| usize::try_from(n.max(0)).unwrap_or(0);
+    let scroll = |top: usize, line: usize, height: i64, lines: usize| {
+        let top = super::months::scrolled_top(to_i64(top), to_i64(line), height, SCROLLOFF);
+        to_usize(top.min(to_i64(lines) - height))
+    };
+    let (first_color, count) = colors();
+    let colors_top = match page.row.checked_sub(first_color) {
+        Some(color) => scroll(page.colors_top, color, to_i64(COLOR_ROWS), count),
+        None => page.colors_top.min(count.saturating_sub(COLOR_ROWS)),
+    };
     let height = i64::from(list_area(area(app, screen)).height);
-    let line = line_of(page.row).unwrap_or(0);
-    let top = super::months::scrolled_top(
-        i64::try_from(page.top).unwrap_or(0),
-        i64::try_from(line).unwrap_or(0),
-        height,
-        SCROLLOFF,
-    );
-    let max = i64::try_from(entries().len()).unwrap_or(0) - height;
-    usize::try_from(top.min(max).max(0)).unwrap_or(0)
+    let line = line_of(page.row, colors_top).unwrap_or(0);
+    let top = scroll(page.top, line, height, entries(colors_top).len());
+    SettingsPage {
+        top,
+        colors_top,
+        ..page
+    }
 }
 
 /// The top border: `roh-cal ∙ 設定` (the app name stands out, the rest is muted)
@@ -222,7 +251,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
         ));
     let rows = rows();
     let chosen = rows[page.row.min(rows.len() - 1)];
-    let lines: Vec<Line> = entries()
+    let lines: Vec<Line> = entries(page.colors_top)
         .iter()
         .map(|entry| match *entry {
             Entry::Section(name) => Line::styled(
@@ -303,7 +332,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
     }
     // The whole chosen row gets a background color (as wide as the inside of the box;
     // the swatch keeps its own background)
-    if let Some(y) = row_y(list, page.top, page.row) {
+    if let Some(y) = row_y(list, page, page.row) {
         for x in list.left()..list.right() {
             let cell = &mut frame.buffer_mut()[(x, y)];
             if cell.bg == ratatui::style::Color::Reset {
@@ -312,18 +341,32 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
         }
     }
     // Does not fit: draw a scrollbar on the right border
-    let max = u16::try_from(entries().len())
-        .unwrap_or(u16::MAX)
-        .saturating_sub(list.height);
+    let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
+    let max = to_u16(entries(page.colors_top).len()).saturating_sub(list.height);
     if max > 0 {
         super::render_scrollbar(frame, area, scroll.min(max), max, list.height, theme);
+    } else {
+        // More colors than `[colors]` shows: a scrollbar on the right border beside them (the area
+        // passed is one row bigger each way, standing in for the corners `render_scrollbar` leaves out)
+        let (first_color, count) = colors();
+        let first = row_y(list, page, first_color + page.colors_top);
+        if let Some(first) = first.filter(|_| count > COLOR_ROWS) {
+            let beside = Rect {
+                y: first - 1,
+                height: to_u16(COLOR_ROWS) + 2,
+                ..area
+            };
+            let max = to_u16(count - COLOR_ROWS);
+            let scroll = to_u16(page.colors_top);
+            super::render_scrollbar(frame, beside, scroll, max, to_u16(COLOR_ROWS), theme);
+        }
     }
 }
 
-/// Which screen row of the list area (`list`, drawn from line `top`) row `row` (an index into `rows()`)
-/// is drawn on; `None` if scrolled out
-fn row_y(list: Rect, top: usize, row: usize) -> Option<u16> {
-    let line = line_of(row)?.checked_sub(top)?;
+/// Which screen row of the list area (`list`, drawn from line `page.top`, `[colors]` from its
+/// `page.colors_top`-th color) row `row` (an index into `rows()`) is drawn on; `None` if scrolled out
+fn row_y(list: Rect, page: SettingsPage, row: usize) -> Option<u16> {
+    let line = line_of(row, page.colors_top)?.checked_sub(page.top)?;
     let y = list.y.checked_add(u16::try_from(line).ok()?)?;
     (y < list.bottom()).then_some(y)
 }
@@ -336,7 +379,7 @@ pub fn row_at(app: &App, screen: Rect, column: u16, row: u16) -> Option<usize> {
     if column < list.x || column >= list.right() {
         return None;
     }
-    (0..rows().len()).find(|&index| row_y(list, page.top, index) == Some(row))
+    (0..rows().len()).find(|&index| row_y(list, page, index) == Some(row))
 }
 
 #[cfg(test)]
@@ -362,10 +405,10 @@ mod tests {
     const TOP_NAME: u16 = 3;
     const VALUE: u16 = 23;
 
-    /// The row (from the box's top) of the settings row `row`
+    /// The row (from the box's top) of the settings row `row` (`[colors]` showing its first colors)
     fn y_of(row: Row) -> u16 {
         let index = rows().iter().position(|&each| each == row).expect("row");
-        2 + u16::try_from(line_of(index).expect("line")).expect("fits")
+        2 + u16::try_from(line_of(index, 0).expect("line")).expect("fits")
     }
 
     /// The index of `row` in `rows()`
@@ -425,10 +468,9 @@ mod tests {
         // name column = longest name (week_number_dim, 15 cells) + 3; the top-level theme has 2 less
         // indent and a name column 2 wider, so all values share one column;
         // the width is the larger of the longest description and the key hints on the bottom border
-        // (42 cells + a blank on each side)
+        // (42 cells + a blank on each side); `[colors]` shows its first 10 colors (13 more below)
         let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-        // 44 − 43 leaves one free row: ratatui's centering puts it above the box
-        assert_eq!(area, Rect::new(12, 1, 46, 43));
+        assert_eq!(area, Rect::new(12, 7, 46, 30));
         assert_eq!(
             rows,
             [
@@ -457,19 +499,6 @@ mod tests {
                 "│    weekend              blue               │",
                 "│    today                green              │",
                 "│    selected             red                │",
-                "│    cursor_line          surface0           │",
-                "│    focus                mauve              │",
-                "│    checked              mauve              │",
-                "│    notice               yellow             │",
-                "│    error                red                │",
-                "│    grid                 surface0           │",
-                "│    other_month          overlay0           │",
-                "│    range                dim_sapphire       │",
-                "│    priority_high        red                │",
-                "│    priority_medium      peach              │",
-                "│    priority_low         yellow             │",
-                "│    help_section         blue               │",
-                "│    help_key             peach              │",
                 "│                                            │",
                 "│  顏色：l 換下一套 theme，h 換上一套        │",
                 "│                                            │",
@@ -545,13 +574,14 @@ mod tests {
     #[test]
     fn a_short_screen_scrolls_to_the_chosen_row() {
         // 70 × 23: the box is at most 23 tall and the list holds 16 lines (23 − border 2 − padding 2 −
-        // the 3 lines below the list), so it scrolls; choosing the last row (help_key) → scrolled to the
-        // end (its 16 last lines, all color rows), and the description is still at the bottom
+        // the 3 lines below the list), so it scrolls; choosing the last row (help_key) → `[colors]` shows
+        // its last 10 colors and the list is scrolled to the end (its 16 last lines), and the description
+        // is still at the bottom
         let last = rows().len() - 1;
         let (app, area, rows, buffer) = draw(choosing(last), 23);
         assert_eq!(
-            app.settings_page().map(|page| page.top),
-            Some(entries().len() - 16)
+            app.settings_page().map(|page| (page.top, page.colors_top)),
+            Some((entries(0).len() - 16, theme::ROLES.len() - COLOR_ROWS))
         );
         assert_eq!(area, Rect::new(12, 0, 46, 23));
         assert_eq!(
@@ -559,12 +589,12 @@ mod tests {
             [
                 "╭ roh-cal ∙ 設定 ────────────────────────────╮",
                 "│                                            │",
-                "│    weekend              blue               │",
-                "│    today                green              │",
-                "│    selected             red                │",
-                "│    cursor_line          surface0           │",
-                "│    focus                mauve              │",
-                "│    checked              mauve              │",
+                "│    center_cursor     off                   │",
+                "│                                            │",
+                "│  [calendar_list]                           │",
+                "│    max_width         36                    │",
+                "│                                            │",
+                "│  [colors]                                  │",
                 "│    notice               yellow             │",
                 "│    error                red                │",
                 "│    grid                 surface0           │",
@@ -585,10 +615,46 @@ mod tests {
         // The scrollbar is on the bottom part of the right border
         assert_eq!(cell(&buffer, area, 45, 21).symbol(), "┃");
         assert_eq!(cell(&buffer, area, 45, 1).symbol(), "│");
-        // Clicking the bottom list row: still help_key; the top one is the 16th row from the end: mapped
-        // using the scroll position
+        // Clicking the bottom list row: still help_key; the top one is center_cursor: mapped using both
+        // scroll positions
         assert_eq!(row_at(&app, app.screen, 20, 17), Some(last));
-        assert_eq!(row_at(&app, app.screen, 20, 2), Some(last + 1 - 16));
+        assert_eq!(
+            row_at(&app, app.screen, 20, 2),
+            Some(index_of(Row::CenterCursor))
+        );
+    }
+
+    #[test]
+    fn colors_scroll_inside_their_section() {
+        // Expected rows computed by the same Python script as above. 70 × 44 holds the whole box, so the
+        // list itself does not scroll; choosing the 12th color (focus) moves `[colors]` down so it shows one
+        // more color below it: the 4th to the 13th color (year_line … focus, then checked)
+        let focus = index_of(Row::Color("focus"));
+        let (app, area, rows, buffer) = draw(choosing(focus), 44);
+        assert_eq!(
+            app.settings_page().map(|page| (page.top, page.colors_top)),
+            Some((0, 3))
+        );
+        assert_eq!(rows[15], "│    year_line            lavender           │");
+        assert_eq!(rows[24], "│    checked              mauve              │");
+        // The scrollbar beside the colors (x 45, rows 15-24): its thumb moved down from the top, and the
+        // rows above `[colors]` keep a plain border
+        let border = |dy: u16| cell(&buffer, area, 45, dy).symbol().to_string();
+        assert_eq!(border(15), "│");
+        assert!((16..=24).any(|dy| border(dy) == "┃"));
+        assert_eq!(border(5), "│");
+        // Back up to text: `[colors]` scrolls back to its first color; a row above `[colors]` keeps it
+        let page = SettingsPage {
+            row: index_of(Row::Color("text")),
+            colors_top: 3,
+            ..SettingsPage::default()
+        };
+        let (app, _, _, _) = draw_app(app, page, 44);
+        assert_eq!(app.settings_page().map(|page| page.colors_top), Some(0));
+        let mut page = choosing(index_of(Row::Theme));
+        page.colors_top = 5;
+        let (app, _, _, _) = draw(page, 44);
+        assert_eq!(app.settings_page().map(|page| page.colors_top), Some(5));
     }
 
     #[test]
@@ -615,8 +681,9 @@ mod tests {
     fn clicks_map_to_the_rows() {
         let (app, area, _, _) = draw(SettingsPage::default(), 44);
         let click = |dx: u16, dy: u16| row_at(&app, app.screen, area.x + dx, area.y + dy);
-        // Any cell of a row inside the box, the left and right ends too
-        let last = Row::Color("help_key");
+        // Any cell of a row inside the box, the left and right ends too; the last row shown is the 10th
+        // color (`[colors]` shows 10 at a time)
+        let last = rows()[colors().0 + COLOR_ROWS - 1];
         assert_eq!(click(8, y_of(Row::Theme)), Some(0));
         assert_eq!(click(8, y_of(Row::RelativeWeeks)), Some(1));
         assert_eq!(click(1, y_of(Row::GridLines)), Some(2));
