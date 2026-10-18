@@ -14,7 +14,7 @@ mod settings;
 mod side;
 mod tasks;
 
-use crate::app::{App, Focus, Mode, View};
+use crate::app::{App, Editor, Focus, Mode, View};
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
@@ -37,6 +37,12 @@ pub fn agenda_columns(app: &App) -> usize {
 /// Where the edit box is (so a mouse click outside it can cancel)
 pub fn editor_area(screen: Rect) -> Rect {
     editor::area(screen)
+}
+
+/// Where the editor's `#` list is and which calendar is on its first row (so a click can pick one); `None`
+/// when it is closed
+pub fn hash_list_area(app: &App, editor: &Editor) -> Option<(Rect, usize)> {
+    editor::list_area(app.screen, editor, app.lang.texts().hash_list_keys)
 }
 
 /// Where layout 2's day popup (that day's items) is on screen (so a mouse click outside it can close it)
@@ -1482,7 +1488,7 @@ mod tests {
             "│  17:99：沒有這個時間"
         );
         assert_eq!(terminal.backend().buffer()[(5, 5)].fg, theme.error);
-        // Adding: the top border names the calendar it goes into, the bottom border says Tab switches it
+        // Adding: the top border names the calendar it goes into, the bottom border says #name switches it
         let mut app = App::new(
             Lang::ZhTw,
             date(2026, 10, 17),
@@ -1494,7 +1500,7 @@ mod tests {
         let rows = area_rows(terminal.backend().buffer(), area);
         assert!(rows[0].starts_with("╭ 新增 ∙ Work > SFAP ─"), "{}", rows[0]);
         assert!(
-            rows[6].starts_with("╰ Enter 存檔  Tab 換日曆  Esc 取消 ─"),
+            rows[6].starts_with("╰ Enter 存檔  #名字 換日曆  Esc 取消 ─"),
             "{}",
             rows[6]
         );
@@ -1565,6 +1571,122 @@ mod tests {
             "{}",
             rows[1]
         );
+    }
+
+    #[test]
+    fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
+        use ratatui::crossterm::event::{
+            KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        };
+        let text = "# Holidays type:holiday\n- Day off @2026-10-09\n# Work\n- [ ] Estimate @2026-10-17\n\
+                    ## SFAP\n- [ ] Fix the login bug @2026-10-12\n# Personal\n- Gym @2026-10-13\n";
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        app.screen = Rect::new(0, 0, 80, 24);
+        let theme = Theme::catppuccin_mocha();
+        let type_text = |app: &mut App, text: &str| {
+            for c in text.chars() {
+                app.handle_key(KeyEvent::from(KeyCode::Char(c)));
+            }
+        };
+        let mouse = |app: &mut App, kind, column, row| {
+            app.handle_mouse(MouseEvent {
+                kind,
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            });
+        };
+        let click = MouseEventKind::Down(MouseButton::Left);
+        // 80 × 24: the typed text starts at x 5 (box 2 + border + padding + a blank), so the `#` after
+        // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 8). 25 wide: the keys
+        // on its bottom border (23) and the borders; 4 calendars + borders = 6 tall
+        app.handle_key(KeyEvent::from(KeyCode::Char('a')));
+        type_text(&mut app, "#");
+        let terminal = draw_app(&mut app, 80, 24);
+        let buffer = terminal.backend().buffer();
+        let list = Rect::new(10, 8, 25, 6);
+        assert_eq!(
+            app.editor().and_then(|editor| hash_list_area(&app, editor)),
+            Some((list, 0))
+        );
+        assert_eq!(
+            area_rows(buffer, list),
+            [
+                "╭───────────────────────╮",
+                "│ Holidays              │",
+                "│ Work                  │",
+                "│ Work > SFAP           │",
+                "│ Personal              │",
+                "╰ Enter pick  Esc close ╯",
+            ]
+        );
+        // The chosen row (the first) on the selection background, across the box
+        for x in 11..34 {
+            assert_eq!(buffer[(x, 9)].bg, theme.selection, "x {x}");
+        }
+        assert_ne!(buffer[(11, 10)].bg, theme.selection);
+        // `sf`: only Work > SFAP; its S and F (characters 7 and 8 of the name, after a blank at x 11) in the
+        // focus color and bold, the rest in the text color
+        type_text(&mut app, "sf");
+        let terminal = draw_app(&mut app, 80, 24);
+        let buffer = terminal.backend().buffer();
+        let list = Rect::new(10, 8, 25, 3);
+        assert_eq!(area_rows(buffer, list)[1], "│ Work > SFAP           │");
+        for x in [19, 20] {
+            assert_eq!(buffer[(x, 9)].fg, theme.focus, "x {x}");
+            assert!(buffer[(x, 9)].modifier.contains(Modifier::BOLD));
+        }
+        assert_eq!(buffer[(18, 9)].fg, theme.text);
+        assert!(!buffer[(18, 9)].modifier.contains(Modifier::BOLD));
+        // A click on it picks it
+        mouse(&mut app, click, 15, 9);
+        let editor = app.editor().expect("editor");
+        assert_eq!(
+            editor.calendar().map(|path| path.join(" > ")).as_deref(),
+            Some("Work > SFAP")
+        );
+        assert_eq!(editor.input.value(), "- [ ] ");
+        assert!(editor.suggestions().is_none());
+        // The wheel moves the chosen row; a click on the top border does nothing; a click outside the list
+        // and the box cancels
+        type_text(&mut app, "#");
+        mouse(&mut app, MouseEventKind::ScrollDown, 40, 20);
+        mouse(&mut app, MouseEventKind::ScrollDown, 40, 20);
+        mouse(&mut app, MouseEventKind::ScrollUp, 40, 20);
+        assert_eq!(app.editor().map(|editor| editor.hash_list.index), Some(1));
+        mouse(&mut app, click, 20, 8);
+        assert!(app.editor().and_then(Editor::suggestions).is_some());
+        mouse(&mut app, click, 40, 20);
+        assert!(app.editor().is_none());
+        // More than 8 calendars: 8 rows, scrolled so the chosen one (the last) shows at the bottom
+        let text: String = (0..10)
+            .map(|n| format!("# C{n}\n- Item {n} @2026-10-17\n"))
+            .collect();
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse(&text).items,
+        );
+        app.screen = Rect::new(0, 0, 80, 24);
+        app.handle_key(KeyEvent::from(KeyCode::Char('a')));
+        type_text(&mut app, "#");
+        for _ in 0..9 {
+            app.handle_key(KeyEvent::from(KeyCode::Down));
+        }
+        let terminal = draw_app(&mut app, 80, 24);
+        let list = Rect::new(10, 8, 25, 10);
+        assert_eq!(
+            app.editor().and_then(|editor| hash_list_area(&app, editor)),
+            Some((list, 2))
+        );
+        let rows = area_rows(terminal.backend().buffer(), list);
+        assert_eq!(rows[1], "│ C2                    │");
+        assert_eq!(rows[8], "│ C9                    │");
+        assert_eq!(terminal.backend().buffer()[(11, 16)].bg, theme.selection);
     }
 
     #[test]

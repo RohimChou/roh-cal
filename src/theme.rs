@@ -44,7 +44,7 @@ pub struct Theme {
     /// selected day's cell in the month grid, the chosen row in the agenda, the tasks page, the calendar list
     /// and the settings page
     pub selection: Color,
-    /// The border of the pane that has keyboard focus
+    /// The border of the pane that has keyboard focus; the matching characters in the editor's `#` list
     pub focus: Color,
     /// The `☑` of checked calendars in the side menu
     pub checked: Color,

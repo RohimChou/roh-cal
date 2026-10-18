@@ -813,15 +813,8 @@ impl App {
                     self.mode = Mode::Normal;
                 }
             }
-            // Editor box: a click outside = cancel (Esc); everything else is ignored
-            Mode::Editor(_) => {
-                if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                    && !ui::editor_area(self.screen)
-                        .contains(Position::new(mouse.column, mouse.row))
-                {
-                    self.mode = Mode::Normal;
-                }
-            }
+            // Editor box: the `#` list takes clicks and the wheel, a click outside = cancel (Esc)
+            Mode::Editor(_) => self.handle_editor_mouse(mouse),
             // Rescheduling: the wheel moves the selected day as usual, clicking a date picks the new date,
             // other clicks are ignored
             Mode::Moving(_) => self.handle_moving_mouse(mouse),

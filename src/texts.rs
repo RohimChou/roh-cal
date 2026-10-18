@@ -74,6 +74,8 @@ pub struct Texts {
     pub hints_day: &'static str,
     /// The key hints on the bottom row while the keyboard is in the side menu (calendar list)
     pub hints_side: &'static str,
+    /// The keys on the bottom border of the editor's `#` list
+    pub hash_list_keys: &'static str,
     /// The title on the editor's top border when adding a calendar
     pub add_calendar_title: &'static str,
     /// The calendar a new item goes into when the task file has no calendar yet (`# 預設`)
@@ -154,6 +156,7 @@ const EN: Texts = Texts {
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  123 view  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a add calendar  e rename  d delete  Esc back",
+    hash_list_keys: " Enter pick  Esc close ",
     add_calendar_title: " New calendar ",
     default_calendar: "Default",
     rename_calendar_title: " Rename calendar ",
@@ -303,7 +306,7 @@ const EN: Texts = Texts {
                     ("Enter", "save"),
                     ("Esc", "cancel"),
                     ("Ctrl+U", "clear"),
-                    ("Tab", "calendar (adding)"),
+                    ("#", "pick a calendar (adding)"),
                 ],
                 places: &[],
             },
@@ -361,6 +364,7 @@ const ZH_TW: Texts = Texts {
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去",
+    hash_list_keys: " Enter 選定  Esc 收起 ",
     add_calendar_title: " 新增日曆 ",
     default_calendar: "預設",
     rename_calendar_title: " 日曆改名 ",
@@ -510,7 +514,7 @@ const ZH_TW: Texts = Texts {
                     ("Enter", "存檔"),
                     ("Esc", "取消"),
                     ("Ctrl+U", "清掉"),
-                    ("Tab", "換日曆（新增時）"),
+                    ("#", "選日曆（新增時）"),
                 ],
                 places: &[],
             },
@@ -665,14 +669,14 @@ impl Texts {
         }
     }
 
-    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding an item, so `Tab`
-    /// switches its calendar
+    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding an item, so typing `#`
+    /// and a calendar's name switches its calendar
     pub fn editor_keys(&self, calendars: bool) -> &'static str {
         match (self.lang, calendars) {
             (Lang::En, false) => " Enter save  Esc cancel ",
-            (Lang::En, true) => " Enter save  Tab calendar  Esc cancel ",
+            (Lang::En, true) => " Enter save  #name calendar  Esc cancel ",
             (Lang::ZhTw, false) => " Enter 存檔  Esc 取消 ",
-            (Lang::ZhTw, true) => " Enter 存檔  Tab 換日曆  Esc 取消 ",
+            (Lang::ZhTw, true) => " Enter 存檔  #名字 換日曆  Esc 取消 ",
         }
     }
 

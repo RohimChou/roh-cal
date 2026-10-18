@@ -111,7 +111,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | `Enter` | Open the selected day's items in a popup over the calendar (both layouts): all of that day's items (long titles wrap), the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day. `Tab` goes into layout 1's agenda instead |
-| `a` | Add an item on the selected day, in the calendar of that day's first item (or the first calendar that is not a holiday calendar when the day has none); the editor's top border names the calendar, and `Tab` / `Shift+Tab` switch to another one. With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
+| `a` | Add an item on the selected day, in the calendar of that day's first item (or the first calendar that is not a holiday calendar when the day has none); the editor's top border names the calendar; to pick another one, type `#` and part of its name (see `a` / `A` below). With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
 
 **On an item** (the agenda, layout 2's day popup, the tasks page)
 
@@ -121,7 +121,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `h` `l` / `←` `→` | In layout 1's agenda split into columns (a wide terminal): the item on the same row of the previous / next column |
 | `Space` / `x` | Check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
 | `e` / `Enter` | Edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears. On the calendar views an item on the selected day shows without its date (a time as `@10:00`), and the date is put back when saving; a multi-day item shows its whole range. The tasks page shows the whole line, so take a date away there |
-| `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, on the selected day (the date is added when saving; type your own `@2026-10-20` for another day, `@10:00` for a time; the tasks page adds no date) / add a subtask under the chosen item |
+| `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, on the selected day (the date is added when saving; type your own `@2026-10-20` for another day, `@10:00` for a time; the tasks page adds no date) / add a subtask under the chosen item. To put a new item in another calendar, type `#` and part of the calendar's name: a list of the calendars that match opens under it (fuzzy, like fzy: `#sf` finds `Work > SFAP`); `↑` `↓` (`Ctrl+P` `Ctrl+N`) or the wheel choose, `Enter`, `Tab` or a click picks one (the `#` word is taken out of the line), `Esc` closes the list and leaves the word as it is (e.g. an Obsidian `#tag`) |
 | `r` | Reschedule the chosen item (the tasks page borrows layout 1's calendar; an undated item gets the day you pick). The calendar becomes the date picker (`hjkl`, `[` `]`, `t`, mouse); `Enter` (or clicking the same day again) moves the item by as many days as you moved, `Esc` cancels. A multi-day item moves as a whole |
 | `d` | Delete the chosen item with its subtasks, after asking on the bottom line (`y` deletes, any other key cancels) |
 

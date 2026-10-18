@@ -5,8 +5,9 @@
 //! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page)
 //! - `a`: add an item (in the chosen item's group; on the calendar, in the group of the selected day's
 //!   first item, or in the first calendar that is not a holiday calendar if that day has none), on the
-//!   selected day (not on the tasks page); the top border names the calendar, `Tab` / `Shift+Tab` switch
-//!   to the next / previous one
+//!   selected day (not on the tasks page); the top border names the calendar. Typing `#` and part of a
+//!   calendar's name opens a list of the calendars that match (fuzzy, like fzy); picking one moves the new
+//!   item there and takes the `#` word out of the text (`HashList`)
 //! - on the calendar views, the selected day's own date is left out of the typed text (a time stays as
 //!   `@10:00`) and put back on save (`Editor::day`); a multi-day item and the tasks page show the whole line
 //! - `A`: add a subtask to the chosen item
@@ -16,9 +17,14 @@
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
+use crate::search::{self, Found};
 use crate::tasks::{Heading, HeadingLine, Item};
+use crate::ui;
 use jiff::civil::Date;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use ratatui::layout::Position;
 use tui_input::{Input, backend::crossterm::to_input_request};
 
 /// The editor: the typed text and what to do with it
@@ -31,6 +37,21 @@ pub struct Editor {
     /// Editing or adding on this day: its `@date` is left out of the typed text and put back on save
     /// (`edit::hide_day` / `edit::show_day`); `None` = the typed text is the line as it is
     pub day: Option<Date>,
+    /// The `#` list of calendars to pick from
+    pub hash_list: HashList,
+}
+
+/// The `#` list: typing `#` and part of a calendar's name (e.g. `#sf`) lists the calendars that match, best
+/// match first, to pick where the new item goes
+#[derive(Debug, Default)]
+pub struct HashList {
+    /// The calendars that can be picked (their paths, in the calendar list's order); empty = `#` is only text
+    /// (e.g. adding a subtask)
+    pub calendars: Vec<Vec<String>>,
+    /// Whether it is open: typing in a `#` word opens it; `Esc`, moving the cursor or picking one closes it
+    pub open: bool,
+    /// The chosen row (0 = the best match)
+    pub index: usize,
 }
 
 /// What the editor does when it saves
@@ -77,6 +98,77 @@ impl Editor {
         }
     }
 
+    /// The `#` word the cursor is in (a word starting with `#`, after a space or at the start), as the
+    /// position of its `#` (in characters) and what is typed after the `#` up to the cursor; e.g. with the
+    /// cursor at the end of `- [ ] Pack #wo` → (11, `wo`)
+    pub fn hash_word(&self) -> Option<(usize, String)> {
+        let chars: Vec<char> = self.input.value().chars().collect();
+        let before = &chars[..self.input.cursor().min(chars.len())];
+        let start = before
+            .iter()
+            .rposition(|c| c.is_whitespace())
+            .map_or(0, |at| at + 1);
+        (start < before.len() && before[start] == '#')
+            .then(|| (start, before[start + 1..].iter().collect()))
+    }
+
+    /// Each calendar in the `#` list as it is shown, e.g. `Work > SFAP`
+    pub fn calendar_names(&self) -> Vec<String> {
+        self.hash_list
+            .calendars
+            .iter()
+            .map(|path| path.join(" > "))
+            .collect()
+    }
+
+    /// What the open `#` list shows: the calendars that match the `#` word at the cursor, best match first
+    /// (just `#`: all of them, in the calendar list's order); `None` when it is closed or nothing matches
+    pub fn suggestions(&self) -> Option<Vec<Found>> {
+        if !self.hash_list.open {
+            return None;
+        }
+        let (_, query) = self.hash_word()?;
+        let found = search::search(&query, &self.calendar_names());
+        (!found.is_empty()).then_some(found)
+    }
+
+    /// Picks the calendar on row `index` of the open `#` list: the new item goes into it, and the `#` word
+    /// (with one space after it) is taken out of the typed text, the cursor where it was
+    fn pick_calendar(&mut self, index: usize) {
+        let (Some((start, _)), Some(found)) = (self.hash_word(), self.suggestions()) else {
+            return;
+        };
+        let Some(path) = found
+            .get(index)
+            .map(|found| self.hash_list.calendars[found.index].clone())
+        else {
+            return;
+        };
+        let chars: Vec<char> = self.input.value().chars().collect();
+        let mut end = start;
+        while end < chars.len() && !chars[end].is_whitespace() {
+            end += 1;
+        }
+        if chars.get(end) == Some(&' ') {
+            end += 1;
+        }
+        let text = chars[..start].iter().chain(&chars[end..]).collect();
+        self.input = Input::new(text).with_cursor(start);
+        self.hash_list.open = false;
+        self.target = Target::Add(Place::InCalendar(path));
+    }
+
+    /// A typing key (cursor movement and deleting: see tui-input): a change typed in a `#` word opens the `#`
+    /// list at its best match; moving the cursor closes it
+    fn type_key(&mut self, key: KeyEvent) {
+        let Some(request) = to_input_request(&Event::Key(key)) else {
+            return;
+        };
+        let changed = self.input.handle(request).is_some_and(|state| state.value);
+        self.hash_list.open = changed && self.hash_word().is_some();
+        self.hash_list.index = 0;
+    }
+
     /// The line the typed text stands for: the typed text, with the hidden day put back (see `day`)
     pub fn line(&self) -> String {
         let text = self.input.value();
@@ -115,6 +207,7 @@ impl App {
             input,
             target: Target::Edit(item),
             day,
+            hash_list: HashList::default(),
         });
     }
 
@@ -148,6 +241,10 @@ impl App {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(place),
             day,
+            hash_list: HashList {
+                calendars: self.calendars(),
+                ..HashList::default()
+            },
         });
     }
 
@@ -161,6 +258,7 @@ impl App {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(Place::ChildOf(item)),
             day: None,
+            hash_list: HashList::default(),
         });
     }
 
@@ -177,6 +275,7 @@ impl App {
             input: Input::default(),
             target: Target::AddCalendar { taken },
             day: None,
+            hash_list: HashList::default(),
         });
     }
 
@@ -200,27 +299,76 @@ impl App {
             input: Input::new(text),
             target: Target::RenameCalendar { headings, taken },
             day: None,
+            hash_list: HashList::default(),
         });
     }
 
     /// Keys while the editor is open: `Enter` saves, `Esc` cancels, `Ctrl+C` quits;
-    /// every other key is typing (cursor movement and deleting: see tui-input)
+    /// every other key is typing (cursor movement and deleting: see tui-input). While the `#` list is open:
+    /// up / down (`Ctrl+P` / `Ctrl+N`) choose a calendar, `Enter` / `Tab` pick it, `Esc` closes the list
     pub(super) fn handle_editor_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
+        let control = key.modifiers.contains(KeyModifiers::CONTROL);
+        if key.code == KeyCode::Char('c') && control {
+            self.should_quit = true;
+            return;
+        }
+        let Mode::Editor(editor) = &mut self.mode else {
+            return;
+        };
+        if let Some(found) = editor.suggestions() {
+            let index = editor.hash_list.index.min(found.len() - 1);
+            match key.code {
+                KeyCode::Up => editor.hash_list.index = index.saturating_sub(1),
+                KeyCode::Char('p') if control => editor.hash_list.index = index.saturating_sub(1),
+                KeyCode::Down => editor.hash_list.index = (index + 1).min(found.len() - 1),
+                KeyCode::Char('n') if control => {
+                    editor.hash_list.index = (index + 1).min(found.len() - 1);
+                }
+                KeyCode::Enter | KeyCode::Tab => editor.pick_calendar(index),
+                KeyCode::Esc => editor.hash_list.open = false,
+                _ => editor.type_key(key),
             }
+            return;
+        }
+        match key.code {
             KeyCode::Enter => self.save_editor(),
             KeyCode::Esc => self.mode = Mode::Normal,
-            KeyCode::Tab => self.switch_calendar(1),
-            KeyCode::BackTab => self.switch_calendar(-1),
-            _ => {
-                if let Mode::Editor(editor) = &mut self.mode
-                    && let Some(request) = to_input_request(&Event::Key(key))
+            _ => editor.type_key(key),
+        }
+    }
+
+    /// Mouse while the editor is open: a click on a calendar in the `#` list picks it and the wheel moves
+    /// up / down the list; a click outside the box and the list = cancel (`Esc`); everything else is ignored
+    pub(super) fn handle_editor_mouse(&mut self, mouse: MouseEvent) {
+        let screen = self.screen;
+        let list = self
+            .editor()
+            .and_then(|editor| ui::hash_list_area(self, editor));
+        let Mode::Editor(editor) = &mut self.mode else {
+            return;
+        };
+        let at = Position::new(mouse.column, mouse.row);
+        let count = editor.suggestions().map_or(0, |found| found.len());
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some((area, top)) = list
+                    && area.contains(at)
                 {
-                    editor.input.handle(request);
+                    // A calendar's row (not the border)
+                    if mouse.row > area.top() && mouse.row + 1 < area.bottom() {
+                        editor.pick_calendar(top + usize::from(mouse.row - area.top() - 1));
+                    }
+                } else if !ui::editor_area(screen).contains(at) {
+                    self.mode = Mode::Normal;
                 }
             }
+            MouseEventKind::ScrollUp if count > 0 => {
+                editor.hash_list.index = editor.hash_list.index.min(count - 1).saturating_sub(1);
+            }
+            MouseEventKind::ScrollDown if count > 0 => {
+                editor.hash_list.index = (editor.hash_list.index + 1).min(count - 1);
+            }
+            _ => {}
         }
     }
 
@@ -244,33 +392,6 @@ impl App {
                     .chain([&heading.name])
                     .eq(path.iter())
         })
-    }
-
-    /// `Tab` (`step` = 1) / `Shift+Tab` (−1) while adding an item (not a subtask): the new item goes into the
-    /// next / previous calendar in the calendar list's order, wrapping around; ignored otherwise
-    fn switch_calendar(&mut self, step: isize) {
-        let calendars = self.calendars();
-        let Mode::Editor(editor) = &mut self.mode else {
-            return;
-        };
-        if calendars.is_empty()
-            || !matches!(
-                editor.target,
-                Target::Add(Place::InGroupOf(_) | Place::InCalendar(_) | Place::End)
-            )
-        {
-            return;
-        }
-        let count = calendars.len().cast_signed();
-        let next = match editor
-            .calendar()
-            .and_then(|path| calendars.iter().position(|each| *each == path))
-        {
-            Some(index) => (index.cast_signed() + step).rem_euclid(count),
-            None if step > 0 => 0,
-            None => count - 1,
-        };
-        editor.target = Target::Add(Place::InCalendar(calendars[next.cast_unsigned()].clone()));
     }
 
     /// Saves: edit = the line is replaced by the typed text (indentation kept); add = the typed text goes
@@ -710,27 +831,55 @@ mod tests {
         clean_up(&path);
     }
 
+    /// The calendar a new item goes into, e.g. `Work > SFAP`
+    fn calendar(app: &App) -> Option<String> {
+        app.editor()
+            .and_then(Editor::calendar)
+            .map(|path| path.join(" > "))
+    }
+
+    /// What the `#` list shows, in order (empty when it is closed)
+    fn listed(app: &App) -> Vec<String> {
+        app.editor()
+            .and_then(|editor| {
+                let names = editor.calendar_names();
+                let found = editor.suggestions()?;
+                Some(
+                    found
+                        .into_iter()
+                        .map(|found| names[found.index].clone())
+                        .collect(),
+                )
+            })
+            .unwrap_or_default()
+    }
+
     #[test]
-    fn tab_switches_the_calendar_a_new_item_goes_into() {
+    fn hash_picks_the_calendar_a_new_item_goes_into() {
         // Selected 10/20 (nothing that day): the first calendar that is not a holiday calendar (Work, not
-        // the holidays listed before it); Tab goes down the calendar list and wraps around, Shift+Tab back
+        // the holidays listed before it)
         let text = "# Holidays type:holiday\n- Day off @2026-10-09\n# Work\n- [ ] Write the design doc @2026-10-16\n## SFAP\n- [ ] Estimate @2026-10-12\n# Personal\n";
-        let (mut app, path) = app_with_task_file("add-tab", text);
+        let (mut app, path) = app_with_task_file("add-hash", text);
         press(&mut app, KeyCode::Esc);
         app.selected = date(2026, 10, 20);
         press(&mut app, KeyCode::Char('a'));
-        let calendar = |app: &App| {
-            app.editor()
-                .and_then(Editor::calendar)
-                .map(|path| path.join(" > "))
-        };
         assert_eq!(calendar(&app).as_deref(), Some("Work"));
-        for expected in ["Work > SFAP", "Personal", "Holidays"] {
-            press(&mut app, KeyCode::Tab);
-            assert_eq!(calendar(&app).as_deref(), Some(expected));
-        }
-        press(&mut app, KeyCode::BackTab);
+        // Just `#`: every calendar, in the calendar list's order; `pe` leaves Personal
+        type_text(&mut app, "#");
+        assert_eq!(
+            listed(&app),
+            ["Holidays", "Work", "Work > SFAP", "Personal"]
+        );
+        type_text(&mut app, "pe");
+        assert_eq!(listed(&app), ["Personal"]);
+        // Enter picks it: the #pe word is taken out, the list closes
+        press(&mut app, KeyCode::Enter);
         assert_eq!(calendar(&app).as_deref(), Some("Personal"));
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] ")
+        );
+        assert_eq!(listed(&app), [] as [&str; 0]);
         // Personal has no items yet: the new one goes right under its heading
         type_text(&mut app, "Call the bank");
         press(&mut app, KeyCode::Enter);
@@ -738,28 +887,89 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             format!("{text}- [ ] Call the bank @2026-10-20\n")
         );
-        // Now 10/20 has an item (in Personal): `a` starts there; Shift+Tab to Work > SFAP, where it goes after
-        // the last item, before the next heading
+        // Now 10/20 has an item (in Personal): `a` starts there. `#w` after the title: both Works match
+        // equally well (list order); down / up / Ctrl+N move (not past the ends), Tab picks Work > SFAP, where
+        // it goes after the last item, before the next heading
         press(&mut app, KeyCode::Esc);
         press(&mut app, KeyCode::Char('a'));
         assert_eq!(calendar(&app).as_deref(), Some("Personal"));
-        press(&mut app, KeyCode::BackTab);
+        type_text(&mut app, "Review #w");
+        assert_eq!(listed(&app), ["Work", "Work > SFAP"]);
+        let index = |app: &App| app.editor().map(|editor| editor.hash_list.index);
+        press(&mut app, KeyCode::Up);
+        assert_eq!(index(&app), Some(0));
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Down);
+        assert_eq!(index(&app), Some(1));
+        press(&mut app, KeyCode::Up);
+        app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL));
+        assert_eq!(index(&app), Some(1));
+        press(&mut app, KeyCode::Tab);
         assert_eq!(calendar(&app).as_deref(), Some("Work > SFAP"));
-        type_text(&mut app, "Review");
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] Review ")
+        );
         press(&mut app, KeyCode::Enter);
         assert!(
             std::fs::read_to_string(&path)
                 .expect("read")
                 .contains("- [ ] Estimate @2026-10-12\n- [ ] Review @2026-10-20\n# Personal\n")
         );
-        // A subtask (A) and an edit (e) have no calendar to switch: Tab does nothing
+        // A subtask (A) stays under its item: `#` is only text, no list
         press(&mut app, KeyCode::Char('A'));
-        press(&mut app, KeyCode::Tab);
+        type_text(&mut app, "#w");
+        assert_eq!(listed(&app), [] as [&str; 0]);
         assert_eq!(calendar(&app), None);
-        assert!(matches!(
-            app.editor().map(|editor| &editor.target),
-            Some(Target::Add(Place::ChildOf(_)))
-        ));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn a_closed_hash_list_leaves_the_word_as_a_tag() {
+        let text = "# Work\n- [ ] Write the design doc @2026-10-16\n## SFAP\n";
+        let (mut app, path) = app_with_task_file("add-hash-tag", text);
+        press(&mut app, KeyCode::Char('a'));
+        // A word in the middle of the text opens the list too; picking takes the word and the space after it
+        type_text(&mut app, "#sf Ship it");
+        assert_eq!(listed(&app), [] as [&str; 0]);
+        for _ in 0.." Ship it".len() {
+            press(&mut app, KeyCode::Left);
+        }
+        press(&mut app, KeyCode::Backspace);
+        type_text(&mut app, "f");
+        assert_eq!(listed(&app), ["Work > SFAP"]);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] Ship it")
+        );
+        assert_eq!(calendar(&app).as_deref(), Some("Work > SFAP"));
+        // The cursor is where the word was
+        assert_eq!(app.editor().map(|editor| editor.input.cursor()), Some(6));
+        // Esc closes only the list: the editor stays open, the word stays, and Enter saves it as part of the
+        // title (an Obsidian tag) in the calendar it already had
+        press(&mut app, KeyCode::End);
+        type_text(&mut app, " #wo");
+        assert_eq!(listed(&app), ["Work", "Work > SFAP"]);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(listed(&app), [] as [&str; 0]);
+        assert!(app.editor().is_some());
+        // Moving the cursor keeps it closed; typing in the word opens it again, a space closes it
+        press(&mut app, KeyCode::Left);
+        press(&mut app, KeyCode::Right);
+        assert_eq!(listed(&app), [] as [&str; 0]);
+        type_text(&mut app, "r");
+        assert_eq!(listed(&app), ["Work", "Work > SFAP"]);
+        type_text(&mut app, " ");
+        assert_eq!(listed(&app), [] as [&str; 0]);
+        // Nothing matches: no list, so Enter saves
+        type_text(&mut app, "#zzz");
+        assert_eq!(listed(&app), [] as [&str; 0]);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            format!("{text}- [ ] Ship it #wor #zzz @2026-10-16\n")
+        );
         clean_up(&path);
     }
 
