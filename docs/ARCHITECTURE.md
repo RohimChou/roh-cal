@@ -27,7 +27,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/app/day.rs` | 版型 3「那天的事」跳窗：月曆上 `Enter` 或 double click（同一天 0.5 秒內點兩下，`App::click_calendar_day`；版型 1 的 double click 也走它，進到右邊那天的事）打開（`Focus::Day`，選到第幾件記在 `App::day_index`，順序 = `App::items_on(selected)`）；按鍵跟版型 1 右邊一樣，寫檔走同一套（`chosen_item()` 回傳跳窗選到的那件），寫完 `keep_day_choice` / `choose_day_line` 調整選的位置，那天沒事了就關掉 | |
 | `src/ui/day.rs` | 畫跳窗：疊在大月曆正中間，一件一列（用版型 1 的 `planner::item_line`），放不下就捲（跑出框外才捲，記在 `App::day_top`）、右框線上有捲軸 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
-| `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h` `+` `-`、縮排 `L` `H`、上下搬 `J` `K`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
+| `src/app/tasks.rs` | 任務頁（`4`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h` `+` `-`、`[` `]` 跳到上一個 / 下一個日曆的第一件、縮排 `L` `H`、上下搬 `J` `K`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（右邊日期、時間各一欄、上下對齊，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
 | `src/app/write.rs` | 寫任務檔的流程：先重讀、改、寫（日曆清單的 `d` 刪除日曆也在這：先問 `y`，`Mode::ConfirmDeleteCalendar`；刪掉同名的每一個標題到下一個標題之前的每一行，`edit::delete_calendar`）；在別處改過就重新載入；結果放在 `App::notice`（最下面一列）。改的是 `App::chosen_item()`（右邊、任務頁或版型 3 跳窗選到的那件）；寫完用 `edit::line_map` 把畫面記著的行號（任務頁選到的、展開的）搬到新的行號（上下搬照 `edit::Swap` 換了哪兩塊搬，復原時反過來） | |
 | `src/calendar.rs` | 日期計算：一個月有哪幾週、第幾週、週數欄寫什麼（`week_label`：`[calendar] relative_weeks` 時寫跟選取那週差幾週） | |

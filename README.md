@@ -132,6 +132,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `+` / `-` | Expand / collapse every item's subtasks (when the chosen item gets hidden, its top-level item is chosen instead) |
 | `L` / `H` | Indent the chosen item with its subtasks under the item above it at the same level (2 more spaces than that item, like `A`) / outdent it to its parent's level, where the items below it at the same level become its subtasks (as in Obsidian); written back to the task file |
 | `J` / `K` | Move the chosen item with its subtasks below / above the next item at the same level (it stays under the same parent and calendar); written back to the task file |
+| `[` / `]` | Jump to the first item of the previous / next calendar (heading) |
 
 **In the calendar list**
 

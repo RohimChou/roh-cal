@@ -202,6 +202,7 @@ const EN: Texts = Texts {
                     ("+ / -", "expand / collapse all"),
                     ("L / H", "indent / outdent"),
                     ("J / K", "move down / up"),
+                    ("[ / ]", "previous / next calendar"),
                 ],
             },
             HelpSection {
@@ -356,6 +357,7 @@ const ZH_TW: Texts = Texts {
                     ("+ / -", "全部展開 / 全部收起"),
                     ("L / H", "縮排 / 取消縮排"),
                     ("J / K", "往下 / 往上搬"),
+                    ("[ / ]", "上一個 / 下一個日曆"),
                 ],
             },
             HelpSection {

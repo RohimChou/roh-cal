@@ -409,14 +409,14 @@ mod tests {
             let (area, rows, _) = draw(
                 lang,
                 100,
-                36,
+                38,
                 Help {
                     full: true,
                     scroll: 0,
                 },
             );
-            // The longer column (left) is 31 lines + padding 2 + border 2: it fits, no scrolling
-            assert_eq!(area.height, 35, "{lang:?}");
+            // The longer column (left) is 32 lines + padding 2 + border 2: it fits, no scrolling
+            assert_eq!(area.height, 36, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {
                 assert!(text.contains(section.title), "{}", section.title);

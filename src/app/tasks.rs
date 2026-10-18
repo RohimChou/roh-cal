@@ -95,7 +95,8 @@ impl App {
         }
     }
 
-    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped),
+    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped), `[` / `]` the previous /
+    /// next calendar's first item,
     /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
@@ -118,7 +119,45 @@ impl App {
             KeyCode::Char('A') => self.start_adding_subtask(),
             KeyCode::Char('d') => self.ask_delete(),
             KeyCode::Char('r') => self.start_moving(),
+            KeyCode::Char('[') => self.jump_calendar(-1),
+            KeyCode::Char(']') => self.jump_calendar(1),
             _ => {}
+        }
+    }
+
+    /// `[` / `]`: chooses the first item of the previous (`step` = -1) / next (1) calendar (heading) on the
+    /// tasks page, like `[` `]` on the calendar go to the 1st of the previous / next month; stays put when
+    /// there is no calendar that way
+    fn jump_calendar(&mut self, step: isize) {
+        let rows = self.tasks_rows();
+        let Some(cursor) = self.tasks_cursor(&rows) else {
+            return;
+        };
+        let headings: Vec<usize> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| matches!(row, TaskRow::Heading { .. }))
+            .map(|(position, _)| position)
+            .collect();
+        // The calendar the chosen item is in: the last heading above it
+        let Some(current) = headings.iter().rposition(|&heading| heading < cursor) else {
+            return;
+        };
+        let Some(&heading) = current
+            .checked_add_signed(step)
+            .and_then(|target| headings.get(target))
+        else {
+            return;
+        };
+        let first = rows[heading + 1..]
+            .iter()
+            .take_while(|row| matches!(row, TaskRow::Item { .. }))
+            .find_map(|row| match row {
+                TaskRow::Item { index, .. } => self.items.get(*index),
+                TaskRow::Heading { .. } => None,
+            });
+        if let Some(item) = first {
+            self.tasks_line = Some(item.line);
         }
     }
 
@@ -409,6 +448,29 @@ mod tests {
     /// Presses one key
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
+    }
+
+    #[test]
+    fn brackets_jump_to_the_previous_or_next_calendar() {
+        let mut app = tasks_app("# A\n- a1\n- a2\n# B\n- b1\n## C\n- c1\n");
+        let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+        // From a2 (A's second item): ] = B's first item, then C's (a `##` heading is a calendar too)
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(chosen(&app).as_deref(), Some("b1"));
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(chosen(&app).as_deref(), Some("c1"));
+        // No calendar after C: stays
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(chosen(&app).as_deref(), Some("c1"));
+        // [ goes back one calendar at a time, to its first item; stays at the first calendar
+        press(&mut app, KeyCode::Char('['));
+        assert_eq!(chosen(&app).as_deref(), Some("b1"));
+        press(&mut app, KeyCode::Char('['));
+        press(&mut app, KeyCode::Char('['));
+        assert_eq!(chosen(&app).as_deref(), Some("a1"));
+        // The calendar's date did not move (on the tasks page [ ] are not months)
+        assert_eq!(app.selected, date(2026, 10, 17));
     }
 
     /// What each row looks like: heading `#name`, item `title` (two spaces per level
