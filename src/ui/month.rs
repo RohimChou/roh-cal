@@ -211,6 +211,24 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             ),
             number_area,
         );
+        // The week with a 1st: its month under the week number, and in January the year below that
+        if let Some(&first) = days.iter().find(|day| day.day() == 1) {
+            let column = grid.cell(week, 0);
+            let mut labels = vec![texts.month_label(first)];
+            if first.month() == 1 {
+                labels.push(first.year().to_string());
+            }
+            for (label, y) in labels.into_iter().zip(column.y + 1..column.bottom()) {
+                frame.render_widget(
+                    Line::styled(week_column_text(&label), Style::new().fg(theme.label)),
+                    Rect {
+                        y,
+                        height: 1,
+                        ..column
+                    },
+                );
+            }
+        }
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
         // The selected day's cell gets a background, top-left to bottom-right (like v1)
         let selected = days.iter().position(|&day| day == app.selected);
@@ -234,6 +252,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             .collect();
         render_bars(frame, &cells, &bars, &shown, &days, app);
     }
+}
+
+/// Text for the week-number column, lined up with the week numbers 「  42 」: right-aligned to end in the
+/// column's 4th cell (e.g. 「 Nov」, 「 1月」); wider than 3 cells starts right after the first blank
+/// (「 11月」, 「 2027」)
+fn week_column_text(text: &str) -> String {
+    let width = Span::raw(text).width();
+    format!(" {}{text}", " ".repeat(3usize.saturating_sub(width)))
 }
 
 /// What one line of a cell, below the date, holds
@@ -889,6 +915,15 @@ mod tests {
             slots.iter().map(Vec::len).collect::<Vec<_>>(),
             [1, 1, 1, 0, 0, 0, 0]
         );
+    }
+
+    #[test]
+    fn week_column_text_lines_up_with_the_week_numbers() {
+        // Week numbers are 「 {:>3} 」: 「  42 」; labels end in the same cell when they fit in 3 cells
+        assert_eq!(week_column_text("Nov"), " Nov");
+        assert_eq!(week_column_text("1月"), " 1月");
+        assert_eq!(week_column_text("11月"), " 11月");
+        assert_eq!(week_column_text("2027"), " 2027");
     }
 
     #[test]

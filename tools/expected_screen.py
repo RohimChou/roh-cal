@@ -465,6 +465,13 @@ def month_screen(lang, w, h, selected, top, items, groups):
         # Week number: from a day of that week in the selected month; if there is none, from Monday
         numbered = next((d for d in days if (d.year, d.month) == month), monday)
         c.put(0, week_y(i), f" {week_number(numbered, selected):>3} ", 5)
+        # The week with a 1st: its month on the next line of the week-number column, in January the year
+        # on the line after; right-aligned like the week numbers (ending in the 4th cell) when 3 cells or less
+        firsts = [d for d in days if d.day == 1]
+        if firsts:
+            labels = [t["month"](firsts[0].month)] + ([str(firsts[0].year)] if firsts[0].month == 1 else [])
+            for r, label in enumerate(labels[:max(wh - 1, 0)]):
+                c.put(0, week_y(i) + 1 + r, " " + rjust(label, 3), 5)
         week_cells = []  # the lines of each of this row's 7 cells
         # Items on each day of the row (a multi-day item on each of its days; items are already sorted by
         # start day and time)
