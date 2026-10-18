@@ -438,8 +438,9 @@ impl App {
     /// 已經在主框：任務頁回到版型 1、月曆就離開。其他鍵看鍵盤在哪個框
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
-            // 跳窗開著時 q 只關跳窗（跟說明頁一樣），不離開
+            // 跳窗、不夠寬時叫出來的 side menu 開著時，q 只關掉它（跟說明頁一樣），不離開
             KeyCode::Char('q') if self.focus == Focus::Day => self.focus = Focus::Calendar,
+            KeyCode::Char('q') if ui::side_overlay(self).is_some() => self.put_side_away(),
             KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -1199,20 +1200,23 @@ mod tests {
 
     #[test]
     fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
-        // 60 格寬、鍵盤在右邊選著 c（第 3 件）：s 叫出 side menu，用 s / Esc / 點框外收起，都回到右邊、還選著 c
+        // 60 格寬、鍵盤在右邊選著 c（第 3 件）：s 叫出 side menu，用 s / Esc / 點框外 / q 收起，都回到右邊、還選著 c
+        // （q 只收起，不離開）
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 60, 20);
         app.choose(2);
         let left = MouseEventKind::Down(MouseButton::Left);
-        for close in 0..3 {
+        for close in 0..4 {
             press(&mut app, KeyCode::Char('s'));
             assert_eq!(app.focus, Focus::Side);
             match close {
                 0 => press(&mut app, KeyCode::Char('s')),
                 1 => press(&mut app, KeyCode::Esc),
-                _ => app.handle_mouse(mouse(left, 50, 10)),
+                2 => app.handle_mouse(mouse(left, 50, 10)),
+                _ => press(&mut app, KeyCode::Char('q')),
             }
             assert_eq!((app.focus, app.agenda_index), (Focus::Agenda, 2), "{close}");
+            assert!(!app.should_quit);
         }
         // 版型 3、10/17 的跳窗選著第 2 件（c）：叫出來再收起，跳窗回來、還選著 c
         press(&mut app, KeyCode::Char('3'));
