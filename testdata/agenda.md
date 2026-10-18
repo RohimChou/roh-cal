@@ -1,17 +1,17 @@
-- [ ] 交週報 @2026-10-16 17:30
-- [x] 修 bug @2026-10-15
+- [ ] Send the weekly update @2026-10-16 17:30
+- [x] Fix the login bug @2026-10-15
 
-# 生活
-- 聚餐 @2026-10-17
-- [ ] 早餐會 @2026-10-17 08:00
-- [ ] 爬山 @2026-10-18 07:00
-- [ ] 繳電話費 @2026-10-05
-- [ ] 國慶日 @2026-10-10
+# Personal
+- Dinner with friends @2026-10-17
+- [ ] Coffee chat @2026-10-17 08:00
+- [ ] Go hiking @2026-10-18 07:00
+- [ ] Pay the phone bill @2026-10-05
+- [ ] Farmers market @2026-10-10
 
-# 工作
-- [ ] 一個很長很長很長很長很長很長很長的標題 @2026-10-20
-- [ ] 沒日期的事
+# Work
+- [ ] A really long title that just keeps going and going and going @2026-10-20
+- [ ] Something with no date
 
-## 2026 年底的大小事情和明年計畫
-- [ ] 跨年倒數 @2026-12-31 23:00
+## Year-end odds and ends and plans for next year
+- [ ] New Year's Eve countdown @2026-12-31 23:00
 - [ ] Release v2.3 @2026-11-03 09:30

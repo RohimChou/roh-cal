@@ -1,17 +1,17 @@
-- [ ] 交週報 @2026-10-16 17:30
-- [x] 修 bug @2026-10-15
-- [ ] 整理筆記 @2026-10-16
-- [ ] 團隊聚餐 @2026-10-16 18:30
-- [ ] 預約健檢 @2026-10-16
-- [ ] Code review：Amy 的 PR @2026-10-12 14:00
-- [ ] 跟 SRE 確認監控告警 @2026-10-13 15:00
+- [ ] Send the weekly update @2026-10-16 17:30
+- [x] Fix the login bug @2026-10-15
+- [ ] Clean up notes @2026-10-16
+- [ ] Team happy hour @2026-10-16 18:30
+- [ ] Book a checkup @2026-10-16
+- [ ] Code review: Amy's PR @2026-10-12 14:00
+- [ ] Confirm alerting with SRE @2026-10-13 15:00
 
-# 生活
-- 聚餐 @2026-10-17
-- [ ] 早餐會 @2026-10-17 08:00
-- [ ] 爬山 @2026-10-18 07:00
-- [x] 繳電話費 @2026-10-05
-- [ ] 國慶日 @2026-10-10
-- [ ] 中秋烤肉 @2026-09-25
-- [ ] 一個很長很長很長很長很長的標題 @2026-10-20
-- [ ] 買生日禮物 @2026-11-01
+# Personal
+- Dinner with friends @2026-10-17
+- [ ] Coffee chat @2026-10-17 08:00
+- [ ] Go hiking @2026-10-18 07:00
+- [x] Pay the phone bill @2026-10-05
+- [ ] Farmers market @2026-10-10
+- [ ] Backyard BBQ @2026-09-25
+- [ ] A really long title that spills over @2026-10-20
+- [ ] Buy a birthday gift @2026-11-01

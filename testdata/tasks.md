@@ -1,80 +1,80 @@
-我的任務檔。roh-cal 只看 `- ` 開頭的清單，其他像這段說明都會原封不動保留。
+My task file. roh-cal only reads list items that start with `- `; everything else, like this note, is left exactly as it is.
 
-# 付款 API 改版
-- [x] 跟 PM 對齊退款流程規格 @2026-09-28
-- [x] 拆 ticket、估人天 @2026-09-30 10:00
-- [ ] 實作退款 API @2026-10-14
-  - [x] 定義 request / response schema
-  - [ ] 寫 integration test @2026-10-13
-  - [ ] 補 API 文件 @2026-10-13
-  - [ ] 跟前端 @Kevin 對 error code
-- [ ] Code review：Amy 的 PR #482 @2026-10-12 14:00
-- [ ] 跟 SRE 確認監控告警 @2026-10-13 15:00
-- [ ] 回覆 Kevin 的 error code 問題 @2026-10-14
-- [x] 修 staging 的 DB migration @2026-10-08
-- 上線 freeze @2026-10-23
-- [ ] 準備上線清冊 @2026-10-22 @2026-10-23
-- [ ] 寫 runbook，參考 https://wiki.example.com/payments/runbook
+# Payments API v2
+- [x] Align with PM on the refund flow spec @2026-09-28
+- [x] Break down tickets and estimate @2026-09-30 10:00
+- [ ] Implement the refund API @2026-10-14
+  - [x] Define the request / response schema
+  - [ ] Write integration tests @2026-10-13
+  - [ ] Update the API docs @2026-10-13
+  - [ ] Sync with @Kevin on frontend error codes
+- [ ] Code review: Amy's PR #482 @2026-10-12 14:00
+- [ ] Confirm alerting with SRE @2026-10-13 15:00
+- [ ] Reply to Kevin about error codes @2026-10-14
+- [x] Fix the staging DB migration @2026-10-08
+- Code freeze @2026-10-23
+- [ ] Prepare the release checklist @2026-10-22 @2026-10-23
+- [ ] Write the runbook, see https://wiki.example.com/payments/runbook
 - Release v2.3 @2026-10-27 09:30
 
-# 例行
-- 週會 @2026-10-12 10:00
-- 週會 @2026-10-19 10:00
-- 週會 @2026-10-26 10:00
-- [ ] 交週報 @2026-10-16 17:30
-- [ ] 整理本週筆記 @2026-10-16
-- [ ] 更新 release note 草稿 @2026-10-16
-- 團隊聚餐 @2026-10-16 18:30
-- 跟 PM 開需求會議 @2026-10-08 14:00
-- 部門月會 @2026-10-08 16:00
-- 團隊 offsite @2026-10-29
-- [ ] 交週報 @2026-10-23 17:30
-- [X] 更新 VPN 憑證 @2026-10-05
-- [ ] 資安自行查核表 due:2026-10-15 @2026-10-15
-- 主管出差（代理簽核） @2026-10-28..2026-11-03
+# Recurring
+- Team sync @2026-10-12 10:00
+- Team sync @2026-10-19 10:00
+- Team sync @2026-10-26 10:00
+- [ ] Send the weekly update @2026-10-16 17:30
+- [ ] Clean up this week's notes @2026-10-16
+- [ ] Draft the release notes @2026-10-16
+- Team happy hour @2026-10-16 18:30
+- Requirements meeting with PM @2026-10-08 14:00
+- Engineering all-hands @2026-10-08 16:00
+- Team offsite @2026-10-29
+- [ ] Send the weekly update @2026-10-23 17:30
+- [X] Renew the VPN certificate @2026-10-05
+- [ ] Security self-assessment due:2026-10-15 @2026-10-15
+- Manager OOO (covering approvals) @2026-10-28..2026-11-03
 
-# 個人
-- [ ] 繳信用卡 @2026-10-25
-- 看牙醫 @2026-10-14 10:30
-- [ ] 整理書櫃
-- [ ] 買生日禮物給媽媽 @2026-11-02
-- [ ] 預約年度健檢 @2026-10-16
-- 媽媽生日 @2026-10-29
-- [ ] 繳房屋稅 @2026-13-01
+# Personal
+- [ ] Pay the credit card bill @2026-10-25
+- Dentist appointment @2026-10-14 10:30
+- [ ] Organize the bookshelf
+- [ ] Buy Mom's birthday gift @2026-11-02
+- [ ] Book the annual physical @2026-10-16
+- Mom's birthday 🎂 @2026-10-29
+- [ ] Pay property tax @2026-13-01
 
-## 搬家
-- [ ] 找搬家公司估價 @2026-11-07
-- [ ] 打包
-	- [ ] 書房 @2026-11-14
-	- [ ] 廚房 @2026-11-15
-- [ ] 搬家 @2026-11-21 08:00
+## Moving
+- [ ] Get quotes from movers @2026-11-07
+- [ ] Pack
+	- [ ] Office @2026-11-14
+	- [ ] Kitchen @2026-11-15
+- [ ] Moving day @2026-11-21 08:00
 
-# 國定假日 type:holiday
-- 國慶連假 @2026-10-09..2026-10-11
-- 光復節 @2026-10-25
+# US holidays type:holiday
+- Long weekend (Indigenous Peoples' Day) @2026-10-10..2026-10-12
+- Halloween 🎃 @2026-10-31
 
-# 學習 Rust
-- [x] 讀完 The Book 第 4 章 ownership @2026-10-03
-- [ ] 讀 Ratatui 的 Layout 文件
-- [ ] 寫 roh-cal 的任務檔 parser @2026-10-11
-  - [ ] 每條規則都寫 test
-    - [ ] 測 `@Rukis` 不算日期
-- RustConf 線上直播 @2026-10-29 23:00 @Rukis
-- 讀書會：Rust async @2026-10-14 19:30
+# Learning Rust 🦀
+- [x] Finish chapter 4 of The Book (ownership) @2026-10-03
+- [ ] Read the Ratatui layout docs
+- [ ] Write the task file parser for roh-cal @2026-10-11
+  - [ ] Write a test for every rule
+    - [ ] Test that `@Rukis` is not a date
+- RustConf livestream @2026-10-29 23:00 @Rukis
+- Rust async study group @2026-10-14 19:30
 
-# 2026 年底日本旅行
-- 東京 5 天 @2026-12-24..2026-12-28
-  - [ ] 訂機票 @2026-11-10
-  - [ ] 訂飯店
-  - [ ] 換日幣 @2026-12-15
-- 出發 @2026-12-24 07:40
-- 回台灣 @2026-12-28
+# Tokyo trip
+- Tokyo, 5 days @2026-12-24..2026-12-28
+  - [ ] Book flights @2026-11-10
+  - [ ] Book the hotel
+  - [ ] Get some yen @2026-12-15
+- Fly out @2026-12-24 07:40
+- Fly home @2026-12-28
 
-下面這段是範例，不是任務，roh-cal 不會讀：
+The block below is an example, not a task; roh-cal does not read it:
 
 ```markdown
-- [ ] 這行在 code block 裡 @2026-10-12
+- [ ] This line is inside a code block @2026-10-12
 ```
 
--這行沒有空白，不是清單
+-No space after the dash, so this is not a list item
 - [ ]
