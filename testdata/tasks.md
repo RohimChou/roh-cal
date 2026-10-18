@@ -10,12 +10,12 @@ My task file. roh-cal only reads list items that start with `- `; everything els
   - [ ] Sync with @Kevin on frontend error codes
 - [ ] Code review: Amy's PR #482 @2026-10-12 14:00
 - [ ] Confirm alerting with SRE @2026-10-13 15:00
-- [ ] Reply to Kevin about error codes @2026-10-14
+- [ ] Reply to Kevin about error codes !! @2026-10-14
 - [x] Fix the staging DB migration @2026-10-08
 - Code freeze @2026-10-23
 - [ ] Prepare the release checklist @2026-10-22 @2026-10-23
 - [ ] Write the runbook, see https://wiki.example.com/payments/runbook
-- Release v2.3 @2026-10-27 09:30
+- Release v2.3 !!! @2026-10-27 09:30
 
 # Recurring
 - Team sync @2026-10-12 10:00
@@ -34,11 +34,11 @@ My task file. roh-cal only reads list items that start with `- `; everything els
 - Manager OOO (covering approvals) @2026-10-28..2026-11-03
 
 # Personal
-- [ ] Pay the credit card bill @2026-10-25
+- [ ] Pay the credit card bill !!! @2026-10-25
 - Dentist appointment @2026-10-14 10:30
 - [ ] Organize the bookshelf
 - [ ] Buy Mom's birthday gift @2026-11-02
-- [ ] Book the annual physical @2026-10-16
+- [ ] Book the annual physical ! @2026-10-16
 - Mom's birthday 🎂 @2026-10-29
 - [ ] Pay property tax @2026-13-01
 

@@ -878,6 +878,10 @@ mod tests {
         assert_eq!(count(|item| item.date.is_none()), 11);
         // 3 multi-day items (Manager OOO, Tokyo, the long weekend)
         assert_eq!(count(|item| item.end.is_some()), 3);
+        // Priorities: 2 `!!!` (Release v2.3, the credit card bill), 1 `!!`, 1 `!`
+        assert_eq!(count(|item| item.priority == Some(Priority::High)), 2);
+        assert_eq!(count(|item| item.priority == Some(Priority::Medium)), 1);
+        assert_eq!(count(|item| item.priority == Some(Priority::Low)), 1);
         // 1 holiday calendar with 2 items
         assert_eq!(
             count(|item| item.group.as_ref().is_some_and(|group| group.holiday)),

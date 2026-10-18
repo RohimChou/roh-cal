@@ -159,6 +159,15 @@ def is_hidden(path, hidden):
     return any(path[:k] in hidden for k in range(1, len(path) + 1))
 
 
+def drop_priority(title):
+    """The title without its priority: the first word that is exactly `!`, `!!` or `!!!` is not part of it"""
+    words = title.split()
+    marks = [k for k, w in enumerate(words) if w in ("!", "!!", "!!!")]
+    if marks:
+        del words[marks[0]]
+    return " ".join(words)
+
+
 def read_items(text, hidden):
     """Simple version: lines that start with `- ` and end with `@YYYY-MM-DD` or `@YYYY-MM-DD..YYYY-MM-DD`
     (a time may follow). Lines whose calendar is hidden (`hidden` = paths of the unchecked calendars,
@@ -170,7 +179,7 @@ def read_items(text, hidden):
         m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
-            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), m.group(1), i, end))
+            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end))
     # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
@@ -682,6 +691,7 @@ def read_tree(text):
             i += 1
         if out and re.fullmatch(r"\^[A-Za-z0-9-]+", out[-1]):
             out.pop()
+        out = drop_priority(" ".join(out)).split()
         while stack and stack[-1][0] >= indent:
             stack.pop()
         parent = stack[-1][1] if stack else None
