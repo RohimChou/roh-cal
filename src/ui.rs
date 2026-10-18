@@ -1392,35 +1392,37 @@ mod tests {
         );
         app.handle_key(KeyEvent::from(KeyCode::Tab));
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-        // 70 × 12: the edit box sits just above the key hints
-        // at the bottom (y 7-10), as wide as the whole terminal
+        // 70 × 12: the edit box is in the upper middle (y 2-5: a third of the 7 free rows above it,
+        // the key-hint row does not count) and 2 cells from each side (x 2-67)
         let mut terminal = draw_app(&mut app, 70, 12);
-        let rows = text_rows(terminal.backend().buffer());
-        assert!(rows[7].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[7]);
-        assert!(rows[7].ends_with("─╮"));
+        let area = editor_area(Rect::new(0, 0, 70, 12));
+        assert_eq!(area, Rect::new(2, 2, 66, 4));
+        let rows = area_rows(terminal.backend().buffer(), area);
+        assert!(rows[0].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[0]);
+        assert!(rows[0].ends_with("─╮"));
         assert_eq!(
-            rows[8].trim_end_matches([' ', '│']),
+            rows[1].trim_end_matches([' ', '│']),
             "│ - [ ] Pick up the cake 🎂 @2026-10-16 17:30"
         );
         assert_eq!(
-            rows[9].trim_end_matches([' ', '│']),
+            rows[2].trim_end_matches([' ', '│']),
             "│ 任務 · 2026/10/16（五） 17:30 · 「Pick up the cake 🎂」"
         );
         assert!(
-            rows[10].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+            rows[3].starts_with("╰ Enter 存檔  Esc 取消 ─"),
             "{}",
-            rows[10]
+            rows[3]
         );
-        // The cursor is right after the typed text, at
+        // The cursor is right after the typed text, at box x 2 +
         // border 1 + space 1 + 「- [ ] Pick up the cake 🎂 @2026-10-16 17:30」 43 cells (42 chars)
         assert_eq!(
             terminal.get_cursor_position().expect("cursor"),
-            Position::new(45, 8)
+            Position::new(47, 3)
         );
         // What the line parses as is shown muted; change it to a time
         // that does not exist: that row becomes a red explanation
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(terminal.backend().buffer()[(2, 9)].fg, theme.muted);
+        assert_eq!(terminal.backend().buffer()[(4, 4)].fg, theme.muted);
         for code in [
             KeyCode::Backspace,
             KeyCode::Backspace,
@@ -1430,12 +1432,51 @@ mod tests {
             app.handle_key(KeyEvent::from(code));
         }
         let terminal = draw_app(&mut app, 70, 12);
-        let rows = text_rows(terminal.backend().buffer());
+        let rows = area_rows(terminal.backend().buffer(), area);
         assert_eq!(
-            rows[9].trim_end_matches([' ', '│']),
+            rows[2].trim_end_matches([' ', '│']),
             "│ 17:99：沒有這個時間"
         );
-        assert_eq!(terminal.backend().buffer()[(2, 9)].fg, theme.error);
+        assert_eq!(terminal.backend().buffer()[(4, 4)].fg, theme.error);
+    }
+
+    #[test]
+    fn the_editor_sits_in_the_upper_middle_and_a_click_outside_cancels() {
+        use ratatui::crossterm::event::{
+            KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        };
+        // 80 × 24: 76 wide (2 cells from each side), top at (23 - 4) / 3 = 6; 200 × 50: at most 80 wide,
+        // centered; narrower than 30: the whole width
+        assert_eq!(editor_area(Rect::new(0, 0, 80, 24)), Rect::new(2, 6, 76, 4));
+        assert_eq!(
+            editor_area(Rect::new(0, 0, 200, 50)),
+            Rect::new(60, 15, 80, 4)
+        );
+        assert_eq!(editor_area(Rect::new(0, 0, 29, 24)), Rect::new(0, 6, 29, 4));
+        let mut app = App::new(
+            Lang::En,
+            date(2026, 10, 17),
+            crate::tasks::parse("- [ ] Send the weekly update @2026-10-16\n").items,
+        );
+        app.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+        app.screen = Rect::new(0, 0, 80, 24);
+        let click = |app: &mut App, column: u16, row: u16| {
+            app.handle_mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            });
+        };
+        // Inside the box (its corners too): stays open
+        for (column, row) in [(2, 6), (77, 9), (40, 7)] {
+            click(&mut app, column, row);
+            assert!(app.editor().is_some(), "({column}, {row})");
+        }
+        // Below it (where the box is not): cancels
+        click(&mut app, 40, 20);
+        assert!(app.editor().is_none());
     }
 
     #[test]

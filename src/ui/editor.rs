@@ -1,4 +1,4 @@
-//! One-line editor: drawn at the bottom (above the key hints), as wide as the whole terminal
+//! One-line editor: a box in the upper middle of the screen
 
 use crate::app::{App, Editor, Reading, Target};
 use crate::edit::Place;
@@ -13,14 +13,27 @@ use ratatui::{
 /// Editor height: top border, the typing row, the check-result row, bottom border
 const HEIGHT: u16 = 4;
 
-/// The editor's area: above the key hints at the bottom, as wide as the terminal. Used for drawing and for
-/// the mouse (a click outside the box = cancel)
+/// The widest the editor gets: a usual task line fits with room to spare; a longer one scrolls
+const MAX_WIDTH: u16 = 80;
+
+/// Below this terminal width the editor takes the whole width (no margins)
+const NARROW: u16 = 30;
+
+/// The editor's area: centered left to right, 2 cells from each side, at most `MAX_WIDTH` wide; in the
+/// upper middle top to bottom (a third of the free rows above it, two thirds below; the key-hint row
+/// at the bottom does not count). Used for drawing and for the mouse (a click outside the box = cancel)
 pub fn area(screen: Rect) -> Rect {
-    let height = HEIGHT.min(screen.height.saturating_sub(1));
+    let rows = screen.height.saturating_sub(1);
+    let height = HEIGHT.min(rows);
+    let width = if screen.width < NARROW {
+        screen.width
+    } else {
+        (screen.width - 4).min(MAX_WIDTH)
+    };
     Rect::new(
-        screen.x,
-        screen.bottom().saturating_sub(1 + height),
-        screen.width,
+        screen.x + (screen.width - width) / 2,
+        screen.y + (rows - height) / 3,
+        width,
         height,
     )
 }
@@ -53,6 +66,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         ));
     let inner = block.inner(area);
     // Clear the screen underneath first, then draw the box
+    super::clear_wide_left_of(frame.buffer_mut(), area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if inner.height == 0 {
