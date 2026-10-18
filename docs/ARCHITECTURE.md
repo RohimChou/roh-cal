@@ -38,7 +38,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色 | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`（預設）、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼 | ✓ |
-| `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在各自的檔案）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
+| `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
 | `src/ui/side.rs` | 畫 side menu（最下面一條線 + 「隱藏做完的」開關：`App::group_index` = 日曆數量時選到它，`Space` / 點一下切換 `[calendar_list] hide_done` 並馬上存進設定檔）：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`；底下還沒有事的標題也算；`#` 越少越上層，日曆 = 整條路徑 `Heading::parents` + 名字，清單照樹排、裡面的縮排 2 格；父層沒勾 = 裡面的也藏，`App::is_shown` 看 `Group::holds`）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 36，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
@@ -100,6 +100,7 @@ App::run 的迴圈
 - 程式的註解用英文（直白、精簡；2026-10-18 起，給國外的人也看得懂）；function 上面用 `///` 寫用途。這份文件和其他給自己看的筆記照樣用中文
 - 畫面的字放 `texts.rs`、顏色放 `theme.rs`（畫面只講角色，例：`theme.today`），`ui/` 裡不寫死
 - 錯誤處理用 `color_eyre::Result` + `?`，不用 `unwrap()`（test 例外）
+- test 放哪：test 超過 100 行就搬到自己的檔 `<模組>/tests.rs`（例：`src/edit.rs` 的 test 在 `src/edit/tests.rs`，原本的檔只留 `#[cfg(test)] mod tests;`），程式和 test 分開讀；短的照樣寫在檔案最後的 `mod tests { ... }`。模組的路徑沒變（還是 `edit::tests`），`use super::*;` 照樣拿得到私有的東西；`include_str!` 的路徑從 test 檔自己的位置算
 - commit 前 `cargo fmt`、`cargo clippy --all-targets -- -D warnings`、`cargo test` 都要乾淨；改到邏輯就補 test，寫完故意改壞一兩處，確認 test 抓得到
 - 點點、符號只用 East Asian Width 是 N 或 Na 的字（都是 1 格；`•`、`●` 是 A，開了 CJK 寬字元的 terminal 會變 2 格）；查法：`python3 -c "import unicodedata as u; print(u.east_asian_width('•'))"`
 - commit 訊息：`<type>: <scope> | <summary>`，type 是 `feat` / `fix` / `refac` / `doc` / `style` / `test` / `chore` / `perf` / `ci`；改到按鍵、參數時同一個 commit 更新 README
