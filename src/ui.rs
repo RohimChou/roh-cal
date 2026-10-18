@@ -1,4 +1,4 @@
-//! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是主畫面（版型 1 的月曆框 + 事項框、版型 3 的大月曆、或任務頁），
+//! 畫整個畫面：最左邊 side menu（夠寬才有；不夠寬時按 `s` 蓋在左邊），右邊是主畫面（版型 1 的月曆框 + 事項框、版型 3 的大月曆、或任務頁），
 //! 最下面一列操作說明；跳窗（版型 3 那天的事、編輯框、說明頁、設定頁）蓋在最上面
 
 mod day;
@@ -20,7 +20,7 @@ use ratatui::{
     layout::{Constraint, Layout, Margin, Position, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Clear, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 /// terminal 至少這麼寬才畫 side menu
@@ -105,6 +105,23 @@ pub fn side_fits(screen: Rect) -> bool {
     screen.width >= SIDE_MIN_WIDTH
 }
 
+/// 不夠寬、鍵盤在 side menu（按了 `s`）：side menu 蓋在主畫面左邊的位置；其他時候是 `None`（滑鼠點框外 = 收起用）
+pub fn side_overlay(app: &App) -> Option<Rect> {
+    side_overlay_in(app.screen, app)
+}
+
+/// 同 `side_overlay`，terminal 是 `screen` 那麼大的時候
+fn side_overlay_in(screen: Rect, app: &App) -> Option<Rect> {
+    if side_fits(screen) || app.focus != Focus::Side {
+        return None;
+    }
+    let main = areas(screen, app).main;
+    Some(Rect {
+        width: side::width(app).min(main.width),
+        ..main
+    })
+}
+
 /// 畫面上每一塊的位置
 struct Areas {
     /// 最左邊：side menu（日曆清單）；沒畫的時候寬度是 0
@@ -162,8 +179,10 @@ pub enum Click {
 /// 滑鼠點在 terminal 的 (`column`, `row`) 點到什麼；沒點在日期、事、日曆上回傳 `None`
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     let areas = areas(app.screen, app);
-    if areas.side.contains(Position::new(column, row)) {
-        return side::click_at(areas.side, app, column, row);
+    // side menu：夠寬時在最左邊，不夠寬時叫出來蓋在左邊
+    let side = side_overlay(app).unwrap_or(areas.side);
+    if side.contains(Position::new(column, row)) {
+        return side::click_at(side, app, column, row);
     }
     match app.view {
         View::Planner => planner::click_at(areas.calendar, areas.agenda, app, column, row),
@@ -207,13 +226,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     } else {
-        // 夠寬時操作說明多一個 `s`（收起 / 打開 side menu）；版型 3 的跳窗開著時寫跳窗裡的鍵
-        let hint_text = match (app.view, side_fits(frame.area())) {
+        // 任務頁有自己的操作說明；版型 3 的跳窗開著時寫跳窗裡的鍵
+        let hint_text = match app.view {
             _ if app.focus == Focus::Day => texts.hints_day,
-            (View::Tasks, true) => texts.hints_tasks_side,
-            (View::Tasks, false) => texts.hints_tasks,
-            (_, true) => texts.hints_side,
-            (_, false) => texts.hints,
+            View::Tasks => texts.hints_tasks,
+            View::Planner | View::Month => texts.hints,
         };
         frame.render_widget(Line::styled(hint_text, Style::new().fg(theme.muted)), hints);
     }
@@ -225,6 +242,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
         View::Tasks => tasks::render(frame, main_area, app),
+    }
+    // 不夠寬時叫出來的 side menu：蓋在主畫面左邊
+    if let Some(area) = side_overlay_in(frame.area(), app) {
+        frame.render_widget(Clear, area);
+        side::render(frame, area, app);
     }
     // 版型 3 那天的事跳窗：蓋在大月曆上（編輯框、說明頁這些再蓋在它上面）
     if app.view == View::Month && app.focus == Focus::Day {
@@ -574,6 +596,41 @@ mod tests {
     }
 
     #[test]
+    fn a_narrow_side_menu_covers_the_left_of_the_screen() {
+        // 60 × 14、鍵盤在 side menu（按了 s）：side menu 22 格寬、蓋在月曆左邊，月曆不縮（x 22 還是月曆的上框線）；
+        // 數字 = 那個日曆有日期的事有幾件（生活的 c 沒日期不算）
+        let text = "# 工作\n- a @2026-10-10\n# 生活\n- b @2026-10-11\n- c\n";
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse(text).items,
+        );
+        app.focus = Focus::Side;
+        let terminal = draw_app(&mut app, 60, 14);
+        let buffer = terminal.backend().buffer();
+        assert_eq!(
+            area_rows(buffer, Rect::new(0, 0, 22, 6)),
+            [
+                "╭────────────────────╮",
+                "│ 日曆               │",
+                "│────────────────────│",
+                "│ ☑ 工作           1 │",
+                "│ ☑ 生活           1 │",
+                "│                    │",
+            ]
+        );
+        assert_eq!(buffer[(21, 13 - 1)].symbol(), "╯");
+        assert_eq!(buffer[(22, 0)].symbol(), "─");
+        // 操作說明窄的時候也有 s（60 格寬，後面切掉）
+        assert!(text_rows(buffer)[13].starts_with(" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆"));
+        // 鍵盤不在 side menu：不畫
+        app.focus = Focus::Calendar;
+        let terminal = draw_app(&mut app, 60, 14);
+        assert_eq!(terminal.backend().buffer()[(0, 3)].symbol(), "│");
+        assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "工");
+    }
+
+    #[test]
     fn side_menu_lists_the_calendars_when_wide() {
         // 121 格寬：最左邊列出日曆（任務檔的分組，照出現的順序；標題之前的是「未分組」），
         // 數字是有日期的事有幾件（「工作」有一件沒日期）；最後一個名字太長，框寬到 30 格還放不下，切掉；
@@ -738,7 +795,7 @@ mod tests {
                 "│  12月 49 │     1  2  3  4  5  6 ││ 12/31 23:00 跨年倒數            │",
                 "│       50 │  7  8  9 10 11 12 13 ││                                 │",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
     }
@@ -764,7 +821,7 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 ││                                                          │",
                 "│       47 │ 16 17 18 19 20 21 22 ││                                                          │",
                 "╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
     }
@@ -927,7 +984,7 @@ mod tests {
                 "│  12月 49 │     1  2  3  4  5  6 ││ 12/31 23:00 跨年倒數            │",
                 "│       50 │  7  8  9 10 11 12 13 ││                                 │",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         let buffer = terminal.backend().buffer();
@@ -1012,7 +1069,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    ││[10/20]一個很長很長很長很長很長很┃",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
@@ -1050,7 +1107,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    ││ 10/20 一個很長很長很長很長很長很┃",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
@@ -1117,7 +1174,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    ││ 10/18 07:00 爬山                │",
                 "│──────────┼──────────────────────││───────────────────── 還有 1 件 ─│",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 提示是淡色；提示左右的線還是線的顏色（「還」在 x 58，線的最後一格在 x 68）
@@ -1319,7 +1376,7 @@ mod tests {
                 "│        5 │ 25 26 27 28 29 30 31 ││                                 │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 月曆：範圍裡的每一天加底線（10/20～25、10/28～11/3），前後一天不加；顏色不變：開始那天橘色，
@@ -1375,7 +1432,7 @@ mod tests {
                 "│        9 │ 22 23 24 25 26 27 28 ││                                 │",
                 "│──────────┼──────────────────────││─────────────────────────────────│",
                 "╰─────────────────────────────────╯╰─────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
     }
@@ -1509,7 +1566,7 @@ mod tests {
                 "│       43 │ 19 20 21 22 23 24 25 ││                   │",
                 "│       44 │ 26 27 28 29 30 31    ││                   │",
                 "╰─────────────────────────────────╯╰───────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  ,",
             ]
         );
         let terminal = draw(Lang::ZhTw, 57, 10, date(2026, 10, 17));
@@ -1525,7 +1582,7 @@ mod tests {
                 "│       43 │ 19 20 21 22 23 24 25 ││                    │",
                 "│       44 │ 26 27 28 29 30 31    ││                    │",
                 "╰─────────────────────────────────╯╰────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  ,",
             ]
         );
     }
@@ -1568,7 +1625,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 80 × 28：每週 3 列剛好填滿，最後一週貼著下框（外框接成 ┴）
@@ -1603,7 +1660,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
             ]
         );
     }
@@ -1650,7 +1707,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 80 × 24、每週 2 列：只放得下 1 件，2 件以上就只寫「+N」
@@ -1681,7 +1738,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
             ]
         );
         // 80 × 16、每週只有 1 列：不列事，日期後面畫點點（1 件 ⠂、2 件 ⠒、4 件以上 ⠶）
@@ -1704,7 +1761,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 11月⠂ │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
     }
@@ -1864,7 +1921,7 @@ mod tests {
                 "│                                                                              │",
                 "│                                                                              │",
                 "╰──────────────────────────────────────────────────────────────────────────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 滑鼠：沒有格線的那幾格也點得到。星期二是 x 17～27，第 3 週（10/5 那週）是 y 8～10
@@ -1904,7 +1961,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
             ]
         );
     }
@@ -1932,7 +1989,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 往下移一週（11/2 不在 6 週的最後面也一樣）：整個畫面跟著往下捲一週
@@ -1955,7 +2012,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  48 │ 23       │ 24       │ 25       │ 26      │ 27      │ 28      │ 29      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
     }
@@ -2005,7 +2062,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│   2 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 11月  │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
     }
@@ -2048,7 +2105,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         // 範圍裡的日期加底線：10/20（二）「 20」在 x 19～20、y 19；10/19（一）在 x 8～9 不加
@@ -2105,7 +2162,7 @@ mod tests {
                 "│────────────────────────────────────────────────────────────────────│",
                 "│ 第 4 行  - [x] 跟 PM 對齊退款流程規格 @2026-09-28                  │",
                 "╰────────────────────────────────────────────────────────────────────╯",
-                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  , 設",
+                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說",
             ]
         );
         // 展開幾件（▾）、選到第 61 行（三層深）：往下捲到它看得到、離下緣留 2 列
@@ -2130,7 +2187,7 @@ mod tests {
                 "│────────────────────────────────────────────────────────────────────│",
                 "│ Line 61  - [ ] 測 `@Rukis` 不算日期                                │",
                 "╰────────────────────────────────────────────────────────────────────╯",
-                " jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  ,",
+                " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calend",
             ]
         );
     }
@@ -2226,7 +2283,7 @@ mod tests {
                 "│────────────────────────────────────────────────────────────────────│",
                 "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
                 "╰────────────────────────────────────────────────────────────────────╯",
-                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  , 設",
+                " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說",
             ]
         );
         let buffer = terminal.backend().buffer();
@@ -2336,7 +2393,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  45 │[2]       │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
+                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
             ]
         );
         assert_eq!(app.month_top, Some(date(2026, 9, 28)));
@@ -2361,7 +2418,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
         );
         assert_eq!(app.month_top, Some(date(2026, 9, 14)));

@@ -348,10 +348,11 @@ impl App {
         ui::side_fits(self.screen) && !self.side_hidden
     }
 
-    /// 記下 terminal 的大小；terminal 變窄、side menu 不見了，鍵盤在上面的話回到主框
+    /// 記下 terminal 的大小；terminal 變寬、side menu 是收起來的，鍵盤在上面的話回到主框
+    /// （不夠寬時鍵盤在 side menu = 它蓋在畫面左邊，照樣能用）
     fn resize(&mut self, screen: Rect) {
         self.screen = screen;
-        if self.focus == Focus::Side && !self.side_shown() {
+        if self.focus == Focus::Side && ui::side_fits(screen) && self.side_hidden {
             self.focus = self.home_focus();
         }
     }
@@ -434,12 +435,20 @@ impl App {
             // 上個月 / 下個月的 1 號，並把那個月捲到最上面（任務頁沒有月曆，不理）
             KeyCode::Char('[') if self.view != View::Tasks => self.jump_month(-1),
             KeyCode::Char(']') if self.view != View::Tasks => self.jump_month(1),
-            // terminal 不夠寬時本來就沒有 side menu，按了不算；收起時鍵盤在上面的話回到主框
+            // terminal 夠寬：收起 / 打開 side menu，收起時鍵盤在上面的話回到主框
             KeyCode::Char('s') if ui::side_fits(self.screen) => {
                 self.side_hidden = !self.side_hidden;
                 if self.focus == Focus::Side {
                     self.focus = self.home_focus();
                 }
+            }
+            // 不夠寬：side menu 蓋在畫面左邊叫出來 / 收起（鍵盤在 side menu = 叫出來了）
+            KeyCode::Char('s') => {
+                self.focus = if self.focus == Focus::Side {
+                    self.home_focus()
+                } else {
+                    Focus::Side
+                };
             }
             _ => match self.focus {
                 Focus::Calendar => self.handle_calendar_key(key.code),
@@ -558,6 +567,13 @@ impl App {
             // 往下滾（看後面的）、往上滾
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
+            // 不夠寬、side menu 蓋在左邊：點框外收起（跟 Esc 一樣），那一下不做別的事
+            MouseEventKind::Down(MouseButton::Left)
+                if ui::side_overlay(self)
+                    .is_some_and(|area| !area.contains(Position::new(mouse.column, mouse.row))) =>
+            {
+                self.focus = self.home_focus();
+            }
             // 版型 3 的跳窗開著：點跳窗裡的事、點框外關掉
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
                 self.click_day(mouse.column, mouse.row);
@@ -1089,13 +1105,14 @@ mod tests {
         app.focus = Focus::Side;
         press(&mut app, KeyCode::Char('s'));
         assert_eq!(app.focus, Focus::Calendar);
-        // terminal 變窄
+        // terminal 變窄：鍵盤留在 side menu，side menu 改成蓋在左邊
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;
         app.resize(Rect::new(0, 0, 120, 20));
         assert_eq!(app.focus, Focus::Side);
         app.resize(Rect::new(0, 0, 119, 20));
-        assert_eq!(app.focus, Focus::Calendar);
+        assert_eq!(app.focus, Focus::Side);
+        assert!(ui::side_overlay(&app).is_some());
     }
 
     #[test]
@@ -1126,11 +1143,20 @@ mod tests {
     }
 
     #[test]
-    fn s_hides_the_side_menu_only_when_it_fits() {
-        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-        // 不夠寬：按了不算
+    fn s_hides_the_side_menu_when_wide_and_calls_it_up_when_narrow() {
+        let mut app = app_with(GROUPS);
+        // 不夠寬：s 叫出來（鍵盤換到 side menu），操作跟寬的時候一樣；再按 s 收起，Esc 也收起
         app.screen = Rect::new(0, 0, 119, 30);
         press(&mut app, KeyCode::Char('s'));
+        assert_eq!(app.focus, Focus::Side);
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char(' '));
+        assert!(!app.groups[1].shown);
+        press(&mut app, KeyCode::Char('s'));
+        assert_eq!(app.focus, Focus::Calendar);
+        press(&mut app, KeyCode::Char('s'));
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.focus, Focus::Calendar);
         assert!(!app.side_hidden);
         // 夠寬：收起、再按一次打開
         app.screen = Rect::new(0, 0, 120, 30);
@@ -1138,6 +1164,45 @@ mod tests {
         assert!(app.side_hidden);
         press(&mut app, KeyCode::Char('s'));
         assert!(!app.side_hidden);
+    }
+
+    #[test]
+    fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
+        // 60 × 20：s 叫出來，蓋在左邊（框線、表頭、線之後一個日曆一列：未分組 y 3、生活 y 4）
+        let mut app = app_with(GROUPS);
+        app.screen = Rect::new(0, 0, 60, 20);
+        press(&mut app, KeyCode::Char('s'));
+        let area = ui::side_overlay(&app).expect("overlay");
+        assert_eq!(area, Rect::new(0, 0, 22, 19));
+        // 點生活：選它；再點一次：取消勾選
+        let left = MouseEventKind::Down(MouseButton::Left);
+        app.handle_mouse(mouse(left, 3, 4));
+        assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+        app.handle_mouse(mouse(left, 3, 4));
+        assert!(!app.groups[1].shown);
+        // 點框外（月曆上的日期）：只收起，選取的日期不動
+        let selected = app.selected;
+        app.handle_mouse(mouse(left, 30, 8));
+        assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
+        assert_eq!(ui::side_overlay(&app), None);
+    }
+
+    #[test]
+    fn widening_keeps_the_side_menu_unless_it_was_hidden() {
+        // 不夠寬時叫出來，terminal 拉寬：side menu 在最左邊，鍵盤還在上面
+        let mut app = app_with(GROUPS);
+        app.resize(Rect::new(0, 0, 60, 20));
+        press(&mut app, KeyCode::Char('s'));
+        app.resize(Rect::new(0, 0, 120, 20));
+        assert_eq!(app.focus, Focus::Side);
+        // 寬的時候收起過（side_hidden）：拉寬之後看不到，鍵盤回到月曆
+        let mut app = app_with(GROUPS);
+        app.side_hidden = true;
+        app.resize(Rect::new(0, 0, 60, 20));
+        press(&mut app, KeyCode::Char('s'));
+        assert_eq!(app.focus, Focus::Side);
+        app.resize(Rect::new(0, 0, 120, 20));
+        assert_eq!(app.focus, Focus::Calendar);
     }
 
     #[test]

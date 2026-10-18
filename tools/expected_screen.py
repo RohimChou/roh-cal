@@ -25,22 +25,18 @@ import sys
 import unicodedata
 
 TEXTS = {
-    "en": dict(hints=" hjkl move  Tab switch  [] month  t today  ? help  , settings  q quit",
-               hints_tasks=" jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  , settings  q quit",
-               hints_tasks_side=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
+    "en": dict(hints_tasks=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
-               hints_side=" hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
+               hints=" hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
                side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
-    "zh": dict(hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  , 設定  q 離開",
-               hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  , 設定  q 離開",
-               hints_tasks_side=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
+    "zh": dict(hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
-               hints_side=" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+               hints=" hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
                side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
@@ -273,7 +269,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
     # 夠寬時操作說明多一個 `s`（收起來也一樣）
-    lines.append(t["hints_side"] if w >= 120 else t["hints"])
+    lines.append(t["hints"])
     # 比畫面寬的（例：窄畫面的操作說明）會被切掉
     return [ljust(cut(line, w), w) for line in lines]
 
@@ -376,7 +372,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
     lines.append("╰" + "".join(bottom_border) + "╯")
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
-    lines.append(t["hints_side"] if w >= 120 else t["hints"])
+    lines.append(t["hints"])
     return [ljust(cut(line, w), w) for line in lines]
 
 
@@ -535,7 +531,7 @@ def tasks_screen(lang, w, h, text, groups):
     lines = ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in inner] + ["╰" + "─" * iw + "╯"]
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
-    lines.append(t["hints_tasks_side"] if w >= 120 else t["hints_tasks"])
+    lines.append(t["hints_tasks"])
     return [ljust(cut(line, w), w) for line in lines]
 
 
