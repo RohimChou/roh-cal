@@ -12,6 +12,7 @@ EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = �
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
 NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；NO_ICONS = 版型 3 的事前面不加點（`item_icons = false`）；
+CENTER = 版型 3 選取的那週固定在第 3 列（`center_cursor = true`，最上面那週的參數不用給）；
 HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
 今天固定是 2026-10-17。
 """
@@ -49,6 +50,7 @@ WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
 NO_ICONS = "NO_ICONS" in os.environ
+CENTER = "CENTER" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
 
@@ -528,6 +530,9 @@ def month_top(selected, given):
     monday = lambda x: x - datetime.timedelta(days=x.weekday())
     top = datetime.date.fromisoformat(given) if given else monday(selected.replace(day=1)) - datetime.timedelta(weeks=1)
     week = monday(selected)
+    if CENTER:
+        # 置中：選取的那週在 6 週的第 3 列（前面 2 週）
+        return week - datetime.timedelta(weeks=2)
     if week < top:
         top = week
     elif week > top + datetime.timedelta(weeks=5):

@@ -86,9 +86,13 @@ impl Grid {
     }
 }
 
-/// 畫面最上面那週的星期一：從 `top` 開始，選取的那週移出 6 週才捲（一週一週捲，跟 v1 一樣）
-fn scrolled(top: Date, selected: Date) -> Date {
+/// 畫面最上面那週的星期一：從 `top` 開始，選取的那週移出 6 週才捲（一週一週捲，跟 v1 一樣）；
+/// `center`（設定檔的 `[month] center_cursor`）= 不管 `top`，選取的那週固定在 6 週的第 3 列（偶數週偏上一列，下面多看一週）
+fn scrolled(top: Date, selected: Date, center: bool) -> Date {
     let week = calendar::monday_of(selected);
+    if center {
+        return week.saturating_sub(i64::from((WEEKS - 1) / 2).weeks());
+    }
     let last = top.saturating_add(i64::from(WEEKS - 1).weeks());
     if week < top {
         week
@@ -111,6 +115,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let top = scrolled(
         app.month_top.unwrap_or_else(|| month_top(app.selected)),
         app.selected,
+        app.settings.month.center_cursor,
     );
     app.month_top = Some(top);
     // 接下來只讀
@@ -469,11 +474,15 @@ mod tests {
     fn scrolling_moves_a_week_only_when_the_selection_leaves_the_six_weeks() {
         // 最上面是 9/21：選取的日期在 9/21 ～ 11/1 這 6 週裡就不捲
         let top = date(2026, 9, 21);
-        assert_eq!(scrolled(top, date(2026, 9, 21)), top);
-        assert_eq!(scrolled(top, date(2026, 11, 1)), top);
+        assert_eq!(scrolled(top, date(2026, 9, 21), false), top);
+        assert_eq!(scrolled(top, date(2026, 11, 1), false), top);
         // 往下一週：最上面也往下一週；往上一週：選取那週變成最上面
-        assert_eq!(scrolled(top, date(2026, 11, 2)), date(2026, 9, 28));
-        assert_eq!(scrolled(top, date(2026, 9, 20)), date(2026, 9, 14));
+        assert_eq!(scrolled(top, date(2026, 11, 2), false), date(2026, 9, 28));
+        assert_eq!(scrolled(top, date(2026, 9, 20), false), date(2026, 9, 14));
+        // 置中：選取的那週（10/12）永遠在第 3 列，跟原本的 top 無關
+        for top in [date(2026, 9, 21), date(2026, 10, 12), date(2027, 1, 4)] {
+            assert_eq!(scrolled(top, date(2026, 10, 17), true), date(2026, 9, 28));
+        }
         // 剛打開：10 月 1 號那週的前一週在最上面
         assert_eq!(month_top(date(2026, 10, 17)), date(2026, 9, 21));
         assert_eq!(month_top(date(2027, 1, 31)), date(2026, 12, 21));
