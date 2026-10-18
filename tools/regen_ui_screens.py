@@ -47,8 +47,8 @@ PLAN = {
 
 def generate(args, data, extra):
     """跑一次 expected_screen.py，回傳每一列（Rust 字串的寫法，前後空白去掉）"""
-    env = {k: v for k, v in os.environ.items() if k not in ("CHOSEN", "WINDOW", "SIDE_HIDDEN", "HIDDEN", "LAYOUT", "EXPANDED", "CHOSEN_LINE", "NO_GRID", "NO_ICONS", "CENTER", "RELATIVE")}
-    env.update(extra)
+    # 只給 PATH 和這個畫面的環境變數：外面設了別的（例：上一次留下的 LAYOUT）也不會混進來
+    env = {"PATH": os.environ["PATH"], **extra}
     if isinstance(data, str):
         text = (ROOT / "testdata" / data).read_text()
     else:

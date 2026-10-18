@@ -1,4 +1,5 @@
-//! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是版型 1（月曆框 + 事項框）或版型 3（大月曆），最下面一列操作說明
+//! 畫整個畫面：最左邊 side menu（夠寬才有），右邊是主畫面（版型 1 的月曆框 + 事項框、版型 3 的大月曆、或任務頁），
+//! 最下面一列操作說明；跳窗（編輯框、說明頁、設定頁）蓋在最上面
 
 mod editor;
 mod help;
@@ -44,7 +45,7 @@ pub fn settings_area(app: &App) -> Rect {
     settings::area(app, app.screen)
 }
 
-/// 滑鼠點在 (`column`, `row`) 點到設定頁的哪一列（`app::ROWS` 的位置）
+/// 滑鼠點在 (`column`, `row`) 點到設定頁的哪一列（`app::rows()` 的位置）
 pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
     settings::row_at(app, app.screen, column, row)
 }
@@ -97,7 +98,7 @@ pub fn side_fits(screen: Rect) -> bool {
 struct Areas {
     /// 最左邊：side menu（日曆清單）；沒畫的時候寬度是 0
     side: Rect,
-    /// side menu 右邊、操作說明上面的整塊：版型 3 的大月曆畫在這裡
+    /// side menu 右邊、操作說明上面的整塊：版型 3 的大月曆、任務頁畫在這裡
     main: Rect,
     /// 版型 1 的左邊：月曆框
     calendar: Rect,
@@ -160,7 +161,8 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     }
 }
 
-/// 畫整個畫面：中間最左邊是 side menu（夠寬才有），右邊是版型 1 的月曆框 + 事項框，或版型 3 的大月曆
+/// 畫整個畫面：中間最左邊是 side menu（夠寬才有），右邊是版型 1 的月曆框 + 事項框、版型 3 的大月曆或任務頁；
+/// 最下面一列操作說明；開著的跳窗最後畫，蓋在最上面
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
@@ -171,7 +173,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         agenda: agenda_area,
         hints,
     } = areas(frame.area(), app);
-    // 改期中：說明現在在搬哪件、怎麼確定；有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
+    // 最下面一列：問要不要刪 > 改期中（在搬哪件、怎麼確定）> 提示（寫檔失敗、重新載入，下一個按鍵就換回來）> 操作說明
     if let Some((item, count)) = app.confirm_delete() {
         frame.render_widget(
             Line::styled(
@@ -206,7 +208,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
-    // 月曆最後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了
+    // 主畫面在 side menu 之後畫：它會改 `app`（記住捲到哪），這時候上面借的 `theme` 已經用完了；跳窗再蓋在它上面
     match app.view {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
@@ -273,19 +275,27 @@ mod tests {
         terminal
     }
 
-    /// 畫面每一列的字，去掉尾端空白；中文字佔 2 格，後面那格（buffer 裡是空白）跳過，接起來才是原本的字
+    /// 畫面每一列的字，去掉尾端空白（見 `area_rows`）
     fn text_rows(buffer: &Buffer) -> Vec<String> {
-        let area = buffer.area;
-        (0..area.height)
+        area_rows(buffer, buffer.area)
+            .iter()
+            .map(|row| row.trim_end().to_string())
+            .collect()
+    }
+
+    /// `area` 裡每一列的字；中文字佔 2 格，後面那格（buffer 裡是空白）跳過，接起來才是原本的字。
+    /// 說明頁、設定頁的 test 也用這個
+    pub(super) fn area_rows(buffer: &Buffer, area: Rect) -> Vec<String> {
+        (area.top()..area.bottom())
             .map(|y| {
                 let mut row = String::new();
-                let mut x = 0;
-                while x < area.width {
+                let mut x = area.left();
+                while x < area.right() {
                     let symbol = buffer[(x, y)].symbol();
                     row.push_str(symbol);
                     x += u16::try_from(Span::raw(symbol).width().max(1)).unwrap();
                 }
-                row.trim_end().to_string()
+                row
             })
             .collect()
     }

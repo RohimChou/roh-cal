@@ -272,23 +272,7 @@ mod tests {
             .unwrap();
         let buffer = terminal.backend().buffer().clone();
         let area = area(&app, app.screen, help.full);
-        (area, box_rows(&buffer, area), buffer)
-    }
-
-    /// `area` 裡每一列的字；中文字佔 2 格，後面那格跳過
-    fn box_rows(buffer: &Buffer, area: Rect) -> Vec<String> {
-        (area.top()..area.bottom())
-            .map(|y| {
-                let mut row = String::new();
-                let mut x = area.left();
-                while x < area.right() {
-                    let symbol = buffer[(x, y)].symbol();
-                    row.push_str(symbol);
-                    x += u16::try_from(Span::raw(symbol).width().max(1)).unwrap();
-                }
-                row
-            })
-            .collect()
+        (area, crate::ui::tests::area_rows(&buffer, area), buffer)
     }
 
     #[test]

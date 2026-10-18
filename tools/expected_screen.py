@@ -1,4 +1,4 @@
-"""另外算出版型 1（side menu + 左月曆 + 右事項）、版型 3（side menu + 大月曆）的畫面，當 `src/ui.rs` 畫面 test 的預期值。
+"""另外算出版型 1（side menu + 左月曆 + 右事項）、版型 3（side menu + 大月曆）、任務頁的畫面，當 `src/ui.rs` 畫面 test 的預期值。
 
 跟 Rust 的程式分開寫（週用 Python 的 `calendar` 算、週數用另一種算法、任務檔用簡單的 regex 讀），
 兩邊算出來一樣才算對；不要看 Rust 畫出來的結果抄回來。
@@ -7,14 +7,14 @@
 例：python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
 版型 3（環境變數 LAYOUT=3）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期 [最上面那週的星期一 YYYY-MM-DD] < 任務檔
 （沒給最上面那週 = 剛打開：選取那個月 1 號的前一週，選取的那週不在 6 週裡再捲）
-任務頁（環境變數 LAYOUT=4）：python3 tools/expected_screen.py zh|en 寬 高 今天以外沒用到的日期 < 任務檔；
+任務頁（環境變數 LAYOUT=4）：python3 tools/expected_screen.py zh|en 寬 高 選取的日期（任務頁用不到，照樣要給）< 任務檔；
 EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = 選到的那件在第幾行（沒給 = 第一件）
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
 NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；NO_ICONS = 版型 3 的事前面不加點（`item_icons = false`）；
 CENTER = 版型 3 選取的那週固定在第 3 列（`center_cursor = true`，最上面那週的參數不用給）；
 RELATIVE = 版型 1、3 的週數欄：選取那週寫週數，其他週寫差幾週（`[calendar] relative_weeks = true`）；
-HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
+HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3、4 是任務頁
 今天固定是 2026-10-17。
 """
 import calendar

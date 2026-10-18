@@ -460,7 +460,7 @@ fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
         theme.muted
     };
     let date = date_text(item);
-    // 日期那段 7 格寬：「 10/17 」；選到的是「[10/17]」（日期比較短時，括號前面補空白）
+    // 日期那段至少 7 格寬：「 10/17 」；選到的是「[10/17]」（日期比較短時，括號前面補空白；跨多天的範圍比較長）
     let mut spans = if chosen {
         let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
         vec![

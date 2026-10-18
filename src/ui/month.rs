@@ -1,6 +1,7 @@
 //! 版型 3：大月曆（照 v1 的 month view）：side menu 右邊整塊，6 週等高的格子，格子裡列那天的事
 //!
-//! 一次 6 週；選取的日期移出畫面才一週一週捲。格子的大小每次畫都從現在的空間算（terminal 拉大縮小就跟著變）
+//! 一次 6 週；選取的日期移出畫面才一週一週捲（設定檔 `[month] center_cursor` 開著：選取的那週固定在第 3 列）。
+//! 格子的大小每次畫都從現在的空間算（terminal 拉大縮小就跟著變）
 
 use super::{
     Click,
@@ -166,7 +167,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     for week in 0..WEEKS {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
-        // 週數：那週裡屬於選取那個月的日子（跨年那週才看得出差別）；選取那週亮黃、其他週暗黃。
+        // 週數：那週裡屬於選取那個月的日子（跨年那週才看得出差別）；選取那週 `week_number`、其他週 `week_number_dim` 的顏色。
         // `[calendar] relative_weeks` 時其他週寫差幾週
         let numbered = days
             .iter()
@@ -324,7 +325,7 @@ fn dots(count: usize) -> &'static str {
 
 /// 格子的第一行：日期靠左（選取的加括號 `[17]`），1 號後面寫月份，例：「 1 10月」
 ///
-/// 顏色：今天 > 其他月份（灰）> 跟版型 1 的月曆一樣（有沒做完的事橘、週末藍）；選取那個月的日期加粗、
+/// 顏色：今天 > 其他月份（灰）> 跟版型 1 的月曆一樣（`day_color`：假日、有沒做完的事、週末）；選取那個月的日期加粗、
 /// 跨多天的事的日子加底線
 fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     let theme = &app.theme;

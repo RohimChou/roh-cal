@@ -328,17 +328,9 @@ mod tests {
             .unwrap();
         let buffer = terminal.backend().buffer().clone();
         let area = area(&app, app.screen);
-        let rows = (area.top()..area.bottom())
-            .map(|y| {
-                let mut row = String::new();
-                let mut x = area.left();
-                while x < area.right() {
-                    let symbol = buffer[(x, y)].symbol();
-                    row.push_str(symbol);
-                    x += u16::try_from(Span::raw(symbol).width().max(1)).unwrap();
-                }
-                row.replace('┃', "│")
-            })
+        let rows = crate::ui::tests::area_rows(&buffer, area)
+            .iter()
+            .map(|row| row.replace('┃', "│"))
             .collect();
         (app, area, rows, buffer)
     }

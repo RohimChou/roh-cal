@@ -46,7 +46,7 @@ pub fn week_of_year(date: Date) -> i16 {
 /// 週數欄寫的數字：每週寫第幾週（`week_of_year`）；`relative`（設定檔的 `[calendar] relative_weeks`）時只有選取那週
 /// 寫第幾週，其他週寫跟選取那週差幾週（不分前後，像 vim 的 relativenumber）
 ///
-/// 例：選取 10/17（第 42 週）→ 10/5 那週寫 2、10/12 那週寫 42、10/26 那週寫 2
+/// 例：選取 10/17（第 42 週）→ 9/28 那週寫 2、10/5 那週寫 1、10/12 那週寫 42、10/26 那週寫 2
 pub fn week_label(date: Date, selected: Date, relative: bool) -> i64 {
     let distance = i64::from((monday_of(date) - monday_of(selected)).get_days()).abs() / 7;
     if relative && distance > 0 {

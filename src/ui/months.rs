@@ -24,16 +24,25 @@ pub enum Label {
 pub enum Row<'a> {
     /// 月和月之間的線；`year` = 下一個月是 1 月（跨年），畫粗線；
     /// `hidden` = 上面那個月的右邊，下面還有幾件沒顯示出來（要捲才看得到）
-    Separator { year: bool, hidden: usize },
+    Separator {
+        /// 下一個月是 1 月（跨年）：畫粗線
+        year: bool,
+        /// 上面那個月右邊還有幾件沒顯示出來
+        hidden: usize,
+    },
     /// 一個月裡的一列：左邊的年 / 月（可能沒有）、這一週屬於這個月的日子、右邊每一欄的一行（可能沒有）、
     /// 右框線的捲軸
     ///
     /// 這個月的事比週數多時，後面幾列只有右邊的事，`days` 是 `None`；
     /// 這個月的事放不下（右邊要捲）時才有捲軸：`thumb` 是 `Some(true)` = 這一列是捲軸的亮塊
     Week {
+        /// 左邊的年 / 月（這個月的第一、二列才有）
         label: Option<Label>,
+        /// 這一週屬於這個月的日子；只有右邊的事的列是 `None`
         days: Option<WeekRow>,
+        /// 右邊每一欄的一行（那一欄這一列沒有事是 `None`）
         items: Vec<Option<Entry<'a>>>,
+        /// 右框線的捲軸：`None` = 這個月不用捲、`Some(true)` = 這一列是捲軸的亮塊
         thumb: Option<bool>,
     },
 }
@@ -53,6 +62,7 @@ pub struct Months<'a> {
 }
 
 impl<'a> Months<'a> {
+    /// 照 `app` 排版：今天那個月是第 0 列；右邊分 `columns` 欄、一個月最多 `max_height` 列；右邊捲到哪照 `app.agenda_window`
     pub fn new(app: &'a App, columns: usize, max_height: usize) -> Self {
         Self {
             origin: app.today,
@@ -124,7 +134,7 @@ impl<'a> Months<'a> {
     }
 
     /// `date` 那一週是第幾列
-    pub fn row_of(&self, date: Date) -> i64 {
+    fn row_of(&self, date: Date) -> i64 {
         // 這一週是那個月的第幾週（從 0 開始）；週一定排在那個月最上面幾列
         let week = calendar::month_rows(date)
             .iter()
@@ -134,7 +144,7 @@ impl<'a> Months<'a> {
     }
 
     /// 第 `row` 列落在哪個月那一塊：回傳那個月（1 號）和那一塊的第一列是第幾列
-    pub fn block_at(&self, row: i64) -> (Date, i64) {
+    fn block_at(&self, row: i64) -> (Date, i64) {
         let mut month = self.origin.first_of_month();
         let mut start = 0;
         while row < start {
@@ -149,7 +159,7 @@ impl<'a> Months<'a> {
     }
 
     /// 從 `first` 那個月開始一個月一個月往下排，排到至少 `height` 列（最後一個月可能超出去）
-    pub fn rows(&self, first: Date, height: usize) -> Vec<Row<'a>> {
+    fn rows(&self, first: Date, height: usize) -> Vec<Row<'a>> {
         let mut rows = Vec::new();
         let mut month = first.first_of_month();
         // 上一個月下面還有幾件沒顯示出來（寫在這個月上面那條線上）

@@ -47,7 +47,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             Style::new().fg(theme.muted),
         ));
     let inner = block.inner(area);
-    // 先清掉底下的月曆，再畫框
+    // 先清掉底下的畫面，再畫框
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if inner.height == 0 {
