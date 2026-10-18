@@ -59,8 +59,8 @@ fn layout(screen: Rect) -> (Rect, Rect) {
     (area, Block::bordered().inner(area).inner(padding))
 }
 
-/// Draws the editor: the top border shows which line is being edited (or 「新增」, 「新增日曆」); row 1 is the
-/// typed text
+/// Draws the editor: the top border shows which line is being edited (or 「新增 ∙ the calendar it goes
+/// into」, 「新增日曆」); row 1 is the typed text
 /// (cursor at the typing position); row 2 shows live what the line will be read as (red text when something
 /// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
@@ -73,6 +73,10 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         .title_top(Line::styled(
             match &editor.target {
                 Target::Edit(item) => texts.edit_title(item.line),
+                // Adding an item: which calendar it goes into, e.g. 「 新增 ∙ Work > SFAP 」
+                Target::Add(_) if let Some(path) = editor.calendar() => {
+                    format!("{}∙ {} ", texts.add_title(false), path.join(" > "))
+                }
                 Target::Add(place) => texts
                     .add_title(matches!(place, Place::ChildOf(_)))
                     .to_string(),
@@ -82,7 +86,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             Style::new().fg(theme.label),
         ))
         .title_bottom(Line::styled(
-            texts.editor_keys(),
+            texts.editor_keys(editor.calendar().is_some()),
             Style::new().fg(theme.muted),
         ));
     // Clear the screen underneath and one blank cell around the box first (not the key-hint row at the

@@ -492,8 +492,8 @@ mod tests {
                     scroll: 0,
                 },
             );
-            // The longer column (left) is 32 lines + padding 2 + border 2: it fits, no scrolling
-            assert_eq!(area.height, 36, "{lang:?}");
+            // The longer column (left) is 33 lines + padding 2 + border 2: it fits, no scrolling
+            assert_eq!(area.height, 37, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {
                 assert!(text.contains(section.title), "{}", section.title);

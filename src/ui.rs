@@ -1467,6 +1467,22 @@ mod tests {
             "│  17:99：沒有這個時間"
         );
         assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.error);
+        // Adding: the top border names the calendar it goes into, the bottom border says Tab switches it
+        let mut app = App::new(
+            Lang::ZhTw,
+            date(2026, 10, 17),
+            crate::tasks::parse("# Work\n## SFAP\n- [ ] Estimate @2026-10-17\n").items,
+        );
+        app.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.handle_key(KeyEvent::from(KeyCode::Char('a')));
+        let terminal = draw_app(&mut app, 70, 12);
+        let rows = area_rows(terminal.backend().buffer(), area);
+        assert!(rows[0].starts_with("╭ 新增 ∙ Work > SFAP ─"), "{}", rows[0]);
+        assert!(
+            rows[5].starts_with("╰ Enter 存檔  Tab 換日曆  Esc 取消 ─"),
+            "{}",
+            rows[5]
+        );
     }
 
     #[test]

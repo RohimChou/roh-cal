@@ -37,6 +37,10 @@ pub enum Place {
     InGroupOf(Item),
     /// A subtask of `item`: below it and its existing subtasks, indented 2 spaces more than it
     ChildOf(Item),
+    /// At the end of the calendar with this path (its parents' names, then its own, e.g. `Work`, `SFAP`):
+    /// below its last item (and that item's subtasks and notes); right under its first heading when it has
+    /// no items of its own yet
+    InCalendar(Vec<String>),
     /// At the end of the file
     End,
 }
@@ -290,6 +294,39 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
             let indent =
                 &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
             (block_end(text, &lines, start), format!("{indent}  "))
+        }
+        Place::InCalendar(path) => {
+            let parsed = tasks::parse(text);
+            let is_it = |heading: &Heading| {
+                heading.parents.len() + 1 == path.len()
+                    && heading
+                        .parents
+                        .iter()
+                        .chain([&heading.name])
+                        .eq(path.iter())
+            };
+            let last = parsed
+                .items
+                .iter()
+                .rfind(|item| item.group.as_ref().is_some_and(is_it));
+            match last {
+                // Its last item: count its outermost item's whole block, as for `InGroupOf`
+                Some(mut last) => {
+                    while let Some(parent) = last.parent {
+                        last = &parsed.items[parent];
+                    }
+                    (block_end(text, &lines, last.line - 1), String::new())
+                }
+                // No items yet: right under its heading (the heading's line number = the next line's index)
+                None => {
+                    let heading = parsed
+                        .headings
+                        .iter()
+                        .find(|line| is_it(&line.heading))
+                        .ok_or(Changed)?;
+                    (heading.line, String::new())
+                }
+            }
         }
         Place::End => (segments.len(), String::new()),
     };
@@ -1030,6 +1067,48 @@ mod tests {
         .expect("add");
         assert!(after.ends_with("- Go hiking @2026-10-18\n- Dinner with friends @2026-10-17\n"));
         assert_eq!(line, 9);
+    }
+
+    #[test]
+    fn add_into_a_calendar_by_its_path() {
+        let path =
+            |names: &[&str]| -> Vec<String> { names.iter().map(|&name| name.into()).collect() };
+        // Work's last item is the design doc (with its subtasks and the blank line between them)
+        let (after, line) =
+            add(GROUPS, "- [ ] New", &Place::InCalendar(path(&["Work"]))).expect("add");
+        assert!(after.contains("  - [x] Draft the outline\n- [ ] New\n\n# Personal"));
+        assert_eq!(line, 6);
+        // A calendar with calendars inside: after its own last item, before the first one inside; the one
+        // inside by its whole path
+        let text = "# Work\n- a\n## SFAP\n- b\n# Personal\n## SFAP\n- c\n";
+        let (after, _) = add(text, "- new", &Place::InCalendar(path(&["Work"]))).expect("add");
+        assert_eq!(
+            after,
+            "# Work\n- a\n- new\n## SFAP\n- b\n# Personal\n## SFAP\n- c\n"
+        );
+        let (after, _) = add(
+            text,
+            "- new",
+            &Place::InCalendar(path(&["Personal", "SFAP"])),
+        )
+        .expect("add");
+        assert_eq!(
+            after,
+            "# Work\n- a\n## SFAP\n- b\n# Personal\n## SFAP\n- c\n- new\n"
+        );
+        // No items of its own yet (Personal holds only a calendar): right under its heading
+        let (after, line) =
+            add(text, "- new", &Place::InCalendar(path(&["Personal"]))).expect("add");
+        assert_eq!(
+            after,
+            "# Work\n- a\n## SFAP\n- b\n# Personal\n- new\n## SFAP\n- c\n"
+        );
+        assert_eq!(line, 6);
+        // Gone (renamed or deleted elsewhere): nothing added
+        assert_eq!(
+            add(text, "- new", &Place::InCalendar(path(&["Home"]))),
+            Err(Changed)
+        );
     }
 
     #[test]

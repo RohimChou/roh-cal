@@ -112,7 +112,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
 | `Enter` | Go into the selected day's items: in layout 1 the agenda's first item that day; layout 2 opens a popup over the month grid with all of that day's items, the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day |
-| `a` | Add an item on the selected day, in the calendar of that day's first item (or at the end of the file when the day has none). With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
+| `a` | Add an item on the selected day, in the calendar of that day's first item (or the first calendar that is not a holiday calendar when the day has none); the editor's top border names the calendar, and `Tab` / `Shift+Tab` switch to another one. With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
 
 **On an item** (the agenda, layout 2's day popup, the tasks page)
 

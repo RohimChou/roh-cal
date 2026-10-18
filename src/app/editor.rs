@@ -4,8 +4,9 @@
 //!
 //! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page)
 //! - `a`: add an item (in the chosen item's group; on the calendar, in the group of the selected day's
-//!   first item, or at the end of the file if that day has none), on the selected day (not on the tasks
-//!   page)
+//!   first item, or in the first calendar that is not a holiday calendar if that day has none), on the
+//!   selected day (not on the tasks page); the top border names the calendar, `Tab` / `Shift+Tab` switch
+//!   to the next / previous one
 //! - on the calendar views, the selected day's own date is left out of the typed text (a time stays as
 //!   `@10:00`) and put back on save (`Editor::day`); a multi-day item and the tasks page show the whole line
 //! - `A`: add a subtask to the chosen item
@@ -59,6 +60,23 @@ pub enum Reading {
 }
 
 impl Editor {
+    /// While adding an item (not a subtask): the path of the calendar it goes into (e.g. `Work`, `SFAP`);
+    /// `None` otherwise, or when it goes at the end of a file with no calendar yet
+    pub fn calendar(&self) -> Option<Vec<String>> {
+        match &self.target {
+            Target::Add(Place::InGroupOf(item)) => item.group.as_ref().map(|heading| {
+                heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .cloned()
+                    .collect()
+            }),
+            Target::Add(Place::InCalendar(path)) => Some(path.clone()),
+            _ => None,
+        }
+    }
+
     /// The line the typed text stands for: the typed text, with the hidden day put back (see `day`)
     pub fn line(&self) -> String {
         let text = self.input.value();
@@ -105,7 +123,8 @@ impl App {
     ///
     /// Keyboard in the agenda, the tasks page or layout 2's popup: placed in the
     /// chosen item's group; on the calendar: placed in the group of the selected
-    /// day's first item, or at the end of the file if that day has none
+    /// day's first item, or in the first calendar that is not a holiday calendar if that day has none (no
+    /// such calendar: at the end of the file)
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
             Focus::Agenda | Focus::Tasks | Focus::Day => self.chosen_item().cloned(),
@@ -114,7 +133,15 @@ impl App {
                 .first()
                 .map(|item| (*item).clone()),
         };
-        let place = near.map_or(Place::End, Place::InGroupOf);
+        let first_calendar = || {
+            self.calendars()
+                .into_iter()
+                .find(|path| !self.is_holiday_calendar(path))
+        };
+        let place = match near {
+            Some(item) => Place::InGroupOf(item),
+            None => first_calendar().map_or(Place::End, Place::InCalendar),
+        };
         // The tasks page has no selected day: no date
         let day = (self.view != super::View::Tasks).then_some(self.selected);
         self.mode = Mode::Editor(Editor {
@@ -185,6 +212,8 @@ impl App {
             }
             KeyCode::Enter => self.save_editor(),
             KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Tab => self.switch_calendar(1),
+            KeyCode::BackTab => self.switch_calendar(-1),
             _ => {
                 if let Mode::Editor(editor) = &mut self.mode
                     && let Some(request) = to_input_request(&Event::Key(key))
@@ -193,6 +222,55 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Every calendar's path (its parents' names, then its own), in the calendar list's order
+    fn calendars(&self) -> Vec<Vec<String>> {
+        self.groups
+            .iter()
+            .filter(|group| group.name.is_some())
+            .map(super::Group::path)
+            .collect()
+    }
+
+    /// Whether the calendar with this path is a holiday calendar (`type:holiday`)
+    fn is_holiday_calendar(&self, path: &[String]) -> bool {
+        self.headings.iter().any(|line| {
+            let heading = &line.heading;
+            heading.holiday
+                && heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .eq(path.iter())
+        })
+    }
+
+    /// `Tab` (`step` = 1) / `Shift+Tab` (−1) while adding an item (not a subtask): the new item goes into the
+    /// next / previous calendar in the calendar list's order, wrapping around; ignored otherwise
+    fn switch_calendar(&mut self, step: isize) {
+        let calendars = self.calendars();
+        let Mode::Editor(editor) = &mut self.mode else {
+            return;
+        };
+        if calendars.is_empty()
+            || !matches!(
+                editor.target,
+                Target::Add(Place::InGroupOf(_) | Place::InCalendar(_) | Place::End)
+            )
+        {
+            return;
+        }
+        let count = calendars.len().cast_signed();
+        let next = match editor
+            .calendar()
+            .and_then(|path| calendars.iter().position(|each| *each == path))
+        {
+            Some(index) => (index.cast_signed() + step).rem_euclid(count),
+            None if step > 0 => 0,
+            None => count - 1,
+        };
+        editor.target = Target::Add(Place::InCalendar(calendars[next.cast_unsigned()].clone()));
     }
 
     /// Saves: edit = the line is replaced by the typed text (indentation kept); add = the typed text goes
@@ -629,6 +707,59 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] Loose @2026-10-17\n  - [ ] Sub\n\n# 預設\n- [ ] New @2026-10-17\n"
         );
+        clean_up(&path);
+    }
+
+    #[test]
+    fn tab_switches_the_calendar_a_new_item_goes_into() {
+        // Selected 10/20 (nothing that day): the first calendar that is not a holiday calendar (Work, not
+        // the holidays listed before it); Tab goes down the calendar list and wraps around, Shift+Tab back
+        let text = "# Holidays type:holiday\n- Day off @2026-10-09\n# Work\n- [ ] Write the design doc @2026-10-16\n## SFAP\n- [ ] Estimate @2026-10-12\n# Personal\n";
+        let (mut app, path) = app_with_task_file("add-tab", text);
+        press(&mut app, KeyCode::Esc);
+        app.selected = date(2026, 10, 20);
+        press(&mut app, KeyCode::Char('a'));
+        let calendar = |app: &App| {
+            app.editor()
+                .and_then(Editor::calendar)
+                .map(|path| path.join(" > "))
+        };
+        assert_eq!(calendar(&app).as_deref(), Some("Work"));
+        for expected in ["Work > SFAP", "Personal", "Holidays"] {
+            press(&mut app, KeyCode::Tab);
+            assert_eq!(calendar(&app).as_deref(), Some(expected));
+        }
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(calendar(&app).as_deref(), Some("Personal"));
+        // Personal has no items yet: the new one goes right under its heading
+        type_text(&mut app, "Call the bank");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            format!("{text}- [ ] Call the bank @2026-10-20\n")
+        );
+        // Now 10/20 has an item (in Personal): `a` starts there; Shift+Tab to Work > SFAP, where it goes after
+        // the last item, before the next heading
+        press(&mut app, KeyCode::Esc);
+        press(&mut app, KeyCode::Char('a'));
+        assert_eq!(calendar(&app).as_deref(), Some("Personal"));
+        press(&mut app, KeyCode::BackTab);
+        assert_eq!(calendar(&app).as_deref(), Some("Work > SFAP"));
+        type_text(&mut app, "Review");
+        press(&mut app, KeyCode::Enter);
+        assert!(
+            std::fs::read_to_string(&path)
+                .expect("read")
+                .contains("- [ ] Estimate @2026-10-12\n- [ ] Review @2026-10-20\n# Personal\n")
+        );
+        // A subtask (A) and an edit (e) have no calendar to switch: Tab does nothing
+        press(&mut app, KeyCode::Char('A'));
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(calendar(&app), None);
+        assert!(matches!(
+            app.editor().map(|editor| &editor.target),
+            Some(Target::Add(Place::ChildOf(_)))
+        ));
         clean_up(&path);
     }
 

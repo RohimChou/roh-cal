@@ -295,7 +295,12 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "Editor",
-                keys: &[("Enter", "save"), ("Esc", "cancel"), ("Ctrl+U", "clear")],
+                keys: &[
+                    ("Enter", "save"),
+                    ("Esc", "cancel"),
+                    ("Ctrl+U", "clear"),
+                    ("Tab", "calendar (adding)"),
+                ],
                 places: &[],
             },
             HelpSection {
@@ -495,7 +500,12 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "編輯框",
-                keys: &[("Enter", "存檔"), ("Esc", "取消"), ("Ctrl+U", "清掉")],
+                keys: &[
+                    ("Enter", "存檔"),
+                    ("Esc", "取消"),
+                    ("Ctrl+U", "清掉"),
+                    ("Tab", "換日曆（新增時）"),
+                ],
                 places: &[],
             },
             HelpSection {
@@ -649,11 +659,14 @@ impl Texts {
         }
     }
 
-    /// The editor's bottom border: how to save, how to cancel
-    pub fn editor_keys(&self) -> &'static str {
-        match self.lang {
-            Lang::En => " Enter save  Esc cancel ",
-            Lang::ZhTw => " Enter 存檔  Esc 取消 ",
+    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding an item, so `Tab`
+    /// switches its calendar
+    pub fn editor_keys(&self, calendars: bool) -> &'static str {
+        match (self.lang, calendars) {
+            (Lang::En, false) => " Enter save  Esc cancel ",
+            (Lang::En, true) => " Enter save  Tab calendar  Esc cancel ",
+            (Lang::ZhTw, false) => " Enter 存檔  Esc 取消 ",
+            (Lang::ZhTw, true) => " Enter 存檔  Tab 換日曆  Esc 取消 ",
         }
     }
 
