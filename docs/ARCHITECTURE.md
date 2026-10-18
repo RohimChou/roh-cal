@@ -118,7 +118,12 @@ App::run 的迴圈
 | 字元 | `~` 是 East Asian Width Na（1 格）；`–`（en dash）是 A，不要用 |
 
 ## 可以改進的地方
-- `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」
+- `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
+- 版型 1 的寬度散在幾個數字裡（`CALENDAR_WIDTH` 的 `6 + 4 + 1 + 22 + 2`、`day_cells` 的 3、`click_at` 的 `/ 3`）：改成一個 `DAY_WIDTH` 之類的常數，畫畫面和換算滑鼠就不會各改各的
+- `day_color`、`in_multi_day`、`date_text` 放在 `planner.rs`，但版型 3、任務頁、side menu 都在用：可以搬到 `ui.rs`
+- `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次），縮排的 `&s[..s.len() - s.trim_start().len()]` 也抄了三次：可以合成一個
+- test 的小工具抄了好幾份（`press` 5 份、`mouse` 2 份、`type_text` 2 份）：可以放一個共用的 test module
+- `read_tasks` 和 `read_tasks_for_adding` 只差檔案不存在時怎麼辦：可以合成一個、多一個參數
 - 畫面 test 寫死很多座標：版面一動（例：拿掉一列）就要改一大片；可以改成先找到某個字在哪，再檢查它的顏色
 - `App::agenda()` 每次呼叫都重新排序：事很多（幾千件）時可能要先排好存起來
 - `App::tasks_rows()` 每按一個鍵、每畫一次都重算，找子任務是兩層迴圈：事很多時可以先算好每件的子任務
