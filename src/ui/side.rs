@@ -21,7 +21,7 @@ const MIN_WIDTH: u16 = 22;
 const MAX_WIDTH: u16 = 30;
 
 /// Side menu width (incl. left and right border): just enough for the longest calendar,
-/// e.g. 「 ☑ 付款 API 改版 12 」,
+/// e.g. 「 ☑ Payments API v2 12 」,
 /// but kept between `MIN_WIDTH` and `MAX_WIDTH`
 pub fn width(app: &App) -> u16 {
     let texts = app.lang.texts();
@@ -54,7 +54,7 @@ fn count_text(app: &App, group: &Group) -> String {
     format!(" {count} ")
 }
 
-/// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ 工作            12 」
+/// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ Work            12 」
 ///
 /// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long (box already at
 /// `MAX_WIDTH`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
@@ -174,19 +174,19 @@ mod tests {
 
     #[test]
     fn width_fits_the_longest_calendar_between_22_and_30() {
-        // No task file, or a short name (「 ☑ 個人 1 」 needs only 9 cells): the minimum, 22
+        // No task file, or a short name (「 ☑ Personal 1 」 needs only 14 cells): the minimum, 22
         assert_eq!(width(&app_with("")), 22);
-        assert_eq!(width(&app_with("# 個人\n- a @2026-10-10\n")), 22);
-        // 「 ☑ 2026 年底日本旅行 1 」: 3 + 17 + 3 = 23 cells, 25 with the border;
-        // the longest one sets the width
-        let app = app_with("# 個人\n- a @2026-10-10\n# 2026 年底日本旅行\n- b @2026-12-24\n");
-        assert_eq!(width(&app), 25);
+        assert_eq!(width(&app_with("# Personal\n- a @2026-10-10\n")), 22);
+        // 「 ☑ Tokyo trip 🗼🍣 1 」: each emoji is two cells wide, so 3 + 15 + 3 = 21 cells, 23 with the
+        // border; the longest one sets the width
+        let app = app_with("# Personal\n- a @2026-10-10\n# Tokyo trip 🗼🍣\n- b @2026-12-24\n");
+        assert_eq!(width(&app), 23);
         // A two-digit count: 1 more cell
         let ten = "- x @2026-10-10\n".repeat(10);
-        assert_eq!(width(&app_with(&format!("# 2026 年底日本旅行\n{ten}"))), 26);
+        assert_eq!(width(&app_with(&format!("# Tokyo trip 🗼🍣\n{ten}"))), 24);
         // Longer still: the maximum, 30
         assert_eq!(
-            width(&app_with("# 2026 年底的大小事情和明年計畫\n- a\n")),
+            width(&app_with("# Year-end chores 🎄 and plans for 2027\n- a\n")),
             30
         );
     }

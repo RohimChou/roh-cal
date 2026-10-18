@@ -393,11 +393,11 @@ mod tests {
     #[test]
     fn months_grow_with_their_items() {
         // October has 5 weeks and 7 items: one column needs 7 rows, two columns need 4 (fewer than 5 weeks,
-        // so still 5 rows); September's item does not count toward October
+        // so still 5 rows); September's item and the one with no date do not count toward October
         let text = (1..=7)
             .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
             .collect::<String>()
-            + "- [ ] 九月 @2026-09-30\n- [ ] 沒日期\n";
+            + "- [ ] Pay September rent @2026-09-30\n- [ ] Organize the bookshelf\n";
         let app = app_with(&text);
         let one = Months::new(&app, 1, 100);
         assert_eq!(one.month_items(date(2026, 10, 1)).len(), 7);
@@ -440,7 +440,7 @@ mod tests {
                 Row::Week { items, .. } => {
                     [0, 1].map(|c| items[c].map_or("", |entry| &entry.item.title))
                 }
-                Row::Separator { .. } => panic!("10 月的 5 列裡不該有線"),
+                Row::Separator { .. } => panic!("October's 5 week rows should have no line"),
             })
             .collect();
         assert_eq!(
@@ -511,7 +511,7 @@ mod tests {
         months.window = Some((october, 8));
         let rows = months.rows(october, 9);
         let Row::Week { items, .. } = &rows[0] else {
-            panic!("第一列應該是 10 月");
+            panic!("the first row should be October");
         };
         assert_eq!(items[0].map(|entry| entry.item.title.as_str()), Some("9"));
         // The line below October: 20 - 8 - 8 = 4 items are still hidden

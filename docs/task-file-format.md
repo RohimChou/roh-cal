@@ -2,20 +2,20 @@
 One plain-text file, **one item per line**, written with Markdown list syntax. An item with a checkbox is a **task** you check off; one without is an **event** (a meeting, a holiday, a release date) that is simply over once its day has passed. The file is meant to be hand-edited in any editor, diffed in git and searched with `grep`; roh-cal reads it and writes it back (see [Writing](#writing)).
 
 ```markdown
-# SFAP
-- [ ] 估 2601RC 人天 @2026-10-12
-- [ ] 追蹤紫儀：利率要從哪抓 @2026-10-12 14:00
-- [x] 修正截斷問題 @2026-10-06
-  - [x] 找到原因：SQL 少一個 DISTINCT
-- 進 SIT @2026-10-19
+# Payments API
+- [ ] Estimate the v2.3 tickets @2026-10-12
+- [ ] Follow up with Sarah on the retry policy @2026-10-12 14:00
+- [x] Fix duplicate rows in the CSV export @2026-10-06
+  - [x] Found the cause: the query was missing a DISTINCT
+- Code freeze @2026-10-19
 
-# 個人
-- [ ] 繳信用卡 @2026-10-25
-- 看牙醫 @2026-10-14 10:30
-- [ ] 整理書櫃
+# Personal
+- [ ] Pay the credit card bill @2026-10-25
+- Dentist appointment @2026-10-14 10:30
+- [ ] Organize the bookshelf
 
-# 國定假日 type:holiday
-- 國慶連假 @2026-10-09..2026-10-11
+# US holidays type:holiday
+- Thanksgiving break @2026-11-26..2026-11-29
 
 Notes, blank lines and anything else stay untouched.
 ```
@@ -29,8 +29,8 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 2 | `- text` (no checkbox) | **Event**: an appointment, a holiday, a milestone. It cannot be checked off; once its day has passed it is over (shown grayed out, not crossed out) |
 | 3 | `@YYYY-MM-DD` or `@YYYY-MM-DD HH:MM` anywhere in an item | The day (and 24-hour time) the item appears on the calendar. No date → the item is **unscheduled** |
 | 3b | `@YYYY-MM-DD..YYYY-MM-DD` (optionally followed by `HH:MM`) | A **multi-day** item, from the first date to the last, both included (a trip, a training course). The time is the start time on the first day |
-| 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# SFAP` → `## 11RC`) can be added later without changing files |
-| 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn in the holiday color. The token is not part of the group's name. Write holidays as events (no box), e.g. `- 國慶連假 @2026-10-09..2026-10-11` |
+| 4 | `# Name` (any heading level) | Starts a **group** (project); applies to the items below until the next heading. Groups do not nest in v0, but the parser keeps each heading's level so nesting (`# Payments API` → `## Refunds`) can be added later without changing files |
+| 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn in the holiday color. The token is not part of the group's name. Write holidays as events (no box), e.g. `- Thanksgiving break @2026-11-26..2026-11-29` |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
 
 Everything else (blank lines, prose, code blocks, other Markdown) is ignored when reading and kept byte-for-byte when writing. So is front matter: when the first line is `---`, everything up to the next `---` (an Obsidian note's properties, e.g. a `tags:` list) is skipped.
@@ -40,12 +40,12 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | :- | :- |
 | Item marker | Only `- ` starts an item (not `*` / `+`), so there is one way to write it |
 | Date token | `@` + a valid date or range, separated by whitespace. The **first** date token is used; it is removed from the displayed title. Convention: put it at the end of the line |
-| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Rukis`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning: roh-cal says how many there are when it opens, and the tasks page (`4`) marks those lines in red and says what is wrong. So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
+| Not a date | `@` followed by anything that is not `YYYY-MM-DD` stays plain text (e.g. `@Kevin`). A date-shaped but invalid token (`@2026-13-01`) also stays text, and the parser reports a warning: roh-cal says how many there are when it opens, and the tasks page (`4`) marks those lines in red and says what is wrong. So does a range whose end is before its start (`@2026-10-25..2026-10-20`); a range from a day to the same day is just that day |
 | Items without a date | Unscheduled; not shown on the calendar, but listed on the tasks page (`4`) |
 | Children | Shown on the calendar only if they have their own date; otherwise they belong to the parent |
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
 | Encoding | UTF-8; LF or CRLF, preserved on write |
-| Block id | An Obsidian block id at the very end of an item (`^csfds-01`: `^` + letters, digits, `-`) is not part of the title; it stays in the file so links to the line keep working |
+| Block id | An Obsidian block id at the very end of an item (`^refund-01`: `^` + letters, digits, `-`) is not part of the title; it stays in the file so links to the line keep working |
 | Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; so far that is only `type:holiday` in a heading (rule 4b), so URLs like `https://...` are just text |
 
 ## Where it is stored

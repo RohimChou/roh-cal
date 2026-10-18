@@ -480,7 +480,7 @@ impl Texts {
     }
 
     /// The tasks page's bottom row: the chosen line's line number in the file and its original text,
-    /// e.g. ` 第 6 行  - [ ] 實作退款 API @2026-10-14`
+    /// e.g. ` 第 6 行  - [ ] Implement the refund API @2026-10-14`
     pub fn tasks_detail(&self, line: usize, text: &str) -> String {
         match self.lang {
             Lang::En => format!(" Line {line}  {text}"),
@@ -514,7 +514,7 @@ impl Texts {
         }
     }
 
-    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「交週報」`
+    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`
     pub fn preview(&self, item: &Item) -> String {
         let kind = match (self.lang, item.kind, item.done) {
             (Lang::En, Kind::Task, false) => "Task",
@@ -576,7 +576,7 @@ impl Texts {
     }
 
     /// After `d`, the bottom row asks whether to delete,
-    /// e.g. ` 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消`
+    /// e.g. ` 刪除「Write the design doc」和底下 2 件子任務？y 刪除，其他鍵取消`
     pub fn confirm_delete(&self, title: &str, count: usize) -> String {
         let subtasks = count.saturating_sub(1);
         match (self.lang, subtasks) {
@@ -595,7 +595,7 @@ impl Texts {
     }
 
     /// While rescheduling (after `r`), the hint on the bottom row,
-    /// e.g. ` 改期「交週報」：移到新的日期  Enter 確定  Esc 取消`
+    /// e.g. ` 改期「Send the weekly update」：移到新的日期  Enter 確定  Esc 取消`
     pub fn moving(&self, title: &str) -> String {
         match self.lang {
             Lang::En => {
@@ -720,21 +720,21 @@ mod tests {
         let item = |line: &str| crate::tasks::parse(line).items[0].clone();
         let zh = Lang::ZhTw.texts();
         assert_eq!(
-            zh.preview(&item("- [ ] 交週報 @2026-10-16 17:30")),
-            " 任務 · 2026/10/16（五） 17:30 · 「交週報」"
+            zh.preview(&item("- [ ] Send the weekly update @2026-10-16 17:30")),
+            " 任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」"
         );
         assert_eq!(
-            zh.preview(&item("- 出差 @2026-10-20..2026-10-25")),
-            " 行程 · 2026/10/20（二）～2026/10/25（日） · 「出差」"
+            zh.preview(&item("- Business trip to NYC @2026-10-20..2026-10-25")),
+            " 行程 · 2026/10/20（二）～2026/10/25（日） · 「Business trip to NYC」"
         );
         assert_eq!(
-            zh.preview(&item("- [x] 整理書櫃")),
-            " 做完的任務 · 沒有日期 · 「整理書櫃」"
+            zh.preview(&item("- [x] Organize the bookshelf")),
+            " 做完的任務 · 沒有日期 · 「Organize the bookshelf」"
         );
         let en = Lang::En.texts();
         assert_eq!(
-            en.preview(&item("- 看牙醫 @2026-10-14 10:30")),
-            " Event · Wed Oct 14, 2026 10:30 · \"看牙醫\""
+            en.preview(&item("- Dentist appointment @2026-10-14 10:30")),
+            " Event · Wed Oct 14, 2026 10:30 · \"Dentist appointment\""
         );
         assert_eq!(
             en.problem(&Problem::Mistake(WarningKind::NoSuchDate(
@@ -748,12 +748,12 @@ mod tests {
     fn confirm_delete_counts_the_subtasks() {
         let zh = Lang::ZhTw.texts();
         assert_eq!(
-            zh.confirm_delete("早上", 1),
-            " 刪除「早上」？y 刪除，其他鍵取消"
+            zh.confirm_delete("Go to the gym", 1),
+            " 刪除「Go to the gym」？y 刪除，其他鍵取消"
         );
         assert_eq!(
-            zh.confirm_delete("寫報告", 3),
-            " 刪除「寫報告」和底下 2 件子任務？y 刪除，其他鍵取消"
+            zh.confirm_delete("Write the design doc", 3),
+            " 刪除「Write the design doc」和底下 2 件子任務？y 刪除，其他鍵取消"
         );
         assert_eq!(
             Lang::En.texts().confirm_delete("a", 2),
