@@ -87,8 +87,8 @@ pub struct MonthSettings {
     pub grid_lines: bool,
     /// Puts a dot before each item in a cell (`∙ 14:00 Team sync`)
     pub item_icons: bool,
-    /// Keeps the selected week fixed in the middle of the 6 weeks (like vim's `scrolloff=999`);
-    /// when off, it scrolls one week at a time, only when the selection moves out of the 6 weeks
+    /// Keeps the selected row fixed in the middle of the 6 rows (like vim's `scrolloff=999`);
+    /// when off, it scrolls one row at a time, only when the selection moves out of the 6 rows
     pub center_cursor: bool,
 }
 

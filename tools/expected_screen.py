@@ -11,9 +11,10 @@ python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONTH SKIP
 (TOP_MONTH = YYYY-MM of the month block at the top; SKIP_ROWS = how many rows to skip)
 Example: python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
 Layout 3 (env var LAYOUT=3):
-python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONDAY] < TASK_FILE
-(TOP_MONDAY = YYYY-MM-DD of the top week's Monday. Not given = just opened: the week before the one with
-the 1st of the selected month; scroll if the selected week is not within the 6 weeks)
+python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TASK_FILE
+(A row is one week, but every month starts a new row. TOP_ROW = YYYY-MM-DD of the top row's first day.
+Not given = just opened: the last row of the month before the selected one; scroll if the selected row is
+not within the 6 rows)
 Tasks page (env var LAYOUT=4):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
 (the tasks page does not use SELECTED_DAY, but it must still be given);
@@ -24,7 +25,7 @@ WINDOW = how many rows the selected month's agenda is scrolled;
 SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
 NO_GRID = layout 3 draws no grid lines (config `[month] grid_lines = false`);
 NO_ICONS = no dot before items in layout 3 (`item_icons = false`);
-CENTER = layout 3 keeps the selected week on row 3 (`center_cursor = true`; the top-week argument is not needed);
+CENTER = layout 3 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
 RELATIVE = week-number column in layouts 1 and 3: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
@@ -324,7 +325,8 @@ class Canvas:
 
 
 def month_screen(lang, w, h, selected, top, items, groups):
-    """Layout 3: side menu (only when wide enough) + month grid (6 weeks) + hints line"""
+    """Layout 3: side menu (only when wide enough) + month grid (6 rows: a week, split in two where a new
+    month starts) + hints line"""
     t = TEXTS[lang]
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     iw, ih = w - sw - 2, h - 3  # width and height inside the month grid box (minus the box and hints line)
@@ -348,25 +350,41 @@ def month_screen(lang, w, h, selected, top, items, groups):
     for x in lines_x:
         for y in range(1, ih):
             c.rows[y][x] = "│"
-    rules = [(1, "┬")] + [(week_y(i) + wh, "┼") for i in range(5)] if gap else []
-    for y, cross in rules:
-        c.rows[y] = ["─"] * iw
+    starts = [top]
+    for _ in range(5):
+        starts.append(next_row(starts[-1]))
+    # The line below the header and above each row after the first; above a new year it is thick
+    rules = [(1, "─", "┬", "├", "┤")]
+    for i in range(5):
+        new_year = (starts[i + 1].month, starts[i + 1].day) == (1, 1)
+        rules.append((week_y(i) + wh,) + (("━", "┿", "┝", "┥") if new_year else ("─", "┼", "├", "┤")))
+    for y, horizontal, cross, left_end, right_end in rules if gap else []:
+        c.rows[y] = [horizontal] * iw
         for x in lines_x:
             c.rows[y][x] = cross
-        left[y], right[y] = "├", "┤"
+        left[y], right[y] = left_end, right_end
+    # A thick line carries the year, one cell in from Monday's left edge, if Monday's cell leaves a line
+    # cell on both sides
+    for i in range(5):
+        if gap and (starts[i + 1].month, starts[i + 1].day) == (1, 1):
+            label = " " + t["year"](starts[i + 1].year) + " "
+            if widths[1] >= width(label) + 2:
+                c.put(xs[1] + 1, week_y(i) + wh, label)
     # Header: 「  週 」, and each day's name at the left edge of its column
     c.put(0, 0, " " + t["hw"], 5)
     for k, name in enumerate(t["wd"]):
         c.put(xs[k + 1], 0, " " + name, widths[k + 1])
-    month = (selected.year, selected.month)
-    for i in range(6):
-        monday = top + datetime.timedelta(weeks=i)
+    for i, start in enumerate(starts):
+        end = row_end(start)
+        monday = start - datetime.timedelta(days=start.weekday())
         days = [monday + datetime.timedelta(days=k) for k in range(7)]
-        # Week number: from a day of that week in the selected month; if there is none, from Monday
-        numbered = next((d for d in days if (d.year, d.month) == month), monday)
-        c.put(0, week_y(i), f" {week_number(numbered, selected):>3} ", 5)
-        week_cells = []  # the lines of each of this week's 7 cells
+        # Week number: from the row's first day
+        c.put(0, week_y(i), f" {week_number(start, selected):>3} ", 5)
+        week_cells = []  # the lines of each of this row's 7 cells (empty for days outside the row)
         for k, d in enumerate(days):
+            if not start <= d <= end:
+                week_cells.append([])
+                continue
             mark = ("[", "]") if d == selected else (" ", " ")
             first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
             # Items that cover this day (a multi-day item is listed on each of its days);
@@ -573,19 +591,43 @@ def tasks_screen(lang, w, h, text, groups):
     return [ljust(cut(line, w), w) for line in lines]
 
 
+def row_start(d):
+    """First day of the month grid row holding d: its Monday, unless its month starts later that week"""
+    return max(d - datetime.timedelta(days=d.weekday()), d.replace(day=1))
+
+
+def row_end(start):
+    """Last day of the row starting on start: its Sunday, unless the month ends first"""
+    sunday = start - datetime.timedelta(days=start.weekday()) + datetime.timedelta(days=6)
+    next_month = (start.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    return min(sunday, next_month - datetime.timedelta(days=1))
+
+
+def next_row(start):
+    return row_end(start) + datetime.timedelta(days=1)
+
+
+def previous_row(start):
+    return row_start(start - datetime.timedelta(days=1))
+
+
 def month_top(selected, given):
-    """Monday of the top week: the given one if any; if not given, the week before the one with the 1st of the
-    selected month. If the selected week is not within these 6 weeks, scroll just enough to show it"""
-    monday = lambda x: x - datetime.timedelta(days=x.weekday())
-    top = datetime.date.fromisoformat(given) if given else monday(selected.replace(day=1)) - datetime.timedelta(weeks=1)
-    week = monday(selected)
+    """First day of the top row: the given one if any; if not given, the last row of the month before the
+    selected one. If the selected row is not within these 6 rows, scroll just enough to show it"""
+    top = row_start(datetime.date.fromisoformat(given)) if given else previous_row(selected.replace(day=1))
+    row = row_start(selected)
     if CENTER:
-        # Centered: the selected week is row 3 of the 6 weeks (2 weeks above it)
-        return week - datetime.timedelta(weeks=2)
-    if week < top:
-        top = week
-    elif week > top + datetime.timedelta(weeks=5):
-        top = week - datetime.timedelta(weeks=5)
+        # Centered: the selected row is row 3 of the 6 (2 rows above it)
+        return previous_row(previous_row(row))
+    last = top
+    for _ in range(5):
+        last = next_row(last)
+    if row < top:
+        top = row
+    elif row > last:
+        top = row
+        for _ in range(5):
+            top = previous_row(top)
     return top
 
 

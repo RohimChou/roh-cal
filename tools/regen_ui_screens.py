@@ -45,7 +45,8 @@ PLAN = {
     "tasks_page_lists_the_file_as_a_tree": [(["zh", "70", "30", "2026-10-17"], "tasks.md", {"LAYOUT": "4"}), (["en", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "EXPANDED": "6,59,60", "CHOSEN_LINE": "61"})],
     "tasks_page_points_at_format_mistakes": [(["zh", "70", "16", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "CHOSEN_LINE": "43"})],
     "tasks_page_with_the_side_menu": [(["zh", "121", "14", "2026-10-17"], "tasks.md", {"LAYOUT": "4", "HIDDEN": "0,1"})],
-    "month_view_scrolls_a_week_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-21"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-09-28"], False, {"LAYOUT": "3"})],
+    "month_view_marks_a_new_year_with_a_thick_line": [(["en", "80", "30", "2027-01-01"], False, {"LAYOUT": "3"})],
+    "month_view_scrolls_a_row_at_a_time": [(["en", "80", "16", "2026-11-02", "2026-09-28"], False, {"LAYOUT": "3"}), (["zh", "80", "16", "2026-09-20", "2026-10-05"], False, {"LAYOUT": "3"})],
 }
 
 

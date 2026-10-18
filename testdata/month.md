@@ -12,6 +12,6 @@
 - [ ] Go hiking @2026-10-18 07:00
 - [x] Pay the phone bill @2026-10-05
 - [ ] Farmers market @2026-10-10
-- [ ] Backyard BBQ @2026-09-25
+- [ ] Backyard BBQ @2026-09-29
 - [ ] A really long title that spills over @2026-10-20
 - [ ] Buy a birthday gift @2026-11-01

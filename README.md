@@ -73,7 +73,7 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | Key | View |
 | :- | :- |
 | `1` | Calendar + agenda: the calendar on the left scrolls through the months; the agenda on the right lists each month's items next to it |
-| `3` | Month grid: six weeks, each day's items in its cell (`+N` when they don't fit); `Enter` opens a popup with all of that day's items |
+| `3` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); every month starts a new row, and a thick line with the year marks a new year; `Enter` opens a popup with all of that day's items |
 | `4` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red |
 
 A terminal at least 120 columns wide also shows the calendar list on the left; narrower, `s` calls it up.
@@ -156,7 +156,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3) |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
-| `[month]` `center_cursor` | `false` | Keep the selected week in the middle of the month grid's six weeks (off: scroll a week at a time when the selection leaves them) |
+| `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 
 ## Themes
