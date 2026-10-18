@@ -84,6 +84,8 @@ pub struct Texts {
     pub default_calendar: &'static str,
     /// The title on the editor's top border when renaming a calendar
     pub rename_calendar_title: &'static str,
+    /// The top level in the `#` list when picking where a calendar goes (outside every calendar)
+    pub top_level: &'static str,
     /// Side menu: items at the top of the file, before any heading
     pub ungrouped: &'static str,
     /// The help page (`?`): the short version lists the keys that work where the keyboard is, the full
@@ -163,6 +165,7 @@ const EN: Texts = Texts {
     add_calendar_title: " New calendar ",
     default_calendar: "Default",
     rename_calendar_title: " Rename calendar ",
+    top_level: "Top level",
     ungrouped: "Ungrouped",
     help: HelpPage {
         short_title: "keys",
@@ -374,6 +377,7 @@ const ZH_TW: Texts = Texts {
     add_calendar_title: " 新增日曆 ",
     default_calendar: "預設",
     rename_calendar_title: " 日曆改名 ",
+    top_level: "最外層",
     ungrouped: "未分組",
     help: HelpPage {
         short_title: "按鍵",
@@ -674,6 +678,15 @@ impl Texts {
             (Lang::En, true) => " New subtask ",
             (Lang::ZhTw, false) => " 新增 ",
             (Lang::ZhTw, true) => " 新增子任務 ",
+        }
+    }
+
+    /// The calendar editor's bottom border: how to save, that `#` and a calendar's name picks the calendar it
+    /// goes inside, how to cancel
+    pub fn calendar_editor_keys(&self) -> &'static str {
+        match self.lang {
+            Lang::En => " Enter save  #name inside  Esc cancel ",
+            Lang::ZhTw => " Enter 存檔  #名字 放到哪個日曆裡  Esc 取消 ",
         }
     }
 

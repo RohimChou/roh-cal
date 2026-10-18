@@ -93,6 +93,59 @@ fn capital_a_in_the_calendar_list_adds_a_calendar_inside_the_chosen_one() {
 }
 
 #[test]
+fn hash_picks_the_calendar_a_new_calendar_goes_inside() {
+    let text = "# Work\n## SFAP\n- [ ] Fix the login bug\n\n# Personal\n- Gym\n";
+    let (mut app, path) = app_with_task_file("new-calendar-hash", text);
+    app.focus = Focus::Side;
+    // a (the top level): just `#` lists 「最外層」 first, then every calendar
+    press(&mut app, KeyCode::Char('a'));
+    type_text(&mut app, "Bugs #");
+    let names = |app: &App| -> Vec<String> {
+        let editor = app.editor().expect("editor");
+        let names = editor.calendar_names();
+        editor
+            .suggestions()
+            .unwrap_or_default()
+            .iter()
+            .map(|found| names[found.index].clone())
+            .collect()
+    };
+    assert_eq!(names(&app), ["最外層", "Work", "Work > SFAP", "Personal"]);
+    // `#sf` → Work > SFAP; Enter picks it: the `#` word goes, the calendar goes inside SFAP
+    type_text(&mut app, "sf");
+    press(&mut app, KeyCode::Enter);
+    let editor = app.editor().expect("editor");
+    assert_eq!(editor.input.value(), "Bugs ");
+    assert!(
+        matches!(&editor.target, Target::AddCalendar { parent, .. } if *parent == ["Work", "SFAP"])
+    );
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "# Work\n## SFAP\n- [ ] Fix the login bug\n\n### Bugs\n\n# Personal\n- Gym\n"
+    );
+    clean_up(&path);
+    // A inside Work, then 「最外層」 picked: the top level, where SFAP is not taken (it is inside Work)
+    let (mut app, path) = app_with_task_file("new-calendar-top", text);
+    app.focus = Focus::Side;
+    press(&mut app, KeyCode::Char('A'));
+    type_text(&mut app, "SFAP");
+    assert_eq!(
+        app.editor().map(Editor::check),
+        Some(Err(edit::Problem::NameTaken))
+    );
+    type_text(&mut app, " #最");
+    press(&mut app, KeyCode::Enter);
+    assert!(app.editor().is_some_and(|editor| editor.check().is_ok()));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        format!("{text}\n# SFAP\n")
+    );
+    clean_up(&path);
+}
+
+#[test]
 fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
     // Work appears twice (one calendar) and has SFAP inside it
     let text = "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug @2026-10-11\n\

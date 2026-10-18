@@ -14,7 +14,8 @@
 //! - `A`: add a subtask to the chosen item
 //! - with no calendar in the file yet, a new item goes into a new `# 預設` (`# Default`) calendar
 //! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading); `A`: add it
-//!   inside the chosen calendar (one `#` more, at the end of that calendar)
+//!   inside the chosen calendar (one `#` more, at the end of that calendar). Typing `#` and part of a
+//!   calendar's name picks the calendar it goes inside (「最外層」 = the top level)
 //! - `e` in the calendar list: rename the chosen calendar
 
 use super::{App, Focus, Mode};
@@ -50,6 +51,9 @@ pub struct HashList {
     /// The calendars that can be picked (their paths, in the calendar list's order); empty = `#` is only text
     /// (e.g. adding a subtask)
     pub calendars: Vec<Vec<String>>,
+    /// What the top level is listed as (「最外層」) when picking where a calendar goes (its path is empty);
+    /// `None` when picking where an item goes
+    pub top: Option<String>,
     /// Whether it is open: typing in a `#` word opens it; `Esc`, moving the cursor or picking one closes it
     pub open: bool,
     /// The chosen row (0 = the best match)
@@ -67,17 +71,19 @@ pub enum Target {
     },
     /// Add a new item, placed here
     Add(Place),
-    /// Add a calendar inside the calendar with the path `parent` (empty = at the top level); `taken` = the
-    /// names the calendars there already have (as the editor opened)
+    /// Add a calendar inside the calendar with the path `parent` (empty = at the top level; the `#` list
+    /// changes it); `others` = every calendar's path as the editor opened (the name cannot be one already
+    /// in `parent`)
     AddCalendar {
-        taken: Vec<String>,
         parent: Vec<String>,
+        others: Vec<Vec<String>>,
     },
-    /// Rename a calendar: `headings` = its heading lines (as read when the editor opened), `taken` = the
-    /// names the other calendars have
+    /// Rename a calendar: `headings` = its heading lines (as read when the editor opened), `parent` = the
+    /// calendar it is in, `others` = every other calendar's path
     RenameCalendar {
         headings: Vec<HeadingLine>,
-        taken: Vec<String>,
+        parent: Vec<String>,
+        others: Vec<Vec<String>>,
     },
 }
 
@@ -116,12 +122,15 @@ impl Editor {
             .then(|| (start, before[start + 1..].iter().collect()))
     }
 
-    /// Each calendar in the `#` list as it is shown, e.g. `Work > SFAP`
+    /// Each calendar in the `#` list as it is shown, e.g. `Work > SFAP` (the top level: `HashList::top`)
     pub fn calendar_names(&self) -> Vec<String> {
         self.hash_list
             .calendars
             .iter()
-            .map(|path| path.join(" > "))
+            .map(|path| match &self.hash_list.top {
+                Some(top) if path.is_empty() => top.clone(),
+                _ => path.join(" > "),
+            })
             .collect()
     }
 
@@ -137,8 +146,8 @@ impl Editor {
     }
 
     /// Picks the calendar on row `index` of the open `#` list: the new item goes into it (an edited item moves
-    /// there on save), and the `#` word (with one space after it) is taken out of the typed text, the cursor
-    /// where it was
+    /// there on save; a calendar goes inside it), and the `#` word (with one space after it) is taken out of
+    /// the typed text, the cursor where it was
     fn pick_calendar(&mut self, index: usize) {
         let (Some((start, _)), Some(found)) = (self.hash_word(), self.suggestions()) else {
             return;
@@ -162,6 +171,9 @@ impl Editor {
         self.hash_list.open = false;
         match &mut self.target {
             Target::Edit { calendar, .. } => *calendar = Some(path),
+            Target::AddCalendar { parent, .. } | Target::RenameCalendar { parent, .. } => {
+                *parent = path
+            }
             target => *target = Target::Add(Place::InCalendar(path)),
         }
     }
@@ -189,8 +201,16 @@ impl Editor {
     /// How the text typed so far reads (shown live on screen; if there is a problem it cannot be saved)
     pub fn check(&self) -> Result<Reading, edit::Problem> {
         match &self.target {
-            Target::AddCalendar { taken, .. } | Target::RenameCalendar { taken, .. } => {
-                edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
+            Target::AddCalendar { parent, others }
+            | Target::RenameCalendar { parent, others, .. } => {
+                // The names of the calendars right inside `parent`
+                let taken: Vec<String> = others
+                    .iter()
+                    .filter_map(|path| path.split_last())
+                    .filter(|(_, above)| *above == parent.as_slice())
+                    .map(|(name, _)| name.clone())
+                    .collect();
+                edit::check_calendar(self.input.value(), &taken).map(Reading::Calendar)
             }
             Target::Edit { .. } | Target::Add(_) => edit::check(&self.line()).map(Reading::Item),
         }
@@ -313,19 +333,27 @@ impl App {
     }
 
     /// Opens an empty editor for a new calendar inside `parent` (empty = the top level); it cannot take the
-    /// name of a calendar already there
+    /// name of a calendar already there. The `#` list picks another place: 「最外層」 first, then every
+    /// calendar that can still have one inside (fewer than 6 `#`)
     fn open_calendar_adder(&mut self, parent: Vec<String>) {
-        let taken = self
-            .groups
-            .iter()
-            .filter(|group| group.parents == parent)
-            .filter_map(|group| group.name.clone())
+        let others = self.calendars();
+        let calendars = std::iter::once(Vec::new())
+            .chain(
+                others
+                    .iter()
+                    .filter(|path| self.calendar_level(path) < 6)
+                    .cloned(),
+            )
             .collect();
         self.mode = Mode::Editor(Editor {
             input: Input::default(),
-            target: Target::AddCalendar { taken, parent },
+            target: Target::AddCalendar { parent, others },
             day: None,
-            hash_list: HashList::default(),
+            hash_list: HashList {
+                calendars,
+                top: Some(self.lang.texts().top_level.to_string()),
+                ..HashList::default()
+            },
         });
     }
 
@@ -355,15 +383,24 @@ impl App {
             return;
         };
         let text = first.text.trim_start_matches('#').trim().to_string();
-        let taken = self
-            .groups
+        let parent = first.heading.parents.clone();
+        let own: Vec<String> = parent
             .iter()
-            .filter(|group| group.parents == first.heading.parents && !group.is(&first.heading))
-            .filter_map(|group| group.name.clone())
+            .chain([&first.heading.name])
+            .cloned()
+            .collect();
+        let others = self
+            .calendars()
+            .into_iter()
+            .filter(|path| *path != own)
             .collect();
         self.mode = Mode::Editor(Editor {
             input: Input::new(text),
-            target: Target::RenameCalendar { headings, taken },
+            target: Target::RenameCalendar {
+                headings,
+                parent,
+                others,
+            },
             day: None,
             hash_list: HashList::default(),
         });

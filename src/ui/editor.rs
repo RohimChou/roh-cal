@@ -151,7 +151,15 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             Style::new().fg(theme.label),
         ))
         .title_bottom(Line::styled(
-            texts.editor_keys(!editor.hash_list.calendars.is_empty()),
+            match &editor.target {
+                // A calendar: `#` picks the calendar it goes inside
+                Target::AddCalendar { .. } | Target::RenameCalendar { .. }
+                    if !editor.hash_list.calendars.is_empty() =>
+                {
+                    texts.calendar_editor_keys()
+                }
+                _ => texts.editor_keys(!editor.hash_list.calendars.is_empty()),
+            },
             Style::new().fg(theme.muted),
         ));
     // Clear the screen underneath and one blank cell around the box first (not the key-hint row at the

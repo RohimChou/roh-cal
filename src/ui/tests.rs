@@ -1226,6 +1226,12 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
         "{}",
         rows[0]
     );
+    // The bottom border: `#` and a name picks the calendar it goes inside
+    assert!(
+        rows[6].starts_with("╰ Enter 存檔  #名字 放到哪個日曆裡  Esc 取消 ─"),
+        "{}",
+        rows[6]
+    );
     app.handle_key(KeyEvent::from(KeyCode::Esc));
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     let terminal = draw_app(&mut app, 80, 24);
