@@ -251,12 +251,11 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     # 左上角一直寫畫面最上面那週的年份
     month_header = t["year"](next(year for _, _, year, _ in visible if year is not None))
     header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d for d in t["wd"]), 22)
-    # 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面一格空白）
+    # 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面一格空白）；窄的時候日期照寫，「重要事項」切掉，中間至少空一格
     date = t["date"](selected) + " "
     if iw:
-        pad = iw - width(t["items"]) - width(date)
-        assert pad >= 0, "表頭放不下日期"
-        header_right = t["items"] + " " * pad + date
+        label = cut(t["items"], max(iw - width(date) - 1, 0))
+        header_right = label + " " * (iw - width(label) - width(date)) + date
     else:
         header_right = ""
     inner = [(header_left, header_right, False), (rule(False), "─" * iw, False)]

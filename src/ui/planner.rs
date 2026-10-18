@@ -147,17 +147,26 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         })
         .unwrap_or(app.selected);
     render_header(frame, calendar_header, texts, theme, year);
-    // 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面留一格空白）
-    // 兩段畫在同一列，日期的顏色放在 `Span` 上：`Line::styled` 的顏色會套到整列，會蓋掉先畫的
+    // 右邊的表頭：左邊「重要事項」、右邊選取的日期（後面留一格空白）。兩段畫在各自的位置：日期一定完整，
+    // 「重要事項」放不下就切掉（中文字不會切一半），中間至少空一格；畫在同一塊的話，日期開頭落在中文字的後半格會被吃掉
+    let date = format!("{} ", texts.date_title(app.selected));
+    let date_width = u16::try_from(Span::raw(&date).width())
+        .unwrap_or(u16::MAX)
+        .min(agenda_header.width);
+    let label_area = Rect {
+        width: agenda_header.width.saturating_sub(date_width + 1),
+        ..agenda_header
+    };
+    let date_area = Rect {
+        x: agenda_header.right() - date_width,
+        width: date_width,
+        ..agenda_header
+    };
     frame.render_widget(
         Line::styled(texts.header_items, Style::new().fg(theme.muted)),
-        agenda_header,
+        label_area,
     );
-    let date = format!("{} ", texts.date_title(app.selected));
-    frame.render_widget(
-        Line::from(Span::styled(date, Style::new().fg(theme.text))).right_aligned(),
-        agenda_header,
-    );
+    frame.render_widget(Line::styled(date, Style::new().fg(theme.text)), date_area);
     render_rule(frame, calendar_rule, agenda_rule, false, None, theme);
 
     // 一列一列畫，左右兩個框的同一列在同一個高度
