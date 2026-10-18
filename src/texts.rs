@@ -192,6 +192,7 @@ const EN: Texts = Texts {
                     ("l / h", "expand / collapse"),
                     ("+ / -", "expand / collapse all"),
                     ("L / H", "indent / outdent"),
+                    ("J / K", "move down / up"),
                 ],
             },
             HelpSection {
@@ -336,6 +337,7 @@ const ZH_TW: Texts = Texts {
                     ("l / h", "展開 / 收起"),
                     ("+ / -", "全部展開 / 全部收起"),
                     ("L / H", "縮排 / 取消縮排"),
+                    ("J / K", "往下 / 往上搬"),
                 ],
             },
             HelpSection {

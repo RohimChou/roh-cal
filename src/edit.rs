@@ -5,6 +5,7 @@
 
 use crate::tasks::{self, Item, WarningKind};
 use jiff::{ToSpan, civil::Date};
+use std::collections::{HashMap, VecDeque};
 
 /// 那一行跟讀進來時不一樣（被別人改過、上面多了一行、檔案變短了），不能改；要先重新讀檔
 #[derive(Debug, PartialEq, Eq)]
@@ -153,6 +154,39 @@ pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
     Ok(result)
 }
 
+/// 上下搬：`upper` 那一塊和它下面同一層的 `lower` 那一塊（都連子任務、備註）換位置，回傳改好的整個檔案；
+/// 兩塊中間隔著的（空行）留在中間
+///
+/// 例：`- a`、`  - a1`、`- b` → `- b`、`- a`、`  - a1`
+pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<String, Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let upper_start = find_line(&lines, upper)?;
+    let lower_start = find_line(&lines, lower)?;
+    let upper_end = block_end(&lines, upper_start);
+    let lower_end = block_end(&lines, lower_start);
+    // 下面那塊要在上面那塊結束之後（不是的話是檔案跟畫面對不上）
+    if lower_start < upper_end {
+        return Err(Changed);
+    }
+    let mut upper_block = segments[upper_start..upper_end].concat();
+    let mut lower_block = segments[lower_start..lower_end].concat();
+    // 下面那塊是檔案最後一行、沒有換行：換到上面要補換行；換到最後面的那塊就不留換行（跟原本一樣）
+    if !lower_block.ends_with('\n') {
+        lower_block.push_str(if text.contains("\r\n") { "\r\n" } else { "\n" });
+        upper_block.truncate(upper_block.trim_end_matches(['\r', '\n']).len());
+    }
+    Ok([
+        segments[..upper_start].concat(),
+        lower_block,
+        segments[upper_end..lower_start].concat(),
+        upper_block,
+        segments[lower_end..].concat(),
+    ]
+    .concat())
+}
+
 /// 一行開頭的縮排（空白、tab）
 pub fn indent_of(line: &str) -> &str {
     &line[..line.len() - line.trim_start().len()]
@@ -160,8 +194,9 @@ pub fn indent_of(line: &str) -> &str {
 
 /// 寫檔前後的行號對照（從 1 開始），畫面記著的行號（選到的那件、展開的子任務）跟著搬
 ///
-/// 每次寫檔只改連續的一段（打勾、編輯、改期、新增、刪除、復原都是）：前面沒動的行號不變、後面的跟著加減；
-/// 改到的那一段：行數沒變（換掉一行）就照舊，變了（新增、刪除）就對不到（`None`）
+/// 每次寫檔只改連續的一段（打勾、編輯、改期、新增、刪除、縮排、上下搬、復原都是）：前面沒動的行號不變、後面的跟著加減；
+/// 改到的那一段：只換了順序（上下搬）就照每一行的內容找到新的位置，行數沒變（換掉一行）就照舊，
+/// 變了（新增、刪除）就對不到（`None`）
 pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + use<> {
     let old: Vec<&str> = before.lines().collect();
     let new: Vec<&str> = after.lines().collect();
@@ -175,6 +210,10 @@ pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + 
         .count()
         .min(old.len().min(new.len()) - prefix);
     let (old_len, new_len) = (old.len(), new.len());
+    let moved = reordered(
+        &old[prefix..old_len - suffix],
+        &new[prefix..new_len - suffix],
+    );
     move |line| {
         if line <= prefix {
             // 改到的那段前面：沒動
@@ -182,6 +221,9 @@ pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + 
         } else if line > old_len - suffix {
             // 改到的那段後面：跟著多出來 / 少掉的行數加減
             (line + new_len).checked_sub(old_len)
+        } else if let Some(moved) = &moved {
+            // 改到的那段只換了順序：搬到那一行現在的位置
+            moved.get(line - prefix - 1).map(|&at| prefix + 1 + at)
         } else if old_len == new_len {
             // 改到的那段裡面、行數沒變（換掉一行）：照舊
             Some(line)
@@ -190,6 +232,24 @@ pub fn line_map(before: &str, after: &str) -> impl Fn(usize) -> Option<usize> + 
             None
         }
     }
+}
+
+/// `new` 是不是 `old` 換了順序（同樣的幾行、一行都沒改）：是就回傳 `old` 每一行在 `new` 的第幾個（從 0 開始），
+/// 一模一樣的行照出現的順序配；不是（改了字、行數不一樣、本來就沒換）是 `None`
+///
+/// 例：`[a, a1, b]` → `[b, a, a1]` 是 `[1, 2, 0]`
+fn reordered(old: &[&str], new: &[&str]) -> Option<Vec<usize>> {
+    if old.len() != new.len() || old == new {
+        return None;
+    }
+    // 每一種內容在 new 的哪幾行，配過的就拿掉
+    let mut places: HashMap<&str, VecDeque<usize>> = HashMap::new();
+    for (at, line) in new.iter().enumerate() {
+        places.entry(line).or_default().push_back(at);
+    }
+    old.iter()
+        .map(|line| places.get_mut(line)?.pop_front())
+        .collect()
 }
 
 /// `item` 在第幾行（從 0 開始）；那一行跟讀進來時不一樣（或已經沒有那一行）回傳 `Changed`
@@ -516,6 +576,43 @@ mod tests {
         assert_eq!([1, 2].map(&map), [Some(1), Some(2)]);
         let map = line_map("a\nb\n", "a\n");
         assert_eq!([1, 2].map(&map), [Some(1), None]);
+        // 上下搬（第 2～3 行和第 4 行換位置）：搬動的那幾行照內容跟過去，前後的不動
+        let map = line_map("x\n- a\n  - a1\n- b\ny\n", "x\n- b\n- a\n  - a1\ny\n");
+        assert_eq!(
+            [1, 2, 3, 4, 5].map(&map),
+            [Some(1), Some(3), Some(4), Some(2), Some(5)]
+        );
+        // 一模一樣的行照出現的順序配
+        let map = line_map("- a\n  - 同\n- b\n  - 同\n", "- b\n  - 同\n- a\n  - 同\n");
+        assert_eq!([1, 2, 3, 4].map(&map), [Some(3), Some(2), Some(1), Some(4)]);
+    }
+
+    #[test]
+    fn swap_moves_the_blocks_with_their_subtasks() {
+        // 有子任務的兩塊換位置，後面的不動
+        let text = "- a\n  - a1\n- b\n  - b1\n- c\n";
+        assert_eq!(
+            swap(text, &item(text, 0), &item(text, 2)),
+            Ok("- b\n  - b1\n- a\n  - a1\n- c\n".into())
+        );
+        // 中間的空行留在中間；後面跟下一組之間的空行也不動
+        assert_eq!(
+            swap(GROUPS, &item(GROUPS, 1), &item(GROUPS, 2)),
+            Ok(
+                "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [x] 列大綱\n\n  - [ ] 找資料\n\n# 生活\n- 爬山 @2026-10-18\n"
+                    .into()
+            )
+        );
+        // 下面那件是最後一行、沒有換行，\r\n：換完最後一行一樣沒有換行
+        assert_eq!(
+            swap("- a\r\n- b", &item("- a\r\n- b", 0), &item("- a\r\n- b", 1)),
+            Ok("- b\r\n- a".into())
+        );
+        // 在別處改過：不搬
+        assert_eq!(
+            swap("- [ ] 別的\n", &item(GROUPS, 0), &item(GROUPS, 1)),
+            Err(Changed)
+        );
     }
 
     #[test]

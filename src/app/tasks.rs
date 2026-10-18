@@ -1,5 +1,5 @@
 //! 任務頁（`4`）：整份任務檔照日曆（分組）列出來，子任務排成樹（預設收起來），沒日期的也列；
-//! `j` / `k` 上下、`l` / `h` 展開 / 收起（`+` / `-` 全部）、`L` / `H` 縮排 / 取消縮排
+//! `j` / `k` 上下、`l` / `h` 展開 / 收起（`+` / `-` 全部）、`L` / `H` 縮排 / 取消縮排、`J` / `K` 上下搬
 
 use super::App;
 use crate::{edit, tasks::Item};
@@ -92,7 +92,7 @@ impl App {
     }
 
     /// 鍵盤在任務頁：`j` / `k` 上下一件（標題跳過），`l` / `h` 展開 / 收起子任務，`+` / `-` 全部展開 / 全部收起，
-    /// `L` / `H` 縮排 / 取消縮排；
+    /// `L` / `H` 縮排 / 取消縮排，`J` / `K` 往下 / 往上搬；
     /// 寫檔的鍵跟右邊的事項框一樣：`Space` / `x` 打勾、`e` / `Enter` 編輯、`a` 新增、`A` 新增子任務、`d` 刪除、`r` 改期
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
         match code {
@@ -104,6 +104,8 @@ impl App {
             KeyCode::Char('-') => self.collapse_all(),
             KeyCode::Char('L') => self.indent_task(),
             KeyCode::Char('H') => self.outdent_task(),
+            KeyCode::Char('J') => self.move_task(true),
+            KeyCode::Char('K') => self.move_task(false),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),
@@ -240,6 +242,54 @@ impl App {
                     && other.parent == item.parent
                     && other.group == item.group
             })
+    }
+
+    /// `item` 下面同一層的那件（同一個父項目、同一組；中間隔著的是 `item` 自己的子任務）；沒有就是 `None`
+    fn sibling_below(&self, item: &Item) -> Option<&Item> {
+        let index = self
+            .items
+            .iter()
+            .position(|other| other.line == item.line)?;
+        self.items[index + 1..]
+            .iter()
+            .find(|other| other.depth <= item.depth)
+            .filter(|other| {
+                other.depth == item.depth
+                    && other.parent == item.parent
+                    && other.group == item.group
+            })
+    }
+
+    /// `J` / `K`：選到的那件（連子任務）跟下面（`down`）/ 上面同一層的那件換位置，寫回任務檔；
+    /// 那一層的最後一件 / 第一件不動（不會搬到別的父項目、別組）。搬完還選著它（`write_tasks` 的 `line_map` 跟著搬）
+    fn move_task(&mut self, down: bool) {
+        let Some(item) = self.tasks_chosen().cloned() else {
+            return;
+        };
+        let other = if down {
+            self.sibling_below(&item)
+        } else {
+            self.sibling_above(&item)
+        };
+        let Some(other) = other.cloned() else {
+            return;
+        };
+        let (upper, lower) = if down {
+            (&item, &other)
+        } else {
+            (&other, &item)
+        };
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        // 剛打開還沒選過（預設選第一件）也先記下來，搬完選取才跟得過去
+        self.tasks_line = Some(item.line);
+        match edit::swap(&text, upper, lower) {
+            Ok(after) => {
+                self.write_tasks(&path, text, after, item.title.clone());
+            }
+            Err(edit::Changed) => self.reload(&text),
+        }
     }
 
     /// `item` 那一塊的縮排換成 `to`、寫回任務檔；寫成了就展開第 `expand` 行那件。在別處改過就重新載入
@@ -650,6 +700,55 @@ mod tests {
         press(&mut app, KeyCode::Char('H'));
         press(&mut app, KeyCode::Char('L'));
         assert_eq!(read(), before);
+        clean_up(&path);
+    }
+
+    #[test]
+    fn shift_j_and_k_move_the_item_with_its_subtasks() {
+        use super::super::write::tests::clean_up;
+        let text =
+            "# 工作\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n- [ ] 交週報\n# 生活\n- 爬山\n";
+        let (mut app, path) = tasks_app_with_file("tasks-swap", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+        // 寫報告（第 2 行，展開著）J：連子任務搬到交週報下面；還選著它、還展開著（現在是第 3 行）
+        app.expanded.insert(2);
+        press(&mut app, KeyCode::Char('J'));
+        let moved =
+            "# 工作\n- [ ] 交週報\n- [ ] 寫報告\n  - [ ] 找資料\n  - [ ] 列大綱\n# 生活\n- 爬山\n";
+        assert_eq!(read(), moved);
+        assert_eq!(chosen(&app).as_deref(), Some("寫報告"));
+        assert_eq!(app.expanded.iter().copied().collect::<Vec<_>>(), [3]);
+        assert_eq!(
+            shape(&app),
+            [
+                "#工作",
+                "交週報",
+                "-寫報告",
+                "  找資料",
+                "  列大綱",
+                "#生活",
+                "爬山"
+            ]
+        );
+        // 已經是「工作」最後一件（下面的爬山是別組）：J 不動
+        press(&mut app, KeyCode::Char('J'));
+        assert_eq!(read(), moved);
+        // 列大綱 K：跟找資料換；再 K：已經是第一個子任務，不動
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('K'));
+        let swapped =
+            "# 工作\n- [ ] 交週報\n- [ ] 寫報告\n  - [ ] 列大綱\n  - [ ] 找資料\n# 生活\n- 爬山\n";
+        assert_eq!(read(), swapped);
+        assert_eq!(app.tasks_line, Some(4));
+        press(&mut app, KeyCode::Char('K'));
+        assert_eq!(read(), swapped);
+        // u：換回來，還選著列大綱（回到第 5 行）
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), moved);
+        assert_eq!(app.tasks_line, Some(5));
+        assert_eq!(chosen(&app).as_deref(), Some("列大綱"));
         clean_up(&path);
     }
 

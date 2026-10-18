@@ -389,14 +389,14 @@ mod tests {
             let (area, rows, _) = draw(
                 lang,
                 100,
-                34,
+                36,
                 Help {
                     full: true,
                     scroll: 0,
                 },
             );
-            // 長的那欄（左欄）29 行 + padding 2 + 框線 2，放得下不用捲
-            assert_eq!(area.height, 33, "{lang:?}");
+            // 長的那欄（左欄）30 行 + padding 2 + 框線 2，放得下不用捲
+            assert_eq!(area.height, 34, "{lang:?}");
             let text = rows.join("\n");
             for section in page.left.iter().chain(page.right) {
                 assert!(text.contains(section.title), "{}", section.title);
