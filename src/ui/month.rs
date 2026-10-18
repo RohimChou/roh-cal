@@ -3,7 +3,8 @@
 //!
 //! A row is one whole week, Monday to Sunday: the week holding Sep 30 and Oct 1 is one row with days of
 //! both months, and with grid lines a staircase line marks where one month ends. 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen
-//! (with `[month] center_cursor` on in the config file, the selected week stays on row 3).
+//! (with `[month] center_cursor` on in the config file, the selected week stays on row 3). The rows left
+//! over at the bottom show the weeks after, as many as start there, the last one cut off by the border.
 //! Cell sizes are computed from the current space on every draw (they follow the terminal as it resizes)
 
 use super::{
@@ -45,9 +46,16 @@ struct Grid {
     /// Cells taken by a grid line between columns and below the header: 1 with grid lines, 0 without
     /// (cells touch)
     gap: u16,
-    /// Rows taken by the line between week k and week k + 1: with grid lines always 1; without, 1 only
-    /// where a month ends between the two weeks (its edge goes there, see `render_month_edges`), else 0
-    week_gaps: [u16; WEEKS as usize - 1],
+    /// Rows taken by the line between week k and week k + 1 (one for each two weeks drawn): with grid lines
+    /// always 1; without, 1 only where a month ends between the two weeks (its edge goes there, see
+    /// `render_month_edges`), else 0
+    week_gaps: Vec<u16>,
+    /// How many weeks are drawn: the 6, and after them in the rows left over at the bottom as many more as
+    /// have room for the line before them (if any) and their first row; the last one is cut off by the
+    /// bottom border
+    weeks: u16,
+    /// The row just below the inside of the box: cells end here at the latest
+    bottom: u16,
 }
 
 impl Grid {
@@ -60,10 +68,9 @@ impl Grid {
     /// over 6 weeks. Without grid lines only the header and the rows for a month's edge are subtracted
     fn new(inner: Rect, lines: bool, top: Date) -> Self {
         let gap = u16::from(lines);
-        let week_gaps = std::array::from_fn(|week| {
-            let week = u16::try_from(week).unwrap_or(0);
+        let gap_after = |week: u16| {
             u16::from(lines || (1..=7).any(|column| rule_under(top, week, column) != Rule::Week))
-        });
+        };
         let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7 * gap);
         let (base, extra) = (days_width / 7, days_width % 7);
         let mut columns = [(inner.x, WEEK_COLUMN_WIDTH.min(inner.width)); 8];
@@ -73,16 +80,27 @@ impl Grid {
             *column = (x, width);
             x = x.saturating_add(width + gap);
         }
-        Self {
+        let week_gaps: Vec<u16> = (0..WEEKS - 1).map(gap_after).collect();
+        let lines_between: u16 = week_gaps.iter().sum();
+        let mut grid = Self {
             columns,
             header_y: inner.y,
-            week_height: inner
-                .height
-                .saturating_sub(1 + gap + week_gaps.iter().sum::<u16>())
-                / WEEKS,
+            week_height: inner.height.saturating_sub(1 + gap + lines_between) / WEEKS,
             gap,
             week_gaps,
+            weeks: WEEKS,
+            bottom: inner.bottom(),
+        };
+        // The rows left over at the bottom: the weeks after, as long as one more starts above the bottom
+        while grid.week_height > 0 {
+            grid.week_gaps.push(gap_after(grid.weeks - 1));
+            if grid.week_y(grid.weeks) >= grid.bottom {
+                grid.week_gaps.pop();
+                break;
+            }
+            grid.weeks += 1;
         }
+        grid
     }
 
     /// Cells too small to draw the dates (each day needs at least 1 cell of width, each week at least
@@ -97,10 +115,22 @@ impl Grid {
         self.header_y + 1 + self.gap + week * self.week_height + lines
     }
 
-    /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday)
+    /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday); the
+    /// cut-off week's cells end at the bottom of the box
     fn cell(&self, week: u16, column: usize) -> Rect {
         let (x, width) = self.columns[column];
-        Rect::new(x, self.week_y(week), width, self.week_height)
+        let y = self.week_y(week);
+        Rect::new(
+            x,
+            y,
+            width,
+            self.week_height.min(self.bottom.saturating_sub(y)),
+        )
+    }
+
+    /// The last week drawn: the rows left below it count as part of it
+    fn last_week(&self) -> u16 {
+        self.weeks - 1
     }
 
     /// x of the vertical lines: right of the week-number column and right of Monday through Saturday
@@ -192,7 +222,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // The selected month: days of other months are grayed out
     let month = app.selected.first_of_month();
-    for week in 0..WEEKS {
+    for week in 0..grid.weeks {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
         // Week number: from a day of that week in the selected month (only differs for the week across the
@@ -250,17 +280,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 .set_style(cells[column], Style::new().bg(theme.cursor_line));
         }
         let (bars, slots) = layout_row(&days, app);
+        // Laid out as a whole week even when cut off at the bottom (the cut-off part just does not show)
         let lines: Vec<Vec<Line>> = days
             .iter()
             .zip(&slots)
-            .zip(&cells)
-            .map(|((&day, slots), cell)| cell_lines(day, month, slots, cell.height, app))
+            .map(|(&day, slots)| cell_lines(day, month, slots, grid.week_height, app))
             .collect();
         render_week(frame, &cells, &lines, &days, selected);
         let shown: Vec<usize> = slots
             .iter()
-            .zip(&cells)
-            .map(|(slots, cell)| shown_lines(slots.len(), cell.height))
+            .map(|slots| shown_lines(slots.len(), grid.week_height))
             .collect();
         render_bars(frame, &cells, &bars, &shown, &days, app);
     }
@@ -404,6 +433,11 @@ fn render_bars(
             }
             let (from, to) = (cells[first], cells[column]);
             let area = Rect::new(from.x, from.y + 1 + lane, to.right() - from.x, 1);
+            // The cut-off week at the bottom: that line is below the box
+            if area.y >= from.bottom() {
+                column += 1;
+                continue;
+            }
             let time = bar.starts && first == bar.first;
             // Clear first: the grid lines under the band would otherwise still show through
             frame.render_widget(Clear, area);
@@ -737,7 +771,7 @@ fn render_grid_lines(
     let xs: Vec<u16> = grid.vertical_xs().collect();
     let header_line = grid.header_y + 1;
     for (line, &x) in xs.iter().enumerate() {
-        for week in 0..WEEKS {
+        for week in 0..grid.weeks {
             let rule = vertical(week, line);
             let symbol = if rule.heavy() {
                 line::THICK_VERTICAL
@@ -745,7 +779,7 @@ fn render_grid_lines(
                 line::VERTICAL
             };
             let from = grid.week_y(week);
-            let to = if week == WEEKS - 1 {
+            let to = if week == grid.last_week() {
                 inner.bottom()
             } else {
                 from + grid.week_height
@@ -754,7 +788,7 @@ fn render_grid_lines(
                 put(x, y, symbol, rule.style(app));
             }
         }
-        let last = vertical(WEEKS - 1, line);
+        let last = vertical(grid.last_week(), line);
         put(
             x,
             inner.bottom(),
@@ -782,8 +816,8 @@ fn render_grid_lines(
         border,
     );
     put(inner.right(), header_line, line::VERTICAL_LEFT, border);
-    // The 5 lines between weeks
-    for week in 0..WEEKS - 1 {
+    // The lines between weeks
+    for week in 0..grid.last_week() {
         let y = grid.week_y(week) + grid.week_height;
         for (column, &(x, width)) in grid.columns.iter().enumerate() {
             let rule = under(week, column);
@@ -855,7 +889,7 @@ fn render_month_edges(
     };
     let edge = |rule: Rule| rule != Rule::Week;
     // The vertical stretches, through the whole week (the last week down to the bottom border)
-    for week in 0..WEEKS {
+    for week in 0..grid.weeks {
         for weekday in 1..7 {
             let rule = rule_left_of(top, week, weekday);
             if !edge(rule) {
@@ -863,7 +897,7 @@ fn render_month_edges(
             }
             let x = grid.columns[weekday + 1].0;
             let from = grid.week_y(week);
-            let last = week == WEEKS - 1;
+            let last = week == grid.last_week();
             let to = if last {
                 inner.bottom()
             } else {
@@ -888,7 +922,7 @@ fn render_month_edges(
         }
     }
     // The horizontal stretches, on the row between two weeks
-    for week in 0..WEEKS - 1 {
+    for week in 0..grid.last_week() {
         if grid.week_gaps[usize::from(week)] == 0 {
             continue;
         }
@@ -952,10 +986,10 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         return None;
     }
     let position = Position::new(column, row);
-    for week in 0..WEEKS {
+    for week in 0..grid.weeks {
         for weekday in 0..7 {
             let mut cell = grid.cell(week, weekday + 1);
-            if week == WEEKS - 1 {
+            if week == grid.last_week() {
                 cell.height = inner.bottom() - cell.y;
             }
             if cell.contains(position) {
@@ -990,8 +1024,16 @@ mod tests {
         assert_eq!(grid.week_height, 3);
         assert_eq!(grid.week_y(0), 3);
         assert_eq!(grid.week_y(1), 7);
-        // Not evenly divisible: 27 rows → 20 ÷ 6 = 3 remainder 2; the leftover stays at the bottom
-        assert_eq!(Grid::new(Rect::new(1, 1, 78, 27), true, top).week_height, 3);
+        // 3 rows left over at the bottom (y 27-29): the line before the next week and 2 rows of it, cut off
+        assert_eq!(grid.weeks, 7);
+        assert_eq!(grid.cell(6, 1), Rect::new(7, 27, 10, 2));
+        // Not evenly divisible: 27 rows → 20 ÷ 6 = 3 remainder 2: the line and the next week's first row;
+        // remainder 1 (26 rows) has no room for the next week: the leftover row belongs to the 6th week
+        let grid = Grid::new(Rect::new(1, 1, 78, 27), true, top);
+        assert_eq!((grid.week_height, grid.weeks), (3, 7));
+        assert_eq!(grid.cell(6, 1).height, 1);
+        let grid = Grid::new(Rect::new(1, 1, 78, 26), true, top);
+        assert_eq!((grid.week_height, grid.weeks), (3, 6));
         // Too small: cannot be drawn
         assert!(Grid::new(Rect::new(1, 1, 18, 28), true, top).too_small());
         assert!(Grid::new(Rect::new(1, 1, 78, 12), true, top).too_small());
@@ -1013,18 +1055,21 @@ mod tests {
         // for a month's edge, between the weeks of 2/22 and 3/1. Height: 28 − header 1 − that row = 26,
         // 4 rows for each of 6 weeks; week 1 sits right below the header, the next week right after; the
         // 5th week one row further down
-        assert_eq!(grid.week_gaps, [0, 0, 0, 1, 0]);
+        assert_eq!(grid.week_gaps, [0, 0, 0, 1, 0, 0]);
         assert_eq!(grid.week_height, 4);
         assert_eq!(grid.week_y(0), 2);
         assert_eq!(grid.week_y(1), 6);
         assert_eq!(grid.week_y(3), 14);
         assert_eq!(grid.week_y(4), 19);
+        // 2 rows left over (y 27-28) and no month's edge before the 7th week: 2 rows of it show
+        assert_eq!(grid.weeks, 7);
+        assert_eq!(grid.cell(6, 1), Rect::new(6, 27, 11, 2));
         // Weeks from 9/28: October starts in the first week (10/1, a Thursday), November on 11/1 (a
-        // Sunday): its edge needs a row above the week of 10/26 (above 11/1) and one below (under 10/26-31)
-        assert_eq!(
-            Grid::new(Rect::new(1, 1, 78, 28), false, date(2026, 9, 28)).week_gaps,
-            [1, 0, 0, 1, 1]
-        );
+        // Sunday): its edge needs a row above the week of 10/26 (above 11/1) and one below (under 10/26-31).
+        // 28 − 1 − 3 = 24 = 6 × 4: no rows left over, so no 7th week
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), false, date(2026, 9, 28));
+        assert_eq!(grid.week_gaps, [1, 0, 0, 1, 1]);
+        assert_eq!(grid.weeks, 6);
         // A height too short with grid lines can be drawn without them: 12 − 1 − 1 = 10 → 1 row per week
         assert!(!Grid::new(Rect::new(1, 1, 78, 12), false, top).too_small());
     }

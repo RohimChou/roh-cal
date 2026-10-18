@@ -1897,8 +1897,8 @@ mod tests {
                 "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -1982,8 +1982,8 @@ mod tests {
                 "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -2013,8 +2013,8 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
                 " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
@@ -2197,11 +2197,11 @@ mod tests {
                 "├────────────────────────────────────────────────────────────────────┘         │",
                 "│  45  2          3          4          5         6         7         8        │",
                 "│                                                                              │",
+                "│  46  9          10         11         12        13        14        15       │",
                 "│                                                                              │",
+                "│  47  16         17         18         19        20        21        22       │",
                 "│                                                                              │",
-                "│                                                                              │",
-                "│                                                                              │",
-                "│                                                                              │",
+                "│  48  23         24         25         26        27        28        29       │",
                 "╰──────────────────────────────────────────────────────────────────────────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -2355,8 +2355,8 @@ mod tests {
                 "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "│     │ Manager OOO         │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
                 " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
             ]
@@ -2750,7 +2750,7 @@ mod tests {
     fn month_view_click_positions_map_to_the_cells() {
         // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7-16, Tue x 18-27,
         // Thu x 40-48, Sat x 60-68, Sun x 70-78; weeks at y 3-5, 7-9, …, 23-25. The top week is 9/28-10/4,
-        // the last one 11/2-8
+        // the 6th 11/2-8; the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27)
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
         app.screen = Rect::new(0, 0, 80, 30);
         draw_app(&mut app, 80, 30);
@@ -2761,13 +2761,14 @@ mod tests {
         assert_eq!(date_at(&app, 40, 3), Some(date(2026, 10, 1)));
         assert_eq!(date_at(&app, 68, 25), Some(date(2026, 11, 7)));
         assert_eq!(date_at(&app, 78, 25), Some(date(2026, 11, 8)));
-        // The leftover rows under the last week count as the last week too
-        assert_eq!(date_at(&app, 10, 27), Some(date(2026, 11, 2)));
+        // The cut-off 7th week can be clicked too
+        assert_eq!(date_at(&app, 10, 27), Some(date(2026, 11, 9)));
         // No date: vertical lines, horizontal lines, the week-number column, the header, the bottom border,
         // the left border, the key hints
         for (x, y) in [
             (17, 3),
             (10, 6),
+            (10, 26),
             (3, 3),
             (10, 1),
             (10, 28),
@@ -2776,6 +2777,10 @@ mod tests {
         ] {
             assert_eq!(date_at(&app, x, y), None, "({x}, {y})");
         }
+        // 80 × 29: only 1 row left over, no room for the next week: that row counts as the 6th week
+        app.screen = Rect::new(0, 0, 80, 29);
+        draw_app(&mut app, 80, 29);
+        assert_eq!(date_at(&app, 10, 26), Some(date(2026, 11, 2)));
     }
 
     #[test]
@@ -2791,6 +2796,31 @@ mod tests {
         let buffer = terminal.backend().buffer();
         let text: String = (60..79).map(|x| buffer[(x, 20)].symbol()).collect();
         assert_eq!(text, " Return t│         ");
+    }
+
+    #[test]
+    fn the_cut_off_week_at_the_bottom_stays_inside_the_box() {
+        // 80 × 30: the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27). The bar
+        // of 11/10-12 would go on the next row, the bottom border (y 28): it is left out, the border stays
+        let mut app = month_app(
+            Lang::En,
+            date(2026, 10, 17),
+            "- Trip @2026-11-10..2026-11-12\n",
+        );
+        let terminal = draw_app(&mut app, 80, 30);
+        let buffer = terminal.backend().buffer();
+        assert!(
+            text_rows(buffer)[27].starts_with("│  46 │ 9        │ 10       │ 11  "),
+            "{}",
+            text_rows(buffer)[27]
+        );
+        let border: String = (17..50).map(|x| buffer[(x, 28)].symbol()).collect();
+        assert_eq!(
+            border,
+            format!("┴{}┴{}┴{}┴", "─".repeat(10), "─".repeat(10), "─".repeat(9))
+        );
+        let theme = Theme::catppuccin_mocha();
+        assert_ne!(buffer[(20, 28)].bg, theme.range);
     }
 
     #[test]
@@ -2829,8 +2859,8 @@ mod tests {
                 "│   6 │ 1 Feb    │ 2        │ 3        │ 4       │ 5       │ 6       │ 7       │",
                 "│ Feb │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
+                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "│   7 │ 8        │ 9        │ 10       │ 11      │ 12      │ 13      │ 14      │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
                 " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
@@ -2990,9 +3020,10 @@ mod tests {
         assert_eq!(cell(69, 20), ("│", theme.line, false));
         assert_eq!(cell(65, 22), ("─", theme.line, false));
         assert_eq!(cell(74, 22), ("─", theme.grid, false));
-        // The leftover rows under the last week: vertical lines still reach the bottom border, which joins
-        // them as ┴ (in the border color)
-        assert_eq!(cell(6, 26), ("│", theme.grid, false));
+        // The rows left over under the 6th week: the line before the next week (y 26) and that week cut
+        // off; the vertical lines reach the bottom border, which joins them as ┴ (in the border color)
+        assert_eq!(cell(6, 26), ("┼", theme.grid, false));
+        assert_eq!(cell(6, 27), ("│", theme.grid, false));
         assert_eq!(cell(6, 28), ("┴", theme.focus, false));
         assert_eq!(cell(0, 6), ("├", theme.focus, false));
         assert_eq!(cell(79, 6), ("┤", theme.focus, false));

@@ -389,6 +389,8 @@ class Canvas:
         """Write s rightward from (x, y), up to cell x + limit
         (a wide character that does not fit is not written at all)"""
         end = min(self.w, x + (limit if limit is not None else self.w))
+        if not 0 <= y < len(self.rows):
+            return  # below the canvas (the part-week at the bottom of layout 2 is cut off)
         for c in s:
             cw = width(c)
             if x + cw > end:
@@ -419,18 +421,24 @@ def month_screen(lang, w, h, selected, top, items, groups):
         xs.append(xs[k - 1] + widths[k - 1] + gap)
     lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # vertical lines: right of each column
                                                                     # (right of Sunday is the outer border)
-    mondays = [top + datetime.timedelta(weeks=i) for i in range(6)]
+    # The 6 weeks, and after them in the rows left over as many more as start above the bottom border (the
+    # line before them, if any, and their first row fit), the last one cut off
+    mondays = [top + datetime.timedelta(weeks=i) for i in range(20)]
     # A month's edge between week i and week i + 1: some day and the same weekday a week later are in
     # different months
     day_of = lambda i, k: mondays[i] + datetime.timedelta(days=k)
     new_month = lambda a, b: (a.year, a.month) != (b.year, b.month)
-    edge_after = [any(new_month(day_of(i, k), day_of(i + 1, k)) for k in range(7)) for i in range(5)]
+    edge_after = [any(new_month(day_of(i, k), day_of(i + 1, k)) for k in range(7)) for i in range(19)]
     # The rows between weeks: with grid lines a line between every two weeks; without, only where a month
     # ends (its edge goes there)
-    week_gaps = [1 if gap or edge_after[i] else 0 for i in range(5)]
-    wh = (ih - 1 - gap - sum(week_gaps)) // 6  # rows per week (leftover rows stay at the bottom;
-                                               # vertical lines still run down to the bottom border)
+    week_gaps = [1 if gap or edge_after[i] else 0 for i in range(19)]
+    wh = (ih - 1 - gap - sum(week_gaps[:5])) // 6  # rows per week (leftover rows stay at the bottom;
+                                                   # vertical lines still run down to the bottom border)
     week_y = lambda i: 1 + gap + i * wh + sum(week_gaps[:i])
+    weeks = 6
+    while wh > 0 and week_y(weeks) < ih:
+        weeks += 1
+    last = weeks - 1  # the last week drawn: the rows left below it belong to it
     c = Canvas(iw, ih)
     left, right = ["│"] * ih, ["│"] * ih  # left and right outer border of each row
     bottom_border = ["─"] * iw
@@ -443,16 +451,16 @@ def month_screen(lang, w, h, selected, top, items, groups):
     h_thick = lambda i, k: thick(day_of(i, max(k, 1) - 1), day_of(i + 1, max(k, 1) - 1))
     if gap:
         for j, x in enumerate(lines_x):
-            for i in range(6):
-                to = ih if i == 5 else week_y(i) + wh
+            for i in range(weeks):
+                to = ih if i == last else week_y(i) + wh
                 for y in range(week_y(i), to):
                     c.rows[y][x] = "┃" if v_thick(i, j) else "│"
-            bottom_border[x] = box(up=v_thick(5, j), left=False, right=False)
+            bottom_border[x] = box(up=v_thick(last, j), left=False, right=False)
         c.rows[1] = ["─"] * iw
         for j, x in enumerate(lines_x):
             c.rows[1][x] = box(down=v_thick(0, j), left=False, right=False)
         left[1], right[1] = "├", "┤"
-        for i in range(5):
+        for i in range(last):
             y = week_y(i) + wh
             for k in range(8):
                 for x in range(xs[k], xs[k] + widths[k]):
@@ -467,7 +475,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
     for k, name in enumerate(t["wd"]):
         c.put(xs[k + 1], 0, " " + name, widths[k + 1])
     month = (selected.year, selected.month)
-    for i, monday in enumerate(mondays):
+    for i, monday in enumerate(mondays[:weeks]):
         days = [monday + datetime.timedelta(days=k) for k in range(7)]
         # Week number: from a day of that week in the selected month; if there is none, from Monday
         numbered = next((d for d in days if (d.year, d.month) == month), monday)
@@ -573,15 +581,15 @@ def month_screen(lang, w, h, selected, top, items, groups):
     v_edge = lambda i, j: j > 0 and new_month(day_of(i, j - 1), day_of(i, j))
     h_edge = lambda i, k: new_month(day_of(i, max(k, 1) - 1), day_of(i + 1, max(k, 1) - 1))
     if not gap:
-        for i in range(6):
+        for i in range(weeks):
             for j in range(1, 7):
                 if v_edge(i, j):
-                    to = ih if i == 5 else week_y(i) + wh
+                    to = ih if i == last else week_y(i) + wh
                     for y in range(week_y(i), to):
                         c.rows[y][xs[j + 1]] = "┃" if v_thick(i, j) else "│"
-                    if i == 5:
+                    if i == last:
                         bottom_border[xs[j + 1]] = box(up=v_thick(i, j), left=False, right=False)
-        for i in range(5):
+        for i in range(last):
             if not edge_after[i]:
                 continue
             y = week_y(i) + wh
