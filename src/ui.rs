@@ -1919,7 +1919,7 @@ mod tests {
         assert_eq!(color(buffer, "Pay the").0, theme.muted);
         assert_eq!(color(buffer, "Old rel").0, theme.muted);
         // The month grid (119 wide): cells and the multi-day bar (which keeps its background); November's
-        // item is in the other-month gray
+        // item too (other months are not grayed out)
         let mut app = month_app(Lang::En, date(2026, 10, 17), text);
         let terminal = draw_app(&mut app, 119, 30);
         let buffer = terminal.backend().buffer();
@@ -1932,7 +1932,7 @@ mod tests {
         );
         assert_eq!(color(buffer, "Hallow").0, theme.priority_high);
         assert_eq!(color(buffer, "Pay").0, theme.muted);
-        assert_eq!(color(buffer, "Book").0, theme.other_month);
+        assert_eq!(color(buffer, "Book").0, theme.priority_low);
         // Tasks page: the title only (the date column keeps its day's color); a line with a mistake stays red
         let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
         app.warnings = parsed.warnings;
@@ -2262,9 +2262,9 @@ mod tests {
         assert_eq!(cell(61, 12), ("D", theme.text, false));
         // 10/16 (Fri) overflows: 「+3」 is muted
         assert_eq!(cell(52, 13), ("3", theme.muted, false));
-        // 9/29 (Tue, in the top week 9/28-10/4) is in another month: whole line gray
-        assert_eq!(cell(19, 4), ("B", theme.other_month, false));
-        assert_eq!(cell(20, 4), ("a", theme.other_month, false));
+        // 9/29 (Tue, in the top week 9/28-10/4) is in another month: not grayed out, the normal color
+        assert_eq!(cell(19, 4), ("B", theme.text, false));
+        assert_eq!(cell(20, 4), ("a", theme.text, false));
         // 10/20 (Tue)'s long title borrows cells up to 10/23 (Fri): text over the grid lines keeps its own
         // color (x 49 was a vertical line); the grid lines after the text keep the grid color
         assert_eq!(cell(49, 16), ("s", theme.text, false));
@@ -2567,13 +2567,13 @@ mod tests {
             ("B", theme.text)
         );
         // Manager OOO (y 20): the grid line between 10/31 and 11/1 (x 69) is not covered; November's part
-        // has the background again, and its title is gray (November is not the selected month)
+        // has the background again, and its title the normal color (other months are not grayed out)
         assert_eq!(buffer[(69, 20)].symbol(), "│");
         assert_ne!(buffer[(69, 20)].bg, theme.range);
         assert_eq!(buffer[(70, 20)].bg, theme.range);
         assert_eq!(
             (buffer[(71, 20)].symbol(), buffer[(71, 20)].fg),
-            ("M", theme.other_month)
+            ("M", theme.text)
         );
     }
 
@@ -3274,8 +3274,9 @@ mod tests {
         assert_eq!(cell(62, 11), ("7", theme.today, true));
         assert_eq!(cell(42, 11), ("5", theme.text, true));
         assert_eq!(cell(72, 11), ("8", theme.weekend, true));
-        // Dates in other months are gray, not bold: 9/28; 10/1's month (same row) is in the label color
-        assert_eq!(cell(9, 3), ("8", theme.other_month, false));
+        // Dates in other months: not grayed out (the day's color, 9/28 a Monday: normal), only not bold;
+        // 10/1's month (same row) is in the label color
+        assert_eq!(cell(9, 3), ("8", theme.text, false));
         assert_eq!(cell(43, 3), ("1", theme.label, false));
         // Week numbers: the selected row (week 42) bright, other rows (week 40) dim
         assert_eq!(cell(3, 11), ("4", theme.week_number, false));

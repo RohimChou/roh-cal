@@ -411,7 +411,6 @@ fn render_bars(
     days: &[Date],
     app: &App,
 ) {
-    let month = app.selected.first_of_month();
     for bar in bars {
         let Ok(lane) = u16::try_from(bar.lane) else {
             continue;
@@ -441,7 +440,7 @@ fn render_bars(
             let time = bar.starts && first == bar.first;
             // Clear first: the grid lines under the band would otherwise still show through
             frame.render_widget(Clear, area);
-            frame.render_widget(bar_line(bar.item, time, first_month != month, app), area);
+            frame.render_widget(bar_line(bar.item, time, app), area);
             column += 1;
         }
     }
@@ -450,11 +449,11 @@ fn render_bars(
 /// A multi-day item's band: 「 09:00 New Year trip」 on the `range` background (the whole band, set on the
 /// `Line`); `time` = write the time (only where the item starts). The title is colored like layout 1's
 /// agenda (`open_item_color`: a priority's or a holiday's color for the whole band's text, otherwise the
-/// normal color with the time muted), gray once the item is over (struck through when a done task), and in
-/// the other-month color for other months
-fn bar_line(item: &Item, time: bool, other_month: bool, app: &App) -> Line<'static> {
+/// normal color with the time muted), gray once the item is over (struck through when a done task); other
+/// months look the same (the grid lines between months already set them apart)
+fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
     let theme = &app.theme;
-    let (color, time_color) = item_colors(item, other_month, app);
+    let (color, time_color) = item_colors(item, app);
     let mut spans = vec![Span::raw(" ")];
     if let Some(at) = item.time.filter(|_| time) {
         spans.push(Span::styled(
@@ -517,7 +516,6 @@ fn render_week(
 /// the empty neighbor cells to the right, the neighbor's grid line does not get colored too
 fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
-    let other_month = day.first_of_month() != month;
     let mut first = date_line(day, month, app);
     let items: Vec<&Item> = slots
         .iter()
@@ -527,10 +525,8 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
         })
         .collect();
     if rows <= 1 {
-        // Dots: the day's color if some item is not over yet, muted if all are over; gray for other months
-        let color = if other_month {
-            theme.other_month
-        } else if items.iter().any(|item| item.is_open(app.today)) {
+        // Dots: the day's color if some item is not over yet, muted if all are over
+        let color = if items.iter().any(|item| item.is_open(app.today)) {
             day_color(day, app)
         } else {
             theme.muted
@@ -541,15 +537,11 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
     let shown = shown_lines(slots.len(), rows);
     let mut lines = vec![first];
     lines.extend(slots[..shown].iter().map(|slot| match slot {
-        Slot::Item(item) => item_line(item, other_month, app),
+        Slot::Item(item) => item_line(item, app),
         Slot::Bar(_) | Slot::Empty => Line::default(),
     }));
     if shown < slots.len() {
-        let color = if other_month {
-            theme.other_month
-        } else {
-            theme.muted
-        };
+        let color = theme.muted;
         let hidden = slots[shown..]
             .iter()
             .filter(|slot| !matches!(slot, Slot::Empty))
@@ -562,13 +554,12 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
     lines
 }
 
-/// (title color, time color) of an item in the month grid: other months gray; not over yet like layout 1's
-/// agenda (`open_item_color`: a priority or a holiday colors the time too, otherwise it is muted); over gray
-fn item_colors(item: &Item, other_month: bool, app: &App) -> (Color, Color) {
+/// (title color, time color) of an item in the month grid: not over yet like layout 1's agenda
+/// (`open_item_color`: a priority or a holiday colors the time too, otherwise it is muted); over gray. Other
+/// months look the same
+fn item_colors(item: &Item, app: &App) -> (Color, Color) {
     let theme = &app.theme;
-    if other_month {
-        (theme.other_month, theme.other_month)
-    } else if item.is_open(app.today) {
+    if item.is_open(app.today) {
         match open_item_color(item, theme) {
             (color, true) => (color, color),
             (color, false) => (color, theme.muted),
@@ -582,10 +573,9 @@ fn item_colors(item: &Item, other_month: bool, app: &App) -> (Color, Color) {
 ///
 /// Same as layout 1's agenda: items not over yet are in the normal text color with the time muted, an
 /// item with a priority or a holiday all in that color (`open_item_color`); items that are over are gray
-/// for the whole line (done tasks also get a struck-through title); items from other months are gray for
-/// the whole line
-fn item_line(item: &Item, other_month: bool, app: &App) -> Line<'static> {
-    let (color, time_color) = item_colors(item, other_month, app);
+/// for the whole line (done tasks also get a struck-through title); other months look the same
+fn item_line(item: &Item, app: &App) -> Line<'static> {
+    let (color, time_color) = item_colors(item, app);
     let mut spans = vec![Span::styled(" ", Style::new().fg(color))];
     if let Some(time) = item.time {
         spans.push(Span::styled(
@@ -615,19 +605,13 @@ fn dots(count: usize) -> &'static str {
 /// A cell's first line: the date on the left, with the month after the 1st, e.g. 「 1 10月」 (the selected
 /// day has no brackets; its cell has a background instead, see `render`)
 ///
-/// Color: today > other months (gray) > same as layout 1's calendar (`day_color`: holiday, unfinished
-/// items, weekend). Dates in the selected month are bold;
+/// Color: same as layout 1's calendar (`day_color`: today, a day off, normal), other months too (not
+/// grayed out: the grid lines between months already set them apart). Dates in the selected month are bold;
 /// days covered by a multi-day item are underlined
 fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let other_month = day.first_of_month() != month;
-    let color = if day == app.today {
-        theme.today
-    } else if other_month {
-        theme.other_month
-    } else {
-        day_color(day, app)
-    };
+    let color = day_color(day, app);
     let mut number = Style::new().fg(color);
     if !other_month || day == app.today {
         number = number.add_modifier(Modifier::BOLD);
@@ -642,14 +626,9 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
         Span::raw(" "),
     ];
     if day.day() == 1 {
-        let label = if other_month {
-            theme.other_month
-        } else {
-            theme.label
-        };
         spans.push(Span::styled(
             app.lang.texts().month_label(day),
-            Style::new().fg(label),
+            Style::new().fg(theme.label),
         ));
     }
     Line::from(spans)
