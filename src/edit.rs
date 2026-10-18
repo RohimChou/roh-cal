@@ -151,6 +151,129 @@ pub fn add_calendar_in(
     Ok((result, at + 2))
 }
 
+/// Move a calendar inside the calendar with this `parent` path (empty = to the top level), renamed to `new` (what
+/// was typed in the editor, checked with `check_calendar` first): each of its sections (`headings`; every heading
+/// line of it, with everything under it up to the next heading with as many `#` or fewer: its items and the
+/// calendars inside it) is taken out, and they go together, in file order and a blank line apart, to the end of
+/// the parent's last section (after a blank line; the top level: the end of the file). Its own headings become
+/// `<one # more than the parent's> <new>`, the headings inside it keep how much deeper they are.
+/// Return the changed file, or `None` when it cannot move: into itself or a calendar inside it, or a heading
+/// would get more than 6 `#`. `Changed` if one of its heading lines differs from when it was read, or the
+/// parent is gone
+///
+/// E.g. moving `## SFAP` (with `### Bugs` inside) from `# Work` to `# Personal`: `## SFAP`, its items,
+/// `### Bugs` and its items go after Personal's last item
+pub fn move_calendar(
+    text: &str,
+    headings: &[HeadingLine],
+    new: &str,
+    parent: &[String],
+) -> Result<Option<String>, Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    if headings
+        .iter()
+        .any(|heading| lines.get(heading.line - 1) != Some(&heading.text.as_str()))
+    {
+        return Err(Changed);
+    }
+    let Some(first) = headings.first().map(|line| &line.heading) else {
+        return Err(Changed);
+    };
+    let own: Vec<&String> = first.parents.iter().chain([&first.name]).collect();
+    if parent.len() >= own.len() && parent.iter().zip(&own).all(|(a, b)| a == *b) {
+        return Ok(None);
+    }
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let all = tasks::parse(text).headings;
+    // Each section: (first line, the line after it, its number of `#`), 0-based
+    let sections: Vec<(usize, usize, usize)> = headings
+        .iter()
+        .map(|heading| {
+            let end = all
+                .iter()
+                .find(|other| {
+                    other.line > heading.line && other.heading.level <= heading.heading.level
+                })
+                .map_or(segments.len(), |other| other.line - 1);
+            (heading.line - 1, end, heading.heading.level)
+        })
+        .collect();
+    let mut moved = vec![false; segments.len()];
+    for &(start, end, _) in &sections {
+        moved[start..end].fill(true);
+    }
+    // The file without them; blank lines left at its end go too, unless the file already ended that way
+    let mut rest: Vec<&str> = segments
+        .iter()
+        .zip(&moved)
+        .filter(|&(_, &gone)| !gone)
+        .map(|(segment, _)| *segment)
+        .collect();
+    if lines.last().is_some_and(|line| !line.trim().is_empty()) {
+        while rest.last().is_some_and(|segment| segment.trim().is_empty()) {
+            rest.pop();
+        }
+    }
+    let rest_text = rest.concat();
+    // Where it goes (the index of the line it goes before) and how many `#` its own headings get
+    let (at, level) = if parent.is_empty() {
+        let mut at = rest.len();
+        while at > 0 && rest[at - 1].trim().is_empty() {
+            at -= 1;
+        }
+        (at, 1)
+    } else {
+        let (at, parent_level) = section_end(&rest_text, parent).ok_or(Changed)?;
+        (at, parent_level + 1)
+    };
+    // The sections as they will be, each without its trailing blank lines
+    let mut block = String::new();
+    for (index, &(start, end, own_level)) in sections.iter().enumerate() {
+        if index > 0 {
+            block.push_str(newline);
+        }
+        let mut last = end;
+        while last > start + 1 && lines[last - 1].trim().is_empty() {
+            last -= 1;
+        }
+        for (row, text) in lines.iter().enumerate().take(last).skip(start) {
+            let line = if row == start {
+                format!("{} {}", "#".repeat(level), new.trim())
+            } else if let Some(inside) = all.iter().find(|other| other.line == row + 1) {
+                let deeper = inside.heading.level - own_level;
+                format!(
+                    "{}{}",
+                    "#".repeat(level + deeper),
+                    text.trim_start_matches('#')
+                )
+            } else {
+                (*text).to_string()
+            };
+            if line.starts_with("#######") {
+                return Ok(None);
+            }
+            block.push_str(&line);
+            block.push_str(newline);
+        }
+    }
+    if level > 6 {
+        return Ok(None);
+    }
+    let mut result = rest[..at].concat();
+    // The line before is the file's last line and has no newline: add one first
+    if !result.is_empty() && !result.ends_with('\n') {
+        result.push_str(newline);
+    }
+    if !result.is_empty() {
+        result.push_str(newline);
+    }
+    result.push_str(&block);
+    result.push_str(&rest[at..].concat());
+    Ok(Some(result))
+}
+
 /// Where the last section of the calendar with this `path` ends, and its number of `#`: the index of the line
 /// right after its last line that is not blank, before the next heading with as many `#` or fewer (or the
 /// end of the file); `None` when there is no such calendar

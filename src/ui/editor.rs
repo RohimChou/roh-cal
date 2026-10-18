@@ -146,6 +146,10 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
                     format!("{}∙ {} ", texts.add_calendar_title, parent.join(" > "))
                 }
                 Target::AddCalendar { .. } => texts.add_calendar_title.to_string(),
+                // Renaming a calendar inside another one: the calendar it is in (or moves to)
+                Target::RenameCalendar { parent, .. } if !parent.is_empty() => {
+                    format!("{}∙ {} ", texts.rename_calendar_title, parent.join(" > "))
+                }
                 Target::RenameCalendar { .. } => texts.rename_calendar_title.to_string(),
             },
             Style::new().fg(theme.label),

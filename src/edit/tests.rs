@@ -833,3 +833,87 @@ fn add_calendar_in_goes_at_the_end_of_the_parent_with_one_more_hash() {
         Err(Changed)
     );
 }
+
+/// The heading lines of the calendar named `name` in `text` (every section of it)
+fn headings_named(text: &str, name: &str) -> Vec<HeadingLine> {
+    tasks::parse(text)
+        .headings
+        .into_iter()
+        .filter(|line| line.heading.name == name)
+        .collect()
+}
+
+#[test]
+fn move_calendar_takes_its_sections_to_the_end_of_the_new_parent() {
+    let text = "# Work\n- a\n\n## SFAP\n- b\n### Bugs\n- c\n\n# Personal\n- d\n";
+    let sfap = headings_named(text, "SFAP");
+    // Into Personal: SFAP with Bugs inside goes after Personal's last item, keeping its levels
+    assert_eq!(
+        move_calendar(text, &sfap, "SFAP", &["Personal".to_string()]),
+        Ok(Some(
+            "# Work\n- a\n\n# Personal\n- d\n\n## SFAP\n- b\n### Bugs\n- c\n".to_string()
+        ))
+    );
+    // To the top level, renamed: one `#` fewer for both
+    assert_eq!(
+        move_calendar(text, &sfap, "Payments", &[]),
+        Ok(Some(
+            "# Work\n- a\n\n# Personal\n- d\n\n# Payments\n- b\n## Bugs\n- c\n".to_string()
+        ))
+    );
+    // A top-level calendar into another one: one `#` more
+    let text = "# A\n- a\n# B\n- b\n";
+    assert_eq!(
+        move_calendar(text, &headings_named(text, "B"), "B", &["A".to_string()]),
+        Ok(Some("# A\n- a\n\n## B\n- b\n".to_string()))
+    );
+    // Two sections of the same calendar: both go, in file order, a blank line apart
+    let text = "# W\n- 1\n# P\n- p\n# W\n- 2\n";
+    assert_eq!(
+        move_calendar(text, &headings_named(text, "W"), "W", &["P".to_string()]),
+        Ok(Some("# P\n- p\n\n## W\n- 1\n\n## W\n- 2\n".to_string()))
+    );
+    // \r\n stays \r\n
+    let text = "# A\r\n- a\r\n# B\r\n- b\r\n";
+    assert_eq!(
+        move_calendar(text, &headings_named(text, "B"), "B", &["A".to_string()]),
+        Ok(Some("# A\r\n- a\r\n\r\n## B\r\n- b\r\n".to_string()))
+    );
+}
+
+#[test]
+fn move_calendar_refuses_to_go_inside_itself_or_too_deep() {
+    let text = "# Work\n## SFAP\n### Bugs\n- c\n";
+    let sfap = headings_named(text, "SFAP");
+    // Into itself or a calendar inside it: None
+    let path =
+        |names: &[&str]| -> Vec<String> { names.iter().map(|name| name.to_string()).collect() };
+    assert_eq!(
+        move_calendar(text, &sfap, "SFAP", &path(&["Work", "SFAP"])),
+        Ok(None)
+    );
+    assert_eq!(
+        move_calendar(text, &sfap, "SFAP", &path(&["Work", "SFAP", "Bugs"])),
+        Ok(None)
+    );
+    // X (with Y inside) into E, which has 5 `#`: Y would get 7
+    let text = "# A\n## B\n### C\n#### D\n##### E\n# X\n## Y\n";
+    assert_eq!(
+        move_calendar(
+            text,
+            &headings_named(text, "X"),
+            "X",
+            &path(&["A", "B", "C", "D", "E"])
+        ),
+        Ok(None)
+    );
+    // Its heading changed elsewhere, or the parent is gone: Changed
+    assert_eq!(
+        move_calendar("# Work\n## SFAP 2\n", &sfap[..1], "SFAP", &[]),
+        Err(Changed)
+    );
+    assert_eq!(
+        move_calendar(text, &headings_named(text, "X"), "X", &path(&["Nowhere"])),
+        Err(Changed)
+    );
+}

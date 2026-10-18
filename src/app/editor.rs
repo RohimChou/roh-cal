@@ -16,7 +16,8 @@
 //! - `a` in the calendar list: add a calendar (type its name; it becomes a `# name` heading); `A`: add it
 //!   inside the chosen calendar (one `#` more, at the end of that calendar). Typing `#` and part of a
 //!   calendar's name picks the calendar it goes inside (「最外層」 = the top level)
-//! - `e` in the calendar list: rename the chosen calendar
+//! - `e` in the calendar list: rename the chosen calendar; `#` and part of another calendar's name moves it
+//!   inside that one (with its items and the calendars inside it) on save
 
 use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
@@ -376,7 +377,9 @@ impl App {
     /// `e` in the calendar list: opens the editor with the chosen calendar's heading text, without the `#`s
     /// (e.g. `US holidays type:holiday`, so a holiday calendar stays one unless `type:holiday` is taken
     /// out); 「Ungrouped」 has no heading, so nothing happens. It cannot take the name of another calendar
-    /// at the same place (inside the same calendar)
+    /// at the same place (inside the same calendar). The `#` list picks a calendar to move it inside:
+    /// 「最外層」 first, then every calendar except itself, the ones inside it, and the ones where a heading
+    /// would get more than 6 `#`
     pub(super) fn start_renaming_calendar(&mut self) {
         let headings = self.chosen_calendar_headings();
         let Some(first) = headings.first() else {
@@ -389,10 +392,21 @@ impl App {
             .chain([&first.heading.name])
             .cloned()
             .collect();
-        let others = self
+        let others: Vec<Vec<String>> = self
             .calendars()
             .into_iter()
             .filter(|path| *path != own)
+            .collect();
+        // How many levels the calendars inside it go below it
+        let depth = self.calendar_depth(&own);
+        let calendars = std::iter::once(Vec::new())
+            .chain(
+                others
+                    .iter()
+                    .filter(|path| !path.starts_with(&own))
+                    .filter(|path| self.calendar_level(path) + 1 + depth <= 6)
+                    .cloned(),
+            )
             .collect();
         self.mode = Mode::Editor(Editor {
             input: Input::new(text),
@@ -402,8 +416,32 @@ impl App {
                 others,
             },
             day: None,
-            hash_list: HashList::default(),
+            hash_list: HashList {
+                calendars,
+                top: Some(self.lang.texts().top_level.to_string()),
+                ..HashList::default()
+            },
         });
+    }
+
+    /// How many `#` deeper than the calendar with this path the deepest calendar inside it is (0 = none
+    /// inside it)
+    fn calendar_depth(&self, path: &[String]) -> usize {
+        let level = self.calendar_level(path);
+        self.headings
+            .iter()
+            .map(|line| &line.heading)
+            .filter(|heading| {
+                heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .take(path.len())
+                    .eq(path.iter())
+            })
+            .map(|heading| heading.level.saturating_sub(level))
+            .max()
+            .unwrap_or(0)
     }
 
     /// Keys while the editor is open: `Enter` saves, `Esc` cancels, `Ctrl+C` quits;
@@ -525,8 +563,13 @@ impl App {
             (Target::AddCalendar { parent, .. }, Reading::Calendar(heading)) => {
                 self.save_new_calendar(&parent, &new, &heading.name);
             }
-            (Target::RenameCalendar { headings, .. }, Reading::Calendar(heading)) => {
-                self.save_renamed_calendar(&headings, &new, &heading.name);
+            (
+                Target::RenameCalendar {
+                    headings, parent, ..
+                },
+                Reading::Calendar(heading),
+            ) => {
+                self.save_renamed_calendar(&headings, &parent, &new, &heading.name);
             }
             (Target::Edit { item, calendar }, _) => {
                 // Another calendar picked in the `#` list (not the one it is in): it moves there
@@ -640,12 +683,19 @@ impl App {
 }
 
 impl App {
-    /// Saves a calendar's new name: each of its heading lines (`headings`) becomes `<its #s> <new>`; the
+    /// Saves a calendar's new name: each of its heading lines (`headings`) becomes `<its #s> <new>`; with
+    /// another `parent` picked in the `#` list, it also moves inside that one (`edit::move_calendar`). The
     /// calendar stays chosen, and it and the calendars inside it keep their checked state (their paths
-    /// change with the name). Nothing changed: nothing is written. If the task file cannot be read or
-    /// written, the editor stays open and the bottom row says why; if it was changed elsewhere: reload and
-    /// close the editor
-    fn save_renamed_calendar(&mut self, headings: &[HeadingLine], new: &str, name: &str) {
+    /// change with the name and place). Nothing changed: nothing is written. If the task file cannot be read
+    /// or written, the editor stays open and the bottom row says why; if it was changed elsewhere: reload
+    /// and close the editor
+    fn save_renamed_calendar(
+        &mut self,
+        headings: &[HeadingLine],
+        parent: &[String],
+        new: &str,
+        name: &str,
+    ) {
         let Some(first) = headings.first().map(|line| line.heading.clone()) else {
             return;
         };
@@ -653,21 +703,24 @@ impl App {
             return;
         };
         let checked = self.checked_states();
-        match edit::rename_calendar(&text, headings, new) {
-            Ok(after) => {
+        let changed = if parent == first.parents.as_slice() {
+            edit::rename_calendar(&text, headings, new).map(Some)
+        } else {
+            edit::move_calendar(&text, headings, new, parent)
+        };
+        match changed {
+            Ok(Some(after)) => {
                 if after != text && !self.write_tasks(&path, text, after, name.to_string()) {
                     return;
                 }
                 self.mode = Mode::Normal;
                 let old: Vec<String> = first.parents.iter().chain([&first.name]).cloned().collect();
-                let renamed: Vec<String> = first
-                    .parents
-                    .iter()
-                    .cloned()
-                    .chain([name.to_string()])
-                    .collect();
+                let renamed: Vec<String> =
+                    parent.iter().cloned().chain([name.to_string()]).collect();
                 self.carry_checked(&checked, &old, &renamed);
             }
+            // Cannot go there (the `#` list does not offer such places): nothing is written
+            Ok(None) => self.mode = Mode::Normal,
             Err(edit::Changed) => {
                 self.mode = Mode::Normal;
                 self.reload(&text);

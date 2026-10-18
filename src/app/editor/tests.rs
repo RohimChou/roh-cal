@@ -146,6 +146,70 @@ fn hash_picks_the_calendar_a_new_calendar_goes_inside() {
 }
 
 #[test]
+fn hash_in_the_rename_editor_moves_the_calendar_inside_another() {
+    let text = "# Work\n- a\n\n## SFAP\n- b\n### Bugs\n- c\n\n# Personal\n- d\n";
+    let (mut app, path) = app_with_task_file("move-calendar", text);
+    app.focus = Focus::Side;
+    // Work, Work > SFAP, Work > SFAP > Bugs, Personal: Bugs unchecked, SFAP chosen
+    app.groups[2].shown = false;
+    app.group_index = 1;
+    press(&mut app, KeyCode::Char('e'));
+    // The `#` list: 「最外層」 and the calendars SFAP can go inside (not itself, not Bugs inside it)
+    type_text(&mut app, " #");
+    let editor = app.editor().expect("editor");
+    let names = editor.calendar_names();
+    let listed: Vec<&str> = editor
+        .suggestions()
+        .unwrap_or_default()
+        .iter()
+        .map(|found| names[found.index].as_str())
+        .collect();
+    assert_eq!(listed, ["最外層", "Work", "Personal"]);
+    // Personal picked and saved: SFAP and Bugs go to the end of Personal; still chosen, Bugs still unchecked
+    type_text(&mut app, "pers");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Enter);
+    assert!(app.editor().is_none());
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "# Work\n- a\n\n# Personal\n- d\n\n## SFAP\n- b\n### Bugs\n- c\n"
+    );
+    let chosen = app.groups[app.group_index].path();
+    assert_eq!(chosen, ["Personal", "SFAP"]);
+    let bugs = app
+        .groups
+        .iter()
+        .find(|group| group.name.as_deref() == Some("Bugs"))
+        .expect("Bugs");
+    assert_eq!(bugs.path(), ["Personal", "SFAP", "Bugs"]);
+    assert!(!bugs.shown);
+    // u puts it back in one step
+    press(&mut app, KeyCode::Char('u'));
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+    clean_up(&path);
+    // A calendar whose heading would get more than 6 `#` there is not listed: X (with Y inside) can go
+    // inside D (4 `#`: X 5, Y 6), not E (5 `#`)
+    let text = "# A\n## B\n### C\n#### D\n##### E\n# X\n## Y\n- y\n";
+    let (mut app, path) = app_with_task_file("move-calendar-deep", text);
+    app.focus = Focus::Side;
+    app.group_index = 5;
+    press(&mut app, KeyCode::Char('e'));
+    type_text(&mut app, " #");
+    let editor = app.editor().expect("editor");
+    assert!(
+        editor
+            .calendar_names()
+            .contains(&"A > B > C > D".to_string())
+    );
+    assert!(
+        !editor
+            .calendar_names()
+            .contains(&"A > B > C > D > E".to_string())
+    );
+    clean_up(&path);
+}
+
+#[test]
 fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
     // Work appears twice (one calendar) and has SFAP inside it
     let text = "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug @2026-10-11\n\
