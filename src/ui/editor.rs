@@ -8,7 +8,7 @@ use ratatui::{
     layout::{Margin, Position, Rect},
     style::Style,
     text::Line,
-    widgets::{Block, BorderType, Clear, Paragraph},
+    widgets::{Block, BorderType, Paragraph},
 };
 
 /// Editor height: top border, the typing row, the check-result row, bottom border
@@ -85,9 +85,14 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             texts.editor_keys(),
             Style::new().fg(theme.muted),
         ));
-    // Clear the screen underneath first, then draw the box
-    super::clear_wide_left_of(frame.buffer_mut(), area);
-    frame.render_widget(Clear, area);
+    // Clear the screen underneath and one blank cell around the box first (not the key-hint row at the
+    // bottom), then draw the box
+    let screen = frame.area();
+    let bounds = Rect {
+        height: screen.height.saturating_sub(1),
+        ..screen
+    };
+    super::clear_with_ring(frame, area, bounds);
     frame.render_widget(block, area);
     if inner.height == 0 {
         return;

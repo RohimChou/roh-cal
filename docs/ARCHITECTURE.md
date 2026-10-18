@@ -19,13 +19,13 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
 | `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務、日曆清單的 `a` 新增日曆、`e` 日曆改名（同名的每一個標題都改，`#` 的層級不變）（`Target`）；直接打那一行的文字（tui-input）；版型 1、2 上，選取那天的事不顯示自己的日期（`Editor::day`：`edit::hide_day` 拿掉 `@日期`、時間留成 `@10:00`，存檔前 `edit::show_day` 補回去；跨多天的範圍照舊；開了沒改就存不寫檔），`edit::check`（日曆是 `edit::check_calendar`：名字不能空、不能跟別的日曆一樣）即時檢查，有問題就存不了（`App::editor`） | |
-| `src/ui/editor.rs` | 畫編輯框：畫面中間偏上（空著的列 1/3 在上面、2/3 在下面）、左右各留 2 格、最寬 80 格（terminal 不到 30 格寬就整個寬）；放得下時框線和字之間上下各空一列、左右各空一格（`PADDING`：不到 30 格寬不空格、太矮不空列），打字那列下面是即時檢查的結果 | ✓ |
+| `src/ui/editor.rs` | 畫編輯框：畫面中間偏上（空著的列 1/3 在上面、2/3 在下面）、左右各留 2 格、最寬 80 格（terminal 不到 30 格寬就整個寬）；放得下時框線和字之間上下各空一列、左右各空一格（`PADDING`：不到 30 格寬不空格、太矮不空列），打字那列下面是即時檢查的結果；框外再清出一圈空白（`ui::clear_with_ring`，不蓋最下面的操作說明），不會跟周圍的字黏在一起 | ✓ |
 | `src/app/help.rs` | 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、點框外關掉（`App::help`） | |
 | `src/ui/help.rs` | 畫說明頁：畫面正中間、左右兩欄、各欄自己往下排（太窄排成一欄、太矮可以捲）。精簡版只列鍵盤在的地方（`App::focus`）能用的段落：那個地方專用的在左邊、哪裡都能用的（畫面、系統）在右邊，上框寫在哪裡；完整版全部列，這裡用不到的段落變灰。內容在 `texts.rs` 的 `help`（`HelpPage::short` 精簡版的段落、`left` / `right` 完整版的兩欄；每段的 `places` = 在哪裡能用，空的 = 哪裡都能用） | ✓ |
 | `src/app/settings.rs` | 設定頁（`,`）：設定檔的設定一列一列（`Row`、`rows()`，名字 = 設定檔的名字；`theme` 那列照 `theme::BUILTIN` 的順序換，顏色那幾列在 theme 的色票裡換、`[colors]` 只記跟 theme 不一樣的）、每個設定在哪幾個版型用得到（`Row::views`）、選列、改值、還原（`App::settings_page`）；改的是 `App::settings`，`App::apply_theme` 換顏色，畫面馬上跟著變 | |
 | `src/ui/settings.rs` | 畫設定頁：畫面正中間，照設定檔的表分段，顏色前面有色塊；放不下時捲到選到的那列（`SettingsPage::top`），下面一行說明選到的那一列；目前的版型用不到的設定（例：版型 1 的 `[month]`）字變暗，選到它時說明下面再一行寫它在哪幾個版型用得到 | ✓ |
 | `src/app/day.rs` | 版型 2「那天的事」跳窗：月曆上 `Enter` 或 double click（同一天 0.5 秒內點兩下，`App::click_calendar_day`；版型 1 的 double click 也走它，進到右邊那天的事）打開（`Focus::Day`，選到第幾件記在 `App::day_index`，順序 = `App::items_on(selected)`）；按鍵跟版型 1 右邊一樣，寫檔走同一套（`chosen_item()` 回傳跳窗選到的那件），寫完 `keep_day_choice` / `choose_day_line` 調整選的位置，那天沒事了就關掉 | |
-| `src/ui/day.rs` | 畫跳窗：疊在大月曆正中間，一件一列（用版型 1 的 `planner::item_line`），放得下時框線和事之間上下各空一列、左右各空一格（`PADDING`，上下 / 左右分開看；事太多放不下就不空列），放不下就捲（跑出框外才捲，記在 `App::day_top`）、右框線上有捲軸 | ✓ |
+| `src/ui/day.rs` | 畫跳窗：疊在大月曆正中間，一件一列（用版型 1 的 `planner::item_line`），放得下時框線和事之間上下各空一列、左右各空一格（`PADDING`，上下 / 左右分開看；事太多放不下就不空列），框外再清出一圈空白（`ui::clear_with_ring`，只到大月曆的邊），放不下就捲（跑出框外才捲，記在 `App::day_top`）、右框線上有捲軸 | ✓ |
 | `src/app/moving.rs` | 改期（`r`）：月曆就是選日期的地方；選取的日期移了幾天，那件事就搬幾天（`App::moving`） | |
 | `src/app/tasks.rs` | 任務頁（`3`）的每一列（`TaskRow`：標題 / 一件事）、`j` `k` `l` `h` `+` `-`、`[` `]` 跳到上一個 / 下一個日曆的第一件、縮排 `L` `H`、上下搬 `J` `K`；選到的那件記檔案的第幾行（`App::tasks_line`），展開的記在 `App::expanded` | |
 | `src/ui/tasks.rs` | 畫任務頁：表頭（右邊寫有幾處寫錯）、樹狀的每一列（右邊日期、時間各一欄、上下對齊，寫錯的那一行紅字）、最下面選到的那一行原本的文字或哪裡寫錯（`App::warnings`）；捲到哪記在 `App::tasks_top` | ✓ |
@@ -105,7 +105,7 @@ App::run 的迴圈
 | :- | :- |
 | `Line::styled(...)` 的顏色會套到**整列** | 同一列畫兩段字時，顏色放在 `Span` 上（例：表頭的日期、線上的「還有 N 件」） |
 | TestBackend 裡，寬字元（中文）後半那格永遠是預設樣式 | 量顏色時跳過那格；`text_rows` 也是這樣把字接起來 |
-| 跳窗蓋在月曆上時，左邊那格的中文字（佔 2 格）後半格會蓋到跳窗的左框線（ratatui 假設中文字後面那格是空的，不會送框線給 terminal） | 畫跳窗之前先呼叫 `ui::clear_wide_left_of` 把那格換成空白 |
+| 跳窗蓋在月曆上時，左邊那格的中文字（佔 2 格）後半格會蓋到跳窗的左框線（ratatui 假設中文字後面那格是空的，不會送框線給 terminal） | 畫跳窗之前先呼叫 `ui::clear_wide_left_of` 把那格換成空白（編輯框、版型 2 的跳窗走 `ui::clear_with_ring`，它會清外面那一圈的左邊） |
 | `cargo add ... \| head` | 管線一關，cargo 在寫 `Cargo.toml` 之前就被中斷；不要接 `head` |
 
 ## 跨多天的事（規則 3b，`@2026-10-20..2026-10-25`）

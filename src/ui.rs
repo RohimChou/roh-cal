@@ -79,6 +79,14 @@ fn clear_wide_left_of(buffer: &mut Buffer, area: Rect) {
     }
 }
 
+/// Clears a popup's `area` and a ring of one blank cell around it (only the part inside `bounds`), so the
+/// box does not run into the text around it
+fn clear_with_ring(frame: &mut Frame, area: Rect, bounds: Rect) {
+    let ring = area.outer(Margin::new(1, 1)).intersection(bounds);
+    clear_wide_left_of(frame.buffer_mut(), ring);
+    frame.render_widget(Clear, ring);
+}
+
 /// When a popup (`area`) cannot show everything, draw a scrollbar on its right border: the track is the
 /// border itself (not drawn separately), and the thick part = where the visible part sits in the whole page.
 /// `scroll` = lines scrolled down, `max` = the most lines it can scroll, `visible` = lines visible at once
@@ -1507,6 +1515,46 @@ mod tests {
             "{}",
             rows[1]
         );
+    }
+
+    #[test]
+    fn popups_have_a_blank_ring_around_them() {
+        use ratatui::crossterm::event::{KeyCode, KeyEvent};
+        // The cells of the ring one cell outside `area`, and of the ring one further out
+        let ring = |area: Rect, distance: u16| {
+            let outer = area.outer(Margin::new(distance, distance));
+            let (left, right) = (outer.left(), outer.right() - 1);
+            let (top, bottom) = (outer.top(), outer.bottom() - 1);
+            let mut cells: Vec<(u16, u16)> = (left..=right)
+                .flat_map(|x| [(x, top), (x, bottom)])
+                .collect();
+            cells.extend((top..=bottom).flat_map(|y| [(left, y), (right, y)]));
+            cells
+        };
+        let blank = |buffer: &Buffer, cells: &[(u16, u16)]| {
+            cells.iter().all(|&cell| buffer[cell].symbol() == " ")
+        };
+        // The editor over layout 1 (80 × 24, the sample file): the box is (2, 5, 76, 6); the ring around it
+        // is blank, the calendar and agenda show again right outside it
+        let parsed = crate::tasks::parse(include_str!("../testdata/tasks.md"));
+        let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
+        app.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+        let terminal = draw_app(&mut app, 80, 24);
+        let buffer = terminal.backend().buffer();
+        let editor = editor_area(Rect::new(0, 0, 80, 24));
+        assert!(blank(buffer, &ring(editor, 1)));
+        assert!(!blank(buffer, &ring(editor, 2)));
+        // The day popup over the month grid (60 × 20): the box is (14, 5, 32, 8)
+        let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
+                    - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
+        let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
+        app.focus = Focus::Day;
+        let terminal = draw_app(&mut app, 60, 20);
+        let buffer = terminal.backend().buffer();
+        let popup = Rect::new(14, 5, 32, 8);
+        assert!(blank(buffer, &ring(popup, 1)));
+        assert!(!blank(buffer, &ring(popup, 2)));
     }
 
     #[test]

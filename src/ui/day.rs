@@ -1,14 +1,14 @@
 //! Layout 2's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
 //! agenda), with the selected day on the top border and some blank space inside the border when there is room
 
-use super::{clear_wide_left_of, months::scrolled_top, planner::item_line, render_scrollbar};
+use super::{clear_with_ring, months::scrolled_top, planner::item_line, render_scrollbar};
 use crate::app::App;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
     style::Style,
     text::Line,
-    widgets::{Block, BorderType, Clear},
+    widgets::{Block, BorderType},
 };
 
 /// Narrowest popup width (incl. border): enough room for the date on the top border
@@ -65,8 +65,8 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
 }
 
 /// Draws the popup: first scroll so the chosen item is visible (only scroll when it falls outside the box, so
-/// clicking a visible item does not scroll it away; stored in `app.day_top`), clear the month grid underneath,
-/// then one item per row. The chosen item's date gets brackets `[10/17]` (same as layout 1's agenda). When the
+/// clicking a visible item does not scroll it away; stored in `app.day_top`), clear the month grid underneath
+/// and one blank cell around the box (as far as the month grid goes), then one item per row. The chosen item's date gets brackets `[10/17]` (same as layout 1's agenda). When the
 /// items do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
@@ -91,8 +91,7 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
             format!(" {} ", texts.date_title(app.selected)),
             Style::new().fg(theme.text),
         ));
-    clear_wide_left_of(frame.buffer_mut(), area);
-    frame.render_widget(Clear, area);
+    clear_with_ring(frame, area, main);
     frame.render_widget(block, area);
     let items = app.items_on(app.selected);
     let visible = usize::from(inner.height);
