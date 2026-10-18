@@ -43,6 +43,10 @@ pub struct Theme {
     pub grid: Color,
     /// 大月曆（版型 3）不是選取那個月的日子：日期和事都變灰
     pub other_month: Color,
+    /// 說明頁的段落名（`移動`、`編輯`…）
+    pub help_section: Color,
+    /// 說明頁的按鍵（`hjkl`、`Space`…）
+    pub help_key: Color,
 }
 
 impl Theme {
@@ -85,6 +89,9 @@ impl Theme {
             // 格線、其他月份：跟 v1 一樣
             grid: surface0,
             other_month: overlay0,
+            // 說明頁：跟 v1 一樣
+            help_section: blue,
+            help_key: peach,
         }
     }
 }

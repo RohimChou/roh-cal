@@ -73,34 +73,282 @@ pub struct Texts {
     pub hints_tasks_side: &'static str,
     /// side menu：檔案開頭、還沒有標題的項目
     pub ungrouped: &'static str,
+    /// 說明頁（`?`）的精簡版：最常用的鍵
+    pub help_short: HelpPage,
+    /// 說明頁的完整版（`Tab`）：所有的鍵，包括編輯框、改期、滑鼠
+    pub help_full: HelpPage,
+}
+
+/// 說明頁的一版：上下框線的字、左右兩欄的段落
+#[derive(Debug, Clone, Copy)]
+pub struct HelpPage {
+    /// 上框線 `roh-cal ∙ 按鍵` 的 `按鍵`（兩版不一樣，看得出現在是哪一版）
+    pub title: &'static str,
+    /// 下框線的操作說明
+    pub hint: &'static str,
+    /// 左欄的段落
+    pub left: &'static [HelpSection],
+    /// 右欄的段落
+    pub right: &'static [HelpSection],
+}
+
+/// 說明頁的一段：段落名 + 每個按鍵做什麼
+#[derive(Debug, Clone, Copy)]
+pub struct HelpSection {
+    /// 段落名，例：`Calendar` / `月曆`
+    pub title: &'static str,
+    /// (按鍵, 做什麼)，例：`("t", "today")`；按鍵那欄每種語言都一樣（有 test 釘住）
+    pub keys: &'static [(&'static str, &'static str)],
 }
 
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl move  Tab switch  [] month  t today  q quit",
-    hints_side: " hjkl move  Tab switch  [] month  t today  s calendars  q quit",
+    hints: " hjkl move  Tab switch  [] month  t today  ? help  q quit",
+    hints_side: " hjkl move  Tab switch  [] month  t today  s calendars  ? help  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
     header_tasks: " Tasks",
-    hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  q quit",
-    hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  q quit",
+    hints_tasks: " jk move  hl fold  Space check  e edit  a add  Esc calendar  ? help  q quit",
+    hints_tasks_side: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  q quit",
     ungrouped: "Ungrouped",
+    help_short: HelpPage {
+        title: "keys",
+        hint: "Tab all keys  ?/q/Esc close",
+        left: &[
+            HelpSection {
+                title: "Move",
+                keys: &[
+                    ("hjkl", "move"),
+                    ("[ / ]", "previous / next month"),
+                    ("t", "today"),
+                    ("Tab", "next pane"),
+                ],
+            },
+            HelpSection {
+                title: "Views",
+                keys: &[
+                    ("1", "calendar + agenda"),
+                    ("3", "month grid"),
+                    ("4", "tasks page"),
+                    ("s", "calendar list"),
+                ],
+            },
+        ],
+        right: &[
+            HelpSection {
+                title: "Edit",
+                keys: &[
+                    ("Space", "check off"),
+                    ("a", "add"),
+                    ("e", "edit"),
+                    ("r", "reschedule"),
+                    ("d", "delete"),
+                    ("u", "undo"),
+                ],
+            },
+            HelpSection {
+                title: "System",
+                keys: &[("?", "help"), ("q", "quit")],
+            },
+        ],
+    },
+    help_full: HelpPage {
+        title: "all keys",
+        hint: "Tab fewer keys  ?/q/Esc close",
+        left: &[
+            HelpSection {
+                title: "Calendar",
+                keys: &[
+                    ("hjkl / arrows", "a day / a week"),
+                    ("[ / ]", "previous / next month"),
+                    ("t", "today"),
+                    ("Enter", "go into the day's items"),
+                    ("a", "add on that day"),
+                ],
+            },
+            HelpSection {
+                title: "Views",
+                keys: &[
+                    ("1", "calendar + agenda"),
+                    ("3", "month grid"),
+                    ("4", "tasks page"),
+                    ("Tab", "next pane"),
+                    ("s", "hide / show calendars"),
+                    ("Esc", "back to the calendar"),
+                ],
+            },
+            HelpSection {
+                title: "Mouse",
+                keys: &[
+                    ("wheel", "a week / an item"),
+                    ("click", "select; again: open / check"),
+                    ("click outside", "close the box"),
+                ],
+            },
+            HelpSection {
+                title: "System",
+                keys: &[("?", "help"), ("q / Ctrl+C", "quit")],
+            },
+        ],
+        right: &[
+            HelpSection {
+                title: "Agenda, tasks page",
+                keys: &[
+                    ("j / k", "next / previous item"),
+                    ("Space / x", "check / uncheck"),
+                    ("e / Enter", "edit the line"),
+                    ("a / A", "add / add a subtask"),
+                    ("r", "reschedule"),
+                    ("d", "delete with subtasks"),
+                    ("u", "undo"),
+                    ("l / h", "expand / collapse"),
+                ],
+            },
+            HelpSection {
+                title: "Editor",
+                keys: &[("Enter", "save"), ("Esc", "cancel"), ("Ctrl+U", "clear")],
+            },
+            HelpSection {
+                title: "Reschedule",
+                keys: &[
+                    ("hjkl [ ] t", "pick the new day"),
+                    ("Enter", "move it there"),
+                    ("Esc", "cancel"),
+                ],
+            },
+            HelpSection {
+                title: "Calendar list",
+                keys: &[("j / k", "choose"), ("Space / Enter", "check / uncheck")],
+            },
+        ],
+    },
 };
 
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  q 離開",
-    hints_side: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  q 離開",
+    hints: " hjkl 移動  Tab 切換  [] 換月  t 今天  ? 說明  q 離開",
+    hints_side: " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  q 離開",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
     header_tasks: " 任務",
-    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  q 離開",
-    hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  q 離開",
+    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  Esc 月曆  ? 說明  q 離開",
+    hints_tasks_side: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  q 離開",
     ungrouped: "未分組",
+    help_short: HelpPage {
+        title: "按鍵",
+        hint: "Tab 全部按鍵  ?/q/Esc 關閉",
+        left: &[
+            HelpSection {
+                title: "移動",
+                keys: &[
+                    ("hjkl", "移動"),
+                    ("[ / ]", "上個月 / 下個月"),
+                    ("t", "今天"),
+                    ("Tab", "換框"),
+                ],
+            },
+            HelpSection {
+                title: "畫面",
+                keys: &[
+                    ("1", "月曆 + 事項"),
+                    ("3", "大月曆"),
+                    ("4", "任務頁"),
+                    ("s", "日曆清單"),
+                ],
+            },
+        ],
+        right: &[
+            HelpSection {
+                title: "編輯",
+                keys: &[
+                    ("Space", "打勾"),
+                    ("a", "新增"),
+                    ("e", "編輯"),
+                    ("r", "改期"),
+                    ("d", "刪除"),
+                    ("u", "復原"),
+                ],
+            },
+            HelpSection {
+                title: "系統",
+                keys: &[("?", "說明"), ("q", "離開")],
+            },
+        ],
+    },
+    help_full: HelpPage {
+        title: "全部按鍵",
+        hint: "Tab 精簡  ?/q/Esc 關閉",
+        left: &[
+            HelpSection {
+                title: "月曆",
+                keys: &[
+                    ("hjkl / arrows", "移一天 / 一週"),
+                    ("[ / ]", "上個月 / 下個月"),
+                    ("t", "跳回今天"),
+                    ("Enter", "進到那天的事"),
+                    ("a", "在那天新增"),
+                ],
+            },
+            HelpSection {
+                title: "畫面",
+                keys: &[
+                    ("1", "月曆 + 事項"),
+                    ("3", "大月曆"),
+                    ("4", "任務頁"),
+                    ("Tab", "換框"),
+                    ("s", "收起 / 打開日曆清單"),
+                    ("Esc", "回到月曆"),
+                ],
+            },
+            HelpSection {
+                title: "滑鼠",
+                keys: &[
+                    ("wheel", "移一週 / 一件"),
+                    ("click", "選；再點一次：打開 / 打勾"),
+                    ("click outside", "關掉跳窗"),
+                ],
+            },
+            HelpSection {
+                title: "系統",
+                keys: &[("?", "說明"), ("q / Ctrl+C", "離開")],
+            },
+        ],
+        right: &[
+            HelpSection {
+                title: "事項、任務頁",
+                keys: &[
+                    ("j / k", "下一件 / 上一件"),
+                    ("Space / x", "打勾 / 取消"),
+                    ("e / Enter", "編輯那一行"),
+                    ("a / A", "新增 / 新增子任務"),
+                    ("r", "改期"),
+                    ("d", "刪除（連子任務）"),
+                    ("u", "復原"),
+                    ("l / h", "展開 / 收起"),
+                ],
+            },
+            HelpSection {
+                title: "編輯框",
+                keys: &[("Enter", "存檔"), ("Esc", "取消"), ("Ctrl+U", "清掉")],
+            },
+            HelpSection {
+                title: "改期",
+                keys: &[
+                    ("hjkl [ ] t", "選新的日期"),
+                    ("Enter", "搬過去"),
+                    ("Esc", "取消"),
+                ],
+            },
+            HelpSection {
+                title: "日曆清單",
+                keys: &[("j / k", "選日曆"), ("Space / Enter", "勾選 / 取消")],
+            },
+        ],
+    },
 };
 
 /// 英文的月份縮寫，`[0]` 是一月
@@ -435,6 +683,22 @@ mod tests {
             Lang::En.texts().confirm_delete("a", 2),
             " Delete \"a\" and its subtask? y deletes, any other key cancels"
         );
+    }
+
+    #[test]
+    fn help_pages_list_the_same_keys_in_both_languages() {
+        // 按鍵那欄每種語言都一樣（只有說明翻譯）：哪一種語言少寫、多寫一個鍵都抓得到
+        let keys = |page: HelpPage| -> Vec<Vec<&str>> {
+            page.left
+                .iter()
+                .chain(page.right)
+                .map(|section| section.keys.iter().map(|&(key, _)| key).collect())
+                .collect()
+        };
+        let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
+        assert_eq!(keys(en.help_short), keys(zh.help_short));
+        assert_eq!(keys(en.help_full), keys(zh.help_full));
+        assert_eq!(en.help_full.left.len(), zh.help_full.left.len());
     }
 
     #[test]
