@@ -5,10 +5,8 @@
 //!
 //! ```text
 //! ╭ roh-cal ∙ 設定 ─────────────────────────╮
-//! │                                         │
 //! │  theme              catppuccin-mocha    │  ← the chosen row gets a background color
-//! │                                         │
-//! │  [calendar]                             │
+//! │  [calendar]                             │  ← no blank lines: the section names stand out by color
 //! │    relative_weeks   off                 │
 //! │  ...                                    │
 //! │  [colors]                               │
@@ -18,8 +16,7 @@
 //! │                                         │     whole list scrolls too when the screen is short
 //! │  顏色：l 換下一套 theme，h 換上一套     │  ← the description stays at the bottom and does not scroll
 //! │                                         │  ← for a dimmed row: 「這個畫面用不到：2 大月曆」
-//! │                                         │
-//! ╰ jk 選  hl 改  r 還原  R 全部還原  Esc 關閉 ╯
+//! ╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ──╯
 //! ```
 
 use crate::app::{App, Row, SettingsPage, rows};
@@ -34,8 +31,9 @@ use ratatui::{
 
 /// Minimum gap between a name and its value (name column width = longest name + this)
 const NAME_GAP: usize = 3;
-/// Between border and content: 1 blank line at top and bottom (the section-name indent spaces the left side)
-const PADDING: Padding = Padding::vertical(1);
+/// Between border and content: none (the section-name indent spaces the left side; no blank rows, so the
+/// box stays short)
+const PADDING: Padding = Padding::ZERO;
 /// Gap between the content and the right border (same as the section-name indent on the left)
 const RIGHT_MARGIN: usize = 2;
 /// The swatch before the value on color rows: 2 blank cells with that color as background, then 1 blank
@@ -48,14 +46,12 @@ const SCROLLOFF: i64 = 1;
 /// The most colors `[colors]` shows at once; the rest scroll inside the section
 pub const COLOR_ROWS: usize = 10;
 
-/// One line in the list: a section name, a setting row (an index into `rows()`), or a blank line
+/// One line in the list: a section name or a setting row (an index into `rows()`)
 enum Entry {
     /// A section name like `[calendar]`
     Section(&'static str),
     /// A setting row: an index into `rows()`
     Row(usize),
-    /// A blank line
-    Blank,
 }
 
 /// Where the colors start in `rows()` (they are the last rows) and how many there are
@@ -69,8 +65,7 @@ fn colors() -> (usize, usize) {
 }
 
 /// What each line of the list is, top to bottom: top-level rows first (no section name); each section
-/// is its name + its rows, with a blank line between sections. `[colors]` lists only `COLOR_ROWS` colors,
-/// from the `colors_top`-th
+/// is its name + its rows. `[colors]` lists only `COLOR_ROWS` colors, from the `colors_top`-th
 fn entries(colors_top: usize) -> Vec<Entry> {
     let rows = rows();
     let (first_color, _) = colors();
@@ -78,13 +73,8 @@ fn entries(colors_top: usize) -> Vec<Entry> {
     let mut entries = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         let new_section = index == 0 || rows[index - 1].section() != row.section();
-        if new_section {
-            if index > 0 {
-                entries.push(Entry::Blank);
-            }
-            if let Some(section) = row.section() {
-                entries.push(Entry::Section(section));
-            }
+        if new_section && let Some(section) = row.section() {
+            entries.push(Entry::Section(section));
         }
         if index < first_color || window.contains(&index) {
             entries.push(Entry::Row(index));
@@ -293,7 +283,6 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
                 ));
                 Line::from(spans)
             }
-            Entry::Blank => Line::default(),
         })
         .collect();
     let list = list_area(area);
@@ -396,11 +385,11 @@ mod tests {
         style::Color,
     };
 
-    // Where things are, counted from the box's top-left corner: list line L is on row 2 + L (border,
-    // blank row of padding); names of table rows start at cell 5 (border + indent 4), the top-level theme
-    // and the section names at cell 3 (border + indent 2), values at cell 23 (border + indent 2 + name
-    // column 20); the last rows of the box are the description, the line below it, the padding and the
-    // bottom border
+    // Where things are, counted from the box's top-left corner: list line L is on row 1 + L (below the
+    // border); names of table rows start at cell 5 (border + indent 4), the top-level theme and the
+    // section names at cell 3 (border + indent 2), values at cell 23 (border + indent 2 + name column 20);
+    // the last rows of the box are the blank line, the description, the line below it and the bottom
+    // border
     const NAME: u16 = 5;
     const TOP_NAME: u16 = 3;
     const VALUE: u16 = 23;
@@ -408,7 +397,7 @@ mod tests {
     /// The row (from the box's top) of the settings row `row` (`[colors]` showing its first colors)
     fn y_of(row: Row) -> u16 {
         let index = rows().iter().position(|&each| each == row).expect("row");
-        2 + u16::try_from(line_of(index, 0).expect("line")).expect("fits")
+        1 + u16::try_from(line_of(index, 0).expect("line")).expect("fits")
     }
 
     /// The index of `row` in `rows()`
@@ -467,43 +456,39 @@ mod tests {
         // [roles] in themes/catppuccin-mocha.toml):
         // name column = longest name (week_number_dim, 15 cells) + 3; the top-level theme has 2 less
         // indent and a name column 2 wider, so all values share one column;
-        // the width is the larger of the longest description and the key hints on the bottom border
-        // (42 cells + a blank on each side); `[colors]` shows its first 10 colors (13 more below)
+        // the inside is as wide as a row (indent 4 + name column 18 + the longest value, catppuccin-mocha,
+        // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells: the descriptions
+        // and the key hints on the bottom border fit in it;
+        // no blank lines; `[colors]` shows its first 10 colors (13 more below): 24 rows tall
         let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-        assert_eq!(area, Rect::new(12, 7, 46, 30));
+        assert_eq!(area, Rect::new(14, 10, 43, 24));
         assert_eq!(
             rows,
             [
-                "╭ roh-cal ∙ 設定 ────────────────────────────╮",
-                "│                                            │",
-                "│  theme               catppuccin-mocha      │",
-                "│                                            │",
-                "│  [calendar]                                │",
-                "│    relative_weeks    off                   │",
-                "│                                            │",
-                "│  [month]                                   │",
-                "│    grid_lines        on                    │",
-                "│    center_cursor     off                   │",
-                "│                                            │",
-                "│  [calendar_list]                           │",
-                "│    max_width         36                    │",
-                "│                                            │",
-                "│  [colors]                                  │",
-                "│    text                 text               │",
-                "│    muted                subtext0           │",
-                "│    line                 surface2           │",
-                "│    year_line            lavender           │",
-                "│    label                lavender           │",
-                "│    week_number          yellow             │",
-                "│    week_number_dim      dim_yellow         │",
-                "│    weekend              blue               │",
-                "│    today                green              │",
-                "│    selected             red                │",
-                "│                                            │",
-                "│  顏色：l 換下一套 theme，h 換上一套        │",
-                "│                                            │",
-                "│                                            │",
-                "╰ jk 選  hl 改  r 還原  R 全部還原  Esc 關閉 ╯",
+                "╭ roh-cal ∙ 設定 ─────────────────────────╮",
+                "│  theme               catppuccin-mocha   │",
+                "│  [calendar]                             │",
+                "│    relative_weeks    off                │",
+                "│  [month]                                │",
+                "│    grid_lines        on                 │",
+                "│    center_cursor     off                │",
+                "│  [calendar_list]                        │",
+                "│    max_width         36                 │",
+                "│  [colors]                               │",
+                "│    text                 text            │",
+                "│    muted                subtext0        │",
+                "│    line                 surface2        │",
+                "│    year_line            lavender        │",
+                "│    label                lavender        │",
+                "│    week_number          yellow          │",
+                "│    week_number_dim      dim_yellow      │",
+                "│    weekend              blue            │",
+                "│    today                green           │",
+                "│    selected             red             │",
+                "│                                         │",
+                "│  顏色：l 換下一套 theme，h 換上一套     │",
+                "│                                         │",
+                "╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ─╯",
             ]
         );
         // The chosen row (the first row, theme) has a background from the left to the right inside edge
@@ -546,8 +531,8 @@ mod tests {
         assert_eq!(at(VALUE, y_of(text)).bg, theme.text);
         assert_eq!(at(VALUE + 3, y_of(text)).bg, theme.cursor_line);
         assert_eq!(
-            rows[rows.len() - 4],
-            "│  顏色：l 換色票的下一個，r 回到 theme 的   │"
+            rows[rows.len() - 3],
+            "│  顏色：l 換下一個，r 回到 theme 的      │"
         );
     }
 
@@ -563,7 +548,7 @@ mod tests {
         let text = y_of(Row::Color("text"));
         assert_eq!(
             rows[usize::from(text)],
-            "│    text                 Reset              │"
+            "│    text                 Reset           │"
         );
         assert_eq!(at(VALUE, text).bg, Color::Reset);
         assert_eq!(at(VALUE + 1, text).bg, Color::Reset);
@@ -573,54 +558,48 @@ mod tests {
 
     #[test]
     fn a_short_screen_scrolls_to_the_chosen_row() {
-        // 70 × 23: the box is at most 23 tall and the list holds 16 lines (23 − border 2 − padding 2 −
-        // the 3 lines below the list), so it scrolls; choosing the last row (help_key) → `[colors]` shows
-        // its last 10 colors and the list is scrolled to the end (its 16 last lines), and the description
-        // is still at the bottom
+        // 70 × 16: the box is at most 16 tall and the list holds 11 lines (16 − border 2 − the 3 lines
+        // below the list), so it scrolls; choosing the last row (help_key) → `[colors]` shows its last 10
+        // colors and the list is scrolled to the end (its 11 last lines), and the description is still at
+        // the bottom
         let last = rows().len() - 1;
-        let (app, area, rows, buffer) = draw(choosing(last), 23);
+        let (app, area, rows, buffer) = draw(choosing(last), 16);
         assert_eq!(
             app.settings_page().map(|page| (page.top, page.colors_top)),
-            Some((entries(0).len() - 16, theme::ROLES.len() - COLOR_ROWS))
+            Some((entries(0).len() - 11, theme::ROLES.len() - COLOR_ROWS))
         );
-        assert_eq!(area, Rect::new(12, 0, 46, 23));
+        assert_eq!(area, Rect::new(14, 0, 43, 16));
         assert_eq!(
             rows,
             [
-                "╭ roh-cal ∙ 設定 ────────────────────────────╮",
-                "│                                            │",
-                "│    center_cursor     off                   │",
-                "│                                            │",
-                "│  [calendar_list]                           │",
-                "│    max_width         36                    │",
-                "│                                            │",
-                "│  [colors]                                  │",
-                "│    notice               yellow             │",
-                "│    error                red                │",
-                "│    grid                 surface0           │",
-                "│    other_month          overlay0           │",
-                "│    range                dim_sapphire       │",
-                "│    priority_high        red                │",
-                "│    priority_medium      peach              │",
-                "│    priority_low         yellow             │",
-                "│    help_section         blue               │",
-                "│    help_key             peach              │",
-                "│                                            │",
-                "│  顏色：l 換色票的下一個，r 回到 theme 的   │",
-                "│                                            │",
-                "│                                            │",
-                "╰ jk 選  hl 改  r 還原  R 全部還原  Esc 關閉 ╯",
+                "╭ roh-cal ∙ 設定 ─────────────────────────╮",
+                "│  [colors]                               │",
+                "│    notice               yellow          │",
+                "│    error                red             │",
+                "│    grid                 surface0        │",
+                "│    other_month          overlay0        │",
+                "│    range                dim_sapphire    │",
+                "│    priority_high        red             │",
+                "│    priority_medium      peach           │",
+                "│    priority_low         yellow          │",
+                "│    help_section         blue            │",
+                "│    help_key             peach           │",
+                "│                                         │",
+                "│  顏色：l 換下一個，r 回到 theme 的      │",
+                "│                                         │",
+                "╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ─╯",
             ]
         );
         // The scrollbar is on the bottom part of the right border
-        assert_eq!(cell(&buffer, area, 45, 21).symbol(), "┃");
-        assert_eq!(cell(&buffer, area, 45, 1).symbol(), "│");
-        // Clicking the bottom list row: still help_key; the top one is center_cursor: mapped using both
-        // scroll positions
-        assert_eq!(row_at(&app, app.screen, 20, 17), Some(last));
+        assert_eq!(cell(&buffer, area, 42, 14).symbol(), "┃");
+        assert_eq!(cell(&buffer, area, 42, 1).symbol(), "│");
+        // Clicking the bottom list row: still help_key; the top one is `[colors]` (not a row), the one
+        // below it notice, the first color shown: mapped using both scroll positions
+        assert_eq!(row_at(&app, app.screen, 20, 11), Some(last));
+        assert_eq!(row_at(&app, app.screen, 20, 1), None);
         assert_eq!(
             row_at(&app, app.screen, 20, 2),
-            Some(index_of(Row::CenterCursor))
+            Some(index_of(Row::Color("notice")))
         );
     }
 
@@ -635,13 +614,13 @@ mod tests {
             app.settings_page().map(|page| (page.top, page.colors_top)),
             Some((0, 3))
         );
-        assert_eq!(rows[15], "│    year_line            lavender           │");
-        assert_eq!(rows[24], "│    checked              mauve              │");
-        // The scrollbar beside the colors (x 45, rows 15-24): its thumb moved down from the top, and the
+        assert_eq!(rows[10], "│    year_line            lavender        │");
+        assert_eq!(rows[19], "│    checked              mauve           │");
+        // The scrollbar beside the colors (x 42, rows 10-19): its thumb moved down from the top, and the
         // rows above `[colors]` keep a plain border
-        let border = |dy: u16| cell(&buffer, area, 45, dy).symbol().to_string();
-        assert_eq!(border(15), "│");
-        assert!((16..=24).any(|dy| border(dy) == "┃"));
+        let border = |dy: u16| cell(&buffer, area, 42, dy).symbol().to_string();
+        assert_eq!(border(10), "│");
+        assert!((11..=19).any(|dy| border(dy) == "┃"));
         assert_eq!(border(5), "│");
         // Back up to text: `[colors]` scrolls back to its first color; a row above `[colors]` keeps it
         let page = SettingsPage {
@@ -668,12 +647,12 @@ mod tests {
             44,
         );
         assert_eq!(
-            rows[rows.len() - 4],
-            "│  大月曆：選取的那週固定在正中間            │"
+            rows[rows.len() - 3],
+            "│  大月曆：選取的那週固定在正中間         │"
         );
         assert_eq!(
             rows[rows.len() - 1],
-            "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯"
+            "╰ 全部還原成預設？y 還原，其他鍵取消 ─────╯"
         );
     }
 
@@ -692,10 +671,10 @@ mod tests {
             Some(index_of(Row::ListWidth))
         );
         assert_eq!(click(area.width - 2, y_of(last)), Some(index_of(last)));
-        // Section names, blank lines, the description, the line below it and the border do not count
+        // Section names, the blank line, the description, the line below it and the border do not count
         let height = area.height;
         for (dx, dy) in [
-            (8, 1),
+            (8, height - 2),
             (8, y_of(Row::Theme) + 1),
             (8, y_of(Row::RelativeWeeks) - 1),
             (8, y_of(Row::ListWidth) - 1),
@@ -723,7 +702,7 @@ mod tests {
         assert_eq!(at(VALUE, y_of(Row::GridLines)).fg, theme.other_month);
         assert_eq!(at(NAME, y_of(Row::CenterCursor)).fg, theme.other_month);
         assert_eq!(at(NAME, y_of(Row::RelativeWeeks)).fg, theme.help_key);
-        let below = rows.len() - 3;
+        let below = rows.len() - 2;
         assert_eq!(
             rows[below - 1].trim_end_matches([' ', '│']),
             "│  大月曆：格子之間畫淡淡的格線"
@@ -732,7 +711,7 @@ mod tests {
             rows[below].trim_end_matches([' ', '│']),
             "│  這個畫面用不到：2 大月曆"
         );
-        assert_eq!(at(TOP_NAME, area.height - 3).fg, theme.notice);
+        assert_eq!(at(TOP_NAME, area.height - 2).fg, theme.notice);
         // Layout 2: the same row is a normal one, nothing below the description
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.view = crate::app::View::Month;
@@ -741,7 +720,7 @@ mod tests {
             cell(&buffer, area, NAME, y_of(Row::GridLines)).fg,
             theme.help_key
         );
-        assert_eq!(rows[rows.len() - 3].trim_end_matches([' ', '│']), "");
+        assert_eq!(rows[rows.len() - 2].trim_end_matches([' ', '│']), "");
         // Tasks page: relative_weeks is for layouts 1 and 2; theme is for every view
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.view = crate::app::View::Tasks;
@@ -750,8 +729,8 @@ mod tests {
         assert_eq!(at(NAME, y_of(Row::RelativeWeeks)).fg, theme.other_month);
         assert_eq!(at(TOP_NAME, y_of(Row::Theme)).fg, theme.help_key);
         assert_eq!(
-            rows[rows.len() - 3].trim_end_matches([' ', '│']),
-            "│  這個畫面用不到：1 月曆 + 事項、2 大月曆"
+            rows[rows.len() - 2].trim_end_matches([' ', '│']),
+            "│  這個畫面用不到：1 月曆、2 大月曆"
         );
     }
 }

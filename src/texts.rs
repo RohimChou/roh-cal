@@ -325,8 +325,8 @@ const EN: Texts = Texts {
         ],
     },
     settings_title: "settings",
-    settings_hint: "jk choose  hl change  r reset  R reset all  Esc close",
-    settings_reset_all: "Reset everything? y resets, any other key cancels",
+    settings_hint: "jk pick  hl change  r/R reset  Esc close",
+    settings_reset_all: "Reset all? y yes, other keys cancel",
 };
 
 /// Traditional Chinese text
@@ -521,7 +521,7 @@ const ZH_TW: Texts = Texts {
         ],
     },
     settings_title: "設定",
-    settings_hint: "jk 選  hl 改  r 還原  R 全部還原  Esc 關閉",
+    settings_hint: "jk 選  hl 改  r 還原  R 全部  Esc 關閉",
     settings_reset_all: "全部還原成預設？y 還原，其他鍵取消",
 };
 
@@ -781,16 +781,16 @@ impl Texts {
     /// which views it is for, e.g. `這個畫面用不到：2 大月曆`
     pub fn setting_elsewhere(&self, views: &[View]) -> String {
         let name = |view: &View| match (self.lang, view) {
-            (Lang::En, View::Planner) => "1 calendar + agenda",
+            (Lang::En, View::Planner) => "1 calendar",
             (Lang::En, View::Month) => "2 month grid",
             (Lang::En, View::Tasks) => "3 tasks page",
-            (Lang::ZhTw, View::Planner) => "1 月曆 + 事項",
+            (Lang::ZhTw, View::Planner) => "1 月曆",
             (Lang::ZhTw, View::Month) => "2 大月曆",
             (Lang::ZhTw, View::Tasks) => "3 任務頁",
         };
         let names: Vec<&str> = views.iter().map(name).collect();
         match self.lang {
-            Lang::En => format!("Not used here: {}", names.join(", ")),
+            Lang::En => format!("Only in {}", names.join(", ")),
             Lang::ZhTw => format!("這個畫面用不到：{}", names.join("、")),
         }
     }
@@ -814,20 +814,18 @@ impl Texts {
     /// Bottom of the settings page: what the chosen row does
     pub fn setting_description(&self, row: Row) -> &'static str {
         match (self.lang, row) {
-            (Lang::En, Row::Theme) => "Colors: l the next theme, h the previous one",
+            (Lang::En, Row::Theme) => "Theme: l the next, h the previous",
             (Lang::ZhTw, Row::Theme) => "顏色：l 換下一套 theme，h 換上一套",
-            (Lang::En, Row::RelativeWeeks) => {
-                "Week column: the others count from the selected week"
-            }
-            (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：選取那週寫週數，其他週寫差幾週",
-            (Lang::En, Row::GridLines) => "Month grid: faint lines between the cells",
+            (Lang::En, Row::RelativeWeeks) => "Weeks: count from the selected week",
+            (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：其他週寫跟選取那週差幾週",
+            (Lang::En, Row::GridLines) => "Month grid: lines between the cells",
             (Lang::ZhTw, Row::GridLines) => "大月曆：格子之間畫淡淡的格線",
-            (Lang::En, Row::CenterCursor) => "Month grid: the selected week stays in the middle",
+            (Lang::En, Row::CenterCursor) => "Month grid: centers the selected week",
             (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
-            (Lang::En, Row::ListWidth) => "Calendar list: max width (h / l narrower / wider)",
-            (Lang::ZhTw, Row::ListWidth) => "日曆清單：最寬幾格（h / l：窄 / 寬一格）",
-            (Lang::En, Row::Color(_)) => "Color: l the next in the palette, r the theme's",
-            (Lang::ZhTw, Row::Color(_)) => "顏色：l 換色票的下一個，r 回到 theme 的",
+            (Lang::En, Row::ListWidth) => "Calendar list max width: h -1, l +1",
+            (Lang::ZhTw, Row::ListWidth) => "日曆清單最寬幾格：h 窄一格、l 寬一格",
+            (Lang::En, Row::Color(_)) => "Color: l next in the palette, r reset",
+            (Lang::ZhTw, Row::Color(_)) => "顏色：l 換下一個，r 回到 theme 的",
         }
     }
 
