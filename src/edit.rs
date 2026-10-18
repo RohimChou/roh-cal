@@ -121,12 +121,14 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
 /// 子任務多出來的縮排照留
 ///
 /// 例：`to` = `  `：`- 東京 5 天`、`  - [ ] 訂機票` → `  - 東京 5 天`、`    - [ ] 訂機票`。
-/// 那一塊有一行開頭跟 `item` 的縮排寫法不一樣（tab、空白混用）：照寬度換成空白，上下層的關係不變
-pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
+/// 那一塊有一行開頭跟 `item` 的縮排寫法不一樣（tab、空白混用）：照寬度換成空白，上下層的關係不變。
+/// `to` 是照 `anchor`（上面那件、父項目）那一行算的：它也要跟讀進來時一樣，不然回傳 `Changed`
+pub fn reindent(text: &str, item: &Item, anchor: &Item, to: &str) -> Result<String, Changed> {
     let lines: Vec<&str> = text.lines().collect();
     // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
+    find_line(&lines, anchor)?;
     let end = block_end(text, &lines, start);
     let mut result = segments[..start].concat();
     result.push_str(&reindented(
@@ -597,7 +599,7 @@ mod tests {
     fn reindent_moves_the_whole_block() {
         // 寫報告往裡縮 2 格：子任務跟著多 2 格，中間的空行照留；後面的空行、下一組不動
         assert_eq!(
-            reindent(GROUPS, &item(GROUPS, 0), "  "),
+            reindent(GROUPS, &item(GROUPS, 0), &item(GROUPS, 0), "  "),
             Ok(
                 "# 工作\n  - [ ] 寫報告 @2026-10-16\n    - [ ] 找資料\n\n    - [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n"
                     .into()
@@ -605,7 +607,7 @@ mod tests {
         );
         // 列大綱往外：對齊父項目（不縮排）
         assert_eq!(
-            reindent(GROUPS, &item(GROUPS, 2), ""),
+            reindent(GROUPS, &item(GROUPS, 2), &item(GROUPS, 0), ""),
             Ok(
                 "# 工作\n- [ ] 寫報告 @2026-10-16\n  - [ ] 找資料\n\n- [x] 列大綱\n\n# 生活\n- 爬山 @2026-10-18\n"
                     .into()
@@ -614,12 +616,18 @@ mod tests {
         // tab 縮排：子任務多出來的 tab 照留；開頭不是 tab 的那行照寬度換成空白（6 - 4 = 2 格）；\r\n 照留
         let tabs = "- a\r\n\t- b\r\n\t\t- c\r\n      - d\r\n";
         assert_eq!(
-            reindent(tabs, &item(tabs, 1), ""),
+            reindent(tabs, &item(tabs, 1), &item(tabs, 0), ""),
             Ok("- a\r\n- b\r\n\t- c\r\n  - d\r\n".into())
         );
         // 在別處改過：不改
         assert_eq!(
-            reindent("- [ ] 別的\n", &item(GROUPS, 0), "  "),
+            reindent("- [ ] 別的\n", &item(GROUPS, 0), &item(GROUPS, 0), "  "),
+            Err(Changed)
+        );
+        // 算縮排用的那件（父項目寫報告）在別處改過：也不改
+        let changed = item("# 工作\n- [ ] 寫報告（改過）\n", 0);
+        assert_eq!(
+            reindent(GROUPS, &item(GROUPS, 2), &changed, ""),
             Err(Changed)
         );
     }
@@ -659,7 +667,7 @@ mod tests {
         // 縮排：b 底下的備註、b1 一起縮進去，b1 還是 b 的子任務
         let text = "- a\n- b\nnote\n  - b1\n";
         assert_eq!(
-            reindent(text, &item(text, 1), "  "),
+            reindent(text, &item(text, 1), &item(text, 0), "  "),
             Ok("- a\n  - b\n  note\n    - b1\n".into())
         );
     }

@@ -210,7 +210,7 @@ impl App {
         };
         let to = format!("{}  ", edit::indent_of(&above.line_text));
         // 新的父項目展開，縮進去的那件才看得到
-        self.reindent_task(&item, &to, above.line);
+        self.reindent_task(&item, &above, &to, above.line);
     }
 
     /// `H`：選到的那件（連子任務）往外一層，對齊它的父項目；它下面同一層的事變成它的子任務（跟 Obsidian 一樣）。
@@ -219,12 +219,12 @@ impl App {
         let Some(item) = self.tasks_chosen().cloned() else {
             return;
         };
-        let Some(parent) = item.parent.and_then(|index| self.items.get(index)) else {
+        let Some(parent) = item.parent.and_then(|index| self.items.get(index)).cloned() else {
             return;
         };
         let to = edit::indent_of(&parent.line_text).to_string();
         // 它自己展開：下面變成它子任務的那幾件照樣看得到
-        self.reindent_task(&item, &to, item.line);
+        self.reindent_task(&item, &parent, &to, item.line);
     }
 
     /// `item` 上面同一層的那件（同一個父項目、同一段標題底下；中間隔著的是那件的子任務）；沒有就是 `None`
@@ -292,12 +292,13 @@ impl App {
         }
     }
 
-    /// `item` 那一塊的縮排換成 `to`、寫回任務檔；寫成了就展開第 `expand` 行那件。在別處改過就重新載入
-    fn reindent_task(&mut self, item: &Item, to: &str, expand: usize) {
+    /// `item` 那一塊的縮排換成 `to`（照 `anchor` 那一行算的）、寫回任務檔；寫成了就展開第 `expand` 行那件。
+    /// 這兩行在別處改過就重新載入
+    fn reindent_task(&mut self, item: &Item, anchor: &Item, to: &str, expand: usize) {
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
-        match edit::reindent(&text, item, to) {
+        match edit::reindent(&text, item, anchor, to) {
             Ok(after) => {
                 if self.write_tasks(&path, text, after, item.title.clone()) {
                     self.expanded.insert(expand);
@@ -749,6 +750,21 @@ mod tests {
         assert_eq!(read(), moved);
         assert_eq!(app.tasks_line, Some(5));
         assert_eq!(chosen(&app).as_deref(), Some("列大綱"));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn l_reloads_when_the_item_above_changed_elsewhere() {
+        use super::super::write::{Notice, tests::clean_up};
+        // 選交週報之後，上面的寫報告在別處改過（行數沒變）：L 不寫，重新載入
+        let text = "- [ ] 寫報告\n- [ ] 交週報\n";
+        let (mut app, path) = tasks_app_with_file("tasks-indent-changed", text);
+        app.tasks_line = Some(2);
+        let elsewhere = "- [ ] 寫報告（改過）\n- [ ] 交週報\n";
+        std::fs::write(&path, elsewhere).expect("write");
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), elsewhere);
+        assert_eq!(app.notice, Some(Notice::Reloaded));
         clean_up(&path);
     }
 
