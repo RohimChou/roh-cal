@@ -109,9 +109,10 @@ impl App {
                     None => self.focus = Focus::Calendar,
                 }
             }
+            // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
             _ => {
                 self.reload(&text);
-                self.focus = Focus::Calendar;
+                self.focus = self.home_focus();
             }
         }
     }

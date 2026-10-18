@@ -128,8 +128,9 @@ impl App {
                     match edit::replace(&text, &item, new) {
                         Ok(after) => self.write_tasks(&path, text, after, item.title.clone()),
                         Err(edit::Changed) => {
+                            // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
                             self.reload(&text);
-                            self.focus = Focus::Calendar;
+                            self.focus = self.home_focus();
                             return;
                         }
                     }
@@ -160,7 +161,7 @@ impl App {
                     }
                     Err(edit::Changed) => {
                         self.reload(&text);
-                        self.focus = Focus::Calendar;
+                        self.focus = self.home_focus();
                     }
                 }
             }

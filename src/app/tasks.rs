@@ -433,6 +433,39 @@ mod tests {
     }
 
     #[test]
+    fn a_conflict_on_the_tasks_page_keeps_the_keyboard_there() {
+        use super::super::write::{Notice, tests::clean_up};
+        // 編輯、新增、刪除的時候檔案在別處改過（最前面多了一行）：重新載入，鍵盤還是在任務頁，不會跑到看不到的月曆
+        let text = "- [ ] 整理書櫃\n- [ ] 交週報 @2026-10-16\n";
+        let (mut app, path) = tasks_app_with_file("tasks-conflict", text);
+        // 每次在最前面加不一樣的一行：選到的那件（第 1 行）每次都對不上
+        let mut extra = String::new();
+        let mut change_elsewhere = || {
+            extra = format!("- 別處加的 {}\n{extra}", extra.lines().count() + 1);
+            std::fs::write(&path, format!("{extra}{text}")).expect("write");
+        };
+        for keys in [&['e', '!'][..], &['a', 'x'], &['d']] {
+            for &key in keys {
+                press(&mut app, KeyCode::Char(key));
+            }
+            change_elsewhere();
+            let confirm = if keys[0] == 'd' {
+                KeyCode::Char('y')
+            } else {
+                KeyCode::Enter
+            };
+            press(&mut app, confirm);
+            assert_eq!(app.notice, Some(Notice::Reloaded), "{keys:?}");
+            assert_eq!(
+                (app.view, app.focus),
+                (View::Tasks, Focus::Tasks),
+                "{keys:?}"
+            );
+        }
+        clean_up(&path);
+    }
+
+    #[test]
     fn r_on_the_tasks_page_borrows_the_calendar() {
         use super::super::write::tests::clean_up;
         // 還沒排日期的整理書櫃：r 換到版型 1 的月曆，從今天開始選；往後一天、Enter → 排在 10/18，回到任務頁
