@@ -108,7 +108,7 @@ pub struct HelpSection {
 /// 英文的字
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
+    hints: " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",

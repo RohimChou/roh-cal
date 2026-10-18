@@ -28,7 +28,7 @@ TEXTS = {
     "en": dict(hints_tasks=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
-               hints=" hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
+               hints=" hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
                side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],

@@ -391,7 +391,7 @@ mod tests {
                 "│       44 │ 26 27 28 29 30 31    │",
                 "│──────────┼──────────────────────│",
                 "╰─────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t",
+                " hjkl move  Tab pane  [] month  t t",
             ]
         );
     }
@@ -410,7 +410,7 @@ mod tests {
                 "│       45 │ [2] 3  4  5  6  7  8 │",
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t",
+                " hjkl move  Tab pane  [] month  t t",
             ]
         );
         // 星期日：`]` 放在最後多留的那格；月曆只有 3 列、要留 1 列，所以往上多捲一列（跨年的粗線）
@@ -453,7 +453,7 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 │",
                 "│       47 │ 16 17 18 19 20 21 22 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t",
+                " hjkl move  Tab pane  [] month  t t",
             ]
         );
         // 往回一週：選取的那列離上緣至少留 2 列，往上捲 2 列
@@ -471,7 +471,7 @@ mod tests {
                 "│   Nov 44 │                    1 │",
                 "│       45 │  2  3  4  5  6  7  8 │",
                 "╰─────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t",
+                " hjkl move  Tab pane  [] month  t t",
             ]
         );
     }
@@ -788,7 +788,7 @@ mod tests {
                 "│                            ││       45 │  2  3  4  5  6  7  8 ││                                                      │",
                 "│                            ││       46 │  9 10 11 12 13 14 15 ││                                                      │",
                 "╰────────────────────────────╯╰─────────────────────────────────╯╰──────────────────────────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
         let theme = Theme::catppuccin_mocha();
@@ -899,7 +899,7 @@ mod tests {
                 "│       46 │  9 10 11 12 13 14 15 ││                                                          │",
                 "│       47 │ 16 17 18 19 20 21 22 ││                                                          │",
                 "╰─────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q quit",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
     }
@@ -1738,7 +1738,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
     }
@@ -1816,7 +1816,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
         // 80 × 16、每週只有 1 列：不列事，日期後面畫點點（1 件 ⠂、2 件 ⠒、4 件以上 ⠶）
@@ -2039,7 +2039,7 @@ mod tests {
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
     }
@@ -2493,7 +2493,7 @@ mod tests {
                 "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
                 "│  45 │[2]       │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
                 "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-                " hjkl move  Tab switch  [] month  t today  s calendars  ? help  , settings  q qu",
+                " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
         assert_eq!(app.month_top, Some(date(2026, 9, 28)));
