@@ -83,16 +83,20 @@ pub fn load(path: &Path) -> Result<Settings> {
     parse(&text).wrap_err_with(|| format!("invalid config file: {}", path.display()))
 }
 
-/// 把設定存回設定檔：跟檔案不一樣的值才改，沒有要改的就不寫；資料夾不存在會自動建立。
-/// 檔案現在寫錯了（例：在別處改壞了）就不存、回傳 `InvalidData`，原本的內容留著讓使用者自己修
-pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
+/// 把設定頁改過的存回設定檔：`before`（打開設定頁那時候）到 `after`（現在）改了的值才寫，其他照檔案原本的
+/// （`--theme` 這種只用這一次的、在別處改過的都不會被蓋掉）；沒有要改的就不寫；資料夾不存在會自動建立。
+/// 寫出來的檔案讀不進來（例：檔案在別處改壞了、theme 和 `[colors]` 對不上）就不存、回傳 `InvalidData`，
+/// 原本的內容留著讓使用者自己修，下次才打得開
+pub fn save(path: &Path, before: &Settings, after: &Settings) -> std::io::Result<()> {
+    let invalid =
+        |error: color_eyre::Report| std::io::Error::new(ErrorKind::InvalidData, error.to_string());
     let text = read(path)?;
-    let new_text = updated(&text, settings)
-        .map_err(|error| std::io::Error::new(ErrorKind::InvalidData, error.to_string()))?;
+    let new_text = updated(&text, before, after).map_err(invalid)?;
     // 只是打開設定頁看看、沒改東西，檔案就不碰
     if new_text == text {
         return Ok(());
     }
+    parse(&new_text).map_err(invalid)?;
     files::write_atomically(path, &new_text)
 }
 
@@ -114,19 +118,19 @@ fn parse(text: &str) -> Result<Settings> {
     Ok(settings)
 }
 
-/// 設定檔的新內容：值跟 `text` 現在不一樣的改掉，沒有那一行就加在同一個表（例：`[month]`）的後面
-/// （檔案結尾的註解還是留在最後面）；還原成 theme 的顏色整行拿掉；其他行、註解、空白一字不動
-fn updated(text: &str, settings: &Settings) -> Result<String> {
+/// 設定檔的新內容：`before` 到 `after` 改了的值寫進 `text`：有那一行就換值，沒有就加在同一個表（例：`[month]`）
+/// 的後面（檔案結尾的註解還是留在最後面）；還原成 theme 的顏色整行拿掉；其他行、註解、空白一字不動
+fn updated(text: &str, before: &Settings, after: &Settings) -> Result<String> {
     // 保留格式的 TOML（toml_edit）：改一個值，其他內容原封不動
     let mut doc: DocumentMut = text.parse()?;
-    // 檔案現在的值（沒寫的 = 預設值）和要存的值都轉成 TOML，一個名字一個名字比
-    let current = toml_edit::ser::to_document(&parse(text)?)?;
-    let wanted = toml_edit::ser::to_document(settings)?;
-    merge(doc.as_table_mut(), current.as_table(), wanted.as_table());
+    // 改之前、改之後都轉成 TOML，一個名字一個名字比
+    let before = toml_edit::ser::to_document(before)?;
+    let after = toml_edit::ser::to_document(after)?;
+    merge(doc.as_table_mut(), before.as_table(), after.as_table());
     Ok(doc.to_string())
 }
 
-/// 把 `wanted` 裡跟 `current`（檔案現在的值）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做；
+/// 把 `wanted`（改之後）裡跟 `current`（改之前）不一樣的值寫進 `doc`；遇到表（例：`[month]`）就進到裡面一層一樣做；
 /// `current` 有、`wanted` 沒有的（例：還原成 theme 的顏色）從 `doc` 拿掉
 ///
 /// `dyn TableLike`：`[month]` 這種表和 `{ a = 1 }` 這種寫在一行的表都可以傳進來
@@ -184,6 +188,58 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 跟檔案現在的值比（改之前 = 檔案裡的值），算出新的內容（test 用）
+    fn updated_file(text: &str, settings: &Settings) -> Result<String> {
+        updated(text, &parse(text)?, settings)
+    }
+
+    #[test]
+    fn save_writes_only_what_changed_on_the_page() {
+        let dir = files::test_dir("config-only-changes");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("config-v2.toml");
+        // 打開 app 之後，檔案在別處改了格線；這次用 `--theme tokyo-night` 打開（檔案裡是 gruvbox-dark）
+        std::fs::write(
+            &path,
+            "theme = \"gruvbox-dark\"\n[month]\ngrid_lines = false\n",
+        )
+        .expect("write");
+        let before = Settings {
+            theme: "tokyo-night".to_string(),
+            ..Settings::default()
+        };
+        // 設定頁只打開了相對週數：只寫那一行，theme、格線照檔案的
+        let mut after = before.clone();
+        after.calendar.relative_weeks = true;
+        save(&path, &before, &after).expect("save");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "theme = \"gruvbox-dark\"\n[month]\ngrid_lines = false\n\n[calendar]\nrelative_weeks = true\n"
+        );
+        // 沒改東西：不寫
+        save(&path, &after, &after).expect("nothing changed");
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
+    #[test]
+    fn save_refuses_to_write_a_file_that_would_not_load() {
+        let dir = files::test_dir("config-would-break");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("config-v2.toml");
+        // 檔案在別處加了 gruvbox 色票的名字；設定頁把 theme 換成 mocha：寫出來 mocha 沒有 light1，下次打不開 → 不寫
+        let text = "theme = \"gruvbox-dark\"\n[colors]\ntoday = \"light1\"\n";
+        std::fs::write(&path, text).expect("write");
+        let before = Settings {
+            theme: "gruvbox-dark".to_string(),
+            ..Settings::default()
+        };
+        let after = Settings::default();
+        let error = save(&path, &before, &after).expect_err("would not load");
+        assert_eq!(error.kind(), ErrorKind::InvalidData);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
 
     #[test]
     fn missing_fields_use_the_defaults() {
@@ -274,7 +330,7 @@ mod tests {
             month.center_cursor = true;
         });
         assert_eq!(
-            updated(text, &settings).expect("valid file"),
+            updated_file(text, &settings).expect("valid file"),
             "# 我的設定\n\n[month]\n# 格線\ngrid_lines = false   # 太花了\ncenter_cursor = true\nitem_icons = false\n"
         );
     }
@@ -284,11 +340,11 @@ mod tests {
         let mut settings = Settings::default();
         settings.calendar.relative_weeks = true;
         assert_eq!(
-            updated("[month]\ngrid_lines = true\n", &settings).expect("valid file"),
+            updated_file("[month]\ngrid_lines = true\n", &settings).expect("valid file"),
             "[month]\ngrid_lines = true\n\n[calendar]\nrelative_weeks = true\n"
         );
         assert_eq!(
-            updated("", &settings).expect("empty file"),
+            updated_file("", &settings).expect("empty file"),
             "[calendar]\nrelative_weeks = true\n"
         );
     }
@@ -299,7 +355,7 @@ mod tests {
         let text = "[month]\ngrid_lines = true\n# item_icons = true\n";
         let settings = with_month(|month| month.center_cursor = true);
         assert_eq!(
-            updated(text, &settings).expect("valid file"),
+            updated_file(text, &settings).expect("valid file"),
             "[month]\ngrid_lines = true\ncenter_cursor = true\n# item_icons = true\n"
         );
     }
@@ -312,7 +368,7 @@ mod tests {
             ..Settings::default()
         };
         let text = "[month]\ngrid_lines = true\n";
-        let new_text = updated(text, &settings).expect("valid file");
+        let new_text = updated_file(text, &settings).expect("valid file");
         assert_eq!(
             new_text,
             "theme = \"catppuccin-latte\"\n[month]\ngrid_lines = true\n"
@@ -330,7 +386,7 @@ mod tests {
             .colors
             .insert("today".to_string(), "#ffffff".to_string());
         assert_eq!(
-            updated(text, &settings).expect("valid"),
+            updated_file(text, &settings).expect("valid"),
             "[month]\ngrid_lines = false\n\n[colors]\nweekend = \"#f38ba8\"   # 紅\ntoday = \"#ffffff\"\n"
         );
     }
@@ -341,12 +397,12 @@ mod tests {
         let mut settings = parse(text).expect("valid");
         settings.colors.clear();
         assert_eq!(
-            updated(text, &settings).expect("valid"),
+            updated_file(text, &settings).expect("valid"),
             "[month]\ngrid_lines = false\n"
         );
         // 檔案沒有 [colors]、也沒有改過的顏色 → 不會多出空的 [colors]
         assert_eq!(
-            updated("[month]\n", &Settings::default()).expect("valid"),
+            updated_file("[month]\n", &Settings::default()).expect("valid"),
             "[month]\n"
         );
     }
@@ -355,9 +411,12 @@ mod tests {
     fn updated_leaves_the_text_alone_when_nothing_changed() {
         // 檔案裡寫的跟預設一樣的值也不會被拿掉（grid_lines 預設 true）
         let text = "# 註解\n[month]\ngrid_lines = true\n";
-        assert_eq!(updated(text, &Settings::default()).expect("valid"), text);
+        assert_eq!(
+            updated_file(text, &Settings::default()).expect("valid"),
+            text
+        );
         // 空檔案 + 全部預設 → 還是空的（不會把預設值都寫進去，也不會多出空的表）
-        assert_eq!(updated("", &Settings::default()).expect("empty"), "");
+        assert_eq!(updated_file("", &Settings::default()).expect("empty"), "");
     }
 
     #[test]
@@ -365,10 +424,10 @@ mod tests {
         let dir = files::test_dir("config-save");
         let path = dir.join("roh-cal").join("config-v2.toml");
         // 檔案不存在、開關都是預設：沒有要改的 → 什麼都不寫，連資料夾都不建
-        save(&path, &Settings::default()).expect("nothing to save");
+        save(&path, &Settings::default(), &Settings::default()).expect("nothing to save");
         assert!(!dir.exists());
         let settings = with_month(|month| month.center_cursor = true);
-        save(&path, &settings).expect("save");
+        save(&path, &Settings::default(), &settings).expect("save");
         assert_eq!(load(&path).expect("load"), settings);
         // 只寫有變的那一個；暫存檔沒有留下來
         assert_eq!(
@@ -385,9 +444,13 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("config-v2.toml");
         std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
-        // 名字打錯的檔案：不存，原本的內容留著讓使用者自己修
-        let error = save(&path, &Settings::default()).expect_err("broken file");
+        // 名字打錯的檔案（在別處改壞的）：設定頁改了東西也不存，原本的內容留著讓使用者自己修
+        let mut changed = Settings::default();
+        changed.month.item_icons = false;
+        let error = save(&path, &Settings::default(), &changed).expect_err("broken file");
         assert_eq!(error.kind(), ErrorKind::InvalidData);
+        // 沒改東西：不碰檔案，也不算錯
+        save(&path, &changed, &changed).expect("nothing changed");
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "[month]\ngrid_line = false\n"

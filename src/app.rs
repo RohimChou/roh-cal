@@ -157,6 +157,8 @@ pub struct App {
     pub help: Option<Help>,
     /// 設定頁（按了 `,`）；`None` = 沒開
     pub settings_page: Option<SettingsPage>,
+    /// 打開設定頁那時候的設定：關掉時只存這段時間改過的
+    settings_opened: Option<Settings>,
     /// 任務頁選到的那件事在檔案的第幾行；`None` = 還沒選（選第一件）
     pub tasks_line: Option<usize>,
     /// 任務頁上展開了子任務的事（檔案的第幾行）
@@ -197,6 +199,7 @@ impl App {
             confirm_delete: None,
             help: None,
             settings_page: None,
+            settings_opened: None,
             tasks_line: None,
             expanded: BTreeSet::new(),
             tasks_top: 0,

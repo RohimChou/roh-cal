@@ -198,6 +198,7 @@ impl App {
     /// `,`：打開設定頁，選第一列
     pub(super) fn open_settings(&mut self) {
         self.settings_page = Some(SettingsPage::default());
+        self.settings_opened = Some(self.settings.clone());
     }
 
     /// 設定頁開著時的按鍵：見這個 module 開頭的說明；其他鍵不理
@@ -283,11 +284,15 @@ impl App {
         }
     }
 
-    /// 關掉設定頁，把開關存回設定檔（只改有變的那幾行；沒改東西就不寫）；存不了就在最下面一列說
+    /// 關掉設定頁，把打開之後改過的設定存回設定檔（只改那幾行；沒改東西就不寫）；存不了就在最下面一列說
     fn close_settings(&mut self) {
         self.settings_page = None;
+        let before = self
+            .settings_opened
+            .take()
+            .unwrap_or_else(|| self.settings.clone());
         if let Some(path) = &self.config_path
-            && let Err(error) = config::save(path, &self.settings)
+            && let Err(error) = config::save(path, &before, &self.settings)
         {
             self.notice = Some(Notice::SettingsFailed(error.kind()));
         }
