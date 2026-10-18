@@ -103,6 +103,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             area,
         );
     }
+    let columns = date_columns(app, &rows);
     let visible = rows.iter().enumerate().skip(app.tasks_top);
     for ((index, row), y) in visible.zip(body.y..body.bottom()) {
         let area = Rect {
@@ -130,7 +131,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 let Some(item) = app.items.get(*item_index) else {
                     continue;
                 };
-                render_item(frame, area, app, item, *item_index, (*children, *expanded));
+                render_item(
+                    frame,
+                    area,
+                    app,
+                    item,
+                    *item_index,
+                    (*children, *expanded),
+                    columns,
+                );
                 // 選到的那件整列墊底色（鍵盤在任務頁時）
                 if focused && cursor == Some(index) {
                     frame
@@ -160,8 +169,34 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
-/// 一件事：「 ▸ [ ] 實作退款 API  1/4            10/14 」：左邊是縮排（一層 2 格）、`▸` / `▾`（有子任務：收著 / 展開）、
-/// `[ ]` / `[x]`（任務）或 ` ∙ `（行程）、標題、子任務做完幾件；右邊靠右是日期和時間（沒日期就空著）
+/// 右邊日期那一欄的字：不是今年的前面加年份（例：`10/14`、`10/20~25`、`2027/1/2`）；沒日期是 `None`
+fn date_label(item: &Item, app: &App) -> Option<String> {
+    let first = item.date?;
+    let year = if first.year() == app.today.year() {
+        String::new()
+    } else {
+        format!("{}/", first.year())
+    };
+    Some(format!("{year}{}", date_text(item)))
+}
+
+/// 右邊兩欄的寬度（日期欄, 時間欄），每一列都照這個排才上下對齊：日期欄 = 列出來的事裡最長的日期；
+/// 時間欄 = 有一件有時間就留 6 格（` 08:00`），都沒有就是 0
+fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
+    rows.iter()
+        .filter_map(|row| match row {
+            TaskRow::Item { index, .. } => app.items.get(*index),
+            TaskRow::Heading { .. } => None,
+        })
+        .fold((0, 0), |(date, time), item| {
+            let label = date_label(item, app).map_or(0, |label| label.chars().count());
+            (date.max(label), if item.time.is_some() { 6 } else { time })
+        })
+}
+
+/// 一件事：「 ▸ [ ] 實作退款 API  1/4            10/14       」：左邊是縮排（一層 2 格）、`▸` / `▾`（有子任務：收著 / 展開）、
+/// `[ ]` / `[x]`（任務）或 ` ∙ `（行程）、標題、子任務做完幾件；右邊是日期一欄（靠右）、時間一欄，
+/// 寬度照 `date_columns`，沒時間的那格留空白（沒日期就整個空著）
 ///
 /// 顏色：結束了的（做完的任務、過去的行程）灰、做完的標題劃線；寫錯的那一行標題紅字；日期用那天在月曆上的顏色；
 /// `▸`、子任務的件數、時間淡色
@@ -172,6 +207,7 @@ fn render_item(
     item: &Item,
     index: usize,
     (children, expanded): (bool, bool),
+    (date_width, time_width): (usize, usize),
 ) {
     let theme = &app.theme;
     let open = item.is_open(app.today);
@@ -214,29 +250,25 @@ fn render_item(
             Style::new().fg(theme.muted),
         ));
     }
-    // 右邊：日期（不是今年的前面加年份）、時間，後面留一格
+    // 右邊：日期一欄（靠右）、時間一欄（沒時間的留空白），後面留一格
     let mut right = Vec::new();
-    if let Some(first) = item.date {
-        let year = if first.year() == app.today.year() {
-            String::new()
-        } else {
-            format!("{}/", first.year())
-        };
+    if let (Some(first), Some(label)) = (item.date, date_label(item, app)) {
         let date_color = if open {
             day_color(first, app)
         } else {
             theme.muted
         };
         right.push(Span::styled(
-            format!("{year}{}", date_text(item)),
+            format!("{label:>date_width$}"),
             Style::new().fg(date_color),
         ));
-        if let Some(time) = item.time {
-            right.push(Span::styled(
-                format!(" {}", time.strftime("%H:%M")),
-                Style::new().fg(theme.muted),
-            ));
-        }
+        let time = item
+            .time
+            .map_or(String::new(), |time| format!(" {}", time.strftime("%H:%M")));
+        right.push(Span::styled(
+            format!("{time:<time_width$}"),
+            Style::new().fg(theme.muted),
+        ));
         right.push(Span::raw(" "));
     }
     let right = Line::from(right);

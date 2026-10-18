@@ -485,6 +485,18 @@ def tasks_screen(lang, w, h, text, groups):
             top = cursor + margin + 1 - body_h
         top = max(0, min(top, len(rows) - body_h))
 
+    def date_label(it):
+        # 右邊日期欄的字；不是 2026 年的前面加年份
+        if not it["date"]:
+            return ""
+        d = range_text((it["date"], None, None, None, it["end"]))
+        return d if it["date"].year == 2026 else f"{it['date'].year}/" + d
+
+    # 右邊兩欄的寬度：日期欄 = 列出來的事裡最長的日期；時間欄 = 有一件有時間就 6 格，不然 0
+    listed = [items[row[1]] for row in rows if row[0] == "item"]
+    date_w = max((width(date_label(it)) for it in listed), default=0)
+    time_w = 6 if any(it["time"] for it in listed) else 0
+
     def item_line(k):
         it = items[k]
         children = [c for c in items if c["parent"] == k]
@@ -496,10 +508,8 @@ def tasks_screen(lang, w, h, text, groups):
             left += f"  {sum(c['done'] for c in subtasks)}/{len(subtasks)}"
         right = ""
         if it["date"]:
-            d = range_text((it["date"], None, None, None, it["end"]))
-            if it["date"].year != 2026:
-                d = f"{it['date'].year}/" + d
-            right = d + (" " + it["time"] if it["time"] else "") + " "
+            time = " " + it["time"] if it["time"] else ""
+            right = rjust(date_label(it), date_w) + ljust(time, time_w) + " "
         left = cut(left, iw - width(right) - 1)
         return left + " " * (iw - width(left) - width(right)) + right
 
