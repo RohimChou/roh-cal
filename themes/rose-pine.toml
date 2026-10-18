@@ -1,0 +1,51 @@
+# Rosé Pine: a muted dark theme with soft pink, gold and pine (ported to most editors and terminals)
+# Palette: main from https://github.com/rose-pine/neovim (background: base #191724)
+# It has no green or orange: today is rose, the weekend foam, a medium priority rose
+
+[palette]
+text = "#e0def4"
+subtle = "#908caa"
+muted = "#6e6a86"
+highlight_high = "#524f67"
+overlay = "#26233a"
+love = "#eb6f92"
+gold = "#f6c177"
+# Dim gold: gold and the background mixed 7:3. Still reads as gold,
+# but darker than the selected week's number
+dim_gold = "#b48e5e"
+rose = "#ebbcba"
+pine = "#31748f"
+foam = "#9ccfd8"
+# Multi-day bars: foam and the background mixed 3:7. A tinted band, dark enough for text on it
+dim_foam = "#404e5a"
+iris = "#c4a7e7"
+# Selection background: iris and the background mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+dim_iris = "#4c425f"
+
+[roles]
+text = "text"
+muted = "subtle"
+line = "highlight_high"
+year_line = "pine"
+label = "pine"
+week_number = "gold"
+week_number_dim = "dim_gold"
+weekend = "foam"
+today = "rose"
+selected = "love"
+selection = "dim_iris"
+focus = "iris"
+checked = "iris"
+notice = "gold"
+error = "love"
+grid = "overlay"
+other_month = "muted"
+# Multi-day bars in the month grid: a tinted band
+range = "dim_foam"
+# Priorities (!!! / !! / !): love (red), rose, gold
+priority_high = "love"
+priority_medium = "rose"
+priority_low = "gold"
+help_section = "foam"
+help_key = "rose"

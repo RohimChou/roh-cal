@@ -2,7 +2,7 @@
 # Write only what you want to change; anything left out uses the default. Every setting here differs
 # from its default (switches are set to the opposite)
 
-# Colors: the built-in catppuccin-mocha (default), gruvbox-dark, tokyo-night, dracula, nord, terminal
+# Colors: the built-in catppuccin-mocha (default), gruvbox-dark, tokyo-night, dracula, nord, one-dark, rose-pine, terminal
 # (only the terminal's 16 colors)
 theme = "nord"
 

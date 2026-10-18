@@ -149,6 +149,14 @@ fn every_builtin_theme_reads() {
         Some(Color::Rgb(0x81, 0xa1, 0xc1))
     );
     assert_eq!(
+        Theme::builtin("one-dark").map(|theme| theme.focus),
+        Some(Color::Rgb(0xc6, 0x78, 0xdd))
+    );
+    assert_eq!(
+        Theme::builtin("rose-pine").map(|theme| theme.today),
+        Some(Color::Rgb(0xeb, 0xbc, 0xba))
+    );
+    assert_eq!(
         Theme::builtin("terminal").map(|theme| theme.text),
         Some(Color::Reset)
     );

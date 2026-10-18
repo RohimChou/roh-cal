@@ -1,0 +1,53 @@
+# One Dark: Atom's dark theme (also VS Code's One Dark Pro and many editors and terminals)
+# Palette: from https://github.com/joshdick/onedark.vim (background #282c34)
+
+[palette]
+foreground = "#abb2bf"
+# Light gray: foreground and the background mixed 7:3. Fainter than normal text, for secondary text
+fg_dim = "#848a95"
+comment_grey = "#5c6370"
+gutter_fg_grey = "#4b5263"
+special_grey = "#3b4048"
+red = "#e06c75"
+green = "#98c379"
+yellow = "#e5c07b"
+# Dim yellow: yellow and the background mixed 7:3. Still reads as yellow,
+# but darker than the selected week's number
+dim_yellow = "#ac9466"
+# Orange
+dark_yellow = "#d19a66"
+blue = "#61afef"
+purple = "#c678dd"
+cyan = "#56b6c2"
+# Multi-day bars: cyan and the background mixed 3:7. A tinted band, dark enough for text on it
+dim_cyan = "#36555f"
+# Selection background: purple and the background mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+dim_purple = "#574367"
+
+[roles]
+text = "foreground"
+muted = "fg_dim"
+line = "gutter_fg_grey"
+year_line = "cyan"
+label = "cyan"
+week_number = "yellow"
+week_number_dim = "dim_yellow"
+weekend = "blue"
+today = "green"
+selected = "red"
+selection = "dim_purple"
+focus = "purple"
+checked = "purple"
+notice = "yellow"
+error = "red"
+grid = "special_grey"
+other_month = "comment_grey"
+# Multi-day bars in the month grid: a tinted band
+range = "dim_cyan"
+# Priorities (!!! / !! / !): red, orange, yellow
+priority_high = "red"
+priority_medium = "dark_yellow"
+priority_low = "yellow"
+help_section = "blue"
+help_key = "dark_yellow"
