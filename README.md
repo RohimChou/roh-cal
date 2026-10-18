@@ -99,7 +99,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups) when the terminal is at least 120 columns wide; narrower, `s` calls it up over the left of the screen with the keyboard in it, and `s`, `Esc`, `q` or clicking outside put it away, back to the pane you were in |
 | `u` | Undo roh-cal's last write to the task file (up to 50; only if the file hasn't changed elsewhere since, otherwise it just reloads) |
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
-| `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes, a color row through the theme's palette) and the screen follows right away; a short terminal scrolls the list; `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
+| `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes, `max_width` one cell at a time, a color row through the theme's palette) and the screen follows right away; a short terminal scrolls the list; `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
 | `Esc` | Back to the layout's main pane (the calendar, or the tasks page) from the agenda, layout 3's day popup or the calendar list; from the tasks page to layout 1; quit from the calendar |
 | `q` / `Ctrl+C` | Quit (`q` in layout 3's day popup or the narrow calendar list only closes it) |
 
@@ -157,6 +157,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3); without them a new year still gets its thick line |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
+| `[calendar_list]` `max_width` | `36` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 
 ## Themes

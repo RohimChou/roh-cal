@@ -1,6 +1,6 @@
 # Sample roh-cal v2 config file (the real one lives at ~/.config/roh-cal/config-v2.toml)
-# Write only what you want to change; anything left out uses the default. Every switch here is set
-# to the opposite of its default
+# Write only what you want to change; anything left out uses the default. Every setting here differs
+# from its default (switches are set to the opposite)
 
 # Colors: the built-in catppuccin-mocha (default), gruvbox-dark, tokyo-night, dracula, nord, terminal
 # (only the terminal's 16 colors)
@@ -20,6 +20,11 @@ grid_lines = false
 item_icons = false
 # Keep the selected week fixed in the middle (default false)
 center_cursor = true
+
+# The calendar list on the far left
+[calendar_list]
+# The widest it gets; it follows the longest calendar name up to this, from 22 to 60 (default 36)
+max_width = 30
 
 # Override some of the theme's roles (for role names see [roles] in themes/): a color, or a palette
 # name from that theme

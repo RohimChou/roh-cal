@@ -20,7 +20,8 @@ use std::path::Path;
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
 /// The settings that can change at runtime = the config file's content, with the same structure: `theme` =
-/// the top-level `theme = "..."`, `calendar` = `[calendar]`, `month` = `[month]`, `colors` = `[colors]`
+/// the top-level `theme = "..."`, `calendar` = `[calendar]`, `month` = `[month]`,
+/// `calendar_list` = `[calendar_list]`, `colors` = `[colors]`
 ///
 /// The names in the config file are the field names (e.g. `grid_lines = false` under `[month]`). serde's
 /// `default`: fields left out use the `Default` value; `deny_unknown_fields`: unknown names are
@@ -35,6 +36,8 @@ pub struct Settings {
     pub calendar: CalendarSettings,
     /// `[month]`: switches for the big month calendar (layout 3)
     pub month: MonthSettings,
+    /// `[calendar_list]`: the calendar list on the far left (the side menu)
+    pub calendar_list: CalendarListSettings,
     /// `[colors]`: overrides some of the theme's roles (role → color,
     /// e.g. `today = "#a6e3a1"`); roles left out follow the theme.
     /// The settings page writes only the ones that differ from the theme (resetting one removes its line)
@@ -64,6 +67,7 @@ impl Default for Settings {
             theme: theme::DEFAULT.to_string(),
             calendar: CalendarSettings::default(),
             month: MonthSettings::default(),
+            calendar_list: CalendarListSettings::default(),
             colors: BTreeMap::new(),
         }
     }
@@ -100,6 +104,33 @@ impl Default for MonthSettings {
             item_icons: true,
             center_cursor: false,
         }
+    }
+}
+
+/// The calendar list (the config file's `[calendar_list]`); defaults are in `Default`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CalendarListSettings {
+    /// The widest the list gets, in cells (incl. its border): it follows the longest calendar name up to
+    /// this, and longer names get cut off. Only `MIN_WIDTH` to `MAX_WIDTH` counts (see `max_width()`)
+    pub max_width: u16,
+}
+
+impl CalendarListSettings {
+    /// The narrowest the list gets: its header always fits
+    pub const MIN_WIDTH: u16 = 22;
+    /// The largest `max_width` that counts: wider would squeeze the calendar next to it
+    pub const MAX_WIDTH: u16 = 60;
+
+    /// `max_width` kept between `MIN_WIDTH` and `MAX_WIDTH` (the config file may say anything)
+    pub fn max_width(self) -> u16 {
+        self.max_width.clamp(Self::MIN_WIDTH, Self::MAX_WIDTH)
+    }
+}
+
+impl Default for CalendarListSettings {
+    fn default() -> Self {
+        Self { max_width: 36 }
     }
 }
 
@@ -316,6 +347,9 @@ mod tests {
             "[mnth]\ngrid_lines = false",
             // v1's name (v1's week_numbers = true meant relative weeks; v2 calls it relative_weeks)
             "[calendar]\nweek_numbers = true",
+            // The width must be a whole number from 0 up, not text or negative
+            "[calendar_list]\nmax_width = \"wide\"",
+            "[calendar_list]\nmax_width = -1",
             // No such theme
             "theme = \"solarized\"",
             // Misspelled role name, not a color, terminal has no catppuccin palette names
@@ -329,7 +363,7 @@ mod tests {
 
     #[test]
     fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
-        // Sample file: every switch is set to the opposite of its default
+        // Sample file: every setting differs from its default (switches are the opposite)
         let settings = load(Path::new("testdata/config.toml")).expect("sample file");
         assert_eq!(
             settings,
@@ -343,6 +377,7 @@ mod tests {
                     item_icons: false,
                     center_cursor: true,
                 },
+                calendar_list: CalendarListSettings { max_width: 30 },
                 colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),
             }
         );

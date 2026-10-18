@@ -15,7 +15,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`3` 版型 3、`4` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item` | |
 | `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
-| `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
+| `src/config.rs` | 設定檔 `config-v2.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
 | `src/app/editor.rs` | 一行編輯框：`e` 編輯、`a` 新增、`A` 新增子任務（`Target`）；直接打那一行的文字（tui-input），`edit::check` 即時檢查，有問題就存不了（`App::editor`） | |
@@ -37,7 +37,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明；滑鼠點到什麼；**畫面 test 大多在這**（說明頁、設定頁的在各自的檔案） | ✓ |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
-| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
+| `src/ui/side.rs` | 畫 side menu：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 36，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
 | `src/ui/month.rs` | 版型 3（大月曆）：6 列等高的格子（`Grid`，畫畫面和滑鼠換算都用它）；一列是一週，但每個月從新的一列開始（`row_start` / `row_end` / `row_after`），列和列之間的線分三種（`Rule`）；一列一列捲（`App::month_top`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 

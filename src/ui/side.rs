@@ -4,6 +4,7 @@
 use super::{Click, months::scrolled_top, planner::inner_areas, render_scrollbar};
 use crate::{
     app::{App, Focus, Group},
+    config::CalendarListSettings,
     texts::Texts,
 };
 use ratatui::{
@@ -15,15 +16,12 @@ use ratatui::{
     widgets::{Block, BorderType},
 };
 
-/// Narrowest side menu width (incl. left and right border); the header always fits
-const MIN_WIDTH: u16 = 22;
-/// Widest side menu width (incl. left and right border); longer names get cut off
-const MAX_WIDTH: u16 = 30;
-
 /// Side menu width (incl. left and right border): just enough for the longest calendar,
 /// e.g. 「 ☑ Payments API v2 12 」,
-/// but kept between `MIN_WIDTH` and `MAX_WIDTH`
+/// but at least `CalendarListSettings::MIN_WIDTH` (22) and at most the config file's
+/// `[calendar_list] max_width` (36 by default); longer names get cut off
 pub fn width(app: &App) -> u16 {
+    let max = app.settings.calendar_list.max_width();
     let texts = app.lang.texts();
     let longest = app
         .groups
@@ -34,8 +32,8 @@ pub fn width(app: &App) -> u16 {
         .unwrap_or(0);
     // Add the left and right border
     u16::try_from(longest + 2)
-        .unwrap_or(MAX_WIDTH)
-        .clamp(MIN_WIDTH, MAX_WIDTH)
+        .unwrap_or(max)
+        .clamp(CalendarListSettings::MIN_WIDTH, max)
 }
 
 /// The calendar's name; items at the top of the file, before any heading, are 「未分組」
@@ -57,7 +55,7 @@ fn count_text(app: &App, group: &Group) -> String {
 /// Draws the side menu: the header 「日曆」, then one calendar per row, e.g. 「 ☑ Work            12 」
 ///
 /// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long (box already at
-/// `MAX_WIDTH`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
+/// `[calendar_list] max_width`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
 /// is visible (stored in `app.side_top`) and draw a scrollbar on the right border. When the keyboard is
 /// on the side menu, the border lights up and the chosen calendar gets a background color
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -173,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn width_fits_the_longest_calendar_between_22_and_30() {
+    fn width_fits_the_longest_calendar_up_to_the_max_width() {
         // No task file, or a short name (「 ☑ Personal 1 」 needs only 14 cells): the minimum, 22
         assert_eq!(width(&app_with("")), 22);
         assert_eq!(width(&app_with("# Personal\n- a @2026-10-10\n")), 22);
@@ -184,10 +182,22 @@ mod tests {
         // A two-digit count: 1 more cell
         let ten = "- x @2026-10-10\n".repeat(10);
         assert_eq!(width(&app_with(&format!("# Tokyo trip 🗼🍣\n{ten}"))), 24);
-        // Longer still: the maximum, 30
-        assert_eq!(
-            width(&app_with("# Year-end chores 🎄 and plans for 2027\n- a\n")),
-            30
-        );
+        // Longer still (「 ☑ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): the
+        // config file's `[calendar_list] max_width`, 36 by default
+        let mut app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
+        assert_eq!(width(&app), 36);
+        app.settings.calendar_list.max_width = 30;
+        assert_eq!(width(&app), 30);
+        // Wide enough for the whole name: just what it needs
+        app.settings.calendar_list.max_width = 50;
+        assert_eq!(width(&app), 45);
+        // Out of range in the config file: below 22 counts as 22, above 60 as 60
+        app.settings.calendar_list.max_width = 10;
+        assert_eq!(width(&app), 22);
+        app.settings.calendar_list.max_width = 100;
+        assert_eq!(width(&app), 45);
+        let mut app = app_with(&format!("# {}\n- a\n", "x".repeat(70)));
+        app.settings.calendar_list.max_width = 100;
+        assert_eq!(width(&app), 60);
     }
 }

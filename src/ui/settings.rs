@@ -357,8 +357,8 @@ mod tests {
         // indent and a name column 2 wider, so all values share one column;
         // the width is the larger of the longest description and the key hints on the bottom border
         // (42 cells + a blank on each side)
-        let (_, area, rows, buffer) = draw(SettingsPage::default(), 40);
-        assert_eq!(area, Rect::new(12, 1, 46, 38));
+        let (_, area, rows, buffer) = draw(SettingsPage::default(), 43);
+        assert_eq!(area, Rect::new(12, 1, 46, 41));
         assert_eq!(
             rows,
             [
@@ -373,6 +373,9 @@ mod tests {
                 "│    grid_lines        on                    │",
                 "│    item_icons        on                    │",
                 "│    center_cursor     off                   │",
+                "│                                            │",
+                "│  [calendar_list]                           │",
+                "│    max_width         36                    │",
                 "│                                            │",
                 "│  [colors]                                  │",
                 "│    text                 text               │",
@@ -413,29 +416,31 @@ mod tests {
         assert_eq!(buffer[(13, 6)].bg, Color::Reset);
         assert_eq!(buffer[(15, 3)].fg, theme.help_key);
         assert_eq!(buffer[(15, 5)].fg, theme.help_section);
-        // Swatch: on the today row (list line 21, y = 3 + 21), the 2 cells of the value column have
+        // The width row's value is in the same column
+        assert_eq!(buffer[(35, 14)].symbol(), "3");
+        // Swatch: on the today row (list line 24, y = 3 + 24), the 2 cells of the value column have
         // today's color, followed by the name
-        assert_eq!(buffer[(35, 24)].bg, theme.today);
-        assert_eq!(buffer[(36, 24)].bg, theme.today);
-        assert_eq!(buffer[(37, 24)].bg, Color::Reset);
+        assert_eq!(buffer[(35, 27)].bg, theme.today);
+        assert_eq!(buffer[(36, 27)].bg, theme.today);
+        assert_eq!(buffer[(37, 27)].bg, Color::Reset);
     }
 
     #[test]
     fn the_chosen_color_row_keeps_its_swatch() {
-        // Choosing the text row (row 6, list line 11, y 14): the whole row has a background, but the
+        // Choosing the text row (row 7, list line 14, y 17): the whole row has a background, but the
         // swatch keeps the text color
         let (_, _, rows, buffer) = draw(
             SettingsPage {
-                row: 5,
+                row: 6,
                 ..SettingsPage::default()
             },
-            40,
+            43,
         );
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(14, 14)].bg, theme.cursor_line);
-        assert_eq!(buffer[(35, 14)].bg, theme.text);
-        assert_eq!(buffer[(38, 14)].bg, theme.cursor_line);
-        assert_eq!(rows[35], "│  顏色：l 換色票的下一個，r 回到 theme 的   │");
+        assert_eq!(buffer[(14, 17)].bg, theme.cursor_line);
+        assert_eq!(buffer[(35, 17)].bg, theme.text);
+        assert_eq!(buffer[(38, 17)].bg, theme.cursor_line);
+        assert_eq!(rows[38], "│  顏色：l 換色票的下一個，r 回到 theme 的   │");
     }
 
     #[test]
@@ -445,27 +450,27 @@ mod tests {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.settings.set_theme("terminal");
         app.apply_theme();
-        let (_, _, rows, buffer) = draw_app(app, SettingsPage::default(), 40);
-        assert_eq!(rows[13], "│    text                 Reset              │");
-        assert_eq!(buffer[(35, 14)].bg, Color::Reset);
-        assert_eq!(buffer[(36, 14)].bg, Color::Reset);
+        let (_, _, rows, buffer) = draw_app(app, SettingsPage::default(), 43);
+        assert_eq!(rows[16], "│    text                 Reset              │");
+        assert_eq!(buffer[(35, 17)].bg, Color::Reset);
+        assert_eq!(buffer[(36, 17)].bg, Color::Reset);
         // Other roles still have a swatch (muted = dark-gray)
-        assert_eq!(buffer[(35, 15)].bg, Color::DarkGray);
+        assert_eq!(buffer[(35, 18)].bg, Color::DarkGray);
     }
 
     #[test]
     fn a_short_screen_scrolls_to_the_chosen_row() {
-        // 70 × 23: the box is at most 23 tall and the list holds 17 lines (32 lines, so it scrolls);
-        // choosing the last row (help_key, list line 31) → scrolled to the end (line 15 at the top),
+        // 70 × 23: the box is at most 23 tall and the list holds 17 lines (35 lines, so it scrolls);
+        // choosing the last row (help_key, list line 34) → scrolled to the end (line 18 at the top),
         // and the description is still at the bottom
         let (app, area, rows, buffer) = draw(
             SettingsPage {
-                row: 25,
+                row: 26,
                 ..SettingsPage::default()
             },
             23,
         );
-        assert_eq!(app.settings_page().map(|page| page.top), Some(15));
+        assert_eq!(app.settings_page().map(|page| page.top), Some(18));
         assert_eq!(area, Rect::new(12, 0, 46, 23));
         assert_eq!(
             rows,
@@ -498,10 +503,10 @@ mod tests {
         // The scrollbar is on the bottom part of the right border
         assert_eq!(buffer[(57, 21)].symbol(), "┃");
         assert_eq!(buffer[(57, 1)].symbol(), "│");
-        // Clicking the bottom row: still help_key; the top row is label (row 10): mapped using
+        // Clicking the bottom row: still help_key; the top row is label (row 11): mapped using
         // the scroll position
-        assert_eq!(row_at(&app, app.screen, 20, 18), Some(25));
-        assert_eq!(row_at(&app, app.screen, 20, 2), Some(9));
+        assert_eq!(row_at(&app, app.screen, 20, 18), Some(26));
+        assert_eq!(row_at(&app, app.screen, 20, 2), Some(10));
     }
 
     #[test]
@@ -512,26 +517,28 @@ mod tests {
                 confirm_reset: true,
                 ..SettingsPage::default()
             },
-            40,
+            43,
         );
-        assert_eq!(rows[35], "│  大月曆：選取的那週固定在正中間            │");
-        assert_eq!(rows[37], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
+        assert_eq!(rows[38], "│  大月曆：選取的那週固定在正中間            │");
+        assert_eq!(rows[40], "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯");
     }
 
     #[test]
     fn clicks_map_to_the_rows() {
-        let (app, _, _, _) = draw(SettingsPage::default(), 40);
-        // theme is at y 3, relative_weeks at y 6, grid_lines at y 9, the last one, help_key, at y 34;
-        // section names, blank lines, the description and the border do not count
+        let (app, _, _, _) = draw(SettingsPage::default(), 43);
+        // theme is at y 3, relative_weeks at y 6, grid_lines at y 9, max_width at y 14, the last one,
+        // help_key, at y 37; section names, blank lines, the description and the border do not count
         assert_eq!(row_at(&app, app.screen, 20, 3), Some(0));
         assert_eq!(row_at(&app, app.screen, 20, 6), Some(1));
         assert_eq!(row_at(&app, app.screen, 13, 9), Some(2));
-        assert_eq!(row_at(&app, app.screen, 56, 34), Some(25));
+        assert_eq!(row_at(&app, app.screen, 20, 14), Some(5));
+        assert_eq!(row_at(&app, app.screen, 56, 37), Some(26));
         for (x, y) in [
             (20, 4),
             (20, 5),
             (20, 13),
-            (20, 36),
+            (20, 16),
+            (20, 39),
             (12, 3),
             (57, 3),
             (20, 1),

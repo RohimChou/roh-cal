@@ -7,7 +7,7 @@
 //! `q` / `Esc` / `,` or a click outside the box closes it
 
 use super::{App, Mode, Notice};
-use crate::config::{self, Settings};
+use crate::config::{self, CalendarListSettings, Settings};
 use crate::theme::{self, Theme};
 use crate::ui;
 use ratatui::{
@@ -41,6 +41,8 @@ pub enum Row {
     ItemIcons,
     /// `[month] center_cursor`
     CenterCursor,
+    /// `[calendar_list] max_width`: a number, not a switch
+    ListWidth,
     /// One role in `[colors]` (a name in `theme::ROLES`): overrides that color of the theme
     Color(&'static str),
 }
@@ -54,6 +56,7 @@ pub fn rows() -> Vec<Row> {
         Row::GridLines,
         Row::ItemIcons,
         Row::CenterCursor,
+        Row::ListWidth,
     ];
     rows.extend(theme::ROLES.map(Row::Color));
     rows
@@ -67,6 +70,7 @@ impl Row {
             Self::Theme => None,
             Self::RelativeWeeks => Some("calendar"),
             Self::GridLines | Self::ItemIcons | Self::CenterCursor => Some("month"),
+            Self::ListWidth => Some("calendar_list"),
             Self::Color(_) => Some("colors"),
         }
     }
@@ -79,15 +83,16 @@ impl Row {
             Self::GridLines => "grid_lines",
             Self::ItemIcons => "item_icons",
             Self::CenterCursor => "center_cursor",
+            Self::ListWidth => "max_width",
             Self::Color(role) => role,
         }
     }
 
     /// For switch rows, that `bool` in `settings` (`&mut`: for changing
-    /// and resetting); `theme` and colors are not switches, so `None`
+    /// and resetting); `theme`, the width and colors are not switches, so `None`
     fn switch(self, settings: &mut Settings) -> Option<&mut bool> {
         match self {
-            Self::Theme | Self::Color(_) => None,
+            Self::Theme | Self::ListWidth | Self::Color(_) => None,
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
             Self::GridLines => Some(&mut settings.month.grid_lines),
             Self::ItemIcons => Some(&mut settings.month.item_icons),
@@ -95,7 +100,8 @@ impl Row {
         }
     }
 
-    /// The current value (text drawn on the right): switches are `on` / `off`, `theme` is the theme's name;
+    /// The current value (text drawn on the right): switches are `on` / `off`, `theme` is the theme's name,
+    /// the width is a number (the one that counts, see `CalendarListSettings::max_width`);
     /// colors are their palette name (a color not in the palette is written as
     /// itself, e.g. `#010203`). `theme` = the screen colors built from `settings`
     pub fn value(self, settings: &Settings, theme: &Theme) -> String {
@@ -115,6 +121,7 @@ impl Row {
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::ItemIcons => on_off(settings.month.item_icons),
             Self::CenterCursor => on_off(settings.month.center_cursor),
+            Self::ListWidth => settings.calendar_list.max_width().to_string(),
         }
     }
 
@@ -130,13 +137,24 @@ impl Row {
     /// Changes this row's value: switches on ⇄ off; `theme` goes to
     /// the next (`step` = 1) / previous (-1) theme in built-in order;
     /// colors go to the next / previous one in the theme's palette
-    /// (terminal's 16 colors if there is no palette). Both wrap around
+    /// (terminal's 16 colors if there is no palette). Both wrap around.
+    /// The width gets 1 cell wider / narrower, stopping at `MIN_WIDTH` / `MAX_WIDTH` (no wrapping)
     fn change(self, settings: &mut Settings, step: isize) {
         if let Some(switch) = self.switch(settings) {
             *switch = !*switch;
             return;
         }
         match self {
+            Self::ListWidth => {
+                let list = &mut settings.calendar_list;
+                list.max_width = list
+                    .max_width()
+                    .saturating_add_signed(i16::try_from(step).unwrap_or(0))
+                    .clamp(
+                        CalendarListSettings::MIN_WIDTH,
+                        CalendarListSettings::MAX_WIDTH,
+                    );
+            }
             Self::Color(role) => {
                 let choices = theme::choices(&settings.theme);
                 let current = Theme::build(&settings.theme, &settings.colors)
@@ -179,6 +197,10 @@ impl Row {
         let mut defaults = Settings::default();
         if let Self::Color(role) = self {
             settings.colors.remove(role);
+            return;
+        }
+        if self == Self::ListWidth {
+            settings.calendar_list = defaults.calendar_list;
             return;
         }
         // Switch: use the same switch's value from the defaults; the only non-switch left is theme
@@ -397,9 +419,9 @@ mod tests {
     #[test]
     fn color_rows_go_through_the_palette_and_keep_only_overrides() {
         let mut app = app_with_settings();
-        // Row 6 is text's color: l switches to the palette's next color
+        // Row 7 is text's color: l switches to the palette's next color
         // (subtext0), records it in [colors], and the screen changes right away
-        for _ in 0..5 {
+        for _ in 0..6 {
             press(&mut app, KeyCode::Char('j'));
         }
         press(&mut app, KeyCode::Char('l'));
@@ -504,8 +526,36 @@ mod tests {
                     item_icons: _,
                     center_cursor: _,
                 },
+            calendar_list: CalendarListSettings { max_width: _ },
         } = Settings::default();
-        assert_eq!(rows().len(), 5 + theme::ROLES.len());
+        assert_eq!(rows().len(), 6 + theme::ROLES.len());
+    }
+
+    #[test]
+    fn the_list_width_steps_by_one_cell_and_stops_at_the_ends() {
+        let mut settings = Settings::default();
+        // Default 36: l = 37, h twice = 35
+        Row::ListWidth.change(&mut settings, 1);
+        assert_eq!(settings.calendar_list.max_width, 37);
+        Row::ListWidth.change(&mut settings, -1);
+        Row::ListWidth.change(&mut settings, -1);
+        assert_eq!(settings.calendar_list.max_width, 35);
+        // Stops at 22 and 60 instead of wrapping around
+        settings.calendar_list.max_width = 22;
+        Row::ListWidth.change(&mut settings, -1);
+        assert_eq!(settings.calendar_list.max_width, 22);
+        settings.calendar_list.max_width = 60;
+        Row::ListWidth.change(&mut settings, 1);
+        assert_eq!(settings.calendar_list.max_width, 60);
+        // A hand-written 100 in the config file counts as 60: shown as 60, h goes to 59
+        settings.calendar_list.max_width = 100;
+        let theme = Theme::catppuccin_mocha();
+        assert_eq!(Row::ListWidth.value(&settings, &theme), "60");
+        Row::ListWidth.change(&mut settings, -1);
+        assert_eq!(settings.calendar_list.max_width, 59);
+        // r: back to 36
+        Row::ListWidth.reset(&mut settings);
+        assert_eq!(settings.calendar_list.max_width, 36);
     }
 
     #[test]
@@ -518,6 +568,7 @@ mod tests {
             let value = match row {
                 Row::Theme => format!("\"{}\"", changed.theme),
                 Row::Color(role) => format!("\"{}\"", changed.colors[role]),
+                Row::ListWidth => changed.calendar_list.max_width.to_string(),
                 _ => (row.value(&changed, &Theme::catppuccin_mocha()) == "on").to_string(),
             };
             let table = row
