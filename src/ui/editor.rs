@@ -116,8 +116,8 @@ pub fn list_area(screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usi
     Some((Rect::new(x, y, width, height), top))
 }
 
-/// Draws the editor: the top border says 「編輯事項」 when editing an item (or 「新增 ∙ the calendar it goes
-/// into」, 「新增日曆」); row 1 is the typed text
+/// Draws the editor: the top border says 「編輯事項 ∙ its calendar」 when editing an item (or 「新增 ∙ the
+/// calendar it goes into」, 「新增日曆」); row 1 is the typed text
 /// (cursor at the typing position); after a blank row, row 3 shows live what the line will be read as (red text when something
 /// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
@@ -129,7 +129,11 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         .border_style(Style::new().fg(theme.focus))
         .title_top(Line::styled(
             match &editor.target {
-                Target::Edit(_) => texts.edit_title().to_string(),
+                // Editing an item: the calendar it is in (or moves to), e.g. 「 編輯事項 ∙ Work > SFAP 」
+                Target::Edit { .. } if let Some(path) = editor.calendar() => {
+                    format!("{}∙ {} ", texts.edit_title(), path.join(" > "))
+                }
+                Target::Edit { .. } => texts.edit_title().to_string(),
                 // Adding an item: which calendar it goes into, e.g. 「 新增 ∙ Work > SFAP 」
                 Target::Add(_) if let Some(path) = editor.calendar() => {
                     format!("{}∙ {} ", texts.add_title(false), path.join(" > "))

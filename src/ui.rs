@@ -1662,6 +1662,17 @@ mod tests {
         assert!(app.editor().and_then(Editor::suggestions).is_some());
         mouse(&mut app, click, 40, 20);
         assert!(app.editor().is_none());
+        // Editing an item: the top border names its calendar, the bottom border says #name switches it
+        app.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+        let terminal = draw_app(&mut app, 80, 24);
+        let rows = area_rows(terminal.backend().buffer(), editor_area(app.screen));
+        assert!(rows[0].starts_with("╭ Edit item ∙ Work ─"), "{}", rows[0]);
+        assert!(
+            rows[6].starts_with("╰ Enter save  #name calendar  Esc cancel ─"),
+            "{}",
+            rows[6]
+        );
         // More than 8 calendars: 8 rows, scrolled so the chosen one (the last) shows at the bottom
         let text: String = (0..10)
             .map(|n| format!("# C{n}\n- Item {n} @2026-10-17\n"))

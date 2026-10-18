@@ -1,8 +1,8 @@
 //! Pure functions that change the task file: given the file's current content, return the new content
 //! (the caller writes the file with `files::write_atomically`)
 //!
-//! Only the part being changed is touched (check off, edit, reschedule: that line; delete, indent: that
-//! block; move up / down: those two blocks; add: one inserted line). Every other character stays as it is,
+//! Only the part being changed is touched (check off, edit, reschedule: that line; delete, indent, move to
+//! another calendar: that block; move up / down: those two blocks; add: one inserted line). Every other character stays as it is,
 //! including whether line endings are `\n` or `\r\n`.
 //! Every change checks first: if the line is not what was read (e.g. it was just edited in Obsidian),
 //! nothing is changed and `Changed` is returned
@@ -343,6 +343,52 @@ fn calendar_end(text: &str, lines: &[&str], path: &[String]) -> Result<usize, Ch
             .map(|heading| heading.line)
             .ok_or(Changed),
     }
+}
+
+/// Move to another calendar (an item edited with another calendar picked in the `#` list): `item`'s line
+/// becomes `new` (the line typed in the editor) and its whole block (with subtasks and note lines) goes to
+/// the end of the calendar with this `path` (where `Place::InCalendar` adds), as an outermost item: `item`'s
+/// indent is taken off every line, the subtasks keep their extra indent. Return the whole changed file and
+/// `item`'s new line number (from 1). `Changed` if `item`'s line differs from when it was read, or there is
+/// no such calendar
+///
+/// E.g. moving the subtask `  - [ ] Book flights` (with `    - [ ] Compare prices` under it) to `Work`:
+/// `- [ ] Book flights` and `  - [ ] Compare prices` go below Work's last item
+pub fn move_to_calendar(
+    text: &str,
+    item: &Item,
+    new: &str,
+    path: &[String],
+) -> Result<(String, usize), Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
+    let segments: Vec<&str> = text.split_inclusive('\n').collect();
+    let start = find_line(&lines, item)?;
+    let end = block_end(text, &lines, start);
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    // The block as it will be: the typed line, then the lines under it without `item`'s indent
+    let mut block = format!("{}{newline}", new.trim());
+    block.push_str(&reindented(
+        &segments[start + 1..end],
+        indent_of(&item.line_text),
+        "",
+    ));
+    if !block.ends_with('\n') {
+        block.push_str(newline);
+    }
+    // The file without the block; the block goes at the end of the calendar there
+    let rest = [segments[..start].concat(), segments[end..].concat()].concat();
+    let rest_lines: Vec<&str> = rest.lines().collect();
+    let at = calendar_end(&rest, &rest_lines, path)?;
+    let rest_segments: Vec<&str> = rest.split_inclusive('\n').collect();
+    let mut result = rest_segments[..at].concat();
+    // The line before is the file's last line and has no newline: add one first
+    if !result.is_empty() && !result.ends_with('\n') {
+        result.push_str(newline);
+    }
+    result.push_str(&block);
+    result.push_str(&rest_segments[at..].concat());
+    Ok((result, at + 1))
 }
 
 /// Delete: remove `item` together with the following lines indented deeper than it (subtasks, note lines,
@@ -1071,6 +1117,68 @@ mod tests {
         .expect("add");
         assert!(after.ends_with("- Go hiking @2026-10-18\n- Dinner with friends @2026-10-17\n"));
         assert_eq!(line, 9);
+    }
+
+    #[test]
+    fn move_to_calendar_takes_the_whole_block_to_the_end_of_the_calendar() {
+        let path =
+            |names: &[&str]| -> Vec<String> { names.iter().map(|&name| name.into()).collect() };
+        // The design doc with its subtasks (and the blank line between them) goes below Personal's last item;
+        // its line becomes the typed one; the blank line after the block stays in Work
+        let (after, line) = move_to_calendar(
+            GROUPS,
+            &item(GROUPS, 0),
+            "- [ ] Write the design doc v2 @2026-10-16",
+            &path(&["Personal"]),
+        )
+        .expect("move");
+        assert_eq!(
+            after,
+            "# Work\n\n# Personal\n- Go hiking @2026-10-18\n- [ ] Write the design doc v2 @2026-10-16\n  - [ ] Gather requirements\n\n  - [x] Draft the outline\n"
+        );
+        assert_eq!(line, 5);
+        // A subtask comes out as an outermost item; its own subtask keeps the 2 extra spaces
+        let text = "# Trip\n- Tokyo\n  - [ ] Book flights\n    - [ ] Compare prices\n  - [ ] Pack\n# Work\n- a\n";
+        let (after, line) = move_to_calendar(
+            text,
+            &item(text, 1),
+            "- [ ] Book flights @2026-11-01",
+            &path(&["Work"]),
+        )
+        .expect("move");
+        assert_eq!(
+            after,
+            "# Trip\n- Tokyo\n  - [ ] Pack\n# Work\n- a\n- [ ] Book flights @2026-11-01\n  - [ ] Compare prices\n"
+        );
+        assert_eq!(line, 6);
+        // Up to a calendar with no items of its own: right under its heading
+        let text = "# Personal\n## SFAP\n- c\n# Work\n- a\n  - a1\n- b\n";
+        let (after, line) =
+            move_to_calendar(text, &item(text, 1), "- a", &path(&["Personal"])).expect("move");
+        assert_eq!(
+            after,
+            "# Personal\n- a\n  - a1\n## SFAP\n- c\n# Work\n- b\n"
+        );
+        assert_eq!(line, 2);
+        // \r\n line endings stay; a last line with no newline gets one
+        let text = "# A\r\n- x\r\n# B\r\n- y\r\n";
+        let (after, _) =
+            move_to_calendar(text, &item(text, 0), "- x", &path(&["B"])).expect("move");
+        assert_eq!(after, "# A\r\n# B\r\n- y\r\n- x\r\n");
+        let text = "# A\n- x\n# B\n- y";
+        let (after, _) =
+            move_to_calendar(text, &item(text, 0), "- x", &path(&["B"])).expect("move");
+        assert_eq!(after, "# A\n# B\n- y\n- x\n");
+        // The line changed elsewhere, or the calendar is gone: nothing moves
+        let changed = item("# A\n- x2\n", 0);
+        assert_eq!(
+            move_to_calendar(text, &Item { line: 2, ..changed }, "- x", &path(&["B"])),
+            Err(Changed)
+        );
+        assert_eq!(
+            move_to_calendar(text, &item(text, 0), "- x", &path(&["Home"])),
+            Err(Changed)
+        );
     }
 
     #[test]

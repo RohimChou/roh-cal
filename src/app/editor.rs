@@ -2,7 +2,8 @@
 //! how the line will be read; `Enter` saves (it cannot save while a mistake is not fixed),
 //! `Esc` cancels
 //!
-//! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page)
+//! - `e` / `Enter`: edit the line of the chosen item in the agenda (or the tasks page); the top border names
+//!   its calendar, and picking another one in the `#` list moves it there (with its subtasks) on save
 //! - `a`: add an item (in the chosen item's group; on the calendar, in the group of the selected day's
 //!   first item, or in the first calendar that is not a holiday calendar if that day has none), on the
 //!   selected day (not on the tasks page); the top border names the calendar. Typing `#` and part of a
@@ -57,8 +58,12 @@ pub struct HashList {
 /// What the editor does when it saves
 #[derive(Debug, Clone)]
 pub enum Target {
-    /// Edit this item (as it was read when the editor opened)
-    Edit(Item),
+    /// Edit this item (as it was read when the editor opened); `calendar` = the calendar picked in the `#`
+    /// list (it moves there on save), `None` = it stays where it is
+    Edit {
+        item: Item,
+        calendar: Option<Vec<String>>,
+    },
     /// Add a new item, placed here
     Add(Place),
     /// Add a calendar; `taken` = the names the calendars already have (as the editor opened)
@@ -81,19 +86,13 @@ pub enum Reading {
 }
 
 impl Editor {
-    /// While adding an item (not a subtask): the path of the calendar it goes into (e.g. `Work`, `SFAP`);
-    /// `None` otherwise, or when it goes at the end of a file with no calendar yet
+    /// The path of the calendar (e.g. `Work`, `SFAP`) an added item (not a subtask) goes into, or an edited
+    /// item is in (or moves to); `None` otherwise, or for an item outside any calendar
     pub fn calendar(&self) -> Option<Vec<String>> {
         match &self.target {
-            Target::Add(Place::InGroupOf(item)) => item.group.as_ref().map(|heading| {
-                heading
-                    .parents
-                    .iter()
-                    .chain([&heading.name])
-                    .cloned()
-                    .collect()
-            }),
+            Target::Add(Place::InGroupOf(item)) => calendar_of(item),
             Target::Add(Place::InCalendar(path)) => Some(path.clone()),
+            Target::Edit { item, calendar } => calendar.clone().or_else(|| calendar_of(item)),
             _ => None,
         }
     }
@@ -132,8 +131,9 @@ impl Editor {
         (!found.is_empty()).then_some(found)
     }
 
-    /// Picks the calendar on row `index` of the open `#` list: the new item goes into it, and the `#` word
-    /// (with one space after it) is taken out of the typed text, the cursor where it was
+    /// Picks the calendar on row `index` of the open `#` list: the new item goes into it (an edited item moves
+    /// there on save), and the `#` word (with one space after it) is taken out of the typed text, the cursor
+    /// where it was
     fn pick_calendar(&mut self, index: usize) {
         let (Some((start, _)), Some(found)) = (self.hash_word(), self.suggestions()) else {
             return;
@@ -155,7 +155,10 @@ impl Editor {
         let text = chars[..start].iter().chain(&chars[end..]).collect();
         self.input = Input::new(text).with_cursor(start);
         self.hash_list.open = false;
-        self.target = Target::Add(Place::InCalendar(path));
+        match &mut self.target {
+            Target::Edit { calendar, .. } => *calendar = Some(path),
+            target => *target = Target::Add(Place::InCalendar(path)),
+        }
     }
 
     /// A typing key (cursor movement and deleting: see tui-input): a change typed in a `#` word opens the `#`
@@ -184,9 +187,21 @@ impl Editor {
             Target::AddCalendar { taken } | Target::RenameCalendar { taken, .. } => {
                 edit::check_calendar(self.input.value(), taken).map(Reading::Calendar)
             }
-            Target::Edit(_) | Target::Add(_) => edit::check(&self.line()).map(Reading::Item),
+            Target::Edit { .. } | Target::Add(_) => edit::check(&self.line()).map(Reading::Item),
         }
     }
+}
+
+/// The path of the calendar `item` is in (e.g. `Work`, `SFAP`); `None` outside any calendar
+fn calendar_of(item: &Item) -> Option<Vec<String>> {
+    item.group.as_ref().map(|heading| {
+        heading
+            .parents
+            .iter()
+            .chain([&heading.name])
+            .cloned()
+            .collect()
+    })
 }
 
 impl App {
@@ -205,9 +220,15 @@ impl App {
             Input::new(day.map_or_else(|| line.to_string(), |day| edit::hide_day(line, day)));
         self.mode = Mode::Editor(Editor {
             input,
-            target: Target::Edit(item),
+            target: Target::Edit {
+                item,
+                calendar: None,
+            },
             day,
-            hash_list: HashList::default(),
+            hash_list: HashList {
+                calendars: self.calendars(),
+                ..HashList::default()
+            },
         });
     }
 
@@ -425,16 +446,24 @@ impl App {
             (Target::RenameCalendar { headings, .. }, Reading::Calendar(heading)) => {
                 self.save_renamed_calendar(&headings, &new, &heading.name);
             }
-            (Target::Edit(item), _) => {
-                if !untouched(&item) {
+            (Target::Edit { item, calendar }, _) => {
+                // Another calendar picked in the `#` list (not the one it is in): it moves there
+                let moving = calendar.filter(|path| Some(path) != calendar_of(&item).as_ref());
+                let mut line = item.line;
+                if moving.is_some() || !untouched(&item) {
                     let Some((path, text)) = self.read_tasks() else {
                         return;
                     };
-                    match edit::replace(&text, &item, &new) {
-                        Ok(after) => {
+                    let changed = match &moving {
+                        Some(calendar) => edit::move_to_calendar(&text, &item, &new, calendar),
+                        None => edit::replace(&text, &item, &new).map(|after| (after, item.line)),
+                    };
+                    match changed {
+                        Ok((after, moved_to)) => {
                             if !self.write_tasks(&path, text, after, item.title) {
                                 return;
                             }
+                            line = moved_to;
                         }
                         Err(edit::Changed) => {
                             // Changed elsewhere: reload; the keyboard goes back to this
@@ -447,7 +476,7 @@ impl App {
                     }
                 }
                 self.mode = Mode::Normal;
-                self.choose_line(item.line);
+                self.choose_line(line);
             }
             (Target::Add(place), Reading::Item(checked)) => {
                 let Some((path, text)) = self.read_tasks_for_adding() else {
@@ -970,6 +999,49 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             format!("{text}- [ ] Ship it #wor #zzz @2026-10-16\n")
         );
+        clean_up(&path);
+    }
+
+    #[test]
+    fn hash_moves_an_edited_item_with_its_subtasks() {
+        let text = "# Trip\n- [ ] Book flights @2026-10-16\n  - [ ] Compare prices\n# Work\n- [ ] Write the design doc\n";
+        let (mut app, path) = app_with_task_file("edit-hash", text);
+        // The top border names the calendar it is in
+        press(&mut app, KeyCode::Char('e'));
+        assert_eq!(calendar(&app).as_deref(), Some("Trip"));
+        assert_eq!(
+            app.editor().map(|editor| editor.input.value()),
+            Some("- [ ] Book flights")
+        );
+        // Pick Work: it moves there on save, as Work's last item, with its subtask; still chosen
+        type_text(&mut app, " #wo");
+        assert_eq!(listed(&app), ["Work"]);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(calendar(&app).as_deref(), Some("Work"));
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_none());
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "# Trip\n# Work\n- [ ] Write the design doc\n- [ ] Book flights @2026-10-16\n  - [ ] Compare prices\n"
+        );
+        assert_eq!(
+            app.chosen()
+                .map(|entry| (entry.item.title.as_str(), entry.item.line)),
+            Some(("Book flights", 4))
+        );
+        // u puts it back in one step
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+        // Picking the calendar it is already in, with nothing else changed: nothing is written
+        let steps = app.undo.len();
+        press(&mut app, KeyCode::Char('e'));
+        type_text(&mut app, " #tr");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(calendar(&app).as_deref(), Some("Trip"));
+        press(&mut app, KeyCode::Enter);
+        assert!(app.editor().is_none());
+        assert_eq!(app.undo.len(), steps);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         clean_up(&path);
     }
 

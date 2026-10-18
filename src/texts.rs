@@ -306,7 +306,7 @@ const EN: Texts = Texts {
                     ("Enter", "save"),
                     ("Esc", "cancel"),
                     ("Ctrl+U", "clear"),
-                    ("#", "pick a calendar (adding)"),
+                    ("#", "pick a calendar"),
                 ],
                 places: &[],
             },
@@ -514,7 +514,7 @@ const ZH_TW: Texts = Texts {
                     ("Enter", "存檔"),
                     ("Esc", "取消"),
                     ("Ctrl+U", "清掉"),
-                    ("#", "選日曆（新增時）"),
+                    ("#", "換日曆"),
                 ],
                 places: &[],
             },
@@ -669,8 +669,8 @@ impl Texts {
         }
     }
 
-    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding an item, so typing `#`
-    /// and a calendar's name switches its calendar
+    /// The editor's bottom border: how to save, how to cancel; `calendars` = adding or editing an item, so
+    /// typing `#` and a calendar's name switches its calendar
     pub fn editor_keys(&self, calendars: bool) -> &'static str {
         match (self.lang, calendars) {
             (Lang::En, false) => " Enter save  Esc cancel ",
