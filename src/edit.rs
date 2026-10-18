@@ -129,10 +129,21 @@ pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
     let end = block_end(&lines, start);
-    let from = indent_of(&item.line_text);
     let mut result = segments[..start].concat();
-    for segment in &segments[start..end] {
-        // 中間的空行照留
+    result.push_str(&reindented(
+        &segments[start..end],
+        indent_of(&item.line_text),
+        to,
+    ));
+    result.push_str(&segments[end..].concat());
+    Ok(result)
+}
+
+/// 一塊（連換行的整段）每一行開頭的縮排 `from` 換成 `to`，子任務多出來的縮排照留；中間的空行照留。
+/// 開頭不是 `from` 的行（tab、空白混用）照寬度換成空白，上下層的關係不變
+fn reindented(segments: &[&str], from: &str, to: &str) -> String {
+    let mut result = String::new();
+    for segment in segments {
         if segment.trim().is_empty() {
             result.push_str(segment);
             continue;
@@ -150,12 +161,12 @@ pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
             }
         }
     }
-    result.push_str(&segments[end..].concat());
-    Ok(result)
+    result
 }
 
 /// 上下搬：`upper` 那一塊和它下面同一層的 `lower` 那一塊（都連子任務、備註）換位置，回傳改好的整個檔案；
-/// 兩塊中間隔著的（空行）留在中間
+/// 兩塊中間隔著的（空行、備註）留在中間。縮排留在原本的位置：搬到上面的那塊換成 `upper` 的縮排、搬到下面的換成
+/// `lower` 的（兩件的縮排寫法不一樣時，例：一件 tab、一件兩格空白，照原樣搬可能變成另一件的子任務）
 ///
 /// 例：`- a`、`  - a1`、`- b` → `- b`、`- a`、`  - a1`
 pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<String, Changed> {
@@ -170,8 +181,17 @@ pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<String, Changed> {
     if lower_start < upper_end {
         return Err(Changed);
     }
-    let mut upper_block = segments[upper_start..upper_end].concat();
-    let mut lower_block = segments[lower_start..lower_end].concat();
+    let (upper_indent, lower_indent) = (indent_of(&upper.line_text), indent_of(&lower.line_text));
+    let mut upper_block = reindented(
+        &segments[upper_start..upper_end],
+        upper_indent,
+        lower_indent,
+    );
+    let mut lower_block = reindented(
+        &segments[lower_start..lower_end],
+        lower_indent,
+        upper_indent,
+    );
     // 下面那塊是檔案最後一行、沒有換行：換到上面要補換行；換到最後面的那塊就不留換行（跟原本一樣）
     if !lower_block.ends_with('\n') {
         lower_block.push_str(if text.contains("\r\n") { "\r\n" } else { "\n" });
@@ -585,6 +605,24 @@ mod tests {
         // 一模一樣的行照出現的順序配
         let map = line_map("- a\n  - 同\n- b\n  - 同\n", "- b\n  - 同\n- a\n  - 同\n");
         assert_eq!([1, 2, 3, 4].map(&map), [Some(3), Some(2), Some(1), Some(4)]);
+    }
+
+    #[test]
+    fn swap_leaves_each_places_indent_where_it_was() {
+        // 兩個兄弟縮排寫法不一樣（tab、兩格空白）：換完各自換成那個位置原本的縮排，子任務多出來的縮排照留
+        let text = "- [ ] 寫報告\n\t- [ ] 找資料\n\t\t- [ ] 查文獻\n  - [ ] 交週報\n";
+        let swapped = swap(text, &item(text, 1), &item(text, 3)).expect("swap");
+        assert_eq!(
+            swapped,
+            "- [ ] 寫報告\n\t- [ ] 交週報\n  - [ ] 找資料\n  \t- [ ] 查文獻\n"
+        );
+        // 讀回來：交週報、找資料都還是寫報告的子任務，查文獻還是找資料的
+        let parents: Vec<_> = parse(&swapped)
+            .items
+            .iter()
+            .map(|item| item.parent)
+            .collect();
+        assert_eq!(parents, [None, Some(0), Some(0), Some(2)]);
     }
 
     #[test]
