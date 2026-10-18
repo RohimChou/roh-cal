@@ -11,6 +11,7 @@
 EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = 選到的那件在第幾行（沒給 = 第一件）
 環境變數：CHOSEN = 右邊選到排好之後的第幾件（鍵盤在右邊）；WINDOW = 選取的那個月右邊捲了幾列；
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
+NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；
 HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
 今天固定是 2026-10-17。
 """
@@ -46,6 +47,7 @@ TEXTS = {
 CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
+NO_GRID = "NO_GRID" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
 
@@ -297,21 +299,23 @@ def month_screen(lang, w, h, selected, top, items, groups):
     t = TEXTS[lang]
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     iw, ih = w - sw - 2, h - 3  # 大月曆框裡面的寬、高（扣掉框、操作說明）
+    # 格線佔的寬度：有格線 = 欄和欄之間、表頭下面、週和週之間各 1 格；沒有就 0（格子緊貼著）
+    gap = 0 if NO_GRID else 1
     # 欄：週數欄 5 格；天平分剩下的寬度（扣掉 7 條直線），零頭從星期一開始一欄多 1 格
-    days_w = iw - 5 - 7
+    days_w = iw - 5 - 7 * gap
     widths = [5] + [days_w // 7 + (1 if k < days_w % 7 else 0) for k in range(7)]
     xs = [0]
     for k in range(1, 8):
-        xs.append(xs[k - 1] + widths[k - 1] + 1)
-    lines_x = [xs[k] + widths[k] for k in range(7)]  # 直線：每一欄的右邊（星期日右邊是外框）
-    wh = (ih - 2 - 5) // 6  # 每週幾列（除不盡的零頭留在最下面，直線照樣畫到下框）
-    week_y = lambda i: 2 + i * (wh + 1)
+        xs.append(xs[k - 1] + widths[k - 1] + gap)
+    lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # 直線：每一欄的右邊（星期日右邊是外框）
+    wh = (ih - 1 - gap - 5 * gap) // 6  # 每週幾列（除不盡的零頭留在最下面，直線照樣畫到下框）
+    week_y = lambda i: 1 + gap + i * (wh + gap)
     c = Canvas(iw, ih)
     left, right = ["│"] * ih, ["│"] * ih  # 每一列的左右外框
     for x in lines_x:
         for y in range(1, ih):
             c.rows[y][x] = "│"
-    rules = [(1, "┬")] + [(week_y(i) + wh, "┼") for i in range(5)]
+    rules = [(1, "┬")] + [(week_y(i) + wh, "┼") for i in range(5)] if gap else []
     for y, cross in rules:
         c.rows[y] = ["─"] * iw
         for x in lines_x:

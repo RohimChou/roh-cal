@@ -30,33 +30,37 @@ const WEEK_COLUMN_WIDTH: u16 = 5;
 /// 大月曆的格子在畫面上的位置（不含格線）；畫畫面和滑鼠換算位置都用這個，兩邊才對得起來
 #[derive(Debug, PartialEq)]
 struct Grid {
-    /// 週數欄和 7 天每一欄的 (x, 寬度)：`[週數欄, 一, 二, …, 日]`；欄和欄之間各留 1 格畫直線
+    /// 週數欄和 7 天每一欄的 (x, 寬度)：`[週數欄, 一, 二, …, 日]`；有格線時欄和欄之間各留 1 格畫直線
     columns: [(u16, u16); 8],
-    /// 表頭（星期幾）那一列；下一列是表頭的線
+    /// 表頭（星期幾）那一列；有格線時下一列是表頭的線
     header_y: u16,
     /// 每週幾列高：6 週一樣高，除不盡的零頭留在最下面
     week_height: u16,
+    /// 格線佔幾格：有格線 = 1（欄和欄之間、表頭下面、週和週之間），沒有 = 0（格子緊貼著）
+    gap: u16,
 }
 
 impl Grid {
-    /// 把框裡面（`inner`）切成格子
+    /// 把框裡面（`inner`）切成格子；`lines` = 有沒有格線（設定檔的 `[month] grid_lines`）
     ///
     /// 寬：週數欄 5 格，剩下的扣掉 7 條直線、7 天平分；除不盡的零頭從星期一開始一欄多 1 格。
-    /// 高：表頭 1 列 + 表頭的線 1 列，剩下的扣掉週和週之間 5 條線、6 週平分
-    fn new(inner: Rect) -> Self {
-        let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7);
+    /// 高：表頭 1 列 + 表頭的線 1 列，剩下的扣掉週和週之間 5 條線、6 週平分。沒有格線就不扣線
+    fn new(inner: Rect, lines: bool) -> Self {
+        let gap = u16::from(lines);
+        let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7 * gap);
         let (base, extra) = (days_width / 7, days_width % 7);
         let mut columns = [(inner.x, WEEK_COLUMN_WIDTH.min(inner.width)); 8];
-        let mut x = inner.x.saturating_add(WEEK_COLUMN_WIDTH + 1);
+        let mut x = inner.x.saturating_add(WEEK_COLUMN_WIDTH + gap);
         for (weekday, column) in (0..7).zip(columns.iter_mut().skip(1)) {
             let width = base + u16::from(weekday < extra);
             *column = (x, width);
-            x = x.saturating_add(width + 1);
+            x = x.saturating_add(width + gap);
         }
         Self {
             columns,
             header_y: inner.y,
-            week_height: inner.height.saturating_sub(2 + (WEEKS - 1)) / WEEKS,
+            week_height: inner.height.saturating_sub(1 + gap + (WEEKS - 1) * gap) / WEEKS,
+            gap,
         }
     }
 
@@ -67,7 +71,7 @@ impl Grid {
 
     /// 第 `week` 週（從 0 開始）的第一列
     fn week_y(&self, week: u16) -> u16 {
-        self.header_y + 2 + week * (self.week_height + 1)
+        self.header_y + 1 + self.gap + week * (self.week_height + self.gap)
     }
 
     /// 第 `week` 週、第 `column` 欄（0 = 週數欄、1 = 星期一 … 7 = 星期日）的格子
@@ -125,11 +129,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .title_top(Line::styled(date, Style::new().fg(theme.text)).right_aligned());
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let grid = Grid::new(inner);
+    let grid = Grid::new(inner, app.settings.month.grid_lines);
     if grid.too_small() {
         return;
     }
-    render_grid_lines(frame.buffer_mut(), inner, &grid, theme.grid, border);
+    if app.settings.month.grid_lines {
+        render_grid_lines(frame.buffer_mut(), inner, &grid, theme.grid, border);
+    }
 
     // 表頭：週數欄寫「週」，每一天的名字放在那欄的最左邊，跟下面的日期對齊；六、日用週末的顏色
     let muted = Style::new().fg(theme.muted);
@@ -389,7 +395,7 @@ fn render_grid_lines(
 /// 捲動的位置用上一次畫的時候記下的 `app.month_top`；最後一週下面空的那幾列（除不盡的零頭）也算最後一週
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let inner = Block::bordered().inner(area);
-    let grid = Grid::new(inner);
+    let grid = Grid::new(inner, app.settings.month.grid_lines);
     if grid.too_small() {
         return None;
     }
@@ -418,7 +424,7 @@ mod tests {
     #[test]
     fn grid_splits_the_days_evenly_and_the_weeks_equally() {
         // 框裡面 78 × 28（80 × 30 的框）：天的寬度 78 − 5 − 7 = 66，平分 7 欄 = 9 餘 3 → 一、二、三 10 格，其他 9 格
-        let grid = Grid::new(Rect::new(1, 1, 78, 28));
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), true);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 10, 10, 10, 9, 9, 9, 9]);
         // 欄和欄之間各留 1 格直線：星期一從 1 + 5 + 1 = 7 開始，星期日最後一格貼著框裡面的右邊（78）
@@ -430,11 +436,28 @@ mod tests {
         assert_eq!(grid.week_y(0), 3);
         assert_eq!(grid.week_y(1), 7);
         // 除不盡：27 列 → 20 ÷ 6 = 3 餘 2，零頭留在最下面
-        assert_eq!(Grid::new(Rect::new(1, 1, 78, 27)).week_height, 3);
+        assert_eq!(Grid::new(Rect::new(1, 1, 78, 27), true).week_height, 3);
         // 太小：畫不出來
-        assert!(Grid::new(Rect::new(1, 1, 18, 28)).too_small());
-        assert!(Grid::new(Rect::new(1, 1, 78, 12)).too_small());
-        assert!(!Grid::new(Rect::new(1, 1, 19, 13)).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 18, 28), true).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 78, 12), true).too_small());
+        assert!(!Grid::new(Rect::new(1, 1, 19, 13), true).too_small());
+    }
+
+    #[test]
+    fn without_grid_lines_the_cells_touch() {
+        // 78 × 28 沒有格線：天的寬度 78 − 5 = 73，平分 7 欄 = 10 餘 3 → 一、二、三 11 格，其他 10 格；欄緊貼著
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), false);
+        let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
+        assert_eq!(widths, [5, 11, 11, 11, 10, 10, 10, 10]);
+        assert_eq!(grid.columns[1].0, 1 + 5);
+        let (x, width) = grid.columns[7];
+        assert_eq!(x + width, 1 + 78);
+        // 高：28 − 表頭 1 = 27，6 週各 4 列；第一週緊接在表頭下面，下一週緊接著
+        assert_eq!(grid.week_height, 4);
+        assert_eq!(grid.week_y(0), 2);
+        assert_eq!(grid.week_y(1), 6);
+        // 有格線時太矮的高度，沒有格線就畫得出來：12 − 1 = 11 → 每週 1 列
+        assert!(!Grid::new(Rect::new(1, 1, 78, 12), false).too_small());
     }
 
     #[test]
