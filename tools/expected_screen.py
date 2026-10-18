@@ -78,6 +78,39 @@ def ljust(s, n):
     return s + " " * (n - width(s))
 
 
+def _box_table():
+    """Box-drawing characters by the weight of each arm, read from their Unicode names (e.g. 「BOX DRAWINGS
+    LEFT UP HEAVY AND RIGHT DOWN LIGHT」 = ╃): {(up, down, left, right): char}, each arm "L", "H" or None"""
+    arms = {"UP": ["up"], "DOWN": ["down"], "LEFT": ["left"], "RIGHT": ["right"],
+            "VERTICAL": ["up", "down"], "HORIZONTAL": ["left", "right"]}
+    table = {}
+    for code in range(0x2500, 0x2550):
+        name = unicodedata.name(chr(code))[len("BOX DRAWINGS "):]
+        if any(word in name for word in ("DASH", "DOUBLE", "ARC", "DIAGONAL")):
+            continue
+        weight, found = None, {}
+        for part in name.split(" AND "):
+            words = part.split()
+            if words[0] in ("LIGHT", "HEAVY"):
+                weight, words = words[0], words[1:]
+            elif words[-1] in ("LIGHT", "HEAVY"):
+                weight, words = words[-1], words[:-1]
+            for word in words:
+                for arm in arms[word]:
+                    found[arm] = weight[0]
+        table[tuple(found.get(arm) for arm in ("up", "down", "left", "right"))] = chr(code)
+    return table
+
+
+BOX = _box_table()
+
+
+def box(up=None, down=None, left=None, right=None):
+    """The box-drawing character with these arms: True = thick, False = thin, None = no arm"""
+    weight = lambda arm: None if arm is None else ("H" if arm else "L")
+    return BOX[(weight(up), weight(down), weight(left), weight(right))]
+
+
 def cut(s, n):
     """At most n cells; a wide character that does not fit is left out entirely"""
     out = ""
@@ -392,16 +425,36 @@ def month_screen(lang, w, h, selected, top, items, groups):
     week_y = lambda i: 1 + gap + i * (wh + gap)
     c = Canvas(iw, ih)
     left, right = ["│"] * ih, ["│"] * ih  # left and right outer border of each row
-    for x in lines_x:
-        for y in range(1, ih):
-            c.rows[y][x] = "│"
-    # The line below the header and the 5 between weeks, all faint
-    rules = [(1, "┬")] + [(week_y(i) + wh, "┼") for i in range(5)] if gap else []
-    for y, cross in rules:
-        c.rows[y] = ["─"] * iw
-        for x in lines_x:
-            c.rows[y][x] = cross
-        left[y], right[y] = "├", "┤"
+    bottom_border = ["─"] * iw
+    # Each stretch of grid line is thick where it lies between two years (Dec 31 | Jan 1); only the
+    # characters are checked here, the colors (faint / border color at a month's edge) are not
+    day = lambda i, k: mondays[i] + datetime.timedelta(days=k)
+    thick = lambda a, b: a.year != b.year
+    # Vertical line j (0: right of the week-number column, never thick; j: between day j-1 and day j)
+    v_thick = lambda i, j: j > 0 and thick(day(i, j - 1), day(i, j))
+    # Horizontal stretch under column k (0: the week-number column, same as Monday) of week i
+    h_thick = lambda i, k: thick(day(i, max(k, 1) - 1), day(i + 1, max(k, 1) - 1))
+    if gap:
+        for j, x in enumerate(lines_x):
+            for i in range(6):
+                to = ih if i == 5 else week_y(i) + wh
+                for y in range(week_y(i), to):
+                    c.rows[y][x] = "┃" if v_thick(i, j) else "│"
+            bottom_border[x] = box(up=v_thick(5, j), left=False, right=False)
+        c.rows[1] = ["─"] * iw
+        for j, x in enumerate(lines_x):
+            c.rows[1][x] = box(down=v_thick(0, j), left=False, right=False)
+        left[1], right[1] = "├", "┤"
+        for i in range(5):
+            y = week_y(i) + wh
+            for k in range(8):
+                for x in range(xs[k], xs[k] + widths[k]):
+                    c.rows[y][x] = "━" if h_thick(i, k) else "─"
+            for j, x in enumerate(lines_x):
+                c.rows[y][x] = box(up=v_thick(i, j), down=v_thick(i + 1, j), left=h_thick(i, j),
+                                   right=h_thick(i, j + 1))
+            left[y] = box(up=False, down=False, right=h_thick(i, 0))
+            right[y] = box(up=False, down=False, left=h_thick(i, 7))
     # Header: 「  週 」, and each day's name at the left edge of its column
     c.put(0, 0, " " + t["hw"], 5)
     for k, name in enumerate(t["wd"]):
@@ -506,9 +559,6 @@ def month_screen(lang, w, h, selected, top, items, groups):
     top_border = Canvas(iw, 1)
     top_border.rows[0] = ["─"] * iw
     top_border.put((iw - width(title)) // 2, 0, title)
-    bottom_border = ["─"] * iw
-    for x in lines_x:
-        bottom_border[x] = "┴"
     lines = ["╭" + top_border.line(0) + "╮"]
     lines += [left[y] + c.line(y) + right[y] for y in range(ih)]
     lines.append("╰" + "".join(bottom_border) + "╯")

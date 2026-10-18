@@ -2,7 +2,7 @@
 //! equal-height cells, each cell listing that day's items
 //!
 //! A row is one whole week, Monday to Sunday: the week holding Sep 30 and Oct 1 is one row with days of
-//! both months. 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen
+//! both months, and with grid lines a staircase line marks where one month ends. 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen
 //! (with `[month] center_cursor` on in the config file, the selected week stays on row 3).
 //! Cell sizes are computed from the current space on every draw (they follow the terminal as it resizes)
 
@@ -155,7 +155,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     }
     if app.settings.month.grid_lines {
-        render_grid_lines(frame.buffer_mut(), inner, &grid, app, border);
+        render_grid_lines(frame.buffer_mut(), inner, &grid, top, app, border);
     }
 
     // Header: the week-number column says 「週」; each day's name sits at the far left of its column, lined
@@ -579,39 +579,187 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Draws faint grid lines: `│` between columns, `─` below the header and between weeks, `┬` / `┼` at
-/// crossings; horizontal lines meet the outer border as `├` / `┤`, vertical lines meet the bottom border
-/// as `┴` (in the border color).
+/// A stretch of grid line, by the two days it lies between
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Rule {
+    /// Two days of the same month: faint
+    Week,
+    /// A month's last day and the next month's 1st: in the border color (like the line between months in
+    /// layout 1)
+    Month,
+    /// Dec 31st and Jan 1st: thick, in the year-line color
+    Year,
+}
+
+impl Rule {
+    /// The stretch between `day` and `next` (the day right of it, or the same weekday a week later)
+    fn between(day: Date, next: Date) -> Self {
+        if day.year() != next.year() {
+            Self::Year
+        } else if day.month() != next.month() {
+            Self::Month
+        } else {
+            Self::Week
+        }
+    }
+
+    /// Drawn with thick box-drawing characters
+    fn heavy(self) -> bool {
+        self == Self::Year
+    }
+
+    fn style(self, app: &App) -> Style {
+        Style::new().fg(match self {
+            Self::Week => app.theme.grid,
+            Self::Month => app.theme.line,
+            Self::Year => app.theme.year_line,
+        })
+    }
+}
+
+/// The box-drawing character where four stretches of line meet, each thin or thick (`true`)
+fn cross(up: bool, down: bool, left: bool, right: bool) -> &'static str {
+    match (up, down, left, right) {
+        (false, false, false, false) => "┼",
+        (false, false, true, false) => "┽",
+        (false, false, false, true) => "┾",
+        (false, false, true, true) => "┿",
+        (true, false, false, false) => "╀",
+        (false, true, false, false) => "╁",
+        (true, true, false, false) => "╂",
+        (true, false, true, false) => "╃",
+        (true, false, false, true) => "╄",
+        (false, true, true, false) => "╅",
+        (false, true, false, true) => "╆",
+        (true, false, true, true) => "╇",
+        (false, true, true, true) => "╈",
+        (true, true, true, false) => "╉",
+        (true, true, false, true) => "╊",
+        (true, true, true, true) => "╋",
+    }
+}
+
+/// Draws the grid lines: `│` between columns, `─` below the header and between weeks, crossings where they
+/// meet; horizontal lines meet the outer border as `├` / `┤`, vertical lines meet the bottom border as `┴`
+/// (in the border color). The weeks start on `top` (a Monday)
+///
+/// Each stretch of line is drawn by the two days it lies between (`Rule`): faint within a month, in the
+/// border color where a month ends, thick (`━` `┃`) where a year ends. So a month's edge is a staircase
+/// like the outline of a paper calendar's month: the vertical stretch between the last day and the 1st,
+/// then the line under the last week's days. The stretch under the week-number column goes with Monday's;
+/// a crossing takes the strongest color of its four stretches.
 /// For the leftover rows (empty rows below the last week), vertical lines still run to the bottom border,
 /// so the last week just looks a few rows taller and no two lines stack up
 ///
 /// Writes cell by cell straight into the `Buffer` (no widget); positions off screen are skipped
-fn render_grid_lines(buffer: &mut Buffer, inner: Rect, grid: &Grid, app: &App, border: Style) {
-    let faint = Style::new().fg(app.theme.grid);
+fn render_grid_lines(
+    buffer: &mut Buffer,
+    inner: Rect,
+    grid: &Grid,
+    top: Date,
+    app: &App,
+    border: Style,
+) {
     let mut put = |x: u16, y: u16, symbol: &str, style: Style| {
         if let Some(cell) = buffer.cell_mut(Position::new(x, y)) {
             cell.set_symbol(symbol).set_style(style);
         }
     };
-    let top = grid.header_y + 1;
-    for x in grid.vertical_xs() {
-        for y in top..inner.bottom() {
-            put(x, y, line::VERTICAL, faint);
+    let day = |week: u16, column: usize| {
+        top.saturating_add((i64::from(week) * 7 + i64::try_from(column).unwrap_or(0)).days())
+    };
+    // Vertical line `line` (0 = right of the week-number column, 1-6 = right of Monday-Saturday) in week
+    // `week`
+    let vertical = |week: u16, line: usize| {
+        if line == 0 {
+            Rule::Week
+        } else {
+            Rule::between(day(week, line - 1), day(week, line))
         }
-        put(x, inner.bottom(), line::HORIZONTAL_UP, border);
+    };
+    // The stretch under column `column` (0 = week-number column, like Monday; 1-7 = Monday-Sunday) of
+    // week `week`, above the next week
+    let under = |week: u16, column: usize| {
+        let weekday = column.max(1) - 1;
+        Rule::between(day(week, weekday), day(week + 1, weekday))
+    };
+    let xs: Vec<u16> = grid.vertical_xs().collect();
+    let header_line = grid.header_y + 1;
+    for (line, &x) in xs.iter().enumerate() {
+        for week in 0..WEEKS {
+            let rule = vertical(week, line);
+            let symbol = if rule.heavy() {
+                line::THICK_VERTICAL
+            } else {
+                line::VERTICAL
+            };
+            let from = grid.week_y(week);
+            let to = if week == WEEKS - 1 {
+                inner.bottom()
+            } else {
+                from + grid.week_height
+            };
+            for y in from..to {
+                put(x, y, symbol, rule.style(app));
+            }
+        }
+        let last = vertical(WEEKS - 1, line);
+        put(
+            x,
+            inner.bottom(),
+            if last.heavy() { "┸" } else { "┴" },
+            border,
+        );
+        // The line below the header: faint, its crossings point down
+        let below = vertical(0, line);
+        put(
+            x,
+            header_line,
+            if below.heavy() { "┰" } else { "┬" },
+            below.style(app),
+        );
     }
-    // The line below the header and the 5 between weeks
-    let mut rules = vec![(top, line::HORIZONTAL_DOWN)];
-    rules.extend((0..WEEKS - 1).map(|week| (grid.week_y(week) + grid.week_height, line::CROSS)));
-    for (y, cross) in rules {
-        for x in inner.x..inner.right() {
-            put(x, y, line::HORIZONTAL, faint);
+    for x in inner.x..inner.right() {
+        if !xs.contains(&x) {
+            put(x, header_line, line::HORIZONTAL, Rule::Week.style(app));
         }
-        for x in grid.vertical_xs() {
-            put(x, y, cross, faint);
+    }
+    put(
+        inner.x.wrapping_sub(1),
+        header_line,
+        line::VERTICAL_RIGHT,
+        border,
+    );
+    put(inner.right(), header_line, line::VERTICAL_LEFT, border);
+    // The 5 lines between weeks
+    for week in 0..WEEKS - 1 {
+        let y = grid.week_y(week) + grid.week_height;
+        for (column, &(x, width)) in grid.columns.iter().enumerate() {
+            let rule = under(week, column);
+            let symbol = if rule.heavy() {
+                line::THICK_HORIZONTAL
+            } else {
+                line::HORIZONTAL
+            };
+            for x in x..x + width {
+                put(x, y, symbol, rule.style(app));
+            }
         }
-        put(inner.x.wrapping_sub(1), y, line::VERTICAL_RIGHT, border);
-        put(inner.right(), y, line::VERTICAL_LEFT, border);
+        for (line, &x) in xs.iter().enumerate() {
+            let rules = [
+                vertical(week, line),
+                vertical(week + 1, line),
+                under(week, line),
+                under(week, line + 1),
+            ];
+            let [up, down, left, right] = rules.map(Rule::heavy);
+            let strongest = rules.into_iter().max().unwrap_or(Rule::Week);
+            put(x, y, cross(up, down, left, right), strongest.style(app));
+        }
+        let left = if under(week, 0).heavy() { "┝" } else { "├" };
+        let right = if under(week, 7).heavy() { "┥" } else { "┤" };
+        put(inner.x.wrapping_sub(1), y, left, border);
+        put(inner.right(), y, right, border);
     }
 }
 

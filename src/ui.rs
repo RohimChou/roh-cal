@@ -2769,7 +2769,8 @@ mod tests {
     #[test]
     fn month_view_puts_the_week_across_the_new_year_on_one_row() {
         // 2027/1/1 (Fri) selected: the top week is 12/28-1/3, one row with days of both years; its week
-        // number comes from the selected month's days (week 1 of 2027)
+        // number comes from the selected month's days (week 1 of 2027). The year's edge is a thick staircase
+        // in the year color: between 12/31 and 1/1 (x 49), then under 12/28-31 (y 6)
         let mut app = month_app(Lang::En, date(2027, 1, 1), "");
         let terminal = draw_app(&mut app, 80, 30);
         assert_eq!(
@@ -2777,11 +2778,11 @@ mod tests {
             [
                 "╭────────────────────────────── Fri Jan 1, 2027 ───────────────────────────────╮",
                 "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
-                "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
-                "│   1 │ 28       │ 29       │ 30       │ 31      │ 1 Jan   │ 2       │ 3       │",
-                "│     │          │          │          │         │         │         │         │",
-                "│     │          │          │          │         │         │         │         │",
-                "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+                "├─────┬──────────┬──────────┬──────────┬─────────┰─────────┬─────────┬─────────┤",
+                "│   1 │ 28       │ 29       │ 30       │ 31      ┃ 1 Jan   │ 2       │ 3       │",
+                "│     │          │          │          │         ┃         │         │         │",
+                "│     │          │          │          │         ┃         │         │         │",
+                "┝━━━━━┿━━━━━━━━━━┿━━━━━━━━━━┿━━━━━━━━━━┿━━━━━━━━━╃─────────┼─────────┼─────────┤",
                 "│   2 │ 4        │ 5        │ 6        │ 7       │ 8       │ 9       │ 10      │",
                 "│     │          │          │          │         │         │         │         │",
                 "│     │          │          │          │         │         │         │         │",
@@ -2807,6 +2808,23 @@ mod tests {
                 " hjkl move  Tab pane  [] month  t today  s calendars  ? help  , settings  q quit",
             ]
         );
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(49, 4), ("┃", theme.year_line));
+        assert_eq!(cell(49, 2), ("┰", theme.year_line));
+        assert_eq!(cell(20, 6), ("━", theme.year_line));
+        assert_eq!(cell(3, 6), ("━", theme.year_line));
+        assert_eq!(cell(17, 6), ("┿", theme.year_line));
+        assert_eq!(cell(49, 6), ("╃", theme.year_line));
+        assert_eq!(cell(55, 6), ("─", theme.grid));
+        assert_eq!(cell(0, 6), ("┝", theme.focus));
+        assert_eq!(cell(79, 6), ("┤", theme.focus));
+        // February starts on a Monday: the line above 2/1 (y 22) is straight, all in the border color
+        assert_eq!(cell(20, 22), ("─", theme.line));
+        assert_eq!(cell(75, 22), ("─", theme.line));
+        assert_eq!(cell(49, 22), ("┼", theme.line));
+        assert_eq!(cell(49, 24), ("│", theme.grid));
         // Selecting 12/31 in the same week: the row stays, and its week number is week 53 of 2026
         app.selected = date(2026, 12, 31);
         let row = text_rows(draw_app(&mut app, 80, 30).backend().buffer())[3].clone();
@@ -2905,13 +2923,29 @@ mod tests {
         // Header: weekdays muted, Sat and Sun in the weekend color
         assert_eq!(cell(8, 1), ("一", theme.muted, false));
         assert_eq!(cell(61, 1), ("六", theme.weekend, false));
-        // Grid lines are faint, between all weeks; the joints where they meet the outer border
+        // Grid lines are faint within a month; the joints where they meet the outer border
         // have the border's color (keyboard in the calendar: focus color)
         assert_eq!(cell(6, 2), ("┬", theme.grid, false));
         assert_eq!(cell(6, 3), ("│", theme.grid, false));
         assert_eq!(cell(6, 10), ("┼", theme.grid, false));
-        assert_eq!(cell(6, 6), ("┼", theme.grid, false));
-        assert_eq!(cell(10, 6), ("─", theme.grid, false));
+        assert_eq!(cell(45, 6), ("─", theme.grid, false));
+        // Where September ends, a staircase in the border color, like layout 1's month lines: the
+        // vertical stretch between 9/30 (Wed) and 10/1 (Thu) at x 39, then the line under 9/28-30 and the
+        // week-number column (y 6); its crossings take that color too
+        assert_eq!(cell(39, 4), ("│", theme.line, false));
+        assert_eq!(cell(39, 2), ("┬", theme.line, false));
+        assert_eq!(cell(39, 6), ("┼", theme.line, false));
+        assert_eq!(cell(6, 6), ("┼", theme.line, false));
+        assert_eq!(cell(10, 6), ("─", theme.line, false));
+        assert_eq!(cell(3, 6), ("─", theme.line, false));
+        assert_eq!(cell(49, 6), ("┼", theme.grid, false));
+        // Where October ends (11/1 is a Sunday): the line above 11/1 (y 18, x 70-78), the vertical stretch
+        // between 10/31 and 11/1 (x 69, y 19-21), the line under 10/26-31 (y 22)
+        assert_eq!(cell(74, 18), ("─", theme.line, false));
+        assert_eq!(cell(65, 18), ("─", theme.grid, false));
+        assert_eq!(cell(69, 20), ("│", theme.line, false));
+        assert_eq!(cell(65, 22), ("─", theme.line, false));
+        assert_eq!(cell(74, 22), ("─", theme.grid, false));
         // The leftover rows under the last week: vertical lines still reach the bottom border, which joins
         // them as ┴ (in the border color)
         assert_eq!(cell(6, 26), ("│", theme.grid, false));
