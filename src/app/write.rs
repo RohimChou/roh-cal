@@ -107,6 +107,8 @@ impl App {
         if key.code != KeyCode::Char('y') {
             return;
         }
+        // Deleting from the day popup (either layout): writing adjusts or closes the popup itself
+        let in_popup = self.focus == Focus::Day;
         // Tasks page: which row was chosen before deleting (choose that position after deleting)
         let row = if self.view == View::Tasks {
             self.tasks_cursor(&self.tasks_rows()).unwrap_or(0)
@@ -125,9 +127,9 @@ impl App {
                     self.choose_task_row_near(row);
                     return;
                 }
-                // Layout 2's popup: set_items already adjusted the chosen
+                // The day popup: set_items already adjusted the chosen
                 // position (closes it if that day has no items left)
-                if self.view == View::Month {
+                if in_popup {
                     return;
                 }
                 // The agenda chooses the next item (the same

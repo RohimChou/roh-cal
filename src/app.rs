@@ -585,7 +585,7 @@ impl App {
                     self.choose(self.agenda_index.min(last));
                 }
             }
-            (Focus::Day, View::Month) => {
+            (Focus::Day, View::Planner | View::Month) => {
                 self.focus = Focus::Day;
                 self.keep_day_choice();
             }
@@ -723,18 +723,10 @@ impl App {
         }
     }
 
-    /// `Enter` on the calendar (or double-clicking a day): go into that day's items; the keyboard
-    /// moves to the agenda and the day's first item is chosen;
-    /// layout 2 has no agenda, so it opens the day popup instead; nothing happens if the day has no items
+    /// `Enter` on the calendar (or double-clicking a day), in both layouts: opens the day popup with that
+    /// day's items (`Tab` still goes into layout 1's agenda); nothing happens if the day has no items
     fn open_day(&mut self) {
-        if self.view == View::Month {
-            self.open_day_popup();
-            return;
-        }
-        if !self.agenda().iter().any(|entry| entry.is_on(self.selected)) {
-            return;
-        }
-        self.enter_agenda();
+        self.open_day_popup();
     }
 
     /// Keyboard in the agenda: up / down one item, and the calendar's selected day follows the item;
@@ -1888,14 +1880,23 @@ mod tests {
 
     #[test]
     fn enter_on_the_calendar_goes_into_that_days_items() {
-        // 10/17 has b and c: Enter → the keyboard moves to the agenda and chooses b
+        // 10/17 has b and c: Enter in layout 1 → the day popup opens with b chosen, drawn over the calendar
+        // and the agenda (its top border names the day)
         let mut app = app_with(ITEMS);
         press(&mut app, KeyCode::Enter);
-        assert_eq!(app.focus, Focus::Agenda);
-        assert_eq!(
-            app.chosen().map(|entry| entry.item.title.as_str()),
-            Some("b")
-        );
+        assert_eq!((app.view, app.focus), (View::Planner, Focus::Day));
+        assert_eq!(app.chosen_item().map(|item| item.title.as_str()), Some("b"));
+        app.screen = Rect::new(0, 0, 70, 23);
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(70, 23)).expect("terminal");
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .expect("draw");
+        let popup = crate::ui::day_area(&app);
+        let top: String = (popup.left()..popup.right())
+            .map(|x| terminal.backend().buffer()[(x, popup.y)].symbol())
+            .collect();
+        assert!(top.contains("Sat Oct 17, 2026"), "{top}");
         // A day with no items (10/18): nothing happens
         let mut app = app_with(ITEMS);
         app.selected = date(2026, 10, 18);
@@ -1910,14 +1911,14 @@ mod tests {
             (View::Month, Focus::Day, 0)
         );
         // With the mouse it takes a double click (70 × 23, October at the top: 10/17 is at x 27-29, y 5):
-        // one click on the selected day only selects it, a second one right away goes in
+        // one click on the selected day only selects it, a second one right away opens the popup
         let mut app = app_with(ITEMS);
         app.screen = Rect::new(0, 0, 70, 23);
         app.calendar_top = Some(0);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
         assert_eq!(app.focus, Focus::Calendar);
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
-        assert_eq!(app.focus, Focus::Agenda);
+        assert_eq!(app.focus, Focus::Day);
     }
 
     #[test]
@@ -1930,14 +1931,11 @@ mod tests {
         app.click_calendar_day(oct17, at(0));
         app.click_calendar_day(oct17, at(900));
         assert_eq!(app.focus, Focus::Calendar);
-        // Another click 0.3 s after that one: a double click, the agenda's first item that day (b)
+        // Another click 0.3 s after that one: a double click, the day popup with that day's first item (b)
         app.click_calendar_day(oct17, at(1200));
         assert_eq!(
-            (
-                app.focus,
-                app.chosen().map(|entry| entry.item.title.as_str())
-            ),
-            (Focus::Agenda, Some("b"))
+            (app.focus, app.chosen_item().map(|item| item.title.as_str())),
+            (Focus::Day, Some("b"))
         );
         // Two quick clicks on different days: the second day is selected, the keyboard back on the calendar
         app.click_calendar_day(oct16, at(2000));

@@ -304,7 +304,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         side::render(frame, area, app);
     }
     // Layout 2's day popup: over the month grid (the edit box, help page and so on go on top of it)
-    if app.view == View::Month && app.focus == Focus::Day {
+    if matches!(app.view, View::Planner | View::Month) && app.focus == Focus::Day {
         day::render(frame, main_area, app);
     }
     // The edit box, help page and settings page go on top of everything

@@ -1,4 +1,4 @@
-//! Layout 2's day popup: `Enter` on the calendar (or double-clicking a day) opens it. It lists all
+//! The day popup: `Enter` on the calendar (or double-clicking a day) opens it, in layouts 1 and 2. It lists all
 //! items on the selected day (also ones a cell cannot fit and shows as `+N`). The keys are the same as in
 //! layout 1's agenda (drawing is in `ui::day`)
 
@@ -333,6 +333,34 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         assert_eq!(chosen_day(&app), before);
         assert!(matches!(app.notice, Some(Notice::Failed(_))));
+        clean_up(&path);
+    }
+
+    #[test]
+    fn layout_1_opens_the_same_popup_and_deleting_keeps_it_open() {
+        // Layout 1: Enter on 10/17 opens the popup too; deleting its first item (d, y) keeps the popup open
+        // with the next item chosen (not the agenda); deleting until the day is empty closes it
+        let (mut app, path) = app_with_task_file("day-popup-layout-1", DAY);
+        app.view = View::Planner;
+        app.focus = Focus::Calendar;
+        app.selected = date(2026, 10, 17);
+        app.screen = Rect::new(0, 0, 70, 23);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(
+            (app.focus, chosen(&app).as_deref()),
+            (Focus::Day, Some("Trip to NYC"))
+        );
+        press(&mut app, KeyCode::Char('d'));
+        press(&mut app, KeyCode::Char('y'));
+        assert_eq!(
+            (app.focus, chosen(&app).as_deref()),
+            (Focus::Day, Some("Triage bugs"))
+        );
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('d'));
+            press(&mut app, KeyCode::Char('y'));
+        }
+        assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
         clean_up(&path);
     }
 
