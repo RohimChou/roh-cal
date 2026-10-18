@@ -82,13 +82,13 @@ def main():
                 i = j
             else:
                 i += 1
-        assert len(blocks) == len(screens), f"{name}：test 裡有 {len(blocks)} 個畫面，PLAN 寫了 {len(screens)} 個"
+        assert len(blocks) == len(screens), f"{name}: the test has {len(blocks)} screens, PLAN lists {len(screens)}"
         for (i, j), (args, data, extra) in reversed(list(zip(blocks, screens))):
             indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
             lines[i:j] = [indent + line for line in generate(args, data, extra)]
         src = src[:start] + "\n".join(lines) + src[end:]
     UI.write_text(src)
-    print(f"重算了 {sum(len(v) for v in PLAN.values())} 個畫面：{UI.relative_to(ROOT)}")
+    print(f"Recomputed {sum(len(v) for v in PLAN.values())} screens: {UI.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

@@ -205,7 +205,7 @@ impl Theme {
     /// [Catppuccin Mocha](https://catppuccin.com/palette): soft colors for dark backgrounds
     /// (same as v1's default)
     pub fn catppuccin_mocha() -> Self {
-        Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("內建的 theme"))
+        Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("built-in theme"))
     }
 
     /// The built-in theme called `name` (with no colors overridden); `None` if there is no such name
@@ -215,7 +215,7 @@ impl Theme {
         // failing to read one is a programming bug, not the user's fault
         Some(
             Self::parse(text, &BTreeMap::new())
-                .unwrap_or_else(|error| unreachable!("內建的 theme {name}：{error}")),
+                .unwrap_or_else(|error| unreachable!("built-in theme {name}: {error}")),
         )
     }
 

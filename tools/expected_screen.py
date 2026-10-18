@@ -189,7 +189,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     iw = max(aw - 2, 0)  # width inside the agenda box
     n = min(max((iw + 2) // 30, 1), 4)  # number of columns
     colw = (iw - 2 * (n - 1)) // n if iw else 0
-    assert iw == 0 or colw * n + 2 * (n - 1) == iw, "挑一個整除的寬度"
+    assert iw == 0 or colw * n + 2 * (n - 1) == iw, "pick a width that divides evenly"
 
     entries = agenda_entries(items)
 
