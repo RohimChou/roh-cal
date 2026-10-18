@@ -216,20 +216,23 @@ mod tests {
         let mut app = month_app();
         press(&mut app, KeyCode::Enter);
         let area = ui::day_area(&app);
-        // Click the 3rd item (3rd row below the border): chooses "Team sync"; a click on the border is ignored
+        // Click the 3rd item (below the border and a blank row of padding): chooses "Team sync"; clicks
+        // on the border and on the padding are ignored
         mouse(
             &mut app,
             MouseEventKind::Down(MouseButton::Left),
             area.x + 3,
-            area.y + 3,
+            area.y + 4,
         );
         assert_eq!(chosen(&app).as_deref(), Some("Team sync"));
-        mouse(
-            &mut app,
-            MouseEventKind::Down(MouseButton::Left),
-            area.x,
-            area.y + 3,
-        );
+        for (column, row) in [(area.x, area.y + 4), (area.x + 3, area.y + 1)] {
+            mouse(
+                &mut app,
+                MouseEventKind::Down(MouseButton::Left),
+                column,
+                row,
+            );
+        }
         assert_eq!(
             (app.focus, chosen(&app).as_deref()),
             (Focus::Day, Some("Team sync"))
@@ -282,7 +285,7 @@ mod tests {
                 app,
                 MouseEventKind::Down(MouseButton::Left),
                 area.x + 3,
-                area.y + 2,
+                area.y + 3,
             );
         };
         click(&mut app);

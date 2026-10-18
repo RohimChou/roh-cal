@@ -2573,10 +2573,11 @@ mod tests {
 
     #[test]
     fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
-        // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month
-        // grid (60 × 19), 30 cells wide (the minimum), 6 rows tall → x 15, y 6; the top
-        // border shows the date, one item per row (like layout 1's agenda), the first item
-        // is chosen with its date in brackets; the bottom row switches to the popup's keys
+        // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19);
+        // there is room, so a blank row above and below the items and a blank cell left and right:
+        // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32 wide, 4 + 2 + 2 = 8 rows tall
+        // → x 14, y 5; the top border shows the date, one item per row (like layout 1's agenda), the
+        // first item is chosen with its date in brackets; the bottom row switches to the popup's keys
         let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
         let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
@@ -2584,14 +2585,16 @@ mod tests {
         let terminal = draw_app(&mut app, 60, 20);
         let buffer = terminal.backend().buffer();
         assert_eq!(
-            area_rows(buffer, Rect::new(15, 6, 30, 6)),
+            area_rows(buffer, Rect::new(14, 5, 32, 8)),
             [
-                "╭ 2026/10/17（六） ──────────╮",
-                "│[10/16~18]Parents in town   │",
-                "│ 10/17 Clean the garage     │",
-                "│ 10/17 10:00 Farmers market │",
-                "│ 10/17 17:30 Buy groceries  │",
-                "╰────────────────────────────╯",
+                "╭ 2026/10/17（六） ────────────╮",
+                "│                              │",
+                "│ [10/16~18]Parents in town    │",
+                "│  10/17 Clean the garage      │",
+                "│  10/17 10:00 Farmers market  │",
+                "│  10/17 17:30 Buy groceries   │",
+                "│                              │",
+                "╰──────────────────────────────╯",
             ]
         );
         // The key hints are 61 cells, so at 60 cells wide the last character is cut
@@ -2601,22 +2604,23 @@ mod tests {
         );
         // The border has the color of where the keyboard is, the brackets the selected red
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(15, 6)].fg, theme.focus);
+        assert_eq!(buffer[(14, 5)].fg, theme.focus);
         assert_eq!(buffer[(16, 7)].fg, theme.selected);
-        // Too short (60 × 6, month grid 5 rows): the box holds 3 items, and choosing the last one scrolls
-        // down one item; a scrollbar on the right border
+        // Too short (60 × 6, month grid 5 rows): no rows of padding (the cells left and right stay), the
+        // box holds 3 items, and choosing the last one scrolls down one item; a scrollbar on the right
+        // border
         app.day_index = 3;
         let terminal = draw_app(&mut app, 60, 6);
         let buffer = terminal.backend().buffer();
         assert_eq!(
-            area_rows(buffer, Rect::new(15, 1, 29, 3)),
+            area_rows(buffer, Rect::new(14, 1, 31, 3)),
             [
-                "│ 10/17 Clean the garage     ",
-                "│ 10/17 10:00 Farmers market ",
-                "│[10/17]17:30 Buy groceries  ",
+                "│  10/17 Clean the garage      ",
+                "│  10/17 10:00 Farmers market  ",
+                "│ [10/17]17:30 Buy groceries   ",
             ]
         );
-        assert!((1..4).any(|y| buffer[(44, y)].symbol() == "┃"));
+        assert!((1..4).any(|y| buffer[(45, y)].symbol() == "┃"));
         // Click the top row (Clean the garage): it gets chosen, the scroll stays; clicking the same spot
         // again is still it (no task file, so checking it off writes nothing)
         app.screen = Rect::new(0, 0, 60, 6);
@@ -2635,8 +2639,8 @@ mod tests {
         assert_eq!(app.day_index, 1);
         let terminal = draw_app(&mut app, 60, 6);
         assert_eq!(
-            area_rows(terminal.backend().buffer(), Rect::new(15, 1, 29, 1)),
-            ["│[10/17]Clean the garage     "]
+            area_rows(terminal.backend().buffer(), Rect::new(14, 1, 31, 1)),
+            ["│ [10/17]Clean the garage      "]
         );
         click(&mut app);
         assert_eq!(app.day_index, 1);

@@ -1,11 +1,11 @@
 //! Layout 2's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
-//! agenda), with the selected day on the top border
+//! agenda), with the selected day on the top border and some blank space inside the border when there is room
 
 use super::{clear_wide_left_of, months::scrolled_top, planner::item_line, render_scrollbar};
 use crate::app::App;
 use ratatui::{
     Frame,
-    layout::{Position, Rect},
+    layout::{Margin, Position, Rect},
     style::Style,
     text::Line,
     widgets::{Block, BorderType, Clear},
@@ -14,30 +14,54 @@ use ratatui::{
 /// Narrowest popup width (incl. border): enough room for the date on the top border
 const MIN_WIDTH: u16 = 30;
 
+/// Blank space between the border and the items when the month grid has room for it: one row above and
+/// below, one cell left and right
+const PADDING: Margin = Margin::new(1, 1);
+
 /// The popup's area (incl. border) on the month grid (`main`): centered. Width follows the longest item
 /// (at least `MIN_WIDTH`); height = that day's item count + top and bottom border; neither exceeds the month
 /// grid. Used both for drawing and for mapping mouse positions
 pub fn area(app: &App, main: Rect) -> Rect {
+    layout(app, main).0
+}
+
+/// The popup's area (see `area`) and where the items go inside it: the border taken off, and the padding
+/// too, each way only when the box still fits on the month grid with it (too many items to fit = no
+/// rows of padding, so as many items as possible show)
+fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let items = app.items_on(app.selected);
     let widest = items
         .iter()
         .map(|item| item_line(item, app, false).width())
         .max()
         .unwrap_or(0);
+    let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     // Left and right border + one blank cell at the end
-    let width = u16::try_from(widest + 3)
-        .unwrap_or(u16::MAX)
+    let bare_width = to_u16(widest + 3);
+    let bare_height = to_u16(items.len() + 2);
+    let padding = Margin::new(
+        if bare_width + 2 * PADDING.horizontal <= main.width {
+            PADDING.horizontal
+        } else {
+            0
+        },
+        if bare_height + 2 * PADDING.vertical <= main.height {
+            PADDING.vertical
+        } else {
+            0
+        },
+    );
+    let width = (bare_width + 2 * padding.horizontal)
         .max(MIN_WIDTH)
         .min(main.width);
-    let height = u16::try_from(items.len() + 2)
-        .unwrap_or(u16::MAX)
-        .min(main.height);
-    Rect::new(
+    let height = (bare_height + 2 * padding.vertical).min(main.height);
+    let area = Rect::new(
         main.x + (main.width - width) / 2,
         main.y + (main.height - height) / 2,
         width,
         height,
-    )
+    );
+    (area, Block::bordered().inner(area).inner(padding))
 }
 
 /// Draws the popup: first scroll so the chosen item is visible (only scroll when it falls outside the box, so
@@ -45,8 +69,8 @@ pub fn area(app: &App, main: Rect) -> Rect {
 /// then one item per row. The chosen item's date gets brackets `[10/17]` (same as layout 1's agenda). When the
 /// items do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
-    let area = area(app, main);
-    let visible = i64::from(Block::bordered().inner(area).height);
+    let (area, inner) = layout(app, main);
+    let visible = i64::from(inner.height);
     let top = scrolled_top(
         i64::try_from(app.day_top).unwrap_or(0),
         i64::try_from(app.day_index).unwrap_or(0),
@@ -67,7 +91,6 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
             format!(" {} ", texts.date_title(app.selected)),
             Style::new().fg(theme.text),
         ));
-    let inner = block.inner(area);
     clear_wide_left_of(frame.buffer_mut(), area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
@@ -99,9 +122,9 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
 }
 
 /// Which popup item the mouse click at (`column`, `row`) hits (its index in `items_on(selected)`);
-/// `None` on the border, outside the box, or below the last item
+/// `None` on the border, in the padding, outside the box, or below the last item
 pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
-    let inner = Block::bordered().inner(area(app, main));
+    let (_, inner) = layout(app, main);
     if !inner.contains(Position::new(column, row)) {
         return None;
     }
