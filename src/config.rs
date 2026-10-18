@@ -79,8 +79,7 @@ impl Default for Settings {
 #[serde(default, deny_unknown_fields)]
 pub struct CalendarSettings {
     /// Week-number column: the selected week shows its week number, other
-    /// weeks show how many weeks they are from it (like vim's relativenumber); v1 called it `week_numbers`
-    #[serde(alias = "week_numbers")]
+    /// weeks show how many weeks they are from it (like vim's relativenumber)
     pub relative_weeks: bool,
 }
 
@@ -94,10 +93,6 @@ pub struct MonthSettings {
     /// Keeps the selected row fixed in the middle of the 6 rows (like vim's `scrolloff=999`);
     /// when off, it scrolls one row at a time, only when the selection moves out of the 6 rows
     pub center_cursor: bool,
-    /// `item_icons` no longer exists (it put a dot before each item in a cell): still read so an
-    /// older config file that has it opens, never written, and does nothing
-    #[serde(rename = "item_icons", skip_serializing)]
-    pub removed_item_icons: Option<bool>,
 }
 
 impl Default for MonthSettings {
@@ -105,7 +100,6 @@ impl Default for MonthSettings {
         Self {
             grid_lines: true,
             center_cursor: false,
-            removed_item_icons: None,
         }
     }
 }
@@ -136,11 +130,6 @@ impl Default for CalendarListSettings {
         Self { max_width: 36 }
     }
 }
-
-/// Settings v1 named differently in the same config file: (v2's name, v1's name). Reading takes either
-/// (serde's `alias`); saving changes the line the file already has, so a v1 name stays a v1 name (both
-/// names in one file would be an error)
-const OLD_NAMES: [(&str, &str); 1] = [("relative_weeks", "week_numbers")];
 
 /// Reads the config file; a missing file means all defaults; an unreadable file or bad content is an error
 pub fn load(path: &Path) -> Result<Settings> {
@@ -234,13 +223,8 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
             }
             continue;
         }
-        // The file may have the line under v1's name: change that line
-        let line = OLD_NAMES
-            .iter()
-            .find(|&&(new, old)| new == key && !doc.contains_key(new) && doc.contains_key(old))
-            .map_or(key, |&(_, old)| old);
         match (
-            doc.get_mut(line).and_then(Item::as_value_mut),
+            doc.get_mut(key).and_then(Item::as_value_mut),
             item.as_value(),
         ) {
             // The file has this line: replace only the value; the end-of-line
@@ -346,45 +330,6 @@ mod tests {
     }
 
     #[test]
-    fn v1_names_still_read_and_saving_keeps_them() {
-        // v1's config file (the same config.toml): week_numbers = true meant relative weeks
-        let text = "[month]\ngrid_lines = false\n\n[calendar]\nweek_numbers = true   # v1\n";
-        let settings = parse(text).expect("v1 file");
-        assert!(settings.calendar.relative_weeks);
-        assert!(!settings.month.grid_lines);
-        // Turning it off on the settings page changes v1's line (comment kept), and adds no second line
-        let mut off = settings;
-        off.calendar.relative_weeks = false;
-        assert_eq!(
-            updated_file(text, &off).expect("updated"),
-            "[month]\ngrid_lines = false\n\n[calendar]\nweek_numbers = false   # v1\n"
-        );
-    }
-
-    #[test]
-    fn a_removed_setting_still_opens_and_saving_leaves_it_alone() {
-        // An older config file with `item_icons` (no longer a setting): opens, the other settings read
-        let text = "[month]\nitem_icons = false\ngrid_lines = false\n";
-        let settings = parse(text).expect("older file");
-        assert!(!settings.month.grid_lines);
-        // Saving a change does not touch the item_icons line
-        let mut changed = settings.clone();
-        changed.month.center_cursor = true;
-        assert_eq!(
-            updated(text, &settings, &changed).expect("updated"),
-            "[month]\nitem_icons = false\ngrid_lines = false\ncenter_cursor = true\n"
-        );
-        // Not written when the file does not have it
-        let mut fresh = Settings::default();
-        fresh.month.removed_item_icons = Some(false);
-        fresh.month.center_cursor = true;
-        assert_eq!(
-            updated("", &Settings::default(), &fresh).expect("updated"),
-            "[month]\ncenter_cursor = true\n"
-        );
-    }
-
-    #[test]
     fn mistakes_are_errors() {
         for text in [
             // Misspelled name (missing an s)
@@ -397,8 +342,9 @@ mod tests {
             "grid_lines = false",
             // Misspelled table name
             "[mnth]\ngrid_lines = false",
-            // v1's name and v2's name for the same setting, both in one file
-            "[calendar]\nweek_numbers = true\nrelative_weeks = false",
+            // Names from v1, which v2 does not have
+            "[calendar]\nweek_numbers = true",
+            "[month]\nitem_icons = false",
             // The width must be a whole number from 0 up, not text or negative
             "[calendar_list]\nmax_width = \"wide\"",
             "[calendar_list]\nmax_width = -1",
@@ -427,7 +373,6 @@ mod tests {
                 month: MonthSettings {
                     grid_lines: false,
                     center_cursor: true,
-                    removed_item_icons: None,
                 },
                 calendar_list: CalendarListSettings { max_width: 30 },
                 colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),

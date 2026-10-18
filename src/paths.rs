@@ -16,10 +16,6 @@ pub fn tasks_file() -> Option<PathBuf> {
 }
 
 /// Config file: `$XDG_CONFIG_HOME/roh-cal/config.toml`, or `~/.config/roh-cal/config.toml` if unset
-///
-/// The same file v1 used: v2 still reads v1's name where the two differ (see `config::OLD_NAMES`); v1 treats
-/// names it does not know as errors, so once v2's settings page saves a setting v1 does not have, v1
-/// cannot read the file any more
 pub fn config_file() -> Option<PathBuf> {
     Some(
         xdg_dir("XDG_CONFIG_HOME", ".config")?

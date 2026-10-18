@@ -533,8 +533,6 @@ mod tests {
                 MonthSettings {
                     grid_lines: _,
                     center_cursor: _,
-                    // No longer a setting (only read so older files open): no row
-                    removed_item_icons: _,
                 },
             calendar_list: CalendarListSettings { max_width: _ },
         } = Settings::default();
