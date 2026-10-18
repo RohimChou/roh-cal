@@ -198,6 +198,20 @@ impl Theme {
                     names().join(", ")
                 )
             })?;
+        // 先一個一個檢查蓋掉的顏色，錯誤訊息才說得出是哪一個
+        let file: ThemeFile = toml::from_str(text).map_err(|error| error.to_string())?;
+        for (role, color) in colors {
+            if !ROLES.contains(&role.as_str()) {
+                return Err(format!(
+                    "[colors] {role}: no such role (the roles are the names under [roles] in themes/)"
+                ));
+            }
+            if !file.palette.contains_key(color) && color.parse::<Color>().is_err() {
+                return Err(format!(
+                    "[colors] {role} = \"{color}\": not a color, nor a palette name of {name}"
+                ));
+            }
+        }
         Self::parse(text, colors).map_err(|error| format!("[colors]: {}", error.message()))
     }
 
@@ -269,10 +283,16 @@ mod tests {
         // terminal 沒有色票：red 是 terminal 的紅色
         let terminal = Theme::build("terminal", &colors(&[("weekend", "red")])).expect("valid");
         assert_eq!(terminal.weekend, Color::Red);
-        // 錯誤：沒有這套 theme、角色名字打錯、不是顏色
+        // 錯誤：沒有這套 theme、角色名字打錯、不是顏色；訊息說得出是哪一個
         assert!(Theme::build("dracula", &BTreeMap::new()).is_err());
-        assert!(Theme::build("catppuccin-mocha", &colors(&[("todya", "red")])).is_err());
-        assert!(Theme::build("terminal", &colors(&[("today", "surface0")])).is_err());
+        let error =
+            Theme::build("catppuccin-mocha", &colors(&[("todya", "red")])).expect_err("role");
+        assert!(error.contains("todya: no such role"), "{error}");
+        let error = Theme::build("terminal", &colors(&[("today", "surface0")])).expect_err("color");
+        assert!(
+            error.contains("today = \"surface0\": not a color, nor a palette name of terminal"),
+            "{error}"
+        );
     }
 
     #[test]
