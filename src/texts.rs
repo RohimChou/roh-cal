@@ -179,6 +179,7 @@ const EN: Texts = Texts {
                 title: "Items",
                 keys: &[
                     ("j / k", "choose"),
+                    ("h / l", "column (when split)"),
                     ("Space", "check off"),
                     ("e", "edit"),
                     ("a / A", "add / add a subtask"),
@@ -385,6 +386,7 @@ const ZH_TW: Texts = Texts {
                 title: "事項",
                 keys: &[
                     ("j / k", "選"),
+                    ("h / l", "左右換欄（分欄時）"),
                     ("Space", "打勾"),
                     ("e", "編輯"),
                     ("a / A", "新增 / 新增子任務"),

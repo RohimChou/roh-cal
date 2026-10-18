@@ -29,6 +29,11 @@ use ratatui::{
 /// The terminal must be at least this wide to draw the side menu
 const SIDE_MIN_WIDTH: u16 = 120;
 
+/// How many columns layout 1's agenda is split into on the current screen (1 when it is narrow)
+pub fn agenda_columns(app: &App) -> usize {
+    planner::columns(areas(app.screen, app).agenda)
+}
+
 /// Where the edit box is (so a mouse click outside it can cancel)
 pub fn editor_area(screen: Rect) -> Rect {
     editor::area(screen)

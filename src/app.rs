@@ -18,6 +18,7 @@ pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
+    calendar,
     config::{self, Settings},
     tasks::{Heading, HeadingLine, Item, Kind, Warning},
     texts::Lang,
@@ -743,6 +744,8 @@ impl App {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
+            KeyCode::Char('l') | KeyCode::Right => self.choose_column(1),
+            KeyCode::Char('h') | KeyCode::Left => self.choose_column(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
@@ -1067,6 +1070,35 @@ impl App {
     fn choose_next(&mut self, step: isize) {
         let last = self.agenda().len().saturating_sub(1);
         self.choose(self.agenda_index.saturating_add_signed(step).min(last));
+    }
+
+    /// `l` (`step` = 1) / `h` (−1) in the agenda when it is split into columns: the item on the same row of
+    /// the next / previous column of that month (a month's items fill its first column, then the next:
+    /// `rows` each, the larger of its week count and its items ÷ columns); a shorter last column = its last
+    /// item; no column there, or nothing in it: stays
+    fn choose_column(&mut self, step: isize) {
+        let columns = ui::agenda_columns(self);
+        let agenda = self.agenda();
+        let Some(chosen) = agenda.get(self.agenda_index) else {
+            return;
+        };
+        // The chosen item's month: its items are one stretch of the agenda
+        let month = chosen.date.first_of_month();
+        let start = agenda.partition_point(|entry| entry.date < month);
+        let end = agenda.partition_point(|entry| entry.date <= month.last_of_month());
+        let count = end - start;
+        let rows = calendar::month_rows(month)
+            .len()
+            .max(count.div_ceil(columns));
+        let position = self.agenda_index - start;
+        let Some(column) = (position / rows)
+            .checked_add_signed(step)
+            .filter(|&column| column < columns && column * rows < count)
+        else {
+            return;
+        };
+        let target = (column * rows + position % rows).min(count - 1);
+        self.choose(start + target);
     }
 
     /// Jumps to the 1st of the month `months` months later (negative = earlier), scrolled to the top;
@@ -1462,6 +1494,76 @@ mod tests {
         // Checked again: listed again
         app.groups[1].shown = true;
         assert_eq!(app.agenda().len(), 4);
+    }
+
+    #[test]
+    fn h_and_l_move_across_agenda_columns() {
+        // 100 wide: the agenda has 2 columns. October has 5 week rows and 11 items, so each column takes
+        // max(5, 11 ÷ 2 rounded up = 6) = 6 rows: items 0-5 in the first column, 6-10 in the second
+        let text: String = (1..=11)
+            .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
+            .collect();
+        let mut app = app_with(&text);
+        app.screen = Rect::new(0, 0, 100, 30);
+        app.focus = Focus::Agenda;
+        let title = |app: &App| app.chosen().map(|entry| entry.item.title.clone());
+        // On screen, Item 3 and Item 9 share a row (left and right column): the moves below follow what is
+        // drawn
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).expect("terminal");
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .expect("draw");
+        let row_of = |text: &str| {
+            let buffer = terminal.backend().buffer();
+            (0..30).find(|&y| {
+                let row: String = (0..100).map(|x| buffer[(x, y)].symbol()).collect();
+                row.contains(text)
+            })
+        };
+        assert_eq!(row_of("Item 3 "), row_of("Item 9 "));
+        assert!(row_of("Item 3 ").is_some());
+        app.choose(2);
+        // l: the same row of the next column; l again: no third column, stays; h: back
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(title(&app).as_deref(), Some("Item 9"));
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(title(&app).as_deref(), Some("Item 9"));
+        press(&mut app, KeyCode::Left);
+        assert_eq!(title(&app).as_deref(), Some("Item 3"));
+        // The last row of the first column: the second column is one shorter, so its last item
+        app.choose(5);
+        press(&mut app, KeyCode::Right);
+        assert_eq!(title(&app).as_deref(), Some("Item 11"));
+        // Narrow (1 column): h and l do nothing
+        app.screen = Rect::new(0, 0, 60, 30);
+        app.choose(2);
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(title(&app).as_deref(), Some("Item 3"));
+        // Fewer items than weeks: 6 items still take 5 rows per column (October's weeks), so the second
+        // column holds only Item 6, on the first row next to Item 1
+        let text: String = (1..=6)
+            .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
+            .collect();
+        let mut app = app_with(&text);
+        app.screen = Rect::new(0, 0, 100, 30);
+        app.focus = Focus::Agenda;
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).expect("terminal");
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let row_of = |text: &str| {
+            (0..30).find(|&y| {
+                let row: String = (0..100).map(|x| buffer[(x, y)].symbol()).collect();
+                row.contains(text)
+            })
+        };
+        assert_eq!(row_of("Item 1 "), row_of("Item 6 "));
+        app.choose(0);
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(title(&app).as_deref(), Some("Item 6"));
     }
 
     #[test]

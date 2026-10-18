@@ -53,6 +53,12 @@ fn agenda_columns(width: u16) -> usize {
     )
 }
 
+/// How many columns the agenda box (`agenda`, with its border) is split into
+pub(super) fn columns(agenda: Rect) -> usize {
+    let [_, _, body] = inner_areas(agenda);
+    agenda_columns(body.width)
+}
+
 /// Splits one agenda row into `count` columns, like a newspaper
 fn split_columns(area: Rect, count: usize) -> Rc<[Rect]> {
     Layout::horizontal(vec![Constraint::Fill(1); count])

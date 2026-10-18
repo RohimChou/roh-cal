@@ -118,6 +118,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Key | Action |
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous item |
+| `h` `l` / `←` `→` | In layout 1's agenda split into columns (a wide terminal): the item on the same row of the previous / next column |
 | `Space` / `x` | Check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
 | `e` / `Enter` | Edit the chosen item's line in a one-line editor that shows, as you type, how the line will be read; `Enter` saves (not while the line has a mistake), `Esc` or clicking outside cancels. Inside: `←` `→` `Home` `End` move, `Ctrl+U` clears. On the calendar views an item on the selected day shows without its date (a time as `@10:00`), and the date is put back when saving; a multi-day item shows its whole range. The tasks page shows the whole line, so take a date away there |
 | `a` / `A` | Add an item to the chosen item's calendar in the same one-line editor, on the selected day (the date is added when saving; type your own `@2026-10-20` for another day, `@10:00` for a time; the tasks page adds no date) / add a subtask under the chosen item |
