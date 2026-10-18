@@ -151,7 +151,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Click | Select a day, an item or a calendar; double-click a day to go into its items; click a chosen task again to check it off, a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
 
 ## Config file
-`~/.config/roh-cal/config-v2.toml` (`$XDG_CONFIG_HOME` respected; v1's `config.toml` next to it is left alone). It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says what is wrong (the line, or for `[colors]` the role and value). The settings page (`,`) edits it for you. Example: [testdata/config.toml](testdata/config.toml).
+`~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). Coming from v1: it is the same file, and v1's `week_numbers` still works as `relative_weeks`; v1's `[colors]` role names are different, so roh-cal says which line to fix. It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says what is wrong (the line, or for `[colors]` the role and value). The settings page (`,`) edits it for you. Example: [testdata/config.toml](testdata/config.toml).
 
 | Name | Default | Meaning |
 | :- | :- | :- |

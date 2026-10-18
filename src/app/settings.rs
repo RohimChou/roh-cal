@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn closing_saves_only_what_changed_and_says_when_it_cannot() {
         let dir = crate::files::test_dir("settings-save");
-        let path = dir.join("config-v2.toml");
+        let path = dir.join("config.toml");
         // Open it to look and close without changes: no file is created
         let mut app = app_with_settings();
         app.config_path = Some(path.clone());

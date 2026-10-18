@@ -11,7 +11,7 @@ v2, a rewrite from scratch. The first version (never released) lives on the [`v1
 - Writing back to the task file: check off, add, add a subtask, edit in a one-line editor, reschedule with the calendar as the date picker, delete, and undo the last 50 writes; only the changed lines are rewritten, through a temp file, and a file changed elsewhere is reloaded instead of overwritten
 - Task file format v0.2: events (items without a box), multi-day ranges `@2026-10-20..2026-10-25`, holiday calendars (`type:holiday`), Obsidian block ids at the end of a line
 - Calendar list on the left: show or hide each `#` group; on terminals narrower than 120 columns `s` calls it up over the screen; long lists scroll
-- Help page (`?`), settings page (`,`) and the config file `config-v2.toml`
+- Help page (`?`), settings page (`,`) and the config file `config.toml` (v1's `week_numbers` still reads as `relative_weeks`)
 - Six built-in themes as TOML files (`catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `terminal`) and per-role color overrides
 - English and Traditional Chinese
 - Mouse support: the wheel and clicks work in every view

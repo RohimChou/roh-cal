@@ -79,7 +79,8 @@ impl Default for Settings {
 #[serde(default, deny_unknown_fields)]
 pub struct CalendarSettings {
     /// Week-number column: the selected week shows its week number, other
-    /// weeks show how many weeks they are from it (like vim's relativenumber)
+    /// weeks show how many weeks they are from it (like vim's relativenumber); v1 called it `week_numbers`
+    #[serde(alias = "week_numbers")]
     pub relative_weeks: bool,
 }
 
@@ -133,6 +134,11 @@ impl Default for CalendarListSettings {
         Self { max_width: 36 }
     }
 }
+
+/// Settings v1 named differently in the same config file: (v2's name, v1's name). Reading takes either
+/// (serde's `alias`); saving changes the line the file already has, so a v1 name stays a v1 name (both
+/// names in one file would be an error)
+const OLD_NAMES: [(&str, &str); 1] = [("relative_weeks", "week_numbers")];
 
 /// Reads the config file; a missing file means all defaults; an unreadable file or bad content is an error
 pub fn load(path: &Path) -> Result<Settings> {
@@ -226,8 +232,13 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
             }
             continue;
         }
+        // The file may have the line under v1's name: change that line
+        let line = OLD_NAMES
+            .iter()
+            .find(|&&(new, old)| new == key && !doc.contains_key(new) && doc.contains_key(old))
+            .map_or(key, |&(_, old)| old);
         match (
-            doc.get_mut(key).and_then(Item::as_value_mut),
+            doc.get_mut(line).and_then(Item::as_value_mut),
             item.as_value(),
         ) {
             // The file has this line: replace only the value; the end-of-line
@@ -268,7 +279,7 @@ mod tests {
     fn save_writes_only_what_changed_on_the_page() {
         let dir = files::test_dir("config-only-changes");
         std::fs::create_dir_all(&dir).expect("dir");
-        let path = dir.join("config-v2.toml");
+        let path = dir.join("config.toml");
         // After the app opened, the grid lines were changed elsewhere in the file;
         // this run was opened with `--theme tokyo-night` (the file says gruvbox-dark)
         std::fs::write(
@@ -298,7 +309,7 @@ mod tests {
     fn save_refuses_to_write_a_file_that_would_not_load() {
         let dir = files::test_dir("config-would-break");
         std::fs::create_dir_all(&dir).expect("dir");
-        let path = dir.join("config-v2.toml");
+        let path = dir.join("config.toml");
         // A gruvbox palette name was added to the file elsewhere; the settings page switches the theme
         // to mocha: mocha has no light1, so the written file would not open next time → no write
         let text = "theme = \"gruvbox-dark\"\n[colors]\ntoday = \"light1\"\n";
@@ -333,6 +344,22 @@ mod tests {
     }
 
     #[test]
+    fn v1_names_still_read_and_saving_keeps_them() {
+        // v1's config file (the same config.toml): week_numbers = true meant relative weeks
+        let text = "[month]\ngrid_lines = false\n\n[calendar]\nweek_numbers = true   # v1\n";
+        let settings = parse(text).expect("v1 file");
+        assert!(settings.calendar.relative_weeks);
+        assert!(!settings.month.grid_lines);
+        // Turning it off on the settings page changes v1's line (comment kept), and adds no second line
+        let mut off = settings;
+        off.calendar.relative_weeks = false;
+        assert_eq!(
+            updated_file(text, &off).expect("updated"),
+            "[month]\ngrid_lines = false\n\n[calendar]\nweek_numbers = false   # v1\n"
+        );
+    }
+
+    #[test]
     fn mistakes_are_errors() {
         for text in [
             // Misspelled name (missing an s)
@@ -345,8 +372,8 @@ mod tests {
             "grid_lines = false",
             // Misspelled table name
             "[mnth]\ngrid_lines = false",
-            // v1's name (v1's week_numbers = true meant relative weeks; v2 calls it relative_weeks)
-            "[calendar]\nweek_numbers = true",
+            // v1's name and v2's name for the same setting, both in one file
+            "[calendar]\nweek_numbers = true\nrelative_weeks = false",
             // The width must be a whole number from 0 up, not text or negative
             "[calendar_list]\nmax_width = \"wide\"",
             "[calendar_list]\nmax_width = -1",
@@ -499,7 +526,7 @@ mod tests {
     #[test]
     fn save_creates_the_folder_and_load_reads_it_back() {
         let dir = files::test_dir("config-save");
-        let path = dir.join("roh-cal").join("config-v2.toml");
+        let path = dir.join("roh-cal").join("config.toml");
         // File does not exist and all switches are defaults: nothing to change
         // → write nothing, not even the folder
         save(&path, &Settings::default(), &Settings::default()).expect("nothing to save");
@@ -512,7 +539,7 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "[month]\ncenter_cursor = true\n"
         );
-        assert!(!dir.join("roh-cal").join("config-v2.toml.tmp").exists());
+        assert!(!dir.join("roh-cal").join("config.toml.tmp").exists());
         std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
@@ -520,7 +547,7 @@ mod tests {
     fn save_refuses_to_touch_a_broken_file() {
         let dir = files::test_dir("config-broken");
         std::fs::create_dir_all(&dir).expect("dir");
-        let path = dir.join("config-v2.toml");
+        let path = dir.join("config.toml");
         std::fs::write(&path, "[month]\ngrid_line = false\n").expect("write");
         // A file with a misspelled name (broken elsewhere): even when the settings page
         // changed something, it is not saved; the original content stays for the user to fix

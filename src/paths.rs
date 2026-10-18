@@ -15,16 +15,16 @@ pub fn tasks_file() -> Option<PathBuf> {
     )
 }
 
-/// Config file: `$XDG_CONFIG_HOME/roh-cal/config-v2.toml`, or `~/.config/roh-cal/config-v2.toml` if unset
+/// Config file: `$XDG_CONFIG_HOME/roh-cal/config.toml`, or `~/.config/roh-cal/config.toml` if unset
 ///
-/// Same folder as v1's `config.toml`, but a different file name: the two versions name their settings
-/// differently (v1 treats unknown names as errors), and sharing one file would make them break each other.
-/// Switch back to `config.toml` once v2 replaces v1
+/// The same file v1 used: v2 still reads v1's name where the two differ (see `config::OLD_NAMES`); v1 treats
+/// names it does not know as errors, so once v2's settings page saves a setting v1 does not have, v1
+/// cannot read the file any more
 pub fn config_file() -> Option<PathBuf> {
     Some(
         xdg_dir("XDG_CONFIG_HOME", ".config")?
             .join("roh-cal")
-            .join("config-v2.toml"),
+            .join("config.toml"),
     )
 }
 

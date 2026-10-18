@@ -1,4 +1,4 @@
-# Sample roh-cal v2 config file (the real one lives at ~/.config/roh-cal/config-v2.toml)
+# Sample roh-cal v2 config file (the real one lives at ~/.config/roh-cal/config.toml)
 # Write only what you want to change; anything left out uses the default. Every setting here differs
 # from its default (switches are set to the opposite)
 
