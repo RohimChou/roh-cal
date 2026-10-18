@@ -293,34 +293,21 @@ impl App {
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
-        let checked: Vec<(Vec<String>, bool)> = self
-            .groups
-            .iter()
-            .map(|group| (group.path(), group.shown))
-            .collect();
+        let checked = self.checked_states();
         match edit::rename_calendar(&text, headings, new) {
             Ok(after) => {
                 if after != text && !self.write_tasks(&path, text, after, name.to_string()) {
                     return;
                 }
                 self.mode = Mode::Normal;
-                // The renamed calendar is at `depth` in its own path and in the paths of those inside it
-                let depth = first.parents.len();
-                for group in &mut self.groups {
-                    let mut old = group.path();
-                    if old.len() > depth && old[..depth] == first.parents[..] && old[depth] == name
-                    {
-                        old[depth].clone_from(&first.name);
-                        if let Some((_, shown)) = checked.iter().find(|(path, _)| *path == old) {
-                            group.shown = *shown;
-                        }
-                    }
-                }
-                if let Some(index) = self.groups.iter().position(|group| {
-                    group.parents == first.parents && group.name.as_deref() == Some(name)
-                }) {
-                    self.group_index = index;
-                }
+                let old: Vec<String> = first.parents.iter().chain([&first.name]).cloned().collect();
+                let renamed: Vec<String> = first
+                    .parents
+                    .iter()
+                    .cloned()
+                    .chain([name.to_string()])
+                    .collect();
+                self.carry_checked(&checked, &old, &renamed);
             }
             Err(edit::Changed) => {
                 self.mode = Mode::Normal;

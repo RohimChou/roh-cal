@@ -425,6 +425,32 @@ impl App {
             .collect()
     }
 
+    /// Every calendar's path and checked state (taken before a write that changes a calendar's path)
+    fn checked_states(&self) -> Vec<(Vec<String>, bool)> {
+        self.groups
+            .iter()
+            .map(|group| (group.path(), group.shown))
+            .collect()
+    }
+
+    /// After a write that renamed or moved a calendar (its path went from `old` to `new`): it and the
+    /// calendars inside it get back the checked state they had (`checked` = from `checked_states` before
+    /// the write), and it is chosen in the side menu
+    fn carry_checked(&mut self, checked: &[(Vec<String>, bool)], old: &[String], new: &[String]) {
+        for group in &mut self.groups {
+            let path = group.path();
+            if path.len() >= new.len() && path[..new.len()] == *new {
+                let before: Vec<String> = old.iter().chain(&path[new.len()..]).cloned().collect();
+                if let Some((_, shown)) = checked.iter().find(|(path, _)| *path == before) {
+                    group.shown = *shown;
+                }
+            }
+        }
+        if let Some(index) = self.groups.iter().position(|group| group.path() == new) {
+            self.group_index = index;
+        }
+    }
+
     /// Whether this item is shown: only if its calendar (group) and every calendar that one is inside are
     /// checked
     pub fn is_shown(&self, item: &Item) -> bool {
@@ -705,7 +731,8 @@ impl App {
     }
 
     /// Keyboard in the side menu: up / down choose a calendar, `Space` / `Enter` check or uncheck it (an
-    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one, `d` deletes it
+    /// unchecked calendar's items are hidden), `a` adds a calendar, `e` renames the chosen one, `d` deletes it,
+    /// `L` / `H` move it one level in / out
     fn handle_side_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
@@ -714,6 +741,8 @@ impl App {
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
             KeyCode::Char('d') => self.ask_delete_calendar(),
+            KeyCode::Char('L') => self.shift_calendar(true),
+            KeyCode::Char('H') => self.shift_calendar(false),
             _ => {}
         }
     }

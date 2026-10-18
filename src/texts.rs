@@ -252,6 +252,7 @@ const EN: Texts = Texts {
                     ("a", "add a calendar"),
                     ("e", "rename it"),
                     ("d", "delete it, items too"),
+                    ("L / H", "one level in / out"),
                 ],
             },
             HelpSection {
@@ -407,6 +408,7 @@ const ZH_TW: Texts = Texts {
                     ("a", "新增日曆"),
                     ("e", "改名"),
                     ("d", "刪除（連裡面的事）"),
+                    ("L / H", "往內 / 往外一層"),
                 ],
             },
             HelpSection {

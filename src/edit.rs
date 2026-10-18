@@ -189,6 +189,73 @@ pub fn delete_calendar(text: &str, headings: &[HeadingLine]) -> Result<(String, 
     Ok((kept(true), count))
 }
 
+/// Move a calendar one level in (`deeper`) / out: each of its heading lines (`headings`) and the headings
+/// of the calendars inside it (up to the next heading with as many `#` or fewer) get one `#` more / fewer;
+/// only those `#`s change. Return the changed file, or `None` when it cannot move: going in needs a calendar
+/// right above it at the same level to go inside (and at most 6 `#`), going out needs at least 2 `#`.
+/// `Changed` if one of its heading lines now differs from when it was read
+///
+/// E.g. in `# Work`, `# SFAP`, `## Bugs`, moving SFAP in gives `# Work`, `## SFAP`, `### Bugs`
+pub fn shift_calendar(
+    text: &str,
+    headings: &[HeadingLine],
+    deeper: bool,
+) -> Result<Option<String>, Changed> {
+    let lines: Vec<&str> = text.lines().collect();
+    if headings
+        .iter()
+        .any(|heading| lines.get(heading.line - 1) != Some(&heading.text.as_str()))
+    {
+        return Err(Changed);
+    }
+    let all = tasks::parse(text).headings;
+    // Line numbers (from 1) of the headings that get one `#` more / fewer
+    let mut shifted: Vec<usize> = Vec::new();
+    for heading in headings {
+        let (start, level) = (heading.line, heading.heading.level);
+        if deeper {
+            // The nearest heading above at this level or higher must be at this level: it goes inside that one
+            let above = all
+                .iter()
+                .rev()
+                .find(|other| other.line < start && other.heading.level <= level);
+            if above.is_none_or(|other| other.heading.level != level) {
+                return Ok(None);
+            }
+        } else if level < 2 {
+            return Ok(None);
+        }
+        let end = all
+            .iter()
+            .find(|other| other.line > start && other.heading.level <= level)
+            .map_or(usize::MAX, |other| other.line);
+        for other in all
+            .iter()
+            .filter(|other| (start..end).contains(&other.line))
+        {
+            if deeper && other.heading.level >= 6 {
+                return Ok(None);
+            }
+            if !shifted.contains(&other.line) {
+                shifted.push(other.line);
+            }
+        }
+    }
+    let mut result = String::with_capacity(text.len() + shifted.len());
+    for (index, segment) in text.split_inclusive('\n').enumerate() {
+        match (shifted.contains(&(index + 1)), deeper) {
+            (true, true) => {
+                result.push('#');
+                result.push_str(segment);
+            }
+            // A heading line starts with `#` (1 byte)
+            (true, false) => result.push_str(&segment[1..]),
+            (false, _) => result.push_str(segment),
+        }
+    }
+    Ok(Some(result))
+}
+
 /// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
 /// line number (from 1)
 ///
@@ -727,6 +794,59 @@ mod tests {
         assert_eq!(
             delete_calendar(crlf, &calendar(crlf, "A")),
             Ok(("# B\r\n- b\r\n".into(), 1))
+        );
+    }
+
+    #[test]
+    fn a_calendar_moves_in_and_out_with_the_ones_inside_it() {
+        let calendar = |text: &str, name: &str| -> Vec<HeadingLine> {
+            parse(text)
+                .headings
+                .into_iter()
+                .filter(|line| line.heading.name == name)
+                .collect()
+        };
+        // SFAP goes inside Work (the calendar right above at its level); Bugs inside SFAP goes along;
+        // Personal after it stays
+        let text = "# Work\n- a\n# SFAP\n- b\n## Bugs\n- c\n# Personal\n- d\n";
+        let moved = shift_calendar(text, &calendar(text, "SFAP"), true);
+        assert_eq!(
+            moved,
+            Ok(Some(
+                "# Work\n- a\n## SFAP\n- b\n### Bugs\n- c\n# Personal\n- d\n".to_string()
+            ))
+        );
+        // And back out
+        let moved = moved.expect("moved").expect("moved");
+        assert_eq!(
+            shift_calendar(&moved, &calendar(&moved, "SFAP"), false),
+            Ok(Some(text.to_string()))
+        );
+        // Cannot move: the first calendar has nothing above to go inside; a top-level one cannot go out;
+        // Bugs right below its parent SFAP has no calendar at its own level above it
+        assert_eq!(
+            shift_calendar(text, &calendar(text, "Work"), true),
+            Ok(None)
+        );
+        assert_eq!(
+            shift_calendar(text, &calendar(text, "Work"), false),
+            Ok(None)
+        );
+        assert_eq!(
+            shift_calendar(text, &calendar(text, "Bugs"), true),
+            Ok(None)
+        );
+        // At most 6 #s
+        let deep = "# A\n###### B\n# C\n###### D\n";
+        assert_eq!(shift_calendar(deep, &calendar(deep, "C"), true), Ok(None));
+        // A heading changed elsewhere
+        assert_eq!(
+            shift_calendar(
+                &text.replace("# SFAP", "# SFA"),
+                &calendar(text, "SFAP"),
+                true
+            ),
+            Err(Changed)
         );
     }
 

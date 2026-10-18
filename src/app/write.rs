@@ -203,6 +203,43 @@ impl App {
         }
     }
 
+    /// `L` / `H` in the calendar list: moves the chosen calendar one level in (inside the calendar right
+    /// above it at the same level) / out, with the calendars inside it; it stays chosen and they keep their
+    /// checked state. Nothing happens when it cannot move (see `edit::shift_calendar`) or for 「Ungrouped」
+    pub(super) fn shift_calendar(&mut self, deeper: bool) {
+        let headings = self.chosen_calendar_headings();
+        let Some(first) = headings.first().cloned() else {
+            return;
+        };
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        let checked = self.checked_states();
+        match edit::shift_calendar(&text, &headings, deeper) {
+            Ok(Some(after)) => {
+                if !self.write_tasks(&path, text, after, first.heading.name.clone()) {
+                    return;
+                }
+                // Only `#`s changed, so its first heading is on the same line, with its new path
+                let path_of = |heading: &tasks::Heading| -> Vec<String> {
+                    heading
+                        .parents
+                        .iter()
+                        .chain([&heading.name])
+                        .cloned()
+                        .collect()
+                };
+                let Some(moved) = self.headings.iter().find(|line| line.line == first.line) else {
+                    return;
+                };
+                let new = path_of(&moved.heading);
+                self.carry_checked(&checked, &path_of(&first.heading), &new);
+            }
+            Ok(None) => {}
+            Err(edit::Changed) => self.reload(&text),
+        }
+    }
+
     /// `u`: undoes roh-cal's last write; the result goes in `notice`
     ///
     /// Undoes only if the file matches exactly what roh-cal last wrote; if it was changed elsewhere,
@@ -687,6 +724,54 @@ pub(crate) mod tests {
         app.focus = Focus::Side;
         press(&mut app, KeyCode::Char('d'));
         assert_eq!(app.confirm_delete_calendar(), None);
+    }
+
+    #[test]
+    fn l_and_h_move_a_calendar_in_and_out_in_the_calendar_list() {
+        let text = "# Work\n- [ ] a @2026-10-10\n# SFAP\n- [ ] b @2026-10-11\n## Bugs\n- [ ] c @2026-10-12\n\
+                    # Personal\n- d @2026-10-13\n";
+        let (mut app, path) = app_with_task_file("shift-calendar", text);
+        let read = || std::fs::read_to_string(&path).expect("read");
+        let tree = |app: &App| -> Vec<(String, bool)> {
+            app.groups
+                .iter()
+                .map(|group| (group.path().join(" > "), group.shown))
+                .collect()
+        };
+        app.focus = Focus::Side;
+        // Bugs (inside SFAP) unchecked; SFAP chosen
+        app.groups[2].shown = false;
+        app.group_index = 1;
+        // L: SFAP goes inside Work, Bugs along with it (still unchecked); SFAP stays chosen
+        press(&mut app, KeyCode::Char('L'));
+        let inside = "# Work\n- [ ] a @2026-10-10\n## SFAP\n- [ ] b @2026-10-11\n### Bugs\n- [ ] c @2026-10-12\n\
+                      # Personal\n- d @2026-10-13\n";
+        assert_eq!(read(), inside);
+        assert_eq!(
+            tree(&app),
+            [
+                ("Work".to_string(), true),
+                ("Work > SFAP".to_string(), true),
+                ("Work > SFAP > Bugs".to_string(), false),
+                ("Personal".to_string(), true),
+            ]
+        );
+        assert_eq!(app.group_index, 1);
+        // H: back out
+        press(&mut app, KeyCode::Char('H'));
+        assert_eq!(read(), text);
+        assert_eq!(app.group_index, 1);
+        assert_eq!(tree(&app)[2], ("SFAP > Bugs".to_string(), false));
+        // Cannot move: SFAP is already at the top; Work has no calendar above it to go inside
+        let steps = app.undo.len();
+        press(&mut app, KeyCode::Char('H'));
+        app.group_index = 0;
+        press(&mut app, KeyCode::Char('L'));
+        assert_eq!((read(), app.undo.len()), (text.to_string(), steps));
+        // u undoes the last move (H): SFAP is inside Work again
+        press(&mut app, KeyCode::Char('u'));
+        assert_eq!(read(), inside);
+        clean_up(&path);
     }
 
     #[test]
