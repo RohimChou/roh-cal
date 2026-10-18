@@ -83,7 +83,8 @@ pub struct CalendarSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MonthSettings {
-    /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column)
+    /// Draws faint grid lines between cells (turning it off gives content 1 more row and 1 more column);
+    /// a new year's thick line is drawn either way
     pub grid_lines: bool,
     /// Puts a dot before each item in a cell (`∙ 14:00 Team sync`)
     pub item_icons: bool,

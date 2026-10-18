@@ -154,7 +154,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- | :- |
 | `theme` | `"catppuccin-mocha"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
-| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3) |
+| `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 3); without them a new year still gets its thick line |
 | `[month]` `item_icons` | `true` | A dot before each item in the month grid's cells |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |

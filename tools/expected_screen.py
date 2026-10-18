@@ -342,34 +342,42 @@ def month_screen(lang, w, h, selected, top, items, groups):
         xs.append(xs[k - 1] + widths[k - 1] + gap)
     lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # vertical lines: right of each column
                                                                     # (right of Sunday is the outer border)
-    wh = (ih - 1 - gap - 5 * gap) // 6  # rows per week (leftover rows stay at the bottom;
-                                        # vertical lines still run down to the bottom border)
-    week_y = lambda i: 1 + gap + i * (wh + gap)
+    starts = [top]
+    for _ in range(5):
+        starts.append(next_row(starts[-1]))
+    # The row a new year starts after (k: between row k and row k + 1), if one does on screen
+    new_year = next((k for k in range(5) if (starts[k + 1].month, starts[k + 1].day) == (1, 1)), None)
+    # Without grid lines a new year still gets its own line, which takes one row of height
+    year_row = 1 if not gap and new_year is not None else 0
+    wh = (ih - 1 - gap - 5 * gap - year_row) // 6  # rows per week (leftover rows stay at the bottom;
+                                                   # vertical lines still run down to the bottom border)
+    week_y = lambda i: 1 + gap + i * (wh + gap) + (1 if year_row and i > new_year else 0)
     c = Canvas(iw, ih)
     left, right = ["│"] * ih, ["│"] * ih  # left and right outer border of each row
     for x in lines_x:
         for y in range(1, ih):
             c.rows[y][x] = "│"
-    starts = [top]
-    for _ in range(5):
-        starts.append(next_row(starts[-1]))
     # The line below the header and above each row after the first; above a new year it is thick
     rules = [(1, "─", "┬", "├", "┤")]
     for i in range(5):
-        new_year = (starts[i + 1].month, starts[i + 1].day) == (1, 1)
-        rules.append((week_y(i) + wh,) + (("━", "┿", "┝", "┥") if new_year else ("─", "┼", "├", "┤")))
+        thick = (starts[i + 1].month, starts[i + 1].day) == (1, 1)
+        rules.append((week_y(i) + wh,) + (("━", "┿", "┝", "┥") if thick else ("─", "┼", "├", "┤")))
     for y, horizontal, cross, left_end, right_end in rules if gap else []:
         c.rows[y] = [horizontal] * iw
         for x in lines_x:
             c.rows[y][x] = cross
         left[y], right[y] = left_end, right_end
+    # Without grid lines: only the new year's line, thick, on its own row
+    if year_row:
+        y = week_y(new_year) + wh
+        c.rows[y] = ["━"] * iw
+        left[y], right[y] = "┝", "┥"
     # A thick line carries the year, one cell in from Monday's left edge, if Monday's cell leaves a line
     # cell on both sides
-    for i in range(5):
-        if gap and (starts[i + 1].month, starts[i + 1].day) == (1, 1):
-            label = " " + t["year"](starts[i + 1].year) + " "
-            if widths[1] >= width(label) + 2:
-                c.put(xs[1] + 1, week_y(i) + wh, label)
+    if new_year is not None and (gap or year_row):
+        label = " " + t["year"](starts[new_year + 1].year) + " "
+        if widths[1] >= width(label) + 2:
+            c.put(xs[1] + 1, week_y(new_year) + wh, label)
     # Header: 「  週 」, and each day's name at the left edge of its column
     c.put(0, 0, " " + t["hw"], 5)
     for k, name in enumerate(t["wd"]):

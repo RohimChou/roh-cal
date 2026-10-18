@@ -2728,6 +2728,52 @@ mod tests {
     }
 
     #[test]
+    fn month_view_without_grid_lines_still_marks_a_new_year() {
+        // 80 × 24 without grid lines, 2027/1/1 selected: rows are 3 tall (22 − header 1 − year line 1 = 20,
+        // 20 / 6 = 3); 12/28-31 at y 2-4, then the year line at y 5 (thick, ┝ / ┥ at the border, the year
+        // from x 7 since Monday starts at x 6), then 1/1-3 at y 6
+        let mut app = month_app(Lang::ZhTw, date(2027, 1, 1), "");
+        app.settings.month.grid_lines = false;
+        let terminal = draw_app(&mut app, 80, 24);
+        assert_eq!(
+            text_rows(terminal.backend().buffer()),
+            [
+                "╭─────────────────────────────── 2027/1/1（五） ───────────────────────────────╮",
+                "│  週  一         二         三         四        五        六        日       │",
+                "│  53  28         29         30         31                                     │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "┝━━━━━━ 2027年 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┥",
+                "│   1                                            [1]1月     2         3        │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "│   2  4          5          6          7         8         9         10       │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "│   3  11         12         13         14        15        16        17       │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "│   4  18         19         20         21        22        23        24       │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "│   5  25         26         27         28        29        30        31       │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "│                                                                              │",
+                "╰──────────────────────────────────────────────────────────────────────────────╯",
+                " hjkl 移動  Tab 切換  [] 換月  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            ]
+        );
+        let buffer = terminal.backend().buffer();
+        let theme = Theme::catppuccin_mocha();
+        let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+        assert_eq!(cell(20, 5), ("━", theme.year_line));
+        assert_eq!(cell(0, 5), ("┝", theme.focus));
+        assert_eq!(cell(79, 5), ("┥", theme.focus));
+        assert_eq!(cell(8, 5), ("2", theme.label));
+    }
+
+    #[test]
     fn month_view_colors_by_role() {
         // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7, Tue x 18,
         // Wed x 29, Thu x 40, Fri x 50, Sat x 60, Sun x 70; weeks 1-6 at y 3, 7, 11, 15, 19, 23. 10/16 (Fri)

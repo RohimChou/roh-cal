@@ -47,18 +47,26 @@ struct Grid {
     /// Cells taken by a grid line: 1 with grid lines (between columns, below the header, between weeks),
     /// 0 without (cells touch)
     gap: u16,
+    /// Without grid lines, a new year on screen still gets its line: the row it comes after (from 0); one
+    /// row of height is taken for it. `None` with grid lines (they already have a line between every two
+    /// rows) or when no year starts on screen
+    year_line_after: Option<u16>,
 }
 
 impl Grid {
     /// Splits the inside of the box (`inner`) into cells; `lines` = whether to draw grid lines
+    /// (`[month] grid_lines` in the config file); `new_year_after` = the row a new year starts after, if any
+    /// (see `new_year_after`)
     /// (`[month] grid_lines` in the config file)
     ///
     /// Width: the week-number column takes 5 cells; the rest, minus 7 vertical lines, is split evenly over
     /// 7 days. The leftover cells go one each to the columns starting from Monday.
     /// Height: header 1 row + header line 1 row; the rest, minus the 5 lines between weeks, is split evenly
-    /// over 6 weeks. Without grid lines, no lines are subtracted
-    fn new(inner: Rect, lines: bool) -> Self {
+    /// over 6 weeks. Without grid lines, only a new year's line (if any) is subtracted
+    fn new(inner: Rect, lines: bool, new_year_after: Option<u16>) -> Self {
         let gap = u16::from(lines);
+        let year_line_after = new_year_after.filter(|_| !lines);
+        let year_line = u16::from(year_line_after.is_some());
         let days_width = inner.width.saturating_sub(WEEK_COLUMN_WIDTH + 7 * gap);
         let (base, extra) = (days_width / 7, days_width % 7);
         let mut columns = [(inner.x, WEEK_COLUMN_WIDTH.min(inner.width)); 8];
@@ -71,8 +79,12 @@ impl Grid {
         Self {
             columns,
             header_y: inner.y,
-            week_height: inner.height.saturating_sub(1 + gap + (WEEKS - 1) * gap) / WEEKS,
+            week_height: inner
+                .height
+                .saturating_sub(1 + gap + (WEEKS - 1) * gap + year_line)
+                / WEEKS,
             gap,
+            year_line_after,
         }
     }
 
@@ -84,7 +96,9 @@ impl Grid {
 
     /// The first row of week `week` (from 0)
     fn week_y(&self, week: u16) -> u16 {
-        self.header_y + 1 + self.gap + week * (self.week_height + self.gap)
+        // Rows below the extra year line move down by its row
+        let year_line = u16::from(self.year_line_after.is_some_and(|after| week > after));
+        self.header_y + 1 + self.gap + week * (self.week_height + self.gap) + year_line
     }
 
     /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday)
@@ -200,7 +214,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .title_top(Line::styled(date, Style::new().fg(theme.text)).centered());
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let grid = Grid::new(inner, app.settings.month.grid_lines);
+    let grid = Grid::new(inner, app.settings.month.grid_lines, new_year_after(top));
     if grid.too_small() {
         return;
     }
@@ -213,6 +227,11 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             .map(Rule::above)
             .collect();
         render_grid_lines(frame.buffer_mut(), inner, &grid, &rules, app, border);
+    }
+    // Without grid lines a new year still gets its thick line, on the row the grid set aside for it
+    if let Some(after) = grid.year_line_after {
+        let day = row_after(top, i64::from(after) + 1);
+        render_year_line(frame.buffer_mut(), inner, &grid, day, app, border);
     }
 
     // Header: the week-number column says 「週」; each day's name sits at the far left of its column, lined
@@ -524,15 +543,53 @@ fn render_grid_lines(
         put(inner.x.wrapping_sub(1), y, left, border);
         put(inner.right(), y, right, border);
     }
-    // The year on its thick line, one line cell in from Monday's left edge: 「━ 2027 ━━━」
-    let (monday_x, monday_width) = grid.columns[1];
     for (y, day) in years {
-        let label = format!(" {} ", app.lang.texts().year_label(day));
-        let width = u16::try_from(Span::raw(&label).width()).unwrap_or(u16::MAX);
-        if monday_width >= width.saturating_add(2) {
-            buffer.set_string(monday_x + 1, y, label, Style::new().fg(theme.label));
-        }
+        write_year(buffer, grid, y, day, app);
     }
+}
+
+/// Without grid lines: the line above a new year (thick `━` in `year_line`, meeting the border as `┝` /
+/// `┥`, with the year on it), on the row the grid set aside for it
+fn render_year_line(
+    buffer: &mut Buffer,
+    inner: Rect,
+    grid: &Grid,
+    day: Date,
+    app: &App,
+    border: Style,
+) {
+    let Some(after) = grid.year_line_after else {
+        return;
+    };
+    let y = grid.week_y(after) + grid.week_height;
+    let style = Style::new().fg(app.theme.year_line);
+    for x in inner.x..inner.right() {
+        buffer.set_string(x, y, line::THICK_HORIZONTAL, style);
+    }
+    buffer.set_string(inner.x.wrapping_sub(1), y, "┝", border);
+    buffer.set_string(inner.right(), y, "┥", border);
+    write_year(buffer, grid, y, day, app);
+}
+
+/// Writes the year of `day` on the thick line at `y`, one line cell in from Monday's left edge:
+/// 「━ 2027 ━━━」 (`label` color); left out when Monday's cell cannot keep a line cell on both sides
+fn write_year(buffer: &mut Buffer, grid: &Grid, y: u16, day: Date, app: &App) {
+    let (monday_x, monday_width) = grid.columns[1];
+    let label = format!(" {} ", app.lang.texts().year_label(day));
+    let width = u16::try_from(Span::raw(&label).width()).unwrap_or(u16::MAX);
+    if monday_width >= width.saturating_add(2) {
+        buffer.set_string(monday_x + 1, y, label, Style::new().fg(app.theme.label));
+    }
+}
+
+/// Which row a new year starts after, among the rows on screen from `top` (e.g. `Some(0)` when the
+/// second row starts on January 1st); `None` when no year starts on screen
+fn new_year_after(top: Date) -> Option<u16> {
+    rows(top)
+        .skip(1)
+        .take(usize::from(WEEKS - 1))
+        .position(|start| matches!(Rule::above(start), Rule::Year(_)))
+        .and_then(|row| u16::try_from(row).ok())
 }
 
 /// Which day a mouse click at (`column`, `row`) on the month grid (`area`) hits; `None` on the header,
@@ -542,11 +599,11 @@ fn render_grid_lines(
 /// last week count as the last week
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let inner = Block::bordered().inner(area);
-    let grid = Grid::new(inner, app.settings.month.grid_lines);
+    let top = app.month_top?;
+    let grid = Grid::new(inner, app.settings.month.grid_lines, new_year_after(top));
     if grid.too_small() {
         return None;
     }
-    let top = app.month_top?;
     let position = Position::new(column, row);
     for (week, start) in (0..WEEKS).zip(rows(top)) {
         for weekday in 0..7 {
@@ -576,7 +633,7 @@ mod tests {
     fn grid_splits_the_days_evenly_and_the_weeks_equally() {
         // Inside 78 × 28 (an 80 × 30 box): day width 78 − 5 − 7 = 66, split over 7 columns = 9 remainder 3
         // → Mon, Tue, Wed get 10 cells, the others 9
-        let grid = Grid::new(Rect::new(1, 1, 78, 28), true);
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), true, None);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 10, 10, 10, 9, 9, 9, 9]);
         // 1 cell for a vertical line between columns: Monday starts at 1 + 5 + 1 = 7, Sunday's last cell
@@ -590,18 +647,21 @@ mod tests {
         assert_eq!(grid.week_y(0), 3);
         assert_eq!(grid.week_y(1), 7);
         // Not evenly divisible: 27 rows → 20 ÷ 6 = 3 remainder 2; the leftover stays at the bottom
-        assert_eq!(Grid::new(Rect::new(1, 1, 78, 27), true).week_height, 3);
+        assert_eq!(
+            Grid::new(Rect::new(1, 1, 78, 27), true, None).week_height,
+            3
+        );
         // Too small: cannot be drawn
-        assert!(Grid::new(Rect::new(1, 1, 18, 28), true).too_small());
-        assert!(Grid::new(Rect::new(1, 1, 78, 12), true).too_small());
-        assert!(!Grid::new(Rect::new(1, 1, 19, 13), true).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 18, 28), true, None).too_small());
+        assert!(Grid::new(Rect::new(1, 1, 78, 12), true, None).too_small());
+        assert!(!Grid::new(Rect::new(1, 1, 19, 13), true, None).too_small());
     }
 
     #[test]
     fn without_grid_lines_the_cells_touch() {
         // 78 × 28 without grid lines: day width 78 − 5 = 73, split over 7 columns = 10 remainder 3
         // → Mon, Tue, Wed get 11 cells, the others 10; columns touch
-        let grid = Grid::new(Rect::new(1, 1, 78, 28), false);
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), false, None);
         let widths: Vec<u16> = grid.columns.iter().map(|&(_, width)| width).collect();
         assert_eq!(widths, [5, 11, 11, 11, 10, 10, 10, 10]);
         assert_eq!(grid.columns[1].0, 1 + 5);
@@ -613,7 +673,25 @@ mod tests {
         assert_eq!(grid.week_y(0), 2);
         assert_eq!(grid.week_y(1), 6);
         // A height too short with grid lines can be drawn without them: 12 − 1 = 11 → 1 row per week
-        assert!(!Grid::new(Rect::new(1, 1, 78, 12), false).too_small());
+        assert!(!Grid::new(Rect::new(1, 1, 78, 12), false, None).too_small());
+    }
+
+    #[test]
+    fn without_grid_lines_a_new_year_takes_one_row_for_its_line() {
+        // 78 × 28 without grid lines, a new year after the first row: 28 − header 1 − year line 1 = 26 →
+        // 4 rows each (26 / 6 = 4 remainder 2); row 1 at y 2, the year line at y 6, row 2 at y 7, row 3 at y 11
+        let grid = Grid::new(Rect::new(1, 1, 78, 28), false, Some(0));
+        assert_eq!(grid.week_height, 4);
+        assert_eq!([0, 1, 2].map(|week| grid.week_y(week)), [2, 7, 11]);
+        // With grid lines there is already a line between every two rows: nothing changes
+        assert_eq!(
+            Grid::new(Rect::new(1, 1, 78, 28), true, Some(0)),
+            Grid::new(Rect::new(1, 1, 78, 28), true, None)
+        );
+        // Rows from 12/28: the second one starts on 1/1; rows from 12/7: the fifth; rows from 9/28: none
+        assert_eq!(new_year_after(date(2026, 12, 28)), Some(0));
+        assert_eq!(new_year_after(date(2026, 12, 7)), Some(3));
+        assert_eq!(new_year_after(date(2026, 9, 28)), None);
     }
 
     #[test]
