@@ -3,13 +3,17 @@
 //! 一套 theme 是一個 TOML 檔（內建的在 repo 的 `themes/`，編進執行檔）
 
 use ratatui::style::Color;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+#[cfg(test)]
+use serde::Serialize;
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 use toml_edit::DocumentMut;
 
 /// 一套 theme：每個角色各配一個顏色；從 theme 檔（TOML）的 `[roles]` 讀（見 `Theme::parse`），欄位名 = 角色名。
-/// `Serialize`：用角色的名字查顏色（`Theme::color`）
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+/// `Serialize`：test 用來確認角色的名字（`ROLES`、`Theme::color`）跟欄位一模一樣
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(test, derive(Serialize))]
 #[serde(deny_unknown_fields)]
 pub struct Theme {
     /// 一般的字：平日的日期
@@ -124,13 +128,28 @@ const ANSI: [Color; 16] = [
     Color::White,
 ];
 
-/// 內建的 theme `name` 能挑的顏色：它的色票 (名字, 顏色)，照 theme 檔裡的順序；
-/// 沒有色票（例：`terminal`）就是 terminal 的 16 色（名字 = 設定檔裡的寫法）
-pub fn choices(name: &str) -> Vec<(String, Color)> {
-    let palette: Vec<(String, Color)> = BUILTIN
+/// 每一套內建 theme 能挑的顏色（照 `BUILTIN` 的順序）：第一次用的時候讀一次 theme 檔，之後都用這一份
+static CHOICES: LazyLock<Vec<Vec<(String, Color)>>> = LazyLock::new(|| {
+    BUILTIN
         .iter()
-        .find(|(builtin, _)| *builtin == name)
-        .and_then(|(_, text)| text.parse::<DocumentMut>().ok())
+        .map(|&(_, text)| read_choices(text))
+        .collect()
+});
+
+/// 內建的 theme `name` 能挑的顏色：它的色票 (名字, 顏色)，照 theme 檔裡的順序；
+/// 沒有色票（例：`terminal`）就是 terminal 的 16 色（名字 = 設定檔裡的寫法）；沒有這套 theme 是空的
+pub fn choices(name: &str) -> &'static [(String, Color)] {
+    BUILTIN
+        .iter()
+        .position(|(builtin, _)| *builtin == name)
+        .map_or(&[], |index| CHOICES[index].as_slice())
+}
+
+/// 從 theme 檔（`text`）讀出能挑的顏色（見 `choices`）
+fn read_choices(text: &str) -> Vec<(String, Color)> {
+    let palette: Vec<(String, Color)> = text
+        .parse::<DocumentMut>()
+        .ok()
         .and_then(|doc| {
             let table = doc.get("palette")?.as_table()?;
             Some(
@@ -215,11 +234,33 @@ impl Theme {
         Self::parse(text, colors).map_err(|error| format!("[colors]: {}", error.message()))
     }
 
-    /// 角色 `role` 現在的顏色；沒有這個角色是 `None`
+    /// 角色 `role`（`ROLES` 的名字）現在的顏色；沒有這個角色是 `None`。名字跟欄位一一對應，有 test 釘住
     pub fn color(&self, role: &str) -> Option<Color> {
-        // 整套 theme 轉成 TOML（角色名 = 欄位名），再查那個名字
-        let doc = toml_edit::ser::to_document(self).ok()?;
-        doc.get(role)?.as_str()?.parse().ok()
+        let color = match role {
+            "text" => self.text,
+            "muted" => self.muted,
+            "line" => self.line,
+            "year_line" => self.year_line,
+            "label" => self.label,
+            "week_number" => self.week_number,
+            "week_number_dim" => self.week_number_dim,
+            "weekend" => self.weekend,
+            "has_item" => self.has_item,
+            "holiday" => self.holiday,
+            "today" => self.today,
+            "selected" => self.selected,
+            "cursor_line" => self.cursor_line,
+            "focus" => self.focus,
+            "checked" => self.checked,
+            "notice" => self.notice,
+            "error" => self.error,
+            "grid" => self.grid,
+            "other_month" => self.other_month,
+            "help_section" => self.help_section,
+            "help_key" => self.help_key,
+            _ => return None,
+        };
+        Some(color)
     }
 
     /// 把 theme 檔（TOML）轉成 `Theme`：先用 `colors` 蓋掉幾個角色，`[roles]` 裡寫色票名字的再換成 `[palette]` 裡的顏色，
@@ -256,6 +297,17 @@ mod tests {
         let doc = toml_edit::ser::to_document(&Theme::catppuccin_mocha()).expect("serialize");
         let fields: Vec<&str> = doc.iter().map(|(key, _)| key).collect();
         assert_eq!(fields, ROLES);
+        // `Theme::color` 每個角色都查得到、就是那個欄位的顏色：每個角色蓋成不一樣的顏色（256 色的第 0～20 號）再查
+        let colors: BTreeMap<String, String> = (0..)
+            .zip(ROLES)
+            .map(|(index, role): (u8, _)| (role.to_string(), index.to_string()))
+            .collect();
+        let theme = Theme::build("terminal", &colors).expect("terminal");
+        let doc = toml_edit::ser::to_document(&theme).expect("serialize");
+        for (index, (role, value)) in (0..).zip(doc.iter()) {
+            assert_eq!(value.as_str(), Some(index.to_string().as_str()), "{role}");
+            assert_eq!(theme.color(role), Some(Color::Indexed(index)), "{role}");
+        }
         assert_eq!(
             Theme::catppuccin_mocha().color("today"),
             Some(Color::Rgb(0xa6, 0xe3, 0xa1))
@@ -297,6 +349,7 @@ mod tests {
 
     #[test]
     fn choices_are_the_palette_in_file_order_or_the_16_colors() {
+        assert!(choices("no-such-theme").is_empty());
         let mocha = choices("catppuccin-mocha");
         assert_eq!(mocha.len(), 13);
         assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));

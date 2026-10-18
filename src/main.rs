@@ -13,7 +13,7 @@ mod ui;
 
 use app::App;
 use app::Notice;
-use clap::Parser;
+use clap::{Parser, builder::PossibleValuesParser};
 use color_eyre::{Result, eyre::WrapErr};
 use jiff::Zoned;
 use ratatui::crossterm::{
@@ -125,12 +125,12 @@ struct Args {
         help = "Screen language [default: the system language, else en]"
     )]
     lang: Option<Lang>,
-    /// `--theme`：用哪一套內建的 theme；沒給就照設定檔
+    /// `--theme`：用哪一套內建的 theme（只收 `theme::BUILTIN` 的名字，clap 會在 `--help` 列出來）；沒給就照設定檔
     #[arg(
         long,
         value_name = "NAME",
-        value_parser = parse_theme,
-        help = "Color theme: catppuccin-mocha, catppuccin-latte, gruvbox-dark, tokyo-night or terminal [default: the config file's, else catppuccin-mocha]"
+        value_parser = PossibleValuesParser::new(theme::names()),
+        help = "Color theme [default: the config file's, else catppuccin-mocha]"
     )]
     theme: Option<String>,
     /// `--tasks`：任務檔的路徑；沒給就用預設位置
@@ -150,14 +150,6 @@ struct Args {
         help = "Print version"
     )]
     version: (),
-}
-
-/// `--theme` 的值：內建的 theme 的名字才收（clap 會在前面加上是哪個參數、哪個值）
-fn parse_theme(name: &str) -> Result<String, String> {
-    match theme::Theme::builtin(name) {
-        Some(_) => Ok(name.to_string()),
-        None => Err(format!("built-in: {}", theme::names().join(", "))),
-    }
 }
 
 /// `--lang` 的值換成 `Lang`；不支援的語言回傳錯誤（clap 會在前面加上是哪個參數、哪個值）

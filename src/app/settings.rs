@@ -89,19 +89,19 @@ impl Row {
     }
 
     /// 現在的值（畫在右邊的字）：開關是 `on` / `off`，`theme` 是那套 theme 的名字；
-    /// 顏色是色票裡的名字（不在色票裡的寫顏色本身，例：`#010203`）
-    pub fn value(self, settings: &Settings) -> String {
+    /// 顏色是色票裡的名字（不在色票裡的寫顏色本身，例：`#010203`）。`theme` = 照 `settings` 組好的畫面顏色
+    pub fn value(self, settings: &Settings, theme: &Theme) -> String {
         let on_off = |on: bool| if on { "on" } else { "off" }.to_string();
         match self {
             Self::Theme => settings.theme.clone(),
             Self::Color(_) => {
-                let Some(color) = self.color(settings) else {
+                let Some(color) = self.color(theme) else {
                     return String::new();
                 };
                 theme::choices(&settings.theme)
-                    .into_iter()
-                    .find(|&(_, choice)| choice == color)
-                    .map_or_else(|| theme::color_text(color), |(name, _)| name)
+                    .iter()
+                    .find(|&&(_, choice)| choice == color)
+                    .map_or_else(|| theme::color_text(color), |(name, _)| name.clone())
             }
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
             Self::GridLines => on_off(settings.month.grid_lines),
@@ -110,14 +110,12 @@ impl Row {
         }
     }
 
-    /// 顏色那幾列現在的顏色（theme + 蓋掉的）；其他列是 `None`
-    pub fn color(self, settings: &Settings) -> Option<ratatui::style::Color> {
+    /// 顏色那幾列在 `theme`（照設定組好的畫面顏色）裡現在的顏色；其他列是 `None`
+    pub fn color(self, theme: &Theme) -> Option<ratatui::style::Color> {
         let Self::Color(role) = self else {
             return None;
         };
-        Theme::build(&settings.theme, &settings.colors)
-            .ok()?
-            .color(role)
+        theme.color(role)
     }
 
     /// 改這一列的值：開關 on ⇄ off；`theme` 照內建的順序換下一套（`step` = 1）/ 上一套（-1）；
@@ -130,7 +128,9 @@ impl Row {
         match self {
             Self::Color(role) => {
                 let choices = theme::choices(&settings.theme);
-                let current = self.color(settings);
+                let current = Theme::build(&settings.theme, &settings.colors)
+                    .ok()
+                    .and_then(|theme| theme.color(role));
                 // 現在的顏色不在色票裡（例：手寫的色碼）就從頭（或尾）開始
                 let next = match choices
                     .iter()
@@ -376,7 +376,10 @@ mod tests {
             Some("#a6adc8")
         );
         assert_eq!(app.theme.text, ratatui::style::Color::Rgb(0xa6, 0xad, 0xc8));
-        assert_eq!(Row::Color("text").value(&app.settings), "subtext0");
+        assert_eq!(
+            Row::Color("text").value(&app.settings, &app.theme),
+            "subtext0"
+        );
         // h 回到 theme 本來的顏色：不記（設定檔只記改過的）
         press(&mut app, KeyCode::Char('h'));
         assert!(app.settings.colors.is_empty());
@@ -411,7 +414,10 @@ mod tests {
         );
         assert_eq!(app.theme.text, ratatui::style::Color::Reset);
         // terminal 沒有色票：顏色在 16 色裡換
-        assert_eq!(Row::Color("today").value(&app.settings), "#313244");
+        assert_eq!(
+            Row::Color("today").value(&app.settings, &app.theme),
+            "#313244"
+        );
     }
 
     #[test]
@@ -475,7 +481,7 @@ mod tests {
             let value = match row {
                 Row::Theme => format!("\"{}\"", changed.theme),
                 Row::Color(role) => format!("\"{}\"", changed.colors[role]),
-                _ => (row.value(&changed) == "on").to_string(),
+                _ => (row.value(&changed, &Theme::catppuccin_mocha()) == "on").to_string(),
             };
             let table = row
                 .section()

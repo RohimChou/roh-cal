@@ -229,11 +229,14 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
                     Style::new().fg(theme.help_key),
                 )];
                 // 顏色：先畫色塊（底色 = 那個角色現在的顏色；`Reset` = terminal 預設的顏色，看起來就是空的）
-                if let Some(color) = row.color(&app.settings) {
+                if let Some(color) = row.color(&app.theme) {
                     spans.push(Span::styled(SWATCH, Style::new().bg(color)));
                     spans.push(Span::raw(" "));
                 }
-                spans.push(Span::styled(row.value(&app.settings), value_style));
+                spans.push(Span::styled(
+                    row.value(&app.settings, &app.theme),
+                    value_style,
+                ));
                 Line::from(spans)
             }
             Entry::Blank => Line::default(),
