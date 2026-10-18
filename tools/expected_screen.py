@@ -38,18 +38,18 @@ import sys
 import unicodedata
 
 TEXTS = {
-    "en": dict(hints_tasks=" jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
+    "en": dict(hints_tasks=" jk move  hl fold  Space check  e edit  a add  s calendars  123 view  ? help  , settings  q quit",
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
-               hints=" hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+               hints=" hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
                side=" Calendars", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
-    "zh": dict(hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
+    "zh": dict(hints_tasks=" jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
-               hints=" hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+               hints=" hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
                side=" 日曆", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",

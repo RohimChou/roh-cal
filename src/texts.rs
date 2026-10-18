@@ -136,13 +136,13 @@ impl HelpSection {
 /// English text
 const EN: Texts = Texts {
     lang: Lang::En,
-    hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+    hints: " hjkl[] move  Tab pane  123 view  t today  s calendars  ? help  , settings  q quit",
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
     header_side: " Calendars",
     header_tasks: " Tasks",
-    hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  Esc calendar  ? help  , settings  q quit",
+    hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  123 view  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a add calendar  e rename  d delete  Esc back",
     add_calendar_title: " New calendar ",
@@ -332,13 +332,13 @@ const EN: Texts = Texts {
 /// Traditional Chinese text
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
-    hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+    hints: " hjkl[] 移動  Tab 切換  123 版型  t 今天  s 日曆  ? 說明  , 設定  q 離開",
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
     header_side: " 日曆",
     header_tasks: " 任務",
-    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  Esc 月曆  ? 說明  , 設定  q 離開",
+    hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  123 版型  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a 新增日曆  e 改名  d 刪除  Esc 回去",
     add_calendar_title: " 新增日曆 ",
