@@ -288,7 +288,7 @@ fn row_y(list: Rect, top: usize, row: usize) -> Option<u16> {
 
 /// 滑鼠點在 (`column`, `row`) 點到設定頁的哪一列（`rows()` 的位置）；點在段落名、空行、說明、框線上回傳 `None`
 pub fn row_at(app: &App, screen: Rect, column: u16, row: u16) -> Option<usize> {
-    let page = app.settings_page?;
+    let page = app.settings_page()?;
     let list = list_area(area(app, screen));
     if column < list.x || column >= list.right() {
         return None;
@@ -299,6 +299,7 @@ pub fn row_at(app: &App, screen: Rect, column: u16, row: u16) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::Mode;
     use crate::texts::Lang;
     use crate::theme::Theme;
     use jiff::civil::date;
@@ -317,7 +318,10 @@ mod tests {
     /// 跟 `draw` 一樣，但用傳進來的 `app`（例：先換了 theme）
     fn draw_app(mut app: App, page: SettingsPage, height: u16) -> (App, Rect, Vec<String>, Buffer) {
         app.screen = Rect::new(0, 0, 70, height);
-        app.settings_page = Some(page);
+        app.mode = Mode::Settings {
+            page,
+            opened: app.settings.clone(),
+        };
         let mut terminal = Terminal::new(TestBackend::new(70, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &mut app))
@@ -447,7 +451,7 @@ mod tests {
             },
             23,
         );
-        assert_eq!(app.settings_page.map(|page| page.top), Some(15));
+        assert_eq!(app.settings_page().map(|page| page.top), Some(15));
         assert_eq!(area, Rect::new(12, 0, 46, 23));
         assert_eq!(
             rows,

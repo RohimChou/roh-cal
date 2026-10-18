@@ -102,6 +102,29 @@ impl Entry<'_> {
     }
 }
 
+/// 蓋在畫面上、先收按鍵和滑鼠的東西；同時只會有一種
+///
+/// 用一個 enum 記（不是好幾個 `Option`）：按鍵、滑鼠、畫面都 `match` 它，多一種時沒處理到的地方 compiler 會抓到
+#[derive(Debug, Default)]
+pub enum Mode {
+    /// 什麼都沒開：按鍵照鍵盤在哪個框處理
+    #[default]
+    Normal,
+    /// 說明頁（`?`）
+    Help(Help),
+    /// 設定頁（`,`）：頁面的狀態，和打開那時候的設定（關掉時只存這段時間改過的）
+    Settings {
+        page: SettingsPage,
+        opened: Settings,
+    },
+    /// 按了 `d`、正在問要不要刪：要刪的那件和會刪掉幾件（含子任務）
+    ConfirmDelete(Item, usize),
+    /// 編輯框（`e`、`a`、`A`）
+    Editor(Editor),
+    /// 改期中（`r`）：要搬哪件事
+    Moving(Moving),
+}
+
 /// 整個程式的狀態
 #[derive(Debug)]
 pub struct App {
@@ -147,18 +170,8 @@ pub struct App {
     pub notice: Option<Notice>,
     /// roh-cal 寫過的檔（`u` 復原用），最新的在最後面
     undo: Vec<write::UndoStep>,
-    /// 改期中（按了 `r`）：要搬哪件事；`None` = 沒在改期
-    pub moving: Option<Moving>,
-    /// 編輯框（按了 `e`）；`None` = 沒開
-    pub editor: Option<Editor>,
-    /// 按了 `d`、正在問要不要刪：要刪的那件和會刪掉幾件（含子任務）
-    pub confirm_delete: Option<(Item, usize)>,
-    /// 說明頁（按了 `?`）；`None` = 沒開
-    pub help: Option<Help>,
-    /// 設定頁（按了 `,`）；`None` = 沒開
-    pub settings_page: Option<SettingsPage>,
-    /// 打開設定頁那時候的設定：關掉時只存這段時間改過的
-    settings_opened: Option<Settings>,
+    /// 現在開著的跳窗、正在做的事（說明頁、設定頁、問要不要刪、編輯框、改期）；同時只會有一種
+    pub mode: Mode,
     /// 任務頁選到的那件事在檔案的第幾行；`None` = 還沒選（選第一件）
     pub tasks_line: Option<usize>,
     /// 任務頁上展開了子任務的事（檔案的第幾行）
@@ -194,16 +207,51 @@ impl App {
             tasks_path: None,
             notice: None,
             undo: Vec::new(),
-            moving: None,
-            editor: None,
-            confirm_delete: None,
-            help: None,
-            settings_page: None,
-            settings_opened: None,
+            mode: Mode::Normal,
             tasks_line: None,
             expanded: BTreeSet::new(),
             tasks_top: 0,
             should_quit: false,
+        }
+    }
+
+    /// 說明頁開著的話，它的狀態
+    pub fn help(&self) -> Option<Help> {
+        match self.mode {
+            Mode::Help(help) => Some(help),
+            _ => None,
+        }
+    }
+
+    /// 設定頁開著的話，它的狀態
+    pub fn settings_page(&self) -> Option<SettingsPage> {
+        match self.mode {
+            Mode::Settings { page, .. } => Some(page),
+            _ => None,
+        }
+    }
+
+    /// 正在問要不要刪的話：要刪的那件和會刪掉幾件
+    pub fn confirm_delete(&self) -> Option<(&Item, usize)> {
+        match &self.mode {
+            Mode::ConfirmDelete(item, count) => Some((item, *count)),
+            _ => None,
+        }
+    }
+
+    /// 編輯框開著的話，它的狀態
+    pub fn editor(&self) -> Option<&Editor> {
+        match &self.mode {
+            Mode::Editor(editor) => Some(editor),
+            _ => None,
+        }
+    }
+
+    /// 改期中的話：在搬哪件
+    pub fn moving(&self) -> Option<&Moving> {
+        match &self.mode {
+            Mode::Moving(moving) => Some(moving),
+            _ => None,
         }
     }
 
@@ -332,31 +380,23 @@ impl App {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
         // 上一次的提示看過了：按任何鍵就消失
         self.notice = None;
-        // 說明頁開著：只收捲動、換版、關掉
-        if self.help.is_some() {
-            self.handle_help_key(key);
-            return;
+        match self.mode {
+            // 說明頁：只收捲動、換版、關掉
+            Mode::Help(_) => self.handle_help_key(key),
+            // 設定頁：只收選列、改值、還原、關掉
+            Mode::Settings { .. } => self.handle_settings_key(key),
+            // 正在問要不要刪：`y` 刪，其他鍵只是取消
+            Mode::ConfirmDelete(..) => self.answer_delete(key),
+            // 編輯框：按鍵都是打字（Enter 存、Esc 取消）
+            Mode::Editor(_) => self.handle_editor_key(key),
+            // 改期中：只收移動日期、確定、取消
+            Mode::Moving(_) => self.handle_moving_key(key),
+            Mode::Normal => self.handle_normal_key(key),
         }
-        // 設定頁開著：只收選列、改值、還原、關掉
-        if self.settings_page.is_some() {
-            self.handle_settings_key(key);
-            return;
-        }
-        // 正在問要不要刪：`y` 刪，其他鍵只是取消
-        if self.confirm_delete.is_some() {
-            self.answer_delete(key);
-            return;
-        }
-        // 編輯框開著：按鍵都是打字（Enter 存、Esc 取消）
-        if self.editor.is_some() {
-            self.handle_editor_key(key);
-            return;
-        }
-        // 改期中：只收移動日期、確定、取消
-        if self.moving.is_some() {
-            self.handle_moving_key(key);
-            return;
-        }
+    }
+
+    /// 沒開跳窗時的按鍵（見 `handle_key` 的說明）
+    fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             // raw mode 下 Ctrl+C 不會送 SIGINT 讓程式結束，要自己處理
@@ -376,7 +416,7 @@ impl App {
             }
             // 復原上一次寫檔（打勾、編輯…）
             KeyCode::Char('u') => self.undo(),
-            KeyCode::Char('?') => self.help = Some(Help::default()),
+            KeyCode::Char('?') => self.mode = Mode::Help(Help::default()),
             KeyCode::Char(',') => self.open_settings(),
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('3') => self.set_view(View::Month),
@@ -469,35 +509,37 @@ impl App {
         ) {
             self.notice = None;
         }
-        // 說明頁開著：滾輪捲說明頁、點框外關掉
-        if self.help.is_some() {
-            self.handle_help_mouse(mouse);
-            return;
-        }
-        // 設定頁開著：滾輪選列、點列、點框外關掉
-        if self.settings_page.is_some() {
-            self.handle_settings_mouse(mouse);
-            return;
-        }
-        // 正在問要不要刪：點擊、滾輪只是取消（跟按 `y` 以外的鍵一樣），那一下不做別的事
-        if self.confirm_delete.is_some() {
-            if matches!(
-                mouse.kind,
-                MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-            ) {
-                self.confirm_delete = None;
+        match self.mode {
+            // 說明頁：滾輪捲說明頁、點框外關掉
+            Mode::Help(_) => self.handle_help_mouse(mouse),
+            // 設定頁：滾輪選列、點列、點框外關掉
+            Mode::Settings { .. } => self.handle_settings_mouse(mouse),
+            // 正在問要不要刪：點擊、滾輪只是取消（跟按 `y` 以外的鍵一樣），那一下不做別的事
+            Mode::ConfirmDelete(..) => {
+                if matches!(
+                    mouse.kind,
+                    MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                ) {
+                    self.mode = Mode::Normal;
+                }
             }
-            return;
-        }
-        // 編輯框開著：點框外 = 取消（Esc），其他不理
-        if self.editor.is_some() {
-            if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                && !ui::editor_area(self.screen).contains(Position::new(mouse.column, mouse.row))
-            {
-                self.editor = None;
+            // 編輯框：點框外 = 取消（Esc），其他不理
+            Mode::Editor(_) => {
+                if mouse.kind == MouseEventKind::Down(MouseButton::Left)
+                    && !ui::editor_area(self.screen)
+                        .contains(Position::new(mouse.column, mouse.row))
+                {
+                    self.mode = Mode::Normal;
+                }
             }
-            return;
+            // 改期中：滾輪照樣移動選取的日期，點日期 = 選新的日期，點別的地方不理
+            Mode::Moving(_) => self.handle_moving_mouse(mouse),
+            Mode::Normal => self.handle_normal_mouse(mouse),
         }
+    }
+
+    /// 沒開跳窗時的滑鼠（見 `handle_mouse` 的說明）
+    fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // 往下滾（看後面的）、往上滾
             MouseEventKind::ScrollDown => self.scroll(1),
@@ -505,11 +547,6 @@ impl App {
             // 點在日期或事上才選；點在表頭、線、空格上不理
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
-                    // 改期中：點日期 = 選新的日期，其他地方不理
-                    Some(Click::Day(date)) if self.moving.is_some() => {
-                        self.click_while_moving(date);
-                    }
-                    _ if self.moving.is_some() => {}
                     // 再點一次已經選取的那天（鍵盤在月曆）= 進到那天的事（跟 Enter 一樣）
                     Some(Click::Day(date))
                         if date == self.selected && self.focus == Focus::Calendar =>

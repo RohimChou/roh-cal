@@ -4,7 +4,7 @@
 //! `j` / `k` 選一列、`h` / `l`（`Space`、`Enter`）改那一列的值、`r` 還原那一列、`R` 全部還原（要再按 `y`）、
 //! `q` / `Esc` / `,` 或點框外關掉
 
-use super::{App, Notice};
+use super::{App, Mode, Notice};
 use crate::config::{self, Settings};
 use crate::theme::{self, Theme};
 use crate::ui;
@@ -192,13 +192,22 @@ fn wrap(index: usize, step: isize, len: usize) -> usize {
 impl App {
     /// `,`：打開設定頁，選第一列
     pub(super) fn open_settings(&mut self) {
-        self.settings_page = Some(SettingsPage::default());
-        self.settings_opened = Some(self.settings.clone());
+        self.mode = Mode::Settings {
+            page: SettingsPage::default(),
+            opened: self.settings.clone(),
+        };
+    }
+
+    /// 換掉設定頁的狀態（選到哪列、是不是在問）；設定頁沒開就不理
+    fn set_settings_page(&mut self, new: SettingsPage) {
+        if let Mode::Settings { page, .. } = &mut self.mode {
+            *page = new;
+        }
     }
 
     /// 設定頁開著時的按鍵：見這個 module 開頭的說明；其他鍵不理
     pub(super) fn handle_settings_key(&mut self, key: KeyEvent) {
-        let Some(page) = self.settings_page else {
+        let Some(page) = self.settings_page() else {
             return;
         };
         // 正在問要不要全部還原：`y` 還原，其他鍵只是取消
@@ -207,7 +216,7 @@ impl App {
                 self.settings = Settings::default();
                 self.apply_theme();
             }
-            self.settings_page = Some(SettingsPage {
+            self.set_settings_page(SettingsPage {
                 confirm_reset: false,
                 ..page
             });
@@ -232,7 +241,7 @@ impl App {
                 self.apply_theme();
             }
             KeyCode::Char('R') => {
-                self.settings_page = Some(SettingsPage {
+                self.set_settings_page(SettingsPage {
                     confirm_reset: true,
                     ..page
                 });
@@ -250,7 +259,7 @@ impl App {
 
     /// 設定頁開著時的滑鼠：滾輪上下選一列；點一列 = 選那列，再點一次選到的那列 = 改它的值；點框外關掉
     pub(super) fn handle_settings_mouse(&mut self, mouse: MouseEvent) {
-        let Some(page) = self.settings_page else {
+        let Some(page) = self.settings_page() else {
             return;
         };
         match mouse.kind {
@@ -264,7 +273,7 @@ impl App {
                 }
                 match ui::settings_row_at(self, mouse.column, mouse.row) {
                     Some(row) if row == page.row => self.change_setting(rows()[row], 1),
-                    Some(row) => self.settings_page = Some(SettingsPage { row, ..page }),
+                    Some(row) => self.set_settings_page(SettingsPage { row, ..page }),
                     None => {}
                 }
             }
@@ -274,18 +283,21 @@ impl App {
 
     /// 選下一列（`step` = 1）/ 上一列（-1）；到頭尾就停
     fn choose_setting(&mut self, step: isize) {
-        if let Some(page) = &mut self.settings_page {
+        if let Mode::Settings { page, .. } = &mut self.mode {
             page.row = page.row.saturating_add_signed(step).min(rows().len() - 1);
         }
     }
 
     /// 關掉設定頁，把打開之後改過的設定存回設定檔（只改那幾行；沒改東西就不寫）；存不了就在最下面一列說
     fn close_settings(&mut self) {
-        self.settings_page = None;
-        let before = self
-            .settings_opened
-            .take()
-            .unwrap_or_else(|| self.settings.clone());
+        let before = match std::mem::take(&mut self.mode) {
+            Mode::Settings { opened, .. } => opened,
+            // 設定頁沒開：什麼都不做（放回去）
+            other => {
+                self.mode = other;
+                return;
+            }
+        };
         if let Some(path) = &self.config_path
             && let Err(error) = config::save(path, &before, &self.settings)
         {
@@ -496,7 +508,7 @@ mod tests {
     #[test]
     fn comma_opens_it_and_hl_change_the_chosen_row() {
         let mut app = app_with_settings();
-        assert_eq!(app.settings_page, Some(SettingsPage::default()));
+        assert_eq!(app.settings_page(), Some(SettingsPage::default()));
         // 第一列 theme：l 換下一套（畫面的顏色馬上跟著換）、到最後一套再 l 回到第一套、h 往回
         press(&mut app, KeyCode::Char('l'));
         assert_eq!(app.settings.theme, "catppuccin-latte");
@@ -530,13 +542,13 @@ mod tests {
         for _ in 0..3 {
             press(&mut app, KeyCode::Char('k'));
         }
-        assert_eq!(app.settings_page.map(|page| page.row), Some(0));
+        assert_eq!(app.settings_page().map(|page| page.row), Some(0));
         // 到尾也停在最後一列
         for _ in 0..40 {
             press(&mut app, KeyCode::Down);
         }
         assert_eq!(
-            app.settings_page.map(|page| page.row),
+            app.settings_page().map(|page| page.row),
             Some(rows().len() - 1)
         );
     }
@@ -557,20 +569,23 @@ mod tests {
         assert_eq!(app.settings.theme, "catppuccin-latte");
         // R 之後按別的鍵：只是取消，那個鍵也不做事（j 不會移動）
         press(&mut app, KeyCode::Char('R'));
-        assert_eq!(app.settings_page.map(|page| page.confirm_reset), Some(true));
+        assert_eq!(
+            app.settings_page().map(|page| page.confirm_reset),
+            Some(true)
+        );
         press(&mut app, KeyCode::Char('j'));
         assert_eq!(
-            app.settings_page.map(|page| page.confirm_reset),
+            app.settings_page().map(|page| page.confirm_reset),
             Some(false)
         );
-        assert_eq!(app.settings_page.map(|page| page.row), Some(2));
+        assert_eq!(app.settings_page().map(|page| page.row), Some(2));
         assert!(app.settings.calendar.relative_weeks);
         // R 再 y：全部還原，畫面的顏色也回到預設的 theme
         press(&mut app, KeyCode::Char('R'));
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(app.settings, Settings::default());
         assert_eq!(app.theme, Theme::catppuccin_mocha());
-        assert!(app.settings_page.is_some());
+        assert!(app.settings_page().is_some());
         // theme 那列也能單獨 r
         for _ in 0..2 {
             press(&mut app, KeyCode::Char('k'));
@@ -594,7 +609,7 @@ mod tests {
             });
         };
         click(&mut app, 50, 8);
-        assert_eq!(app.settings_page.map(|page| page.row), Some(2));
+        assert_eq!(app.settings_page().map(|page| page.row), Some(2));
         assert!(app.settings.month.grid_lines);
         // 再點一次選到的那列：改值
         click(&mut app, 50, 8);
@@ -606,10 +621,10 @@ mod tests {
             row: 8,
             modifiers: KeyModifiers::NONE,
         });
-        assert_eq!(app.settings_page.map(|page| page.row), Some(3));
+        assert_eq!(app.settings_page().map(|page| page.row), Some(3));
         // 點框外：關掉，底下的月曆不會被點到
         click(&mut app, 0, 0);
-        assert_eq!(app.settings_page, None);
+        assert_eq!(app.settings_page(), None);
         assert_eq!(app.selected, date(2026, 10, 17));
     }
 
@@ -618,7 +633,7 @@ mod tests {
         for code in [KeyCode::Char('q'), KeyCode::Esc, KeyCode::Char(',')] {
             let mut app = app_with_settings();
             press(&mut app, code);
-            assert_eq!(app.settings_page, None, "{code:?}");
+            assert_eq!(app.settings_page(), None, "{code:?}");
             assert!(!app.should_quit, "{code:?}");
         }
         // 移動日期、換版型、說明頁都不理
@@ -628,7 +643,7 @@ mod tests {
         }
         assert_eq!(app.selected, date(2026, 10, 17));
         assert_eq!(app.view, super::super::View::Planner);
-        assert_eq!(app.help, None);
-        assert_eq!(app.settings_page, Some(SettingsPage::default()));
+        assert_eq!(app.help(), None);
+        assert_eq!(app.settings_page(), Some(SettingsPage::default()));
     }
 }

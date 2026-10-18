@@ -5,7 +5,7 @@
 //! - `a`：新增一件（右邊選到的那件那一組；在月曆上是選取那天第一件事的那一組，那天沒事就加在檔案最後），預先填好選取的日期
 //! - `A`：新增右邊選到的那件事的子任務
 
-use super::{App, Focus};
+use super::{App, Focus, Mode};
 use crate::edit::{self, Place};
 use crate::tasks::Item;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -43,7 +43,7 @@ impl App {
             return;
         };
         let input = Input::new(item.line_text.trim().to_string());
-        self.editor = Some(Editor {
+        self.mode = Mode::Editor(Editor {
             input,
             target: Target::Edit(item),
         });
@@ -69,7 +69,7 @@ impl App {
         } else {
             Input::new(format!("{prefix} @{}", self.selected)).with_cursor(prefix.chars().count())
         };
-        self.editor = Some(Editor {
+        self.mode = Mode::Editor(Editor {
             input,
             target: Target::Add(place),
         });
@@ -80,7 +80,7 @@ impl App {
         let Some(item) = self.chosen_item().cloned() else {
             return;
         };
-        self.editor = Some(Editor {
+        self.mode = Mode::Editor(Editor {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(Place::ChildOf(item)),
         });
@@ -93,9 +93,9 @@ impl App {
                 self.should_quit = true;
             }
             KeyCode::Enter => self.save_editor(),
-            KeyCode::Esc => self.editor = None,
+            KeyCode::Esc => self.mode = Mode::Normal,
             _ => {
-                if let Some(editor) = &mut self.editor
+                if let Mode::Editor(editor) = &mut self.mode
                     && let Some(request) = to_input_request(&Event::Key(key))
                 {
                     editor.input.handle(request);
@@ -109,7 +109,7 @@ impl App {
     /// 打的字有問題（不是一件事、日期寫錯、沒有標題）就不存，編輯框留著（畫面上有紅字說明）；編輯什麼都沒改就不寫。
     /// 讀不到、寫不進任務檔：編輯框也留著（打的字還在），最下面一列說為什麼；檔案在別處改過：重新載入、編輯框關掉
     fn save_editor(&mut self) {
-        let Some(editor) = &self.editor else {
+        let Some(editor) = self.editor() else {
             return;
         };
         // 存得了才存；`checked` = 打的這一行讀成的那件事
@@ -132,14 +132,14 @@ impl App {
                         }
                         Err(edit::Changed) => {
                             // 在別處改過：重新載入，鍵盤回到這個版型的主框（任務頁還是任務頁）
-                            self.editor = None;
+                            self.mode = Mode::Normal;
                             self.reload(&text);
                             self.focus = self.home_focus();
                             return;
                         }
                     }
                 }
-                self.editor = None;
+                self.mode = Mode::Normal;
                 self.choose_line(item.line);
             }
             Target::Add(place) => {
@@ -151,7 +151,7 @@ impl App {
                         if !self.write_tasks(&path, text, after, checked.title) {
                             return;
                         }
-                        self.editor = None;
+                        self.mode = Mode::Normal;
                         // 右邊選著新的那件（任務頁一定看得到）；它不在右邊（例：沒有日期的子任務）就還是選著原本那件
                         // （它的行號沒變）
                         let shown = self.view == super::View::Tasks
@@ -167,7 +167,7 @@ impl App {
                         }
                     }
                     Err(edit::Changed) => {
-                        self.editor = None;
+                        self.mode = Mode::Normal;
                         self.reload(&text);
                         self.focus = self.home_focus();
                     }
@@ -205,7 +205,7 @@ mod tests {
         press(&mut app, KeyCode::Enter);
         // 編輯框還開著、打的字還在，最下面一列說為什麼
         assert_eq!(
-            app.editor.as_ref().map(|editor| editor.input.value()),
+            app.editor().map(|editor| editor.input.value()),
             Some("- [ ] 早上 @2026-10-10 改")
         );
         assert_eq!(
@@ -216,7 +216,7 @@ mod tests {
         // 改回可以寫：再按一次 Enter 就存了、編輯框關掉
         mode(0o755).expect("writable");
         press(&mut app, KeyCode::Enter);
-        assert!(app.editor.is_none());
+        assert!(app.editor().is_none());
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] 早上 @2026-10-10 改\n"
@@ -230,7 +230,7 @@ mod tests {
         let (mut app, path) = app_with_task_file("edit", text);
         // e：編輯框裡是那一行（不含縮排），游標在最後
         press(&mut app, KeyCode::Char('e'));
-        let editor = app.editor.as_ref().expect("編輯框");
+        let editor = app.editor().expect("編輯框");
         assert_eq!(editor.input.value(), "- [ ] 交週報 @2026-10-16 17:30");
         // 往前移到時間前面，把 17:30 改成 18:00：Backspace 5 次再打
         for _ in 0..5 {
@@ -243,7 +243,7 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "# 例行\n  - [ ] 交週報 @2026-10-16 18:00 給主管\n"
         );
-        assert!(app.editor.is_none());
+        assert!(app.editor().is_none());
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("交週報 給主管")
@@ -260,7 +260,7 @@ mod tests {
         let (mut app, path) = app_with_task_file("add", text);
         // a：預先填好選取的日期，游標在標題的位置；上框線寫「新增」
         press(&mut app, KeyCode::Char('a'));
-        let editor = app.editor.as_ref().expect("編輯框");
+        let editor = app.editor().expect("編輯框");
         assert_eq!(editor.input.value(), "- [ ]  @2026-10-16");
         assert_eq!(editor.input.cursor(), 6);
         type_text(&mut app, "交週報");
@@ -318,7 +318,7 @@ mod tests {
         let (mut app, path) = app_with_task_file("add-subtask", text);
         press(&mut app, KeyCode::Char('A'));
         assert_eq!(
-            app.editor.as_ref().map(|editor| editor.input.value()),
+            app.editor().map(|editor| editor.input.value()),
             Some("- [ ] ")
         );
         type_text(&mut app, "找資料");
@@ -344,7 +344,7 @@ mod tests {
         press(&mut app, KeyCode::Char('a'));
         press(&mut app, KeyCode::Enter);
         assert_eq!(
-            app.editor.as_ref().map(Editor::check),
+            app.editor().map(Editor::check),
             Some(Err(edit::Problem::EmptyTitle))
         );
         assert!(!path.exists());
@@ -369,7 +369,7 @@ mod tests {
         }
         type_text(&mut app, "32");
         press(&mut app, KeyCode::Enter);
-        let editor = app.editor.as_ref().expect("還開著");
+        let editor = app.editor().expect("還開著");
         assert!(editor.check().is_err());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         // 拿掉開頭的「- 」：不是一件事，也不存
@@ -377,12 +377,12 @@ mod tests {
         press(&mut app, KeyCode::Delete);
         press(&mut app, KeyCode::Delete);
         assert_eq!(
-            app.editor.as_ref().map(Editor::check),
+            app.editor().map(Editor::check),
             Some(Err(edit::Problem::NotAnItem))
         );
         // Esc：不存、關掉
         press(&mut app, KeyCode::Esc);
-        assert!(app.editor.is_none());
+        assert!(app.editor().is_none());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         clean_up(&path);
     }
@@ -396,7 +396,7 @@ mod tests {
         type_text(&mut app, " qu j");
         assert!(!app.should_quit);
         assert_eq!(
-            app.editor.as_ref().map(|editor| editor.input.value()),
+            app.editor().map(|editor| editor.input.value()),
             Some("- [ ] 交週報 @2026-10-16 qu j")
         );
         // 沒改就存：不寫、不記 undo

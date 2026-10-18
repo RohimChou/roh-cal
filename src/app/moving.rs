@@ -3,11 +3,14 @@
 //!
 //! 像拖曳：選取的日期移了幾天，那件事就往後（往前）搬幾天；跨多天的整段一起搬
 
-use super::{App, Focus, View};
+use super::{App, Focus, Mode, View};
 use crate::edit;
 use crate::tasks::Item;
+use crate::ui::{self, Click};
 use jiff::{ToSpan, civil::Date};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 
 /// 改期中：要搬的那件事，和搬完（或取消）要回去的版型、框
 #[derive(Debug, Clone)]
@@ -33,7 +36,7 @@ impl App {
             self.selected = item.date.unwrap_or(self.today);
             self.scroll_to_month();
         }
-        self.moving = Some(Moving {
+        self.mode = Mode::Moving(Moving {
             item,
             from: self.selected,
             back,
@@ -65,6 +68,20 @@ impl App {
         }
     }
 
+    /// 改期中的滑鼠：滾輪照樣移動選取的日期（一週）；點日期 = 選新的日期（再點一次同一天 = 確定），點別的地方不理
+    pub(super) fn handle_moving_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::ScrollDown => self.scroll(1),
+            MouseEventKind::ScrollUp => self.scroll(-1),
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(Click::Day(date)) = ui::click_at(self, mouse.column, mouse.row) {
+                    self.click_while_moving(date);
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// 改期中點到月曆上的一天：選那天；再點一次已經選的那天 = 確定
     pub(super) fn click_while_moving(&mut self, day: Date) {
         if day == self.selected {
@@ -76,8 +93,13 @@ impl App {
 
     /// 確定：選取的日期移了幾天，那件事就搬幾天，寫回任務檔；回到按 `r` 之前的框（右邊選著搬過去的那件）
     fn finish_moving(&mut self) {
-        let Some(Moving { item, from, back }) = self.moving.take() else {
-            return;
+        let Moving { item, from, back } = match std::mem::take(&mut self.mode) {
+            Mode::Moving(moving) => moving,
+            // 沒在改期：什麼都不做（放回去）
+            other => {
+                self.mode = other;
+                return;
+            }
         };
         let to = self.selected;
         // 新的日子：選取的日期移了幾天就搬幾天（沒動就不寫）；還沒排日期的就是選的那天
@@ -117,9 +139,12 @@ impl App {
 
     /// 取消：選取的日期回到按 `r` 那時候，回到按 `r` 之前的框
     fn cancel_moving(&mut self) {
-        if let Some(Moving { from, back, .. }) = self.moving.take() {
-            self.selected = from;
-            self.go_back(back);
+        match std::mem::take(&mut self.mode) {
+            Mode::Moving(Moving { from, back, .. }) => {
+                self.selected = from;
+                self.go_back(back);
+            }
+            other => self.mode = other,
         }
     }
 
@@ -145,10 +170,7 @@ mod tests {
         // 選交週報、按 r：鍵盤換到月曆，提示寫著在搬哪件
         press(&mut app, KeyCode::Char('r'));
         assert_eq!(app.focus, Focus::Calendar);
-        assert_eq!(
-            app.moving.as_ref().map(|m| m.item.title.as_str()),
-            Some("交週報")
-        );
+        assert_eq!(app.moving().map(|m| m.item.title.as_str()), Some("交週報"));
         // 往後一週再往後一天（10/24），Enter：只改日期，時間照留；回到右邊、選著搬過去的那件
         press(&mut app, KeyCode::Char('j'));
         press(&mut app, KeyCode::Char('l'));
@@ -157,7 +179,7 @@ mod tests {
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] 交週報 @2026-10-24 17:30\n- [ ] 早餐會 @2026-10-17 08:00\n"
         );
-        assert!(app.moving.is_none());
+        assert!(app.moving().is_none());
         assert_eq!(app.focus, Focus::Agenda);
         assert_eq!(
             app.chosen()
@@ -181,7 +203,7 @@ mod tests {
         press(&mut app, KeyCode::Esc);
         assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
         assert_eq!(app.selected, date(2026, 10, 16));
-        assert!(app.moving.is_none());
+        assert!(app.moving().is_none());
         assert_eq!(app.focus, Focus::Agenda);
         // 沒改日期就 Enter：不寫、不記 undo
         press(&mut app, KeyCode::Char('r'));
@@ -203,8 +225,8 @@ mod tests {
             .chain([KeyCode::Tab])
         {
             press(&mut app, code);
-            assert!(app.moving.is_some(), "{code:?}");
-            assert!(app.editor.is_none(), "{code:?}");
+            assert!(app.moving().is_some(), "{code:?}");
+            assert!(app.editor().is_none(), "{code:?}");
         }
         assert!(!app.should_quit);
         assert_eq!(app.view, View::Planner);
@@ -228,13 +250,13 @@ mod tests {
         };
         app.handle_mouse(click);
         assert_eq!(app.selected, date(2026, 10, 20));
-        assert!(app.moving.is_some());
+        assert!(app.moving().is_some());
         app.handle_mouse(click);
         assert_eq!(
             std::fs::read_to_string(&path).expect("read"),
             "- [ ] 交週報 @2026-10-20\n"
         );
-        assert!(app.moving.is_none());
+        assert!(app.moving().is_none());
         clean_up(&path);
     }
 

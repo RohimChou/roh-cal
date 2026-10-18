@@ -256,6 +256,7 @@ fn side_by_side(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::Mode;
     use crate::texts::Lang;
     use jiff::civil::date;
     use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
@@ -264,7 +265,7 @@ mod tests {
     fn draw(lang: Lang, width: u16, height: u16, help: Help) -> (Rect, Vec<String>, Buffer) {
         let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
         app.screen = Rect::new(0, 0, width, height);
-        app.help = Some(help);
+        app.mode = Mode::Help(help);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| crate::ui::render(frame, &mut app))

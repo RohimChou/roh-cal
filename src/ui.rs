@@ -9,7 +9,7 @@ mod settings;
 mod side;
 mod tasks;
 
-use crate::app::{App, SettingsPage, View};
+use crate::app::{App, Mode, SettingsPage, View};
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
@@ -172,15 +172,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         hints,
     } = areas(frame.area(), app);
     // 改期中：說明現在在搬哪件、怎麼確定；有提示（寫檔失敗、重新載入）就先顯示提示，下一個按鍵才換回操作說明
-    if let Some((item, count)) = &app.confirm_delete {
+    if let Some((item, count)) = app.confirm_delete() {
         frame.render_widget(
             Line::styled(
-                texts.confirm_delete(&item.title, *count),
+                texts.confirm_delete(&item.title, count),
                 Style::new().fg(theme.notice),
             ),
             hints,
         );
-    } else if let Some(moving) = &app.moving {
+    } else if let Some(moving) = app.moving() {
         frame.render_widget(
             Line::styled(
                 texts.moving(&moving.item.title),
@@ -213,20 +213,22 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         View::Tasks => tasks::render(frame, main_area, app),
     }
     // 編輯框、說明頁、設定頁蓋在最上面
-    if let Some(editor) = &app.editor {
-        editor::render(frame, editor, app);
-    }
-    if let Some(help) = app.help {
-        help::render(frame, app, help);
-    }
-    if let Some(page) = app.settings_page {
-        // 先捲到選到的那列看得到（記在 `app.settings_page.top`），再畫
-        let page = SettingsPage {
-            top: settings::scrolled(app, frame.area(), page),
-            ..page
-        };
-        app.settings_page = Some(page);
-        settings::render(frame, app, page);
+    match &app.mode {
+        Mode::Editor(editor) => editor::render(frame, editor, app),
+        Mode::Help(help) => help::render(frame, app, *help),
+        Mode::Settings { page, .. } => {
+            // 先捲到選到的那列看得到（記在設定頁的 `top`），再畫
+            let page = SettingsPage {
+                top: settings::scrolled(app, frame.area(), *page),
+                ..*page
+            };
+            if let Mode::Settings { page: stored, .. } = &mut app.mode {
+                *stored = page;
+            }
+            settings::render(frame, app, page);
+        }
+        // 問要不要刪、改期中：畫在最下面那一列（上面畫過了）
+        Mode::ConfirmDelete(..) | Mode::Moving(_) | Mode::Normal => {}
     }
 }
 

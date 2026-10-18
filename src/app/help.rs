@@ -1,6 +1,6 @@
 //! 說明頁（`?`）開著時的按鍵和滑鼠：`Tab` 換精簡版 / 完整版、放不下時上下捲、`?` / `q` / `Esc` 或點框外關掉
 
-use super::App;
+use super::{App, Mode};
 use crate::ui;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
@@ -20,7 +20,7 @@ impl App {
     /// 說明頁開著時的按鍵：`j` / `k`（`↓` / `↑`）放不下時上下捲；`Tab` 換精簡版 / 完整版（回到最上面）；
     /// `?` / `q` / `Esc` 關掉；`Ctrl+C` 離開；其他鍵不理
     pub(super) fn handle_help_key(&mut self, key: KeyEvent) {
-        let Some(help) = self.help else {
+        let Some(help) = self.help() else {
             return;
         };
         match key.code {
@@ -30,19 +30,19 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.scroll_help(1),
             KeyCode::Char('k') | KeyCode::Up => self.scroll_help(-1),
             KeyCode::Tab | KeyCode::BackTab => {
-                self.help = Some(Help {
+                self.mode = Mode::Help(Help {
                     full: !help.full,
                     scroll: 0,
                 });
             }
-            KeyCode::Char('?' | 'q') | KeyCode::Esc => self.help = None,
+            KeyCode::Char('?' | 'q') | KeyCode::Esc => self.mode = Mode::Normal,
             _ => {}
         }
     }
 
     /// 說明頁開著時的滑鼠：滾輪上下捲（底下的月曆不動）、點框外關掉，點框裡不理
     pub(super) fn handle_help_mouse(&mut self, mouse: MouseEvent) {
-        let Some(help) = self.help else {
+        let Some(help) = self.help() else {
             return;
         };
         match mouse.kind {
@@ -52,7 +52,7 @@ impl App {
                 if !ui::help_area(self, help.full)
                     .contains(Position::new(mouse.column, mouse.row)) =>
             {
-                self.help = None;
+                self.mode = Mode::Normal;
             }
             _ => {}
         }
@@ -60,13 +60,13 @@ impl App {
 
     /// 說明頁往下（`step` = 1）/ 往上（-1）捲一行：放得下就不動，捲到底就停
     fn scroll_help(&mut self, step: i16) {
-        let Some(help) = self.help else {
+        let Some(help) = self.help() else {
             return;
         };
         // 最多能捲幾行（照 terminal 現在的大小算）；terminal 拉高之後原本捲的可能超過，先夾回來
         let max = ui::help_max_scroll(self, help.full);
         let scroll = help.scroll.min(max).saturating_add_signed(step).min(max);
-        self.help = Some(Help { scroll, ..help });
+        self.mode = Mode::Help(Help { scroll, ..help });
     }
 }
 
@@ -101,17 +101,17 @@ mod tests {
     #[test]
     fn question_mark_opens_the_short_page_and_tab_switches() {
         let mut app = app_with_help(100, 40);
-        assert_eq!(app.help, Some(Help::default()));
+        assert_eq!(app.help(), Some(Help::default()));
         press(&mut app, KeyCode::Tab);
         assert_eq!(
-            app.help,
+            app.help(),
             Some(Help {
                 full: true,
                 scroll: 0
             })
         );
         press(&mut app, KeyCode::BackTab);
-        assert_eq!(app.help, Some(Help::default()));
+        assert_eq!(app.help(), Some(Help::default()));
     }
 
     #[test]
@@ -119,7 +119,7 @@ mod tests {
         for code in [KeyCode::Char('?'), KeyCode::Char('q'), KeyCode::Esc] {
             let mut app = app_with_help(100, 40);
             press(&mut app, code);
-            assert_eq!(app.help, None, "{code:?}");
+            assert_eq!(app.help(), None, "{code:?}");
             assert!(!app.should_quit, "{code:?}");
         }
     }
@@ -131,10 +131,10 @@ mod tests {
         for code in ['l', 'j', '3', 'a', 't', ']', 's', 'u'].map(KeyCode::Char) {
             press(&mut app, code);
         }
-        assert_eq!(app.help, Some(Help::default()));
+        assert_eq!(app.help(), Some(Help::default()));
         assert_eq!(app.selected, date(2026, 10, 17));
         assert_eq!(app.view, super::super::View::Planner);
-        assert!(app.editor.is_none());
+        assert!(app.editor().is_none());
         // Ctrl+C 還是能離開
         app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
         assert!(app.should_quit);
@@ -146,24 +146,24 @@ mod tests {
         let mut app = app_with_help(100, 40);
         press(&mut app, KeyCode::Tab);
         press(&mut app, KeyCode::Char('j'));
-        assert_eq!(app.help.map(|help| help.scroll), Some(0));
+        assert_eq!(app.help().map(|help| help.scroll), Some(0));
         // 100 × 20：完整版 28 行 + padding 2 + 框線 2 = 32 行，框最高 20、裡面放得下 16 行 → 能捲 12 行
         let mut app = app_with_help(100, 20);
         press(&mut app, KeyCode::Tab);
         for _ in 0..15 {
             press(&mut app, KeyCode::Down);
         }
-        assert_eq!(app.help.map(|help| help.scroll), Some(12));
+        assert_eq!(app.help().map(|help| help.scroll), Some(12));
         press(&mut app, KeyCode::Char('k'));
-        assert_eq!(app.help.map(|help| help.scroll), Some(11));
+        assert_eq!(app.help().map(|help| help.scroll), Some(11));
         // 滾輪也一樣，底下的月曆不動
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
         app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
-        assert_eq!(app.help.map(|help| help.scroll), Some(9));
+        assert_eq!(app.help().map(|help| help.scroll), Some(9));
         assert_eq!(app.selected, date(2026, 10, 17));
         // Tab 換回精簡版：回到最上面
         press(&mut app, KeyCode::Tab);
-        assert_eq!(app.help, Some(Help::default()));
+        assert_eq!(app.help(), Some(Help::default()));
     }
 
     #[test]
@@ -171,11 +171,11 @@ mod tests {
         let mut app = app_with_help(100, 40);
         // 點框裡（正中間）不理，底下的月曆也不會選到
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 50, 20));
-        assert!(app.help.is_some());
+        assert!(app.help().is_some());
         assert_eq!(app.selected, date(2026, 10, 17));
         // 點左上角（框外）：關掉，那一下不會選到底下的東西
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 0, 0));
-        assert_eq!(app.help, None);
+        assert_eq!(app.help(), None);
         assert_eq!(app.selected, date(2026, 10, 17));
     }
 }

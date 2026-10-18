@@ -1,6 +1,6 @@
 //! 寫任務檔：打勾、刪除、undo；寫之前一定先重讀，那一行在別處改過就不寫、改成重新載入
 
-use super::{App, Focus};
+use super::{App, Focus, Mode};
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Kind, Parsed};
@@ -70,7 +70,7 @@ impl App {
             return;
         };
         match edit::delete(&text, &item) {
-            Ok((_, count)) => self.confirm_delete = Some((item, count)),
+            Ok((_, count)) => self.mode = Mode::ConfirmDelete(item, count),
             Err(edit::Changed) => self.reload(&text),
         }
     }
@@ -79,8 +79,13 @@ impl App {
     ///
     /// 問的時候算的件數跟現在算的不一樣（例：剛好在別處加了子任務）就不刪，改成重新載入
     pub(super) fn answer_delete(&mut self, key: KeyEvent) {
-        let Some((item, count)) = self.confirm_delete.take() else {
-            return;
+        let (item, count) = match std::mem::take(&mut self.mode) {
+            Mode::ConfirmDelete(item, count) => (item, count),
+            // 沒在問：什麼都不做（放回去）
+            other => {
+                self.mode = other;
+                return;
+            }
         };
         if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
             self.should_quit = true;
@@ -513,16 +518,15 @@ pub(crate) mod tests {
         // d：先問，檔案還沒動；早上 + 子任務 = 2 件
         press(&mut app, KeyCode::Char('d'));
         assert_eq!(
-            app.confirm_delete
-                .as_ref()
-                .map(|(item, count)| (item.title.as_str(), *count)),
+            app.confirm_delete()
+                .map(|(item, count)| (item.title.as_str(), count)),
             Some(("早上", 2))
         );
         assert_eq!(read(), WITH_SUBTASK);
         // y：刪掉早上和它的子任務，只剩下午；右邊選著下午
         press(&mut app, KeyCode::Char('y'));
         assert_eq!(read(), "- [ ] 下午 @2026-10-17 14:00\n");
-        assert_eq!(app.confirm_delete, None);
+        assert_eq!(app.confirm_delete(), None);
         assert_eq!(
             app.chosen().map(|entry| entry.item.title.as_str()),
             Some("下午")
@@ -541,7 +545,7 @@ pub(crate) mod tests {
             press(&mut app, KeyCode::Char('d'));
             // 取消用的那個鍵只拿來取消：還在右邊、還選著第一件
             press(&mut app, other);
-            assert_eq!(app.confirm_delete, None, "{other:?}");
+            assert_eq!(app.confirm_delete(), None, "{other:?}");
             assert_eq!(
                 (app.focus, app.agenda_index),
                 (Focus::Agenda, 0),
@@ -579,7 +583,7 @@ pub(crate) mod tests {
                 row: 5,
                 modifiers: KeyModifiers::NONE,
             });
-            assert_eq!(app.confirm_delete, None, "{kind:?}");
+            assert_eq!(app.confirm_delete(), None, "{kind:?}");
             assert_eq!(
                 (app.focus, app.selected),
                 (Focus::Agenda, selected),
@@ -594,7 +598,7 @@ pub(crate) mod tests {
             row: 5,
             modifiers: KeyModifiers::NONE,
         });
-        assert!(app.confirm_delete.is_some());
+        assert!(app.confirm_delete().is_some());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
         clean_up(&path);
     }

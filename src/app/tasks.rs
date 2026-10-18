@@ -420,7 +420,7 @@ mod tests {
         // a：任務頁不填日期；加在「工作」最後面，選著新的那件
         press(&mut app, KeyCode::Char('a'));
         assert_eq!(
-            app.editor.as_ref().map(|editor| editor.input.value()),
+            app.editor().map(|editor| editor.input.value()),
             Some("- [ ] ")
         );
         type_text(&mut app, "開會 @2026-10-20");
