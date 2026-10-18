@@ -80,13 +80,13 @@ pub fn add(text: &str, new: &str, place: &Place) -> Result<(String, usize), Chan
                 last = &items[parent];
             }
             // 跟那一組最外層的事一樣，不縮排
-            (block_end(&lines, last.line - 1), String::new())
+            (block_end(text, &lines, last.line - 1), String::new())
         }
         Place::ChildOf(item) => {
             let start = find_line(&lines, item)?;
             let indent =
                 &item.line_text[..item.line_text.len() - item.line_text.trim_start().len()];
-            (block_end(&lines, start), format!("{indent}  "))
+            (block_end(text, &lines, start), format!("{indent}  "))
         }
         Place::End => (segments.len(), String::new()),
     };
@@ -110,7 +110,7 @@ pub fn delete(text: &str, item: &Item) -> Result<(String, usize), Changed> {
     // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
-    let end = block_end(&lines, start);
+    let end = block_end(text, &lines, start);
     // 刪掉的那幾行裡有幾件（用 parser 數，跟畫面認的一樣）
     let count = tasks::parse(&segments[start..end].concat()).items.len();
     let mut result = segments[..start].concat();
@@ -128,7 +128,7 @@ pub fn reindent(text: &str, item: &Item, to: &str) -> Result<String, Changed> {
     // 連換行的整段，換行（\n 或 \r\n）才能照原樣留著
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let start = find_line(&lines, item)?;
-    let end = block_end(&lines, start);
+    let end = block_end(text, &lines, start);
     let mut result = segments[..start].concat();
     result.push_str(&reindented(
         &segments[start..end],
@@ -175,8 +175,8 @@ pub fn swap(text: &str, upper: &Item, lower: &Item) -> Result<String, Changed> {
     let segments: Vec<&str> = text.split_inclusive('\n').collect();
     let upper_start = find_line(&lines, upper)?;
     let lower_start = find_line(&lines, lower)?;
-    let upper_end = block_end(&lines, upper_start);
-    let lower_end = block_end(&lines, lower_start);
+    let upper_end = block_end(text, &lines, upper_start);
+    let lower_end = block_end(text, &lines, lower_start);
     // 下面那塊要在上面那塊結束之後（不是的話是檔案跟畫面對不上）
     if lower_start < upper_end {
         return Err(Changed);
@@ -282,9 +282,29 @@ fn find_line(lines: &[&str], item: &Item) -> Result<usize, Changed> {
     }
 }
 
-/// 第 `start` 行（從 0 開始）連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算）結束在哪：
-/// 回傳最後一行有內容的下一行。最後面的空行不算（那是跟下一件之間的空行）
-fn block_end(lines: &[&str], start: usize) -> usize {
+/// 第 `start` 行（從 0 開始）那件事的一整塊結束在哪：連同底下縮排比它深的連續幾行（子任務、備註，中間的空行也算），
+/// 回傳最後一行有內容的下一行；最後面的空行不算（那是跟下一件之間的空行）。中間夾著縮排沒有比它深的備註行
+/// （Obsidian 當成同一項的文字），後面 parser 還算成它子任務的，也包到那裡（`text` = 整個檔案，給 parser 讀）
+///
+/// 例：`- 寫報告`、`備註：週五前`、`  - 找資料`、`- 交週報` → 寫報告那一塊是前 3 行
+fn block_end(text: &str, lines: &[&str], start: usize) -> usize {
+    let items = tasks::parse(text).items;
+    let mut end = indented_end(lines, start);
+    if let Some(index) = items.iter().position(|item| item.line == start + 1) {
+        // 子任務 = 接在它後面、比它深的那幾件；最後一件連它自己的那塊
+        let depth = items[index].depth;
+        let descendants = items[index + 1..]
+            .iter()
+            .take_while(|item| item.depth > depth);
+        if let Some(last) = descendants.last() {
+            end = end.max(indented_end(lines, last.line - 1));
+        }
+    }
+    end
+}
+
+/// 第 `start` 行（從 0 開始）連同底下縮排比它深的連續幾行（中間的空行也算）結束在哪：回傳最後一行有內容的下一行
+fn indented_end(lines: &[&str], start: usize) -> usize {
     let indent = tasks::indent_width(lines[start]);
     let mut end = start + 1;
     for (index, line) in lines.iter().enumerate().skip(start + 1) {
@@ -605,6 +625,28 @@ mod tests {
         // 一模一樣的行照出現的順序配
         let map = line_map("- a\n  - 同\n- b\n  - 同\n", "- b\n  - 同\n- a\n  - 同\n");
         assert_eq!([1, 2, 3, 4].map(&map), [Some(3), Some(2), Some(1), Some(4)]);
+    }
+
+    #[test]
+    fn a_shallow_note_line_does_not_cut_the_subtasks_off_the_block() {
+        // 寫報告底下先是一行沒縮排的備註，再來才是子任務找資料（parser 照樣算找資料是寫報告的子任務）
+        let text = "- [ ] 寫報告\n備註：週五前\n  - [ ] 找資料\n- [ ] 交週報\n";
+        // 上下搬：備註、找資料跟著寫報告走
+        assert_eq!(
+            swap(text, &item(text, 0), &item(text, 2)),
+            Ok("- [ ] 交週報\n- [ ] 寫報告\n備註：週五前\n  - [ ] 找資料\n".into())
+        );
+        // 刪除：連找資料一起，共 2 件
+        assert_eq!(
+            delete(text, &item(text, 0)),
+            Ok(("- [ ] 交週報\n".into(), 2))
+        );
+        // 縮排：b 底下的備註、b1 一起縮進去，b1 還是 b 的子任務
+        let text = "- a\n- b\nnote\n  - b1\n";
+        assert_eq!(
+            reindent(text, &item(text, 1), "  "),
+            Ok("- a\n  - b\n  note\n    - b1\n".into())
+        );
     }
 
     #[test]
