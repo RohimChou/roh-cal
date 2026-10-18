@@ -1392,37 +1392,40 @@ mod tests {
         );
         app.handle_key(KeyEvent::from(KeyCode::Tab));
         app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-        // 70 × 12: the edit box is in the upper middle (y 2-5: a third of the 7 free rows above it,
-        // the key-hint row does not count) and 2 cells from each side (x 2-67)
+        // 70 × 12: the edit box is in the upper middle and 2 cells from each side (x 2-67); there is
+        // room, so a blank row above and below the text and a blank cell left and right: 6 rows tall,
+        // y 1-6 (a third of the 11 − 6 = 5 free rows above it, the key-hint row does not count)
         let mut terminal = draw_app(&mut app, 70, 12);
         let area = editor_area(Rect::new(0, 0, 70, 12));
-        assert_eq!(area, Rect::new(2, 2, 66, 4));
+        assert_eq!(area, Rect::new(2, 1, 66, 6));
         let rows = area_rows(terminal.backend().buffer(), area);
         assert!(rows[0].starts_with("╭ 編輯第 1 行 ─"), "{}", rows[0]);
         assert!(rows[0].ends_with("─╮"));
-        assert_eq!(
-            rows[1].trim_end_matches([' ', '│']),
-            "│ - [ ] Pick up the cake 🎂 @2026-10-16 17:30"
-        );
+        assert_eq!(rows[1].trim_end_matches([' ', '│']), "");
         assert_eq!(
             rows[2].trim_end_matches([' ', '│']),
-            "│ 任務 · 2026/10/16（五） 17:30 · 「Pick up the cake 🎂」"
+            "│  - [ ] Pick up the cake 🎂 @2026-10-16 17:30"
         );
+        assert_eq!(
+            rows[3].trim_end_matches([' ', '│']),
+            "│  任務 · 2026/10/16（五） 17:30 · 「Pick up the cake 🎂」"
+        );
+        assert_eq!(rows[4].trim_end_matches([' ', '│']), "");
         assert!(
-            rows[3].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+            rows[5].starts_with("╰ Enter 存檔  Esc 取消 ─"),
             "{}",
-            rows[3]
+            rows[5]
         );
-        // The cursor is right after the typed text, at box x 2 +
-        // border 1 + space 1 + 「- [ ] Pick up the cake 🎂 @2026-10-16 17:30」 43 cells (42 chars)
+        // The cursor is right after the typed text, at box x 2 + border 1 + padding 1 + space 1 +
+        // 「- [ ] Pick up the cake 🎂 @2026-10-16 17:30」 43 cells (42 chars)
         assert_eq!(
             terminal.get_cursor_position().expect("cursor"),
-            Position::new(47, 3)
+            Position::new(48, 3)
         );
         // What the line parses as is shown muted; change it to a time
         // that does not exist: that row becomes a red explanation
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(terminal.backend().buffer()[(4, 4)].fg, theme.muted);
+        assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.muted);
         for code in [
             KeyCode::Backspace,
             KeyCode::Backspace,
@@ -1434,10 +1437,10 @@ mod tests {
         let terminal = draw_app(&mut app, 70, 12);
         let rows = area_rows(terminal.backend().buffer(), area);
         assert_eq!(
-            rows[2].trim_end_matches([' ', '│']),
-            "│ 17:99：沒有這個時間"
+            rows[3].trim_end_matches([' ', '│']),
+            "│  17:99：沒有這個時間"
         );
-        assert_eq!(terminal.backend().buffer()[(4, 4)].fg, theme.error);
+        assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.error);
     }
 
     #[test]
@@ -1445,14 +1448,16 @@ mod tests {
         use ratatui::crossterm::event::{
             KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
         };
-        // 80 × 24: 76 wide (2 cells from each side), top at (23 - 4) / 3 = 6; 200 × 50: at most 80 wide,
-        // centered; narrower than 30: the whole width
-        assert_eq!(editor_area(Rect::new(0, 0, 80, 24)), Rect::new(2, 6, 76, 4));
+        // 80 × 24: 76 wide (2 cells from each side), 6 tall with the blank rows, top at (23 - 6) / 3 = 5;
+        // 200 × 50: at most 80 wide, centered; narrower than 30: the whole width; too short for the blank
+        // rows (80 × 6: 5 rows above the key hints): 4 tall
+        assert_eq!(editor_area(Rect::new(0, 0, 80, 24)), Rect::new(2, 5, 76, 6));
         assert_eq!(
             editor_area(Rect::new(0, 0, 200, 50)),
-            Rect::new(60, 15, 80, 4)
+            Rect::new(60, 14, 80, 6)
         );
-        assert_eq!(editor_area(Rect::new(0, 0, 29, 24)), Rect::new(0, 6, 29, 4));
+        assert_eq!(editor_area(Rect::new(0, 0, 29, 24)), Rect::new(0, 5, 29, 6));
+        assert_eq!(editor_area(Rect::new(0, 0, 80, 6)), Rect::new(2, 0, 76, 4));
         let mut app = App::new(
             Lang::En,
             date(2026, 10, 17),
@@ -1469,14 +1474,34 @@ mod tests {
                 modifiers: KeyModifiers::NONE,
             });
         };
-        // Inside the box (its corners too): stays open
-        for (column, row) in [(2, 6), (77, 9), (40, 7)] {
+        // Inside the box (its corners and the blank rows too): stays open
+        for (column, row) in [(2, 5), (77, 10), (40, 6)] {
             click(&mut app, column, row);
             assert!(app.editor().is_some(), "({column}, {row})");
         }
         // Below it (where the box is not): cancels
         click(&mut app, 40, 20);
         assert!(app.editor().is_none());
+        // Narrower than 30: no blank cell left of the text (one blank in front of the typed text, which
+        // scrolls so the cursor at its end shows); too short: no blank rows, the text on the row below the
+        // border
+        app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+        let narrow = Rect::new(0, 0, 29, 12);
+        let rows = area_rows(
+            draw_app(&mut app, 29, 12).backend().buffer(),
+            editor_area(narrow),
+        );
+        assert!(rows[2].starts_with("│ weekly update"), "{}", rows[2]);
+        let short = Rect::new(0, 0, 80, 6);
+        let rows = area_rows(
+            draw_app(&mut app, 80, 6).backend().buffer(),
+            editor_area(short),
+        );
+        assert!(
+            rows[1].starts_with("│  - [ ] Send the weekly"),
+            "{}",
+            rows[1]
+        );
     }
 
     #[test]

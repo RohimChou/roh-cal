@@ -1,10 +1,11 @@
-//! One-line editor: a box in the upper middle of the screen
+//! One-line editor: a box in the upper middle of the screen, with some blank space inside the border when
+//! there is room
 
 use crate::app::{App, Editor, Reading, Target};
 use crate::edit::Place;
 use ratatui::{
     Frame,
-    layout::{Position, Rect},
+    layout::{Margin, Position, Rect},
     style::Style,
     text::Line,
     widgets::{Block, BorderType, Clear, Paragraph},
@@ -16,26 +17,46 @@ const HEIGHT: u16 = 4;
 /// The widest the editor gets: a usual task line fits with room to spare; a longer one scrolls
 const MAX_WIDTH: u16 = 80;
 
-/// Below this terminal width the editor takes the whole width (no margins)
+/// Below this terminal width the editor takes the whole width (no margins, no blank cells inside)
 const NARROW: u16 = 30;
+
+/// Blank space between the border and the text when there is room: one row above and below (when the
+/// terminal is tall enough), one cell left and right (when it is at least `NARROW` wide)
+const PADDING: Margin = Margin::new(1, 1);
 
 /// The editor's area: centered left to right, 2 cells from each side, at most `MAX_WIDTH` wide; in the
 /// upper middle top to bottom (a third of the free rows above it, two thirds below; the key-hint row
 /// at the bottom does not count). Used for drawing and for the mouse (a click outside the box = cancel)
 pub fn area(screen: Rect) -> Rect {
+    layout(screen).0
+}
+
+/// The editor's area (see `area`) and where the text goes inside it: the border taken off, and the
+/// padding too when there is room for it
+fn layout(screen: Rect) -> (Rect, Rect) {
     let rows = screen.height.saturating_sub(1);
-    let height = HEIGHT.min(rows);
-    let width = if screen.width < NARROW {
-        screen.width
-    } else {
+    let wide = screen.width >= NARROW;
+    let padding = Margin::new(
+        if wide { PADDING.horizontal } else { 0 },
+        if rows >= HEIGHT + 2 * PADDING.vertical {
+            PADDING.vertical
+        } else {
+            0
+        },
+    );
+    let height = (HEIGHT + 2 * padding.vertical).min(rows);
+    let width = if wide {
         (screen.width - 4).min(MAX_WIDTH)
+    } else {
+        screen.width
     };
-    Rect::new(
+    let area = Rect::new(
         screen.x + (screen.width - width) / 2,
         screen.y + (rows - height) / 3,
         width,
         height,
-    )
+    );
+    (area, Block::bordered().inner(area).inner(padding))
 }
 
 /// Draws the editor: the top border shows which line is being edited (or 「新增」, 「新增日曆」); row 1 is the
@@ -45,7 +66,7 @@ pub fn area(screen: Rect) -> Rect {
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let area = area(frame.area());
+    let (area, inner) = layout(frame.area());
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
@@ -64,7 +85,6 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             texts.editor_keys(),
             Style::new().fg(theme.muted),
         ));
-    let inner = block.inner(area);
     // Clear the screen underneath first, then draw the box
     super::clear_wide_left_of(frame.buffer_mut(), area);
     frame.render_widget(Clear, area);
