@@ -43,10 +43,37 @@ pub fn week_of_year(date: Date) -> i16 {
     (date.day_of_year() - 1 + i16::from(offset)) / 7 + 1
 }
 
+/// 週數欄寫的數字：每週寫第幾週（`week_of_year`）；`relative`（設定檔的 `[calendar] relative_weeks`）時只有選取那週
+/// 寫第幾週，其他週寫跟選取那週差幾週（不分前後，像 vim 的 relativenumber）
+///
+/// 例：選取 10/17（第 42 週）→ 10/5 那週寫 2、10/12 那週寫 42、10/26 那週寫 2
+pub fn week_label(date: Date, selected: Date, relative: bool) -> i64 {
+    let distance = i64::from((monday_of(date) - monday_of(selected)).get_days()).abs() / 7;
+    if relative && distance > 0 {
+        distance
+    } else {
+        i64::from(week_of_year(date))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use jiff::civil::{Weekday, date};
+
+    #[test]
+    fn week_label_counts_weeks_from_the_selected_one_when_relative() {
+        let selected = date(2026, 10, 17);
+        // 平常：每週都寫第幾週
+        assert_eq!(week_label(date(2026, 10, 5), selected, false), 41);
+        // 相對：選取那週（10/12～18 都算）寫第幾週，其他週寫差幾週，前後都是正的
+        assert_eq!(week_label(date(2026, 10, 12), selected, true), 42);
+        assert_eq!(week_label(date(2026, 10, 18), selected, true), 42);
+        assert_eq!(week_label(date(2026, 10, 11), selected, true), 1);
+        assert_eq!(week_label(date(2026, 10, 26), selected, true), 2);
+        // 跨年也照算：12/28 那週離 10/12 那週 11 週
+        assert_eq!(week_label(date(2027, 1, 1), selected, true), 11);
+    }
 
     #[test]
     fn month_rows_split_the_weeks_at_both_ends() {

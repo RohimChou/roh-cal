@@ -322,9 +322,10 @@ fn render_week(
     };
     // 選取的那天在這一列：週數亮一點、整列墊底色
     let selected_week = days.is_some_and(|days| days.contains(&Some(app.selected)));
-    // 週數：這一列任何一天都行（同一列一定是同一週）
+    // 週數（或跟選取那週差幾週）：這一列任何一天都行（同一列一定是同一週）
+    let relative = app.settings.calendar.relative_weeks;
     let week = day
-        .map(|day| format!("{:>3} ", calendar::week_of_year(day)))
+        .map(|day| format!("{:>3} ", calendar::week_label(day, app.selected, relative)))
         .unwrap_or_default();
     let week_color = if selected_week {
         theme.week_number

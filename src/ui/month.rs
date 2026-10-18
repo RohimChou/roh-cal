@@ -166,7 +166,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     for week in 0..WEEKS {
         let monday = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = monday.series(1.day()).take(7).collect();
-        // 週數：那週裡屬於選取那個月的日子（跨年那週才看得出差別）；選取那週亮黃、其他週暗黃
+        // 週數：那週裡屬於選取那個月的日子（跨年那週才看得出差別）；選取那週亮黃、其他週暗黃。
+        // `[calendar] relative_weeks` 時其他週寫差幾週
         let numbered = days
             .iter()
             .find(|day| day.first_of_month() == month)
@@ -181,9 +182,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             height: 1,
             ..grid.cell(week, 0)
         };
+        let relative = app.settings.calendar.relative_weeks;
         frame.render_widget(
             Line::styled(
-                format!(" {:>3} ", calendar::week_of_year(numbered)),
+                format!(
+                    " {:>3} ",
+                    calendar::week_label(numbered, app.selected, relative)
+                ),
                 Style::new().fg(week_color),
             ),
             number_area,

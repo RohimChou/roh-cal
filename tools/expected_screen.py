@@ -13,6 +13,7 @@ EXPANDED = 展開了子任務的事在第幾行，逗號隔開；CHOSEN_LINE = �
 SIDE_HIDDEN = 按了 `s`、side menu 收起來（寬 120 格以上才有 side menu）；
 NO_GRID = 版型 3 不畫格線（設定檔 `[month] grid_lines = false`）；NO_ICONS = 版型 3 的事前面不加點（`item_icons = false`）；
 CENTER = 版型 3 選取的那週固定在第 3 列（`center_cursor = true`，最上面那週的參數不用給）；
+RELATIVE = 版型 1、3 的週數欄：選取那週寫週數，其他週寫差幾週（`[calendar] relative_weeks = true`）；
 HIDDEN = 沒勾的日曆是 side menu 的第幾個，逗號隔開（例：`1,3`），它們的事不顯示；LAYOUT = 3 是版型 3
 今天固定是 2026-10-17。
 """
@@ -51,6 +52,7 @@ SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
 NO_ICONS = "NO_ICONS" in os.environ
 CENTER = "CENTER" in os.environ
+RELATIVE = "RELATIVE" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_MIN, SIDE_MAX = 22, 30  # side menu 最窄、最寬幾格（含框線）；寬度跟著最長的那個日曆
 
@@ -77,9 +79,12 @@ def cut(s, n):
     return out
 
 
-def week_number(d):
+def week_number(d, selected=None):
     # 跟 Rust 不同的算法：這天那週的星期一 − 1/1 那週的星期一，除以 7
     monday = lambda x: x - datetime.timedelta(days=x.weekday())
+    if RELATIVE and selected and monday(d) != monday(selected):
+        # 相對：跟選取那週差幾週（不分前後）
+        return abs((monday(d) - monday(selected)).days) // 7
     return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
@@ -230,7 +235,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
                         days[start - 1] = "["
                         days[3 * k + 3] = "]"
                 day = next(d for d in week if d)
-                left = rjust(label, 6) + f"{week_number(datetime.date(y, m, day)):>3} " + "│" + "".join(days)
+                left = rjust(label, 6) + f"{week_number(datetime.date(y, m, day), selected):>3} " + "│" + "".join(days)
                 year = y
             else:
                 left = " " * 10 + "│" + " " * 22
@@ -334,7 +339,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
         days = [monday + datetime.timedelta(days=k) for k in range(7)]
         # 週數：那週裡屬於選取那個月的日子，沒有就用星期一
         numbered = next((d for d in days if (d.year, d.month) == month), monday)
-        c.put(0, week_y(i), f" {week_number(numbered):>3} ", 5)
+        c.put(0, week_y(i), f" {week_number(numbered, selected):>3} ", 5)
         week_cells = []  # 這週 7 格各自的每一行
         for k, d in enumerate(days):
             mark = ("[", "]") if d == selected else (" ", " ")
