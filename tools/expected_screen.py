@@ -62,7 +62,7 @@ NO_GRID = "NO_GRID" in os.environ
 CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
-SIDE_MIN, SIDE_MAX = 22, 36  # side menu min / max width (borders included; the max is the config's default
+SIDE_MIN, SIDE_MAX = 22, 43  # side menu min / max width (borders included; the max is the config's default
                              # [calendar_list] max_width); width follows the longest calendar
 
 

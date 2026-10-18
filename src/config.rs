@@ -130,7 +130,7 @@ impl CalendarListSettings {
 impl Default for CalendarListSettings {
     fn default() -> Self {
         Self {
-            max_width: 36,
+            max_width: 43,
             hide_done: false,
         }
     }

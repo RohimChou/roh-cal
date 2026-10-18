@@ -41,7 +41,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框 | ✓ |
-| `src/ui/side.rs` | 畫 side menu（最下面一條線 + 「隱藏做完的」開關：`App::group_index` = 日曆數量時選到它，`Space` / 點一下切換 `[calendar_list] hide_done` 並馬上存進設定檔）：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`；底下還沒有事的標題也算；`#` 越少越上層，日曆 = 整條路徑 `Heading::parents` + 名字，清單照樹排、裡面的縮排 2 格；父層沒勾 = 裡面的也藏，`App::is_shown` 看 `Group::holds`）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 36，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
+| `src/ui/side.rs` | 畫 side menu（最下面一條線 + 「隱藏做完的」開關：`App::group_index` = 日曆數量時選到它，`Space` / 點一下切換 `[calendar_list] hide_done` 並馬上存進設定檔）：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`；底下還沒有事的標題也算；`#` 越少越上層，日曆 = 整條路徑 `Heading::parents` + 名字，清單照樹排、裡面的縮排 2 格；父層沒勾 = 裡面的也藏，`App::is_shown` 看 `Group::holds`）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 43，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
 | `src/ui/month.rs` | 版型 2（大月曆）：6 列等高的格子（`Grid`，畫畫面和滑鼠換算都用它）；一列是一整週（星期一～日，跨月的那週兩個月的日子在同一列）；一週一週捲（`App::month_top`） | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 

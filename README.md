@@ -164,7 +164,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
-| `[calendar_list]` `max_width` | `36` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |
+| `[calendar_list]` `max_width` | `43` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |
 | `[calendar_list]` `hide_done` | `false` | Hide done tasks (and their subtasks) everywhere |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 

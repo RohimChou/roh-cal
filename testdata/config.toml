@@ -21,7 +21,7 @@ center_cursor = true
 
 # The calendar list on the far left
 [calendar_list]
-# The widest it gets; it follows the longest calendar name up to this, from 22 to 60 (default 36)
+# The widest it gets; it follows the longest calendar name up to this, from 22 to 60 (default 43)
 max_width = 30
 # Hide done tasks (and their subtasks) everywhere; also switched at the bottom of the list (default false)
 hide_done = true
