@@ -40,9 +40,10 @@ pub struct Theme {
     pub today: Color,
     /// The selected date in layout 1's calendar: the brackets around it `[17]`
     pub selected: Color,
-    /// Background of the selected week's row in the calendar, the chosen item in the agenda and the selected
-    /// day's cell in the month grid (like vim's cursorline)
-    pub cursor_line: Color,
+    /// Background of where you are (like vim's cursorline): the selected week's row in the calendar, the
+    /// selected day's cell in the month grid, the chosen row in the agenda, the tasks page, the calendar list
+    /// and the settings page
+    pub selection: Color,
     /// The border of the pane that has keyboard focus
     pub focus: Color,
     /// The `☑` of checked calendars in the side menu
@@ -105,7 +106,7 @@ pub const ROLES: [&str; 23] = [
     "weekend",
     "today",
     "selected",
-    "cursor_line",
+    "selection",
     "focus",
     "checked",
     "notice",
@@ -273,7 +274,7 @@ impl Theme {
             "weekend" => self.weekend,
             "today" => self.today,
             "selected" => self.selected,
-            "cursor_line" => self.cursor_line,
+            "selection" => self.selection,
             "focus" => self.focus,
             "checked" => self.checked,
             "notice" => self.notice,
@@ -430,7 +431,7 @@ mod tests {
                 assert_ne!(theme, other);
             }
             // A multi-day bar must not look like the selected cell's background
-            assert_ne!(theme.range, theme.cursor_line, "{}", names()[index]);
+            assert_ne!(theme.range, theme.selection, "{}", names()[index]);
         }
         assert_eq!(
             Theme::catppuccin_mocha().range,
@@ -438,7 +439,7 @@ mod tests {
         );
         // The selection background: mauve and the background mixed 3:7
         assert_eq!(
-            Theme::catppuccin_mocha().cursor_line,
+            Theme::catppuccin_mocha().selection,
             Color::Rgb(0x52, 0x47, 0x6a)
         );
         // Every palette color is used by some role (no leftovers from roles that are gone)

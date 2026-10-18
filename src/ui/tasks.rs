@@ -149,7 +149,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 if focused && cursor == Some(index) {
                     frame
                         .buffer_mut()
-                        .set_style(area, Style::new().bg(theme.cursor_line));
+                        .set_style(area, Style::new().bg(theme.selection));
                 }
             }
         }

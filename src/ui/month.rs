@@ -277,7 +277,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         if let Some(column) = selected {
             frame
                 .buffer_mut()
-                .set_style(cells[column], Style::new().bg(theme.cursor_line));
+                .set_style(cells[column], Style::new().bg(theme.selection));
         }
         let (bars, slots) = layout_row(&days, app);
         // Laid out as a whole week even when cut off at the bottom (the cut-off part just does not show)

@@ -213,7 +213,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                         if is_chosen || on_selected_day {
                             frame
                                 .buffer_mut()
-                                .set_style(*area, Style::new().bg(theme.cursor_line));
+                                .set_style(*area, Style::new().bg(theme.selection));
                         }
                     }
                 }
@@ -333,7 +333,7 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
 /// dates right-aligned); item-only rows draw only │
 ///
 /// If the selected day is in this row: the week number is bright and the whole row gets the
-/// `cursor_line` background; other rows have a dimmer week number
+/// `selection` background; other rows have a dimmer week number
 fn render_week(
     frame: &mut Frame,
     area: Rect,
@@ -376,7 +376,7 @@ fn render_week(
         // Only change the background; leave the text color alone
         frame
             .buffer_mut()
-            .set_style(area, Style::new().bg(theme.cursor_line));
+            .set_style(area, Style::new().bg(theme.selection));
     }
 }
 

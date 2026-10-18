@@ -924,8 +924,8 @@ mod tests {
         assert_eq!(buffer[(0, 0)].fg, theme.focus);
         assert_eq!(buffer[(36, 0)].fg, theme.line);
         for x in 1..35 {
-            assert_eq!(buffer[(x, 4)].bg, theme.cursor_line, "x = {x}");
-            assert_ne!(buffer[(x, 3)].bg, theme.cursor_line, "x = {x}");
+            assert_eq!(buffer[(x, 4)].bg, theme.selection, "x = {x}");
+            assert_ne!(buffer[(x, 3)].bg, theme.selection, "x = {x}");
         }
         assert_eq!(
             (buffer[(2, 4)].symbol(), buffer[(2, 4)].fg),
@@ -1138,7 +1138,7 @@ mod tests {
         };
         let terminal = draw_app(&mut app, 70, 23);
         for x in 1..=33 {
-            assert_eq!(bg(&terminal, x, 5), theme.cursor_line, "x {x}");
+            assert_eq!(bg(&terminal, x, 5), theme.selection, "x {x}");
         }
         assert_eq!(bg(&terminal, 0, 5), Color::Reset);
         assert_eq!(bg(&terminal, 20, 4), Color::Reset);
@@ -1148,7 +1148,7 @@ mod tests {
         // (y 7) gets the highlight, the November half (y 12) does not
         app.selected = date(2026, 10, 31);
         let terminal = draw_app(&mut app, 70, 23);
-        assert_eq!(bg(&terminal, 20, 7), theme.cursor_line);
+        assert_eq!(bg(&terminal, 20, 7), theme.selection);
         assert_eq!(bg(&terminal, 20, 12), Color::Reset);
     }
 
@@ -1206,7 +1206,7 @@ mod tests {
         // terminal the background covers both cells)
         let mut x = 36;
         while x <= 68 {
-            assert_eq!(buffer[(x, 8)].bg, theme.cursor_line, "x {x}");
+            assert_eq!(buffer[(x, 8)].bg, theme.selection, "x {x}");
             x += u16::try_from(Span::raw(buffer[(x, 8)].symbol()).width().max(1)).unwrap();
         }
         assert_eq!(buffer[(40, 7)].bg, Color::Reset);
@@ -1322,7 +1322,7 @@ mod tests {
         // its week on the calendar); other days' items do not
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
-        assert_eq!(buffer[(40, 7)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 7)].bg, theme.selection);
         assert_eq!(buffer[(40, 6)].bg, Color::Reset);
         // Select 10/19, which has no items: the agenda does not scroll (no jumping up and down)
         app.selected = date(2026, 10, 19);
@@ -1800,8 +1800,8 @@ mod tests {
         let buffer = terminal.backend().buffer();
         let theme = Theme::catppuccin_mocha();
         assert_eq!(buffer[(40, 3)].bg, Color::Reset);
-        assert_eq!(buffer[(40, 4)].bg, theme.cursor_line);
-        assert_eq!(buffer[(40, 5)].bg, theme.cursor_line);
+        assert_eq!(buffer[(40, 4)].bg, theme.selection);
+        assert_eq!(buffer[(40, 5)].bg, theme.selection);
         assert_eq!(buffer[(40, 6)].bg, Color::Reset);
     }
 
@@ -2689,7 +2689,7 @@ mod tests {
         // the chosen row gets the highlight across the whole row
         assert_eq!(cell(8, 4), ("S", theme.text, false));
         assert_eq!(cell(34, 4), ("0", theme.text, false));
-        assert_eq!(buffer[(1, 4)].bg, theme.cursor_line);
+        assert_eq!(buffer[(1, 4)].bg, theme.selection);
         assert_eq!(buffer[(1, 5)].bg, Color::Reset);
         // Fix the login bug (y 5): done → gray, struck through; Hackathon (y 6): past event → gray, not
         // struck through
@@ -3164,10 +3164,10 @@ mod tests {
         // bottom-right; the grid lines around it and the neighbor cells do not
         let bg = |x: u16, y: u16| buffer[(x, y)].bg;
         for (x, y) in [(50, 11), (58, 11), (50, 13), (58, 13), (54, 12)] {
-            assert_eq!(bg(x, y), theme.cursor_line, "({x}, {y})");
+            assert_eq!(bg(x, y), theme.selection, "({x}, {y})");
         }
         for (x, y) in [(49, 11), (59, 11), (50, 10), (50, 14), (48, 11), (60, 11)] {
-            assert_ne!(bg(x, y), theme.cursor_line, "({x}, {y})");
+            assert_ne!(bg(x, y), theme.selection, "({x}, {y})");
         }
         // 10/15's long title does not borrow into the selected cell: it stops at the grid line
         assert_eq!(cell(41, 12).0, "S");

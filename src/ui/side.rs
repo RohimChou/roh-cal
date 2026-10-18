@@ -141,7 +141,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             // Only change the background; leave the text color alone
             frame
                 .buffer_mut()
-                .set_style(row, Style::new().bg(theme.cursor_line));
+                .set_style(row, Style::new().bg(theme.selection));
         }
     }
     // Does not fit: draw a scrollbar on the right border next to the calendar rows (not when the box

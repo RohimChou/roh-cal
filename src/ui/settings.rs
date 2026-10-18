@@ -325,7 +325,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
         for x in list.left()..list.right() {
             let cell = &mut frame.buffer_mut()[(x, y)];
             if cell.bg == ratatui::style::Color::Reset {
-                cell.set_bg(theme.cursor_line);
+                cell.set_bg(theme.selection);
             }
         }
     }
@@ -497,8 +497,8 @@ mod tests {
         let theme = Theme::catppuccin_mocha();
         let at = |dx, dy| cell(&buffer, area, dx, dy);
         let right = area.width - 2;
-        assert_eq!(at(1, y_of(Row::Theme)).bg, theme.cursor_line);
-        assert_eq!(at(right, y_of(Row::Theme)).bg, theme.cursor_line);
+        assert_eq!(at(1, y_of(Row::Theme)).bg, theme.selection);
+        assert_eq!(at(right, y_of(Row::Theme)).bg, theme.selection);
         assert!(
             at(VALUE, y_of(Row::Theme))
                 .modifier
@@ -528,9 +528,9 @@ mod tests {
         let (_, area, rows, buffer) = draw(choosing(index_of(text)), 44);
         let theme = Theme::catppuccin_mocha();
         let at = |dx, dy| cell(&buffer, area, dx, dy);
-        assert_eq!(at(2, y_of(text)).bg, theme.cursor_line);
+        assert_eq!(at(2, y_of(text)).bg, theme.selection);
         assert_eq!(at(VALUE, y_of(text)).bg, theme.text);
-        assert_eq!(at(VALUE + 3, y_of(text)).bg, theme.cursor_line);
+        assert_eq!(at(VALUE + 3, y_of(text)).bg, theme.selection);
         assert_eq!(
             rows[rows.len() - 3],
             "│  顏色：l 換下一個，e 自訂，r 還原       │"
