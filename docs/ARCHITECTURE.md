@@ -52,7 +52,7 @@ App::run 的迴圈
  │   │   ├─ Months::scrolled_to   整個畫面捲到哪                 → app.calendar_top
  │   │   ├─ Months::visible_rows  畫面上每一列是什麼
  │   │   └─ 一列一列畫，左右兩個框的同一列在同一個高度
- │   └─ 跳窗（編輯框、說明頁、設定頁）蓋在最上面；設定頁先捲到選到的那列（settings::scrolled）
+ │   └─ 跳窗（版型 3 那天的事、不夠寬時的 side menu、編輯框、說明頁、設定頁）蓋在最上面；設定頁先捲到選到的那列（settings::scrolled）
  └─ 等一個輸入 → App::handle_key / App::handle_mouse（滑鼠點的位置用 ui::click_at 換算）
      └─ 先看 App::mode（同時只會有一種）：說明頁、設定頁、問要不要刪、編輯框、改期中各自收按鍵和滑鼠，
         都沒開（Mode::Normal）才照鍵盤在哪個框處理；多一種模式時，沒處理到的 match compiler 會抓到
@@ -123,8 +123,11 @@ App::run 的迴圈
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
 - 版型 1 的寬度散在幾個數字裡（`CALENDAR_WIDTH` 的 `6 + 4 + 1 + 22 + 2`、`day_cells` 的 3、`click_at` 的 `/ 3`）：改成一個 `DAY_WIDTH` 之類的常數，畫畫面和換算滑鼠就不會各改各的
 - `day_color`、`in_multi_day`、`date_text` 放在 `planner.rs`，但版型 3、任務頁、side menu 都在用：可以搬到 `ui.rs`
-- `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次），縮排的 `&s[..s.len() - s.trim_start().len()]` 也抄了三次：可以合成一個
-- test 的小工具抄了好幾份（`press` 5 份、`mouse` 2 份、`type_text` 2 份）：可以放一個共用的 test module
+- `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
+- test 的小工具抄了好幾份（`press` 4 份、`mouse` 3 份、`type_text` 3 份）：可以放一個共用的 test module
+- 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，再點一次就點到別件（版型 3 的跳窗、side menu 已經改成跑出框外才捲）
+- 操作說明比 80 格寬的：任務頁英文 100 格、中文 87 格，窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`Esc`），不要切在字中間
+- `L`、`A` 縮排一律加 2 格空白：用 tab 縮排的檔（Obsidian 預設）會變成 tab、空白混著；可以改成照上面那件現有子任務的寫法
 - `read_tasks` 和 `read_tasks_for_adding` 只差檔案不存在時怎麼辦：可以合成一個、多一個參數
 - 畫面 test 寫死很多座標：版面一動（例：拿掉一列）就要改一大片；可以改成先找到某個字在哪，再檢查它的顏色
 - `App::agenda()` 每次呼叫都重新排序：事很多（幾千件）時可能要先排好存起來

@@ -36,7 +36,7 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | Key | Action |
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day; in the agenda `j` `k` / ↓ ↑ choose the next / previous item, in the calendar list the next / previous calendar |
-| `Tab` | Switch between the calendar, the agenda and the calendar list (the focused pane's border lights up) |
+| `Tab` | Switch between the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 3's day popup is open |
 | `Space` / `Enter` | In the calendar list: check / uncheck a calendar; an unchecked calendar's items are hidden |
 | `Space` / `x` | In the agenda or on the tasks page: check off the chosen task, or uncheck it (written back to the task file; an event has no box) |
 | `[` / `]` | First day of the previous / next month |
@@ -57,4 +57,4 @@ For developers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Traditional Chi
 | `?` | Help: the most used keys; `Tab` shows all keys. `j` `k` or the wheel scroll it when the terminal is too short; `?`, `q`, `Esc` or clicking outside close it |
 | `,` | Settings: the config file's settings (below) in a list; `j` `k` choose a row, `h` `l` (or `Space`, `Enter`, clicking the chosen row) change it (the theme row goes through the built-in themes, a color row through the theme's palette) and the screen follows right away; a short terminal scrolls the list; `r` resets the row, `R` then `y` resets them all; `q`, `Esc`, `,` or clicking outside close it and save to the config file (only the changed lines; comments stay) |
 | `Esc` | Back to the layout's main pane (the calendar, or the tasks page) from the agenda, layout 3's day popup or the calendar list; from the tasks page to layout 1; quit from the calendar |
-| `q` / `Ctrl+C` | Quit |
+| `q` / `Ctrl+C` | Quit (`q` in layout 3's day popup or the narrow calendar list only closes it) |

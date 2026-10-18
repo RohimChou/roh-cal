@@ -207,7 +207,7 @@ const EN: Texts = Texts {
         ],
         right: &[
             HelpSection {
-                title: "Agenda, tasks page",
+                title: "Agenda, day popup, tasks page",
                 keys: &[
                     ("j / k", "next / previous item"),
                     ("Space / x", "check / uncheck"),
@@ -351,7 +351,7 @@ const ZH_TW: Texts = Texts {
         ],
         right: &[
             HelpSection {
-                title: "事項、任務頁",
+                title: "事項、跳窗、任務頁",
                 keys: &[
                     ("j / k", "下一件 / 上一件"),
                     ("Space / x", "打勾 / 取消"),

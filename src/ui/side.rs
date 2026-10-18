@@ -1,4 +1,4 @@
-//! side menu：最左邊的日曆清單（日曆 = 任務檔的分組），terminal 夠寬才畫
+//! side menu：最左邊的日曆清單（日曆 = 任務檔的分組）；terminal 夠寬時畫在最左邊，不夠寬時按 `s` 叫出來蓋在左邊
 
 use super::{Click, months::scrolled_top, planner::inner_areas, render_scrollbar};
 use crate::{

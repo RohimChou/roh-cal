@@ -41,7 +41,7 @@ pub enum Focus {
     Calendar,
     /// 右邊的事項：`j` / `k` 一件一件選
     Agenda,
-    /// 最左邊的 side menu（夠寬才有）：`j` / `k` 選日曆、`Space` 勾選
+    /// 最左邊的 side menu（夠寬時一直在；不夠寬時按 `s` 叫出來蓋在左邊）：`j` / `k` 選日曆、`Space` 勾選
     Side,
     /// 任務頁（`4`）：`j` / `k` 一件一件選、`l` / `h` 展開 / 收起子任務
     Tasks,
@@ -356,7 +356,7 @@ impl App {
         }
     }
 
-    /// 這一次有沒有畫 side menu：terminal 夠寬、沒按 `s` 收起
+    /// 最左邊有沒有佔位置的 side menu：terminal 夠寬、沒按 `s` 收起（不夠寬時叫出來蓋在左邊的不算）
     fn side_shown(&self) -> bool {
         ui::side_fits(self.screen) && !self.side_hidden
     }
@@ -435,7 +435,8 @@ impl App {
 
     /// 沒開跳窗時的按鍵：`Tab` 換框、`[` / `]` 換月、`t` 回今天、`u` 復原、`1` / `3` / `4` 換版型、
     /// `s` 收起 / 打開 side menu、`?` 說明頁、`,` 設定頁、`q` / `Ctrl+C` 離開；`Esc` 回這個版型的主框，
-    /// 已經在主框：任務頁回到版型 1、月曆就離開。其他鍵看鍵盤在哪個框
+    /// 已經在主框：任務頁回到版型 1、月曆就離開。版型 3 的跳窗、不夠寬時叫出來的 side menu 開著時，`Esc` / `q` 只關掉它。
+    /// 其他鍵看鍵盤在哪個框
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
             // 跳窗、不夠寬時叫出來的 side menu 開著時，q 只關掉它（跟說明頁一樣），不離開
@@ -1131,7 +1132,7 @@ mod tests {
     }
 
     #[test]
-    fn the_keyboard_leaves_the_side_menu_when_it_goes_away() {
+    fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
         // 按 `s` 收起
         let mut app = wide_app_with(GROUPS);
         app.focus = Focus::Side;

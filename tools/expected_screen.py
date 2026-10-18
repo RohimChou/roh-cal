@@ -268,7 +268,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     lines.append("╰" + "─" * 33 + "╯" + ("╰" + "─" * iw + "╯" if aw else ""))
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
-    # 夠寬時操作說明多一個 `s`（收起來也一樣）
+    # 操作說明（寬窄都有 `s`）
     lines.append(t["hints"])
     # 比畫面寬的（例：窄畫面的操作說明）會被切掉
     return [ljust(cut(line, w), w) for line in lines]

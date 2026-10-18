@@ -191,8 +191,8 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     }
 }
 
-/// 畫整個畫面：中間最左邊是 side menu（夠寬才有），右邊是版型 1 的月曆框 + 事項框、版型 3 的大月曆或任務頁；
-/// 最下面一列操作說明；開著的跳窗最後畫，蓋在最上面
+/// 畫整個畫面：中間最左邊是 side menu（夠寬才有；不夠寬時按 `s` 蓋在左邊），右邊是版型 1 的月曆框 + 事項框、版型 3 的大月曆或任務頁；
+/// 最下面一列操作說明；開著的跳窗（版型 3 那天的事、編輯框、說明頁、設定頁）最後畫，蓋在最上面
 pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
