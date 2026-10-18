@@ -5,7 +5,7 @@
 //!
 //! ```text
 //! ╭ roh-cal ∙ 設定 ─────────────────────────╮
-//! │  theme              catppuccin-mocha    │  ← the chosen row gets a background color
+//! │  theme              nord                │  ← the chosen row gets a background color
 //! │  [calendar]                             │  ← no blank lines: the section names stand out by color
 //! │    relative_weeks   off                 │
 //! │  ...                                    │

@@ -325,7 +325,7 @@ pub struct App {
 }
 
 impl App {
-    /// State at start: keyboard on the calendar, today selected, theme is Catppuccin Mocha
+    /// State at start: keyboard on the calendar, today selected, the default theme (nord)
     pub fn new(lang: Lang, today: Date, items: Vec<Item>) -> Self {
         Self {
             lang,
@@ -350,7 +350,7 @@ impl App {
             calendar_top: None,
             agenda_window: None,
             month_top: None,
-            theme: Theme::catppuccin_mocha(),
+            theme: Theme::default(),
             settings: Settings::default(),
             config_path: None,
             screen: Rect::default(),
@@ -363,6 +363,14 @@ impl App {
             tasks_top: 0,
             should_quit: false,
         }
+    }
+
+    /// The same app with built-in theme `name`, for tests that check one theme's palette names and colors
+    #[cfg(test)]
+    pub fn with_theme(mut self, name: &str) -> Self {
+        self.settings.set_theme(name);
+        self.apply_theme();
+        self
     }
 
     /// The help page's state, if it is open

@@ -41,7 +41,7 @@ fn cell(buffer: &Buffer, area: Rect, dx: u16, dy: u16) -> &Cell {
 /// and the whole screen
 fn draw(page: SettingsPage, height: u16) -> (App, Rect, Vec<String>, Buffer) {
     draw_app(
-        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()),
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha"),
         page,
         height,
     )
@@ -167,7 +167,8 @@ fn the_chosen_color_row_keeps_its_swatch() {
 fn a_reset_color_gets_no_swatch() {
     // The terminal theme's text is the terminal's default text color (Reset): the 2 swatch cells
     // look empty, followed by Reset
-    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.settings.set_theme("terminal");
     app.apply_theme();
     let (_, area, rows, buffer) = draw_app(app, SettingsPage::default(), 44);
@@ -340,7 +341,8 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
     );
     assert_eq!(at(TOP_NAME, area.height - 2).fg, theme.notice);
     // Layout 2: the same row is a normal one, nothing below the description
-    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.view = crate::app::View::Month;
     let (_, area, rows, buffer) = draw_app(app, choosing(grid_lines), 44);
     assert_eq!(
@@ -349,7 +351,8 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
     );
     assert_eq!(rows[rows.len() - 2].trim_end_matches([' ', '│']), "");
     // Tasks page: relative_weeks is for layouts 1 and 2; theme is for every view
-    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.view = crate::app::View::Tasks;
     let (_, area, rows, buffer) = draw_app(app, choosing(index_of(Row::RelativeWeeks)), 44);
     let at = |dx, dy| cell(&buffer, area, dx, dy);

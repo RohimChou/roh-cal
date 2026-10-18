@@ -465,7 +465,7 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
 
 #[test]
 fn the_shown_layouts_key_lights_up_on_the_bottom_row_and_clicks_switch() {
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     for (view, focus, lit) in [
         (View::Planner, Focus::Calendar, 1),
         (View::Month, Focus::Calendar, 2),
@@ -536,7 +536,7 @@ fn side_menu_lists_the_calendars_when_wide() {
     );
     // ☑ uses the `checked` color, names are normal text, numbers
     // and the header are muted, the border is a normal line
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(2, 3), ("☑", theme.checked));
@@ -593,7 +593,7 @@ fn unchecked_calendars_hide_their_items() {
             " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
         ]
     );
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(2, 4), ("☐", theme.muted));
@@ -624,7 +624,7 @@ fn a_calendar_inside_an_unchecked_one_is_gray() {
             "│ ☑ Personal       1 │",
         ]
     );
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(4, 4), ("☑", theme.muted));
     assert_eq!(cell(6, 4), ("S", theme.muted));
@@ -640,7 +640,7 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
     app.focus = Focus::Side;
     app.group_index = 1;
     let terminal = draw_app(&mut app, 121, 14);
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     assert_eq!(buffer[(0, 0)].fg, theme.focus);
     assert_eq!(buffer[(43, 0)].fg, theme.line);
@@ -820,7 +820,7 @@ fn item_colors_follow_the_item() {
     let mut app = agenda_app(Lang::ZhTw);
     let terminal = draw_app(&mut app, 70, 23);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is struck through
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
@@ -853,7 +853,7 @@ fn the_selected_week_row_has_a_background() {
     // The week of 10/17 is at y 5: that whole row in the calendar box (x 1-33) gets the highlight
     // background; the rows above and below, and the same row in the agenda, do not
     let mut app = agenda_app(Lang::ZhTw);
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let bg =
         |terminal: &Terminal<TestBackend>, x: u16, y: u16| terminal.backend().buffer()[(x, y)].bg;
     let terminal = draw_app(&mut app, 70, 23);
@@ -908,7 +908,7 @@ fn agenda_focus_brackets_the_chosen_item() {
         ]
     );
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The agenda's border lights up, and the calendar box's goes back to a normal line
     assert_eq!(buffer[(35, 0)].fg, theme.focus);
     assert_eq!(buffer[(0, 0)].fg, theme.line);
@@ -1000,7 +1000,7 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
     assert_eq!(app.calendar_top, Some(0));
     // The scrollbar thumb has the same color as the border (keyboard in the agenda: focus color)
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = &terminal.backend().buffer()[(69, 5)];
     assert_eq!((cell.symbol(), cell.fg), ("┃", theme.focus));
     // Clicks match the screen: the agenda's first row is the 4th item (10/16 Send the weekly update)
@@ -1041,7 +1041,7 @@ fn the_agenda_follows_the_calendar() {
     // That day's items get the highlight background (like
     // its week on the calendar); other days' items do not
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(40, 7)].bg, theme.selection);
     assert_eq!(buffer[(40, 6)].bg, Color::Reset);
     // Select 10/19, which has no items: the agenda does not scroll (no jumping up and down)
@@ -1109,7 +1109,7 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
     // The hint is muted; the line on both sides of it keeps the
     // line color (「還」 is at x 58, the line's last cell at x 68)
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(
         (buffer[(58, 8)].symbol(), buffer[(58, 8)].fg),
         ("還", theme.muted)
@@ -1170,7 +1170,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     );
     // What the line parses as is shown muted; change it to a time
     // that does not exist: that row becomes a red explanation
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(terminal.backend().buffer()[(5, 5)].fg, theme.muted);
     for code in [
         KeyCode::Backspace,
@@ -1285,7 +1285,7 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         crate::tasks::parse(text).items,
     );
     app.screen = Rect::new(0, 0, 80, 24);
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let type_text = |app: &mut App, text: &str| {
         for c in text.chars() {
             app.handle_key(KeyEvent::from(KeyCode::Char(c)));
@@ -1465,14 +1465,14 @@ fn a_notice_replaces_the_key_hints_until_the_next_key() {
     let rows = text_rows(terminal.backend().buffer());
     assert_eq!(rows[10], " 行程沒有框，不能打勾");
     let cell = &terminal.backend().buffer()[(1, 10)];
-    assert_eq!(cell.fg, Theme::catppuccin_mocha().notice);
+    assert_eq!(cell.fg, Theme::default().notice);
 }
 
 #[test]
 fn colors_by_role() {
     let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 17));
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is bold
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
@@ -1521,10 +1521,7 @@ fn year_hint_in_the_header_is_muted() {
     // as muted as the header (screen: see `calendar_in_english`)
     let terminal = draw(Lang::En, 40, 11, date(2026, 10, 17));
     let cell = &terminal.backend().buffer()[(3, 1)];
-    assert_eq!(
-        (cell.symbol(), cell.fg),
-        ("2", Theme::catppuccin_mocha().muted)
-    );
+    assert_eq!((cell.symbol(), cell.fg), ("2", Theme::default().muted));
 }
 
 /// Task file for the multi-day tests (`tools/expected_screen.py`
@@ -1587,7 +1584,7 @@ fn multi_day_items_are_listed_once_per_month() {
     assert!(!underlined(14, 6));
     assert!(underlined(17, 6) && underlined(32, 6));
     assert!(!underlined(14, 7) && underlined(20, 7));
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(17, 6)].fg, theme.text);
     assert_eq!(buffer[(20, 6)].fg, theme.text);
     // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2): the brackets hold
@@ -1650,7 +1647,7 @@ fn a_multi_day_item_belongs_to_every_day_it_covers() {
     app.selected = date(2026, 10, 22);
     let terminal = draw_app(&mut app, 70, 30);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(40, 3)].bg, Color::Reset);
     assert_eq!(buffer[(40, 4)].bg, theme.selection);
     assert_eq!(buffer[(40, 5)].bg, theme.selection);
@@ -1668,7 +1665,7 @@ fn holidays_are_days_off() {
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let fg = |app: &mut App, x: u16, y: u16| {
         let terminal = draw_app(app, 70, 23);
         let cell = &terminal.backend().buffer()[(x, y)];
@@ -1700,7 +1697,7 @@ fn a_holiday_is_all_blue() {
     // character is one cell and a text's position in the row is its x
     let text = "# US holidays type:holiday\n- Halloween @2026-10-31 18:00\n\
                     - Long weekend @2026-10-24..2026-10-26\n# Home\n- [ ] Carve the pumpkin @2026-10-31\n";
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The color of the first character of `text` on screen
     let color = |buffer: &Buffer, text: &str| {
         let (x, y) = text_rows(buffer)
@@ -1742,7 +1739,7 @@ fn a_priority_colors_the_whole_line() {
                     - Old release !!! @2026-10-12\n- Offsite !! @2026-10-26..2026-10-28\n\
                     - [ ] Book the hotel ! @2026-11-02\n- [ ] Broken !!! @2026-13-01\n\
                     # US holidays type:holiday\n- Halloween !!! @2026-10-31\n";
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The (foreground, background) of the first character of `text` on screen
     let color = |buffer: &Buffer, text: &str| {
         let (x, y) = text_rows(buffer)
@@ -1810,7 +1807,7 @@ fn events_gray_out_once_their_day_is_past() {
     );
     let terminal = draw_app(&mut app, 70, 23);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
         (
@@ -1844,7 +1841,7 @@ fn items_do_not_change_the_date_color() {
     );
     let terminal = draw_app(&mut app, 40, 26);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let fg = |x: u16| (buffer[(x, 5)].symbol(), buffer[(x, 5)].fg);
     assert_eq!(fg(20), ("4", theme.text));
     assert_eq!(fg(23), ("5", theme.text));
@@ -2092,7 +2089,7 @@ fn month_view_item_colors() {
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     let terminal = draw_app(&mut app, 80, 30);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is struck through
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
@@ -2198,7 +2195,7 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
     );
     // 10/18 (Sun): the month grid starts at x 22, the Sunday column at x 108, week 3 at y 9 (2 rows per
     // week); the 「1」 of 「 18」 is at x 109
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = &terminal.backend().buffer()[(109, 9)];
     assert_eq!((cell.symbol(), cell.fg), ("1", theme.weekend));
 }
@@ -2403,7 +2400,7 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
     assert!(!underlined(9, 15));
     // The bar (y 16) has the range background from Tuesday's left edge (x 18) to Sunday's right edge
     // (x 78), the grid lines between too (x 28, 39); not the grid line left of it, nor the next line
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     for x in [18, 28, 39, 60, 78] {
         assert_eq!(buffer[(x, 16)].bg, theme.range, "x {x}");
     }
@@ -2582,7 +2579,7 @@ fn tasks_page_colors_and_clicks() {
     assert_eq!(rows[5], "│       update                         │");
     assert_eq!(rows[8], "│ ▸  ∙  Trip to Tokyo  0/1    2027/1/2 │");
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
         (
@@ -2697,7 +2694,7 @@ fn tasks_page_points_at_format_mistakes() {
         ]
     );
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The header's 「1 處寫錯」 and the bottom row are both red
     assert_eq!(buffer[(60, 1)].fg, theme.error);
     assert_eq!(buffer[(2, 13)].fg, theme.error);
@@ -2766,7 +2763,7 @@ fn a_long_title_wraps_in_the_day_popup() {
         ]
     );
     // The chosen (first) item: both lines have the selection background from border to border
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(1, 9)].bg, theme.selection);
     assert_eq!(buffer[(58, 9)].bg, theme.selection);
     assert_eq!(buffer[(1, 10)].bg, Color::Reset);
@@ -2822,7 +2819,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // The border has the color of where the keyboard is, the brackets the selected red; the chosen row
     // (y 7) has the selection background from border to border (x 15-44, the padding cells too), the
     // others none
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(14, 5)].fg, theme.focus);
     assert_eq!(buffer[(16, 7)].fg, theme.selected);
     assert_eq!(buffer[(15, 7)].bg, theme.selection);
@@ -3003,7 +3000,7 @@ fn the_cut_off_week_at_the_bottom_stays_inside_the_box() {
         border,
         format!("┴{}┴{}┴{}┴", "─".repeat(10), "─".repeat(10), "─".repeat(9))
     );
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_ne!(buffer[(20, 28)].bg, theme.range);
 }
 
@@ -3050,7 +3047,7 @@ fn month_view_puts_the_week_across_the_new_year_on_one_row() {
         ]
     );
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(49, 4), ("┃", theme.year_line));
     assert_eq!(cell(49, 2), ("┰", theme.year_line));
@@ -3113,7 +3110,7 @@ fn month_view_without_grid_lines_draws_only_the_months_edges() {
         ]
     );
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(49, 3), ("┃", theme.year_line));
     assert_eq!(cell(49, 5), ("┛", theme.year_line));
@@ -3141,7 +3138,7 @@ fn month_view_colors_by_role() {
     );
     let terminal = draw_app(&mut app, 80, 30);
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is bold
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
@@ -3222,7 +3219,7 @@ fn selected_day_is_bold_in_its_own_color() {
     // Select 10/16 (Fri): the number is in the normal color and bold; today 10/17 keeps today's color
     let terminal = draw(Lang::ZhTw, 40, 26, date(2026, 10, 16));
     let buffer = terminal.backend().buffer();
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     let cell = |x: u16, y: u16| {
         let cell = &buffer[(x, y)];
         (

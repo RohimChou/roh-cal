@@ -11,7 +11,8 @@ fn press(app: &mut App, code: KeyCode) {
 
 /// An app with the settings page open on the `role` color row (theme catppuccin-mocha)
 fn on_color_row(role: &'static str) -> App {
-    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.screen = Rect::new(0, 0, 80, 30);
     press(&mut app, KeyCode::Char(','));
     let row = crate::app::rows()
@@ -35,7 +36,8 @@ fn e_opens_the_picker_on_a_color_row_only() {
         ("today", [166, 227, 161], 0)
     );
     // Not on the theme row
-    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     press(&mut app, KeyCode::Char(','));
     press(&mut app, KeyCode::Char('e'));
     assert_eq!(app.picker(), None);

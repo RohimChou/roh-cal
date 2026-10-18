@@ -2,9 +2,9 @@
 # Write only what you want to change; anything left out uses the default. Every setting here differs
 # from its default (switches are set to the opposite)
 
-# Colors: the built-in catppuccin-mocha (default), gruvbox-dark, tokyo-night, dracula, nord, one-dark, rose-pine, terminal
+# Colors: the built-in catppuccin-mocha, gruvbox-dark, tokyo-night, dracula, nord (default), one-dark, rose-pine, terminal
 # (only the terminal's 16 colors)
-theme = "nord"
+theme = "gruvbox-dark"
 
 # Shared by the calendars (layouts 1 and 2)
 [calendar]
@@ -29,5 +29,5 @@ hide_done = true
 # Override some of the theme's roles (for role names see [roles] in themes/): a color, or a palette
 # name from that theme
 [colors]
-# Weekends use the red from the nord palette (nord11)
-weekend = "nord11"
+# Weekends use the red from the gruvbox palette
+weekend = "red"

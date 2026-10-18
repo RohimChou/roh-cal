@@ -191,7 +191,8 @@ mod tests {
     /// #a6e3a1 = 166, 227, 161), drawn once; returns it, the picker's area and the screen
     fn picker_on_today() -> (App, Rect, ratatui::buffer::Buffer) {
         use ratatui::crossterm::event::KeyEvent;
-        let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+        let mut app =
+            App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
         app.screen = Rect::new(0, 0, 70, 24);
         app.handle_key(KeyEvent::from(KeyCode::Char(',')));
         let today = crate::app::rows()

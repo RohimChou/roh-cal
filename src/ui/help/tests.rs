@@ -63,7 +63,7 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
     );
     // Colors: the border is lit (keyboard focus is here); section names, keys and descriptions each have
     // their own color
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     assert_eq!(buffer[(7, 4)].fg, theme.focus);
     assert_eq!(buffer[(10, 6)].fg, theme.help_section);
     assert_eq!(buffer[(12, 7)].fg, theme.help_key);
@@ -264,7 +264,7 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
 
 #[test]
 fn full_page_grays_out_the_sections_that_do_not_work_here() {
-    let theme = Theme::catppuccin_mocha();
+    let theme = Theme::default();
     // The color of the piece of text that is exactly `text` (a section name with its indent, a key, a
     // description) on the full page, with the keyboard in `focus`
     let color_of = |focus: Focus, text: &str| {

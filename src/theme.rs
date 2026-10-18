@@ -88,7 +88,7 @@ pub const BUILTIN: [(&str, &str); 8] = [
 ];
 
 /// The theme used when none is given
-pub const DEFAULT: &str = "catppuccin-mocha";
+pub const DEFAULT: &str = "nord";
 
 /// Names of the built-in themes, in `BUILTIN` order
 pub fn names() -> Vec<&'static str> {
@@ -213,9 +213,17 @@ struct ThemeFile {
     roles: toml::Table,
 }
 
+/// The default theme (`DEFAULT`)
+impl Default for Theme {
+    fn default() -> Self {
+        Self::builtin(DEFAULT).unwrap_or_else(|| unreachable!("built-in theme"))
+    }
+}
+
 impl Theme {
     /// [Catppuccin Mocha](https://catppuccin.com/palette): soft colors for dark backgrounds
-    /// (same as v1's default)
+    /// (v1's default; tests check its exact colors)
+    #[cfg(test)]
     pub fn catppuccin_mocha() -> Self {
         Self::builtin("catppuccin-mocha").unwrap_or_else(|| unreachable!("built-in theme"))
     }

@@ -110,7 +110,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
     assert_eq!(
         settings,
         Settings {
-            theme: "nord".to_string(),
+            theme: "gruvbox-dark".to_string(),
             calendar: CalendarSettings {
                 relative_weeks: true
             },
@@ -122,7 +122,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
                 max_width: 30,
                 hide_done: true,
             },
-            colors: BTreeMap::from([("weekend".to_string(), "nord11".to_string())]),
+            colors: BTreeMap::from([("weekend".to_string(), "red".to_string())]),
         }
     );
     // File does not exist → defaults
@@ -192,12 +192,15 @@ fn updated_puts_the_theme_above_the_tables() {
     // theme is written at the top level: TOML requires it before
     // every `[table]`, or it would belong to the last table
     let settings = Settings {
-        theme: "nord".to_string(),
+        theme: "dracula".to_string(),
         ..Settings::default()
     };
     let text = "[month]\ngrid_lines = true\n";
     let new_text = updated_file(text, &settings).expect("valid file");
-    assert_eq!(new_text, "theme = \"nord\"\n[month]\ngrid_lines = true\n");
+    assert_eq!(
+        new_text,
+        "theme = \"dracula\"\n[month]\ngrid_lines = true\n"
+    );
     assert_eq!(parse(&new_text).expect("reads back"), settings);
 }
 
