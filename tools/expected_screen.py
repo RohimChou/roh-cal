@@ -393,8 +393,8 @@ def month_screen(lang, w, h, selected, top, items, groups):
             if not start <= d <= end:
                 week_cells.append([])
                 continue
-            mark = ("[", "]") if d == selected else (" ", " ")
-            first = mark[0] + str(d.day) + mark[1] + (t["month"](d.month) if d.day == 1 else "")
+            # The selected day has no brackets; its cell gets a background instead (colors are not checked here)
+            first = " " + str(d.day) + " " + (t["month"](d.month) if d.day == 1 else "")
             # Items that cover this day (a multi-day item is listed on each of its days);
             # items are already sorted by start day and time
             day_items = [it for it in items if it[0] <= d <= (it[4] or it[0])]
@@ -410,11 +410,12 @@ def month_screen(lang, w, h, selected, top, items, groups):
                     cell.append(f" +{len(day_items) - shown}")
             week_cells.append(cell)
         # Except on the first line, text may run right into the next cell as long as that cell's line
-        # is empty (all the way to a cell with something in it, or Sunday)
+        # is empty (all the way to a cell with something in it, the selected day's cell, or Sunday)
         for k, cell in enumerate(week_cells):
             for r, text in enumerate(cell):
                 end = k
-                while r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r:
+                while (r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r
+                       and not (days[end + 1] == selected and start <= selected <= row_end(start))):
                     end += 1
                 c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
     # Outer border: the selected day in the middle of the top border (an odd leftover cell goes to the right);

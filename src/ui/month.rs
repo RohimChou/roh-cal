@@ -285,6 +285,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         );
         // Only the row's own days are drawn; the other days of that week stay empty
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
+        // The selected day's cell gets a background, top-left to bottom-right (like v1)
+        let selected = days
+            .iter()
+            .position(|&day| day == app.selected && (start..=end).contains(&day));
+        if let Some(column) = selected {
+            frame
+                .buffer_mut()
+                .set_style(cells[column], Style::new().bg(theme.cursor_line));
+        }
         let lines: Vec<Vec<Line>> = days
             .iter()
             .zip(&cells)
@@ -296,7 +305,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 }
             })
             .collect();
-        render_week(frame, &cells, &lines);
+        render_week(frame, &cells, &lines, selected);
     }
 }
 
@@ -305,19 +314,22 @@ fn rows(top: Date) -> impl Iterator<Item = Date> {
     std::iter::successors(Some(top), |&start| Some(row_after(start, 1)))
 }
 
-/// Draws the 7 cells of one week, line by line
+/// Draws the 7 cells of one week, line by line; `selected` = the column (0 = Monday) of the selected day's
+/// cell, if it is in this row
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
 /// (like a spreadsheet): if the neighbor has nothing on that line, its width is borrowed (drawing over
-/// the grid line between), and so on until a cell with something on that line, or Sunday; anything
-/// longer is cut off
-fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>]) {
+/// the grid line between), and so on until a cell with something on that line, the selected day's cell
+/// (its background stays clean), or Sunday; anything longer is cut off
+fn render_week(frame: &mut Frame, cells: &[Rect], lines: &[Vec<Line>], selected: Option<usize>) {
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
             let mut right = cell.right();
             if row > 0 {
-                for (next, next_lines) in cells.iter().zip(lines).skip(column + 1) {
-                    if next_lines.len() > row {
+                for (next_column, (next, next_lines)) in
+                    cells.iter().zip(lines).enumerate().skip(column + 1)
+                {
+                    if next_lines.len() > row || selected == Some(next_column) {
                         break;
                     }
                     right = next.right();
@@ -431,8 +443,8 @@ fn dots(count: usize) -> &'static str {
     }
 }
 
-/// A cell's first line: the date on the left (the selected one in brackets `[17]`), with the month after
-/// the 1st, e.g. 「 1 10月」
+/// A cell's first line: the date on the left, with the month after the 1st, e.g. 「 1 10月」 (the selected
+/// day has no brackets; its cell has a background instead, see `render`)
 ///
 /// Color: today > other months (gray) > same as layout 1's calendar (`day_color`: holiday, unfinished
 /// items, weekend). Dates in the selected month are bold;
@@ -455,13 +467,11 @@ fn date_line(day: Date, month: Date, app: &App) -> Line<'static> {
     if in_multi_day(day, app) {
         number = number.add_modifier(Modifier::UNDERLINED);
     }
-    let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
-    let (open, close) = if day == app.selected {
-        (Span::styled("[", bracket), Span::styled("]", bracket))
-    } else {
-        (Span::raw(" "), Span::raw(" "))
-    };
-    let mut spans = vec![open, Span::styled(day.day().to_string(), number), close];
+    let mut spans = vec![
+        Span::raw(" "),
+        Span::styled(day.day().to_string(), number),
+        Span::raw(" "),
+    ];
     if day.day() == 1 {
         let label = if other_month {
             theme.other_month

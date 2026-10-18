@@ -40,10 +40,10 @@ pub struct Theme {
     pub holiday: Color,
     /// Today's date
     pub today: Color,
-    /// The selected date: the brackets around it `[17]`
+    /// The selected date in layout 1's calendar: the brackets around it `[17]`
     pub selected: Color,
-    /// Background of the selected week's row in the calendar and of the chosen item in the agenda
-    /// (like vim's cursorline)
+    /// Background of the selected week's row in the calendar, the chosen item in the agenda and the selected
+    /// day's cell in the month grid (like vim's cursorline)
     pub cursor_line: Color,
     /// The border of the pane that has keyboard focus
     pub focus: Color,
