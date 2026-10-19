@@ -791,6 +791,47 @@ fn saving_an_untouched_line_writes_nothing() {
 }
 
 #[test]
+fn a_priority_typed_after_a_block_id_goes_in_front_of_it() {
+    // The calendar views hide the day, so the typed line ends with the id; ` !` typed there is saved in
+    // front of it, and so is the day put back
+    let text = "- [ ] Look into the PayTypeId question @2026-10-16 ^mpos-01\n";
+    let (mut app, path) = app_with_task_file("edit-block-id", text);
+    press(&mut app, KeyCode::Char('e'));
+    assert_eq!(
+        app.editor().map(|editor| editor.input.value()),
+        Some("- [ ] Look into the PayTypeId question ^mpos-01")
+    );
+    type_text(&mut app, " !");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "- [ ] Look into the PayTypeId question ! @2026-10-16 ^mpos-01\n"
+    );
+    clean_up(&path);
+    // The tasks page shows the whole line: ` !!!` typed after the id goes in front of it too
+    let text = "- [ ] Renew the passport @2026-10-20 ^life-05\n";
+    let (mut app, path) = app_with_task_file("edit-block-id-tasks-page", text);
+    press(&mut app, KeyCode::Char('3'));
+    press(&mut app, KeyCode::Char('e'));
+    type_text(&mut app, " !!!");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "- [ ] Renew the passport @2026-10-20 !!! ^life-05\n"
+    );
+    clean_up(&path);
+    // A line that already has the id before them, opened and saved untouched: written as it is
+    let text = "- [ ] Renew the passport ^life-05 !!! @2026-10-20\n";
+    let (mut app, path) = app_with_task_file("edit-block-id-untouched", text);
+    press(&mut app, KeyCode::Char('3'));
+    press(&mut app, KeyCode::Char('e'));
+    press(&mut app, KeyCode::Enter);
+    assert!(app.editor().is_none());
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+    clean_up(&path);
+}
+
+#[test]
 fn the_tasks_page_edits_and_adds_the_whole_line() {
     // The tasks page has no selected day: the editor shows the line with its date, a new item has no
     // date, and taking the date away makes the item undated

@@ -196,13 +196,16 @@ impl Editor {
         self.hash_list.index = 0;
     }
 
-    /// The line the typed text stands for: the typed text, with the hidden day put back (see `day`)
+    /// The line the typed text stands for: the typed text, with the hidden day put back (see `day`) and
+    /// a block id kept at the end (`edit::block_id_last`: typing ` !` at the end of `Pay rent ^life-05`
+    /// writes `Pay rent ! ^life-05`)
     pub fn line(&self) -> String {
         let text = self.input.value();
-        match self.day {
+        let line = match self.day {
             Some(day) => edit::show_day(text, day),
             None => text.to_string(),
-        }
+        };
+        edit::block_id_last(&line)
     }
 
     /// The priority the typed line has so far (`!`, `!!`, `!!!`), even before it can be saved (e.g. no title
@@ -584,10 +587,11 @@ impl App {
         };
         let new = editor.line().trim().to_string();
         // Opened and saved without touching it: nothing to write (even if putting the hidden day back
-        // would move the date to another place in the line)
+        // would move the date to another place in the line, or a block id would move to the end)
         let untouched = |item: &Item| {
-            editor.day.map_or(new == item.line_text.trim(), |day| {
-                editor.input.value().trim() == edit::hide_day(item.line_text.trim(), day)
+            let typed = editor.input.value().trim();
+            editor.day.map_or(typed == item.line_text.trim(), |day| {
+                typed == edit::hide_day(item.line_text.trim(), day)
             })
         };
         let target = editor.target.clone();

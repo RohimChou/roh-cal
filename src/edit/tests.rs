@@ -815,6 +815,32 @@ fn the_day_is_left_out_in_the_editor_and_put_back_when_saving() {
 }
 
 #[test]
+fn a_block_id_moves_behind_the_fields_typed_after_it() {
+    // (typed, saved): a priority, a date, a date with its time; trailing spaces do not count
+    for (typed, saved) in [
+        ("- [ ] Pay rent ^life-05 !", "- [ ] Pay rent ! ^life-05"),
+        (
+            "- [ ] Pay rent ^life-05 ! @2026-10-19",
+            "- [ ] Pay rent ! @2026-10-19 ^life-05",
+        ),
+        (
+            "- Team sync ^w-1 @2026-10-19 10:00  ",
+            "- Team sync @2026-10-19 10:00 ^w-1",
+        ),
+    ] {
+        assert_eq!(block_id_last(typed), saved, "{typed}");
+    }
+    // Left as they are: the id already last, a title word after it, no id at all
+    for line in [
+        "- [ ] Pay rent ! ^life-05",
+        "- [ ] Read about ^regex today !",
+        "- [ ] Pay rent !",
+    ] {
+        assert_eq!(block_id_last(line), line);
+    }
+}
+
+#[test]
 fn add_calendar_in_goes_at_the_end_of_the_parent_with_one_more_hash() {
     // Inside Work > SFAP: after SFAP's last item, before the blank line in front of `# Personal`
     assert_eq!(

@@ -1063,5 +1063,39 @@ pub fn show_day(text: &str, day: Date) -> String {
     }
 }
 
+/// Keeps an Obsidian block id at the very end of the line, the only place Obsidian (and other tools
+/// reading the file) look for it: when nothing but a priority, a date or a time follows the id, it moves
+/// behind them. Those count wherever they are in the line, so the item reads the same
+///
+/// E.g. `- [ ] Pay rent ^life-05 ! @2026-10-19` → `- [ ] Pay rent ! @2026-10-19 ^life-05`; with a title
+/// word after it (`Read about ^regex today`) the line stays as it is
+pub fn block_id_last(line: &str) -> String {
+    let words = word_spans(line);
+    let word = |&(from, to): &(usize, usize)| &line[from..to];
+    let Some(position) = words
+        .iter()
+        .rposition(|span| tasks::is_block_id(word(span)))
+    else {
+        return line.to_string();
+    };
+    let after = &words[position + 1..];
+    let is_field = |text: &str| {
+        tasks::Priority::from_word(text).is_some()
+            || is_date_word(text)
+            || tasks::looks_like_time(text)
+    };
+    if after.is_empty() || !after.iter().all(|span| is_field(word(span))) {
+        return line.to_string();
+    }
+    // Take the id out with the spaces before it, put it back at the end
+    let (from, to) = words[position];
+    format!(
+        "{}{} {}",
+        line[..from].trim_end(),
+        line[to..].trim_end(),
+        &line[from..to]
+    )
+}
+
 #[cfg(test)]
 mod tests;
