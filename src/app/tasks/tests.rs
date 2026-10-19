@@ -746,3 +746,20 @@ fn esc_goes_back_to_the_calendar_and_tab_reaches_the_side_menu() {
     assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
     assert!(!app.should_quit);
 }
+
+#[test]
+fn o_opens_the_editor_on_the_chosen_line() {
+    // Line 1 is the heading, a1 is on line 2, a2 on line 3
+    let mut app = tasks_app("# A\n- a1\n- a2\n");
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('o'));
+    assert!(app.open_editor);
+    assert_eq!(app.tasks_chosen_line(), Some(3));
+    // An empty file: nothing to choose, so the editor starts at the top
+    assert_eq!(tasks_app("").tasks_chosen_line(), None);
+    // Only on the tasks page: on the calendar `o` does nothing
+    let mut app = tasks_app("- a1\n");
+    press(&mut app, KeyCode::Char('1'));
+    press(&mut app, KeyCode::Char('o'));
+    assert!(!app.open_editor);
+}

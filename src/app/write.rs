@@ -31,6 +31,8 @@ pub enum Notice {
     /// The settings page's switches could not be saved to the config
     /// file (e.g. no permission, the config file was broken elsewhere)
     SettingsFailed(ErrorKind),
+    /// `o` could not start the editor (e.g. `$EDITOR` names one that is not installed); carries its name
+    NoEditor(String),
 }
 
 /// The record of one write (for undo): the whole file before and after

@@ -337,6 +337,9 @@ pub struct App {
     pub tasks_top: usize,
     /// `true` = leave the main loop after this round
     should_quit: bool,
+    /// `true` = open the task file in the user's editor after this key (`o` on the tasks page); the main loop
+    /// does it, since only it has the terminal
+    open_editor: bool,
 }
 
 impl App {
@@ -378,6 +381,7 @@ impl App {
             expanded: BTreeSet::new(),
             tasks_top: 0,
             should_quit: false,
+            open_editor: false,
         }
     }
 
@@ -679,6 +683,10 @@ impl App {
                 self.handle_key(key);
             } else if let Some(mouse) = event.as_mouse_event() {
                 self.handle_mouse(mouse);
+            }
+            // `o` on the tasks page: the editor has the terminal until it quits
+            if std::mem::take(&mut self.open_editor) {
+                self.open_in_editor(terminal)?;
             }
         }
         Ok(())

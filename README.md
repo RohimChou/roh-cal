@@ -141,6 +141,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `L` / `H` | Indent the chosen item with its subtasks under the item above it at the same level (2 more spaces than that item, like `A`) / outdent it to its parent's level, where the items below it at the same level become its subtasks (as in Obsidian); written back to the task file |
 | `J` / `K` | Move the chosen item with its subtasks below / above the next item at the same level (it stays under the same parent and calendar); written back to the task file |
 | `[` / `]` | Jump to the first item of the previous / next calendar (heading) |
+| `o` | Open the task file in your editor on the chosen line: `$VISUAL`, else `$EDITOR` (e.g. `export EDITOR=nvim`), else `vi`; vi, vim, nvim, nano, emacs, micro and kak start on that line. roh-cal comes back when the editor quits, with the changes shown |
 
 **In the calendar list**
 

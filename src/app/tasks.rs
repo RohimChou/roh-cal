@@ -3,12 +3,13 @@
 //! `j` / `k` up / down, `l` / `h` expand / collapse (`+` / `-`
 //! all), `L` / `H` indent / outdent, `J` / `K` move up / down
 
-use super::App;
+use super::{App, Notice};
 use crate::{
-    edit,
+    edit, external_editor,
     tasks::{Heading, Item},
 };
-use ratatui::crossterm::event::KeyCode;
+use color_eyre::Result;
+use ratatui::{DefaultTerminal, crossterm::event::KeyCode};
 use std::time::Instant;
 
 /// One row of the tasks page
@@ -166,13 +167,46 @@ impl App {
         }
     }
 
+    /// The file line (from 1) of the row chosen on the tasks page: an item's, or a heading row's own heading
+    /// line; `None` when nothing can be chosen (an empty file)
+    fn tasks_chosen_line(&self) -> Option<usize> {
+        let rows = self.tasks_rows();
+        self.row_line(rows.get(self.tasks_cursor(&rows)?)?)
+    }
+
+    /// `o`: opens the task file in the user's editor on the chosen row's line, and comes back when the editor
+    /// quits; what was changed there shows up right away (the main loop reloads a file changed elsewhere).
+    /// Without a task file (tests) it does nothing; an editor that cannot be started is said on the bottom row
+    pub(super) fn open_in_editor(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        let Some(path) = self.tasks_path.clone() else {
+            return Ok(());
+        };
+        // A first task file at the default location: create its folder, or the editor cannot save there
+        // (if that fails, the editor says why when saving)
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let mut command = external_editor::command(
+            std::env::var_os("VISUAL"),
+            std::env::var_os("EDITOR"),
+            &path,
+            self.tasks_chosen_line(),
+        );
+        if !external_editor::open(terminal, &mut command)? {
+            let program = command.get_program().to_string_lossy().into_owned();
+            self.notice = Some(Notice::NoEditor(program));
+        }
+        Ok(())
+    }
+
     /// Keyboard on the tasks page: `j` / `k` next / previous row (an item, or a calendar's heading: `a` there adds
     /// at the end of that calendar), `gg` / `G` the first / last row (like vim; `after_g`: the key before this
     /// one was `g`), `[` / `]` the previous / next calendar's first item,
     /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
-    /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule
+    /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule;
+    /// `o` opens the task file in the user's editor on the chosen row's line
     pub(super) fn handle_tasks_key(&mut self, code: KeyCode, after_g: bool) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_task(1),
@@ -197,6 +231,7 @@ impl App {
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('[') => self.jump_calendar(-1),
             KeyCode::Char(']') => self.jump_calendar(1),
+            KeyCode::Char('o') => self.open_editor = true,
             _ => {}
         }
     }

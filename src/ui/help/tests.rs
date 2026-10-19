@@ -77,7 +77,8 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
     // Expected boxes computed by the same separate Python script: the tasks page, the calendar list, the
     // agenda (the day popup shares the agenda's keys)
     let (area, rows, _) = draw_in(Focus::Tasks, Lang::ZhTw, 70, 23, Help::default());
-    assert_eq!(area, Rect::new(5, 4, 60, 15));
+    // (23 − 16) / 2: the extra row goes on top
+    assert_eq!(area, Rect::new(5, 4, 60, 16));
     assert_eq!(
         rows,
         [
@@ -94,6 +95,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    r        改期                  ?        說明          │",
             "│    d        刪除                  ,        設定          │",
             "│    u        復原                  q        離開          │",
+            "│    o        編輯器                                       │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
         ]

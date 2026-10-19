@@ -22,6 +22,7 @@ The first release: v2, a rewrite from scratch. The first version (never released
 - English and Traditional Chinese
 - Mouse support: the wheel and clicks work in every view; a double click opens a day or checks off a task
 - `--sample` shows a fresh copy of the built-in sample task file, its dates moved to this week, so it can be tried right after `cargo install`
+- `o` on the tasks page opens the task file in your editor (`$VISUAL` / `$EDITOR`, else `vi`) on the chosen line
 
 [Unreleased]: https://github.com/RohimChou/roh-cal/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/RohimChou/roh-cal/releases/tag/v0.1.0

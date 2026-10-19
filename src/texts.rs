@@ -267,6 +267,7 @@ const EN: Texts = Texts {
                     ("r", "reschedule"),
                     ("d", "delete"),
                     ("u", "undo"),
+                    ("o", "editor"),
                 ],
                 places: &[Focus::Tasks],
             },
@@ -333,6 +334,7 @@ const EN: Texts = Texts {
                     ("L / H", "indent / outdent"),
                     ("J / K", "move down / up"),
                     ("[ / ]", "previous / next calendar"),
+                    ("o", "editor"),
                 ],
                 places: &[Focus::Tasks],
             },
@@ -501,6 +503,7 @@ const ZH_TW: Texts = Texts {
                     ("r", "改期"),
                     ("d", "刪除"),
                     ("u", "復原"),
+                    ("o", "編輯器"),
                 ],
                 places: &[Focus::Tasks],
             },
@@ -567,6 +570,7 @@ const ZH_TW: Texts = Texts {
                     ("L / H", "縮排 / 取消縮排"),
                     ("J / K", "往下 / 往上搬"),
                     ("[ / ]", "上一個 / 下一個日曆"),
+                    ("o", "編輯器"),
                 ],
                 places: &[Focus::Tasks],
             },
@@ -732,6 +736,12 @@ impl Texts {
             }
             (Lang::ZhTw, Notice::SettingsFailed(kind)) => {
                 format!(" 設定存不回設定檔（{kind}）")
+            }
+            (Lang::En, Notice::NoEditor(name)) => {
+                format!(" Could not start the editor {name}: set $EDITOR, e.g. export EDITOR=nvim")
+            }
+            (Lang::ZhTw, Notice::NoEditor(name)) => {
+                format!(" 開不了編輯器 {name}：設定 $EDITOR，例：export EDITOR=nvim")
             }
         }
     }

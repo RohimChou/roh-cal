@@ -4,6 +4,7 @@ mod app;
 mod calendar;
 mod config;
 mod edit;
+mod external_editor;
 mod files;
 mod paths;
 mod sample;
