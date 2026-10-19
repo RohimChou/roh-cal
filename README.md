@@ -6,9 +6,7 @@ A simple, keyboard-driven terminal calendar for plain-text tasks.
 -->
 [![License: MIT](https://img.shields.io/github/license/RohimChou/roh-cal)](LICENSE)
 ![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
-<!-- After the first release on crates.io:
 [![crates.io](https://img.shields.io/crates/v/roh-cal)](https://crates.io/crates/roh-cal)
--->
 
 <!-- Demo GIF: record it with `vhs docs/demo.tape` (see the comments in that file), then uncomment:
 ![roh-cal: calendar, month grid and tasks page](docs/demo.gif)
@@ -30,7 +28,13 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **English and 繁體中文**
 
 ## Install
-roh-cal is not on crates.io yet. Build it from source with Rust (stable):
+With Rust (stable) installed:
+
+```sh
+cargo install --locked roh-cal
+```
+
+Or build the latest code from source:
 
 ```sh
 git clone https://github.com/RohimChou/roh-cal
@@ -38,9 +42,8 @@ cd roh-cal
 cargo install --locked --path .
 ```
 
-<!-- After the first release:
+<!-- After the Homebrew tap and GitHub Releases are set up:
 ```sh
-cargo install --locked roh-cal
 brew install rohimchou/tap/roh-cal
 ```
 Prebuilt binaries: https://github.com/RohimChou/roh-cal/releases

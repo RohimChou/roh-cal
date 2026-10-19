@@ -2,7 +2,9 @@
 All notable changes to roh-cal are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-v2, a rewrite from scratch. The first version (never released) lives on the [`v1`](https://github.com/RohimChou/roh-cal/tree/v1) branch.
+
+## [0.1.0] - 2026-10-19
+The first release: v2, a rewrite from scratch. The first version (never released) lives on the [`v1`](https://github.com/RohimChou/roh-cal/tree/v1) branch.
 
 ### Added
 - Calendar + agenda view (`1`): the calendar scrolls through the months, the agenda lists each month's items next to it
@@ -20,4 +22,5 @@ v2, a rewrite from scratch. The first version (never released) lives on the [`v1
 - English and Traditional Chinese
 - Mouse support: the wheel and clicks work in every view; a double click opens a day or checks off a task
 
-[Unreleased]: https://github.com/RohimChou/roh-cal/commits/main
+[Unreleased]: https://github.com/RohimChou/roh-cal/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/RohimChou/roh-cal/releases/tag/v0.1.0
