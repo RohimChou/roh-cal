@@ -236,7 +236,7 @@ fn body(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
 }
 
 /// What the typed text reads as, one field per line with its label in front (only the fields it has), e.g.
-/// `標題  Pay rent`, `日期  2026/10/21（三） 10:00`, `優先度  高` (in its color), `所屬日曆  Work > SFAP`; then what
+/// `標題  Pay rent`, `日期  2026/10/21（三） 10:00`, `優先度  高` (in its color), `日曆  Work > SFAP`; then what
 /// is wrong, in red on its own line. An item is read leniently (a wrong date stays in the title as text), so
 /// the fields show while it is being fixed; an empty title (or name) is a gray hint until `Enter` could not
 /// save it (`Editor::tried`). A calendar: its name, `類型  假日日曆` for a holiday calendar, the calendar it is
@@ -334,7 +334,7 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
 }
 
 /// What can be typed, after 「可以打」: each thing with its label (as in the fields) then what to type, in
-/// the help page's key color, e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  所屬日曆 #名字`
+/// the help page's key color, e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  日曆 #名字`
 /// (today's date; `!` `!!` `!!!` each in its priority's color; `#` only when it can pick a calendar, not
 /// for a subtask). A calendar: `可以打  假日日曆 type:holiday  上層日曆 #名字`. Wrapped to `width` cells
 /// between the things, the next lines lined up under the first one

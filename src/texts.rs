@@ -439,7 +439,7 @@ const ZH_TW: Texts = Texts {
         time: "時間",
         priority: "優先度",
         levels: ["高", "中", "低"],
-        calendar: "所屬日曆",
+        calendar: "日曆",
         under: "上層事項",
         name: "名字",
         name_placeholder: "（打日曆的名字）",

@@ -1193,7 +1193,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     assert_eq!(trimmed(&rows[4]), "│  標題  Pick up the cake 🎂 17:99");
     assert_eq!(trimmed(&rows[6]), "│  17:99：沒有這個時間");
     assert_eq!(terminal.backend().buffer()[(5, 6)].fg, theme.error);
-    // Adding: the calendar it goes into (所屬日曆), a gray hint where the title goes; the hint row wraps (it
+    // Adding: the calendar it goes into (日曆), a gray hint where the title goes; the hint row wraps (it
     // does not fit 62 cells), the next line under the first thing; too tall for the blank rows above and
     // below: 10 tall at y 0
     let mut app = App::new(
@@ -1214,15 +1214,15 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
         [
             "│  - [ ]",
             "",
-            "│  標題      （打在 - [ ] 後面）",
-            "│  日期      2026/10/17（六）",
-            "│  所屬日曆  Work > SFAP",
+            "│  標題  （打在 - [ ] 後面）",
+            "│  日期  2026/10/17（六）",
+            "│  日曆  Work > SFAP",
             "",
             "│  可以打  日期 @2026-10-17  時間 @10:00  優先度 ! !! !!!",
-            "│          所屬日曆 #名字",
+            "│          日曆 #名字",
         ]
     );
-    assert_eq!(terminal.backend().buffer()[(15, 3)].fg, theme.muted);
+    assert_eq!(terminal.backend().buffer()[(11, 3)].fg, theme.muted);
 }
 
 #[test]
