@@ -264,7 +264,8 @@ pub struct App {
     pub side_top: usize,
     /// Which pane had the keyboard before `s` called up the side menu when narrow (it goes back there on hide)
     side_back: Focus,
-    /// The last key was `g` in the side menu: one more `g` right after it jumps to the first calendar (`gg`)
+    /// The last key was `g` in the side menu or on the tasks page: one more `g` right after it jumps to the
+    /// first calendar / item (`gg`)
     pending_g: bool,
     /// Which pane has the keyboard
     pub focus: Focus,
@@ -661,7 +662,7 @@ impl App {
     /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 2's
     /// popup or the side menu called up when narrow is open, `Esc` / `q` only close it.
     /// Other keys depend on which pane has the keyboard (`after_g`: the key before this one was a `g` in the
-    /// side menu)
+    /// side menu or on the tasks page)
     fn handle_normal_key(&mut self, key: KeyEvent, after_g: bool) {
         match key.code {
             // While the popup or the side menu called up when narrow is open, q only closes it
@@ -716,7 +717,7 @@ impl App {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
                 Focus::Side => self.handle_side_key(key.code, after_g),
-                Focus::Tasks => self.handle_tasks_key(key.code),
+                Focus::Tasks => self.handle_tasks_key(key.code, after_g),
                 Focus::Day => self.handle_day_key(key.code),
             },
         }

@@ -130,16 +130,20 @@ impl App {
         }
     }
 
-    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped), `[` / `]` the previous /
-    /// next calendar's first item,
+    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped), `gg` / `G` the first / last
+    /// item (like vim; `after_g`: the key before this one was `g`), `[` / `]` the previous / next calendar's
+    /// first item,
     /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
     /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule
-    pub(super) fn handle_tasks_key(&mut self, code: KeyCode) {
+    pub(super) fn handle_tasks_key(&mut self, code: KeyCode, after_g: bool) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_task(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_task(-1),
+            KeyCode::Char('g') if after_g => self.choose_task(isize::MIN),
+            KeyCode::Char('g') => self.pending_g = true,
+            KeyCode::Char('G') => self.choose_task(isize::MAX),
             KeyCode::Char('l') | KeyCode::Right => self.expand_task(),
             KeyCode::Char('h') | KeyCode::Left => self.collapse_task(),
             KeyCode::Char('+') => self.expand_all(),

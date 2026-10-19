@@ -232,6 +232,7 @@ const EN: Texts = Texts {
                 title: "Tasks page",
                 keys: &[
                     ("j / k", "choose"),
+                    ("gg / G", "first / last"),
                     ("l / h", "expand / collapse"),
                     ("Space", "check off"),
                     ("e", "edit"),
@@ -299,6 +300,7 @@ const EN: Texts = Texts {
             HelpSection {
                 title: "Tasks page",
                 keys: &[
+                    ("gg / G", "first / last item"),
                     ("l / h", "expand / collapse"),
                     ("+ / -", "expand / collapse all"),
                     ("L / H", "indent / outdent"),
@@ -453,6 +455,7 @@ const ZH_TW: Texts = Texts {
                 title: "任務頁",
                 keys: &[
                     ("j / k", "選"),
+                    ("gg / G", "第一件 / 最後一件"),
                     ("l / h", "展開 / 收起"),
                     ("Space", "打勾"),
                     ("e", "編輯"),
@@ -520,6 +523,7 @@ const ZH_TW: Texts = Texts {
             HelpSection {
                 title: "任務頁",
                 keys: &[
+                    ("gg / G", "第一件 / 最後一件"),
                     ("l / h", "展開 / 收起"),
                     ("+ / -", "全部展開 / 全部收起"),
                     ("L / H", "縮排 / 取消縮排"),

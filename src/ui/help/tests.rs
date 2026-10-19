@@ -77,25 +77,25 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
     // Expected boxes computed by the same separate Python script: the tasks page, the calendar list, the
     // agenda (the day popup shares the agenda's keys)
     let (area, rows, _) = draw_in(Focus::Tasks, Lang::ZhTw, 70, 23, Help::default());
-    assert_eq!(area, Rect::new(6, 4, 58, 15));
+    assert_eq!(area, Rect::new(5, 4, 60, 15));
     assert_eq!(
         rows,
         [
-            "╭ roh-cal ∙ 按鍵 ∙ 任務頁 ───────────────────────────────╮",
-            "│                                                        │",
-            "│  任務頁                        畫面                    │",
-            "│    j / k   選                    1       月曆 + 事項   │",
-            "│    l / h   展開 / 收起           2       大月曆        │",
-            "│    Space   打勾                  3       任務頁        │",
-            "│    e       編輯                  s       日曆清單      │",
-            "│    a / A   新增 / 新增子任務     Tab     換框          │",
-            "│    r       改期                                        │",
-            "│    d       刪除                系統                    │",
-            "│    u       復原                  ?       說明          │",
-            "│                                  ,       設定          │",
-            "│                                  q       離開          │",
-            "│                                                        │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ────────────────────────────╯",
+            "╭ roh-cal ∙ 按鍵 ∙ 任務頁 ─────────────────────────────────╮",
+            "│                                                          │",
+            "│  任務頁                         畫面                     │",
+            "│    j / k    選                    1        月曆 + 事項   │",
+            "│    gg / G   第一件 / 最後一件     2        大月曆        │",
+            "│    l / h    展開 / 收起           3        任務頁        │",
+            "│    Space    打勾                  s        日曆清單      │",
+            "│    e        編輯                  Tab      換框          │",
+            "│    a / A    新增 / 新增子任務                            │",
+            "│    r        改期                系統                     │",
+            "│    d        刪除                  ?        說明          │",
+            "│    u        復原                  ,        設定          │",
+            "│                                   q        離開          │",
+            "│                                                          │",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Side, Lang::ZhTw, 70, 23, Help::default());

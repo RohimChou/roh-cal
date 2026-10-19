@@ -44,6 +44,24 @@ fn brackets_jump_to_the_previous_or_next_calendar() {
 }
 
 #[test]
+fn gg_and_capital_g_choose_the_first_and_last_item() {
+    let mut app = tasks_app(TREE);
+    let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+    // G: the last item (headings skipped); gg: the first one
+    press(&mut app, KeyCode::Char('G'));
+    assert_eq!(chosen(&app).as_deref(), Some("Go hiking"));
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(chosen(&app).as_deref(), Some("Go hiking"));
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(chosen(&app).as_deref(), Some("Renew passport"));
+    // g, another key, g: not gg (j moves as usual)
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(chosen(&app).as_deref(), Some("Design doc"));
+}
+
+#[test]
 fn every_checked_calendar_is_listed_even_with_no_items() {
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
