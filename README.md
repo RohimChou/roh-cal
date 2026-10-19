@@ -56,7 +56,7 @@ Try it with the built-in sample task file:
 roh-cal --sample
 ```
 
-Every `--sample` starts from a fresh copy, so check off, edit and delete as you like. Press `?` for the keys, `2` and `3` for the other views, `q` to quit. Without `--tasks`, roh-cal reads `~/.local/share/roh-cal/tasks.md`. A task file looks like this:
+Every `--sample` starts from a fresh copy with its dates moved to this week, so check off, edit and delete as you like. Press `?` for the keys, `2` and `3` for the other views, `q` to quit. Without `--tasks`, roh-cal reads `~/.local/share/roh-cal/tasks.md`. A task file looks like this:
 
 ```markdown
 # Work
@@ -87,7 +87,7 @@ A terminal at least 120 columns wide also shows the calendar list on the left; n
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
 | `--theme <name>` | Color theme: `catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord` (default), `one-dark`, `rose-pine` or `terminal` (the terminal's own 16 colors, for any background). Default: the config file's `theme` |
 | `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
-| `--sample` | Show a fresh copy of the built-in sample task file, written to `~/.cache/roh-cal/sample.md` (`$XDG_CACHE_HOME` respected) |
+| `--sample` | Show a fresh copy of the built-in sample task file, its dates moved to this week, written to `~/.cache/roh-cal/sample.md` (`$XDG_CACHE_HOME` respected) |
 | `-h`, `--help` | Print the options |
 | `-v`, `-V`, `--version` | Print the version |
 

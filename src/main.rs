@@ -20,7 +20,7 @@ use color_eyre::{
     Result,
     eyre::{OptionExt, WrapErr},
 };
-use jiff::Zoned;
+use jiff::{Zoned, civil::Date};
 use ratatui::crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -38,10 +38,12 @@ fn main() -> Result<()> {
     let args = Args::parse();
     // Language: --lang → the system language → English
     let lang = args.lang.unwrap_or_else(Lang::from_system);
+    // Today: the date in the system time zone
+    let today = Zoned::now().date();
     // Task file: --sample writes a fresh copy of the built-in sample and opens it; one given by --tasks must
     // be readable; at the default location, missing means no tasks
     let (path, required) = match (args.sample, args.tasks) {
-        (true, _) => (Some(write_sample(paths::sample_file())?), true),
+        (true, _) => (Some(write_sample(paths::sample_file(), today)?), true),
         (false, Some(path)) => (Some(path), true),
         (false, None) => (paths::tasks_file(), false),
     };
@@ -60,8 +62,6 @@ fn main() -> Result<()> {
     if let Some(theme) = args.theme {
         settings.set_theme(&theme);
     }
-    // Today: the date in the system time zone
-    let today = Zoned::now().date();
     // Enter TUI mode (raw mode + alternate screen); the terminal is restored when the closure ends
     ratatui::run(|terminal| {
         // The mouse is on meanwhile: _mouse is dropped when the closure ends, which turns the mouse off
@@ -97,12 +97,12 @@ fn load_tasks(path: &Path, required: bool) -> Result<String> {
     }
 }
 
-/// Writes a fresh copy of the built-in sample task file to `path` (`paths::sample_file`) and returns it, so
-/// every `--sample` starts from the original: what was checked off or deleted in the last copy is gone.
-/// `None` = no HOME to put it in
-fn write_sample(path: Option<PathBuf>) -> Result<PathBuf> {
+/// Writes a fresh copy of the built-in sample task file, its dates moved to the week of `today`, to `path`
+/// (`paths::sample_file`) and returns it, so every `--sample` starts from the original: what was checked off
+/// or deleted in the last copy is gone. `None` = no HOME to put it in
+fn write_sample(path: Option<PathBuf>, today: Date) -> Result<PathBuf> {
     let path = path.ok_or_eyre("cannot write the sample task file: HOME is not set")?;
-    files::write_atomically(&path, sample::TEXT)
+    files::write_atomically(&path, &sample::text(today))
         .wrap_err_with(|| format!("cannot write the sample task file: {}", path.display()))?;
     Ok(path)
 }
@@ -284,15 +284,25 @@ mod tests {
     fn sample_is_written_fresh_every_time() {
         let dir = files::test_dir("sample");
         let path = dir.join("roh-cal").join("sample.md");
-        // The folder does not exist yet: it is created, and the copy is the sample
-        assert_eq!(write_sample(Some(path.clone())).expect("write"), path);
-        assert_eq!(std::fs::read_to_string(&path).expect("read"), sample::TEXT);
+        let today = jiff::civil::date(2026, 10, 20);
+        // The folder does not exist yet: it is created, and the copy is the sample moved to today's week
+        assert_eq!(
+            write_sample(Some(path.clone()), today).expect("write"),
+            path
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            sample::text(today)
+        );
         // What was changed in the last copy is gone the next time
         std::fs::write(&path, "- [x] Checked off in the last copy\n").expect("change");
-        write_sample(Some(path.clone())).expect("write again");
-        assert_eq!(std::fs::read_to_string(&path).expect("read"), sample::TEXT);
+        write_sample(Some(path.clone()), today).expect("write again");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            sample::text(today)
+        );
         // No HOME → an error
-        assert!(write_sample(None).is_err());
+        assert!(write_sample(None, today).is_err());
         std::fs::remove_dir_all(&dir).expect("clean up");
     }
 }
