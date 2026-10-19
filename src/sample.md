@@ -17,4 +17,6 @@
 # Life
 - [ ] Buy diapers @2026-10-12
 - [ ] Pay the bill ! @2026-10-17
+- Lily's soccer game ⚽ @2026-11-14 09:00
+  - [ ] Bring the team snacks
 - [ ] Clean out the garage

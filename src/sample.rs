@@ -105,9 +105,9 @@ mod tests {
 
     #[test]
     fn the_sample_week_becomes_the_week_of_today() {
-        // The sample itself: 12 items, no mistakes
+        // The sample itself: 14 items, no mistakes
         let parsed = tasks::parse(TEXT);
-        assert_eq!((parsed.items.len(), parsed.warnings.len()), (12, 0));
+        assert_eq!((parsed.items.len(), parsed.warnings.len()), (14, 0));
         // Today inside the sample's week (Mon 2026-10-12 to Sun 2026-10-18): the sample as it is
         for day in [12, 15, 18] {
             assert_eq!(text(date(2026, 10, day)), TEXT, "{day}");
@@ -125,7 +125,7 @@ mod tests {
             let parsed = tasks::parse(&moved);
             assert_eq!(
                 (parsed.items.len(), parsed.warnings.len()),
-                (12, 0),
+                (14, 0),
                 "{today}"
             );
         }
