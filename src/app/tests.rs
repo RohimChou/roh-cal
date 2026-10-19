@@ -1004,3 +1004,32 @@ fn in_progress_items_come_first_on_their_day() {
         .collect();
     assert_eq!(on_day, ["Slides", "Report", "Trip", "Email", "Lunch"]);
 }
+
+#[test]
+fn day_counts_are_the_days_tasks_not_done_and_done() {
+    // 10/17: two open tasks (one in progress), one done, an event, a multi-day task covering it, and a
+    // task in the unchecked Personal calendar
+    let text = "- [ ] Email Kevin @2026-10-17\n- [/] Draft the notes @2026-10-17\n- [x] Pay the fine @2026-10-17\n\
+                - Standup @2026-10-17 09:00\n- [ ] Offsite prep @2026-10-16..2026-10-18\n\
+                # Personal\n- [ ] Buy milk @2026-10-17\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.set_items(crate::tasks::parse(text));
+    let personal = app
+        .groups
+        .iter()
+        .position(|group| group.name.as_deref() == Some("Personal"))
+        .unwrap();
+    app.groups[personal].shown = false;
+    // Open: Email, Draft (in progress), Offsite prep; done: Pay the fine; the event and Buy milk do not count
+    assert_eq!(app.day_counts(date(2026, 10, 17)), (3, 1));
+    // Done tasks still count when 「Hide done」 hides them
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(app.day_counts(date(2026, 10, 17)), (3, 1));
+    // A day with only the multi-day task; a day with none
+    assert_eq!(app.day_counts(date(2026, 10, 18)), (1, 0));
+    assert_eq!(app.day_counts(date(2026, 10, 19)), (0, 0));
+}

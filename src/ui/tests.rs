@@ -1600,14 +1600,17 @@ fn popups_have_a_blank_ring_around_them() {
     let editor = editor_area(&app);
     assert!(blank(buffer, &ring(editor, 1)));
     assert!(!blank(buffer, &ring(editor, 2)));
-    // The day popup over the month grid (60 × 20): the box is (14, 5, 32, 8)
+    // The day popup over the month grid (60 × 20): the box is (9, 5, 42, 8) (see
+    // `the_day_popup_lists_every_item_of_the_day_over_the_big_calendar`)
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
     app.focus = Focus::Day;
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
-    let popup = Rect::new(14, 5, 32, 8);
+    app.screen = Rect::new(0, 0, 60, 20);
+    let popup = day_area(&app);
+    assert_eq!(popup, Rect::new(9, 5, 42, 8));
     assert!(blank(buffer, &ring(popup, 1)));
     assert!(!blank(buffer, &ring(popup, 2)));
 }
@@ -2965,8 +2968,9 @@ fn a_long_title_wraps_in_the_day_popup() {
 fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19);
     // there is room, so a blank row above and below the items and a blank cell left and right:
-    // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32 wide, 4 + 2 + 2 = 8 rows tall
-    // → x 14, y 5; the top border shows the date, one item per row (like layout 1's agenda), the
+    // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32, but the top border needs more: the
+    // date 18 + 「 未完成 1 / 已完成 1 」 21 + one line cell + 2 corners = 42 wide, 4 + 2 + 2 = 8 rows tall
+    // → x 9, y 5; the top border shows the date, one item per row (like layout 1's agenda), the
     // first item is chosen with its date in brackets; the bottom row switches to the popup's keys
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
@@ -2975,16 +2979,16 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(14, 5, 32, 8)),
+        area_rows(buffer, Rect::new(9, 5, 42, 8)),
         [
-            "╭ 2026/10/17（六） ────────────╮",
-            "│                              │",
-            "│ [10/16~18]Parents in town    │",
-            "│  10/17 Clean the garage      │",
-            "│  10/17 10:00 Farmers market  │",
-            "│  10/17 17:30 Buy groceries   │",
-            "│                              │",
-            "╰──────────────────────────────╯",
+            "╭ 2026/10/17（六） ─ 未完成 1 / 已完成 1 ╮",
+            "│                                        │",
+            "│ [10/16~18]Parents in town              │",
+            "│  10/17 Clean the garage                │",
+            "│  10/17 10:00 Farmers market            │",
+            "│  10/17 17:30 Buy groceries             │",
+            "│                                        │",
+            "╰────────────────────────────────────────╯",
         ]
     );
     // The key hints are 61 cells, so at 60 cells wide the last character is cut
@@ -2993,15 +2997,15 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關"
     );
     // The border has the color of where the keyboard is, the brackets the selected red; the chosen row
-    // (y 7) has the selection background from border to border (x 15-44, the padding cells too), the
+    // (y 7) has the selection background from border to border (x 10-49, the padding cells too), the
     // others none
     let theme = Theme::default();
-    assert_eq!(buffer[(14, 5)].fg, theme.focus);
-    assert_eq!(buffer[(16, 7)].fg, theme.selected);
-    assert_eq!(buffer[(15, 7)].bg, theme.selection);
-    assert_eq!(buffer[(44, 7)].bg, theme.selection);
-    assert_eq!(buffer[(45, 7)].bg, Color::Reset);
-    assert_eq!(buffer[(16, 8)].bg, Color::Reset);
+    assert_eq!(buffer[(9, 5)].fg, theme.focus);
+    assert_eq!(buffer[(11, 7)].fg, theme.selected);
+    assert_eq!(buffer[(10, 7)].bg, theme.selection);
+    assert_eq!(buffer[(49, 7)].bg, theme.selection);
+    assert_eq!(buffer[(50, 7)].bg, Color::Reset);
+    assert_eq!(buffer[(11, 8)].bg, Color::Reset);
     // Too short (60 × 6, month grid 5 rows): no rows of padding (the cells left and right stay), the
     // box holds 3 items, and choosing the last one scrolls down one item; a scrollbar on the right
     // border
@@ -3009,14 +3013,14 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     let terminal = draw_app(&mut app, 60, 6);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(14, 1, 31, 3)),
+        area_rows(buffer, Rect::new(9, 1, 41, 3)),
         [
-            "│  10/17 Clean the garage      ",
-            "│  10/17 10:00 Farmers market  ",
-            "│ [10/17]17:30 Buy groceries   ",
+            "│  10/17 Clean the garage                ",
+            "│  10/17 10:00 Farmers market            ",
+            "│ [10/17]17:30 Buy groceries             ",
         ]
     );
-    assert!((1..4).any(|y| buffer[(45, y)].symbol() == "┃"));
+    assert!((1..4).any(|y| buffer[(50, y)].symbol() == "┃"));
     // Click the top row (Clean the garage): it gets chosen, the scroll stays; clicking the same spot
     // again is still it (no task file, so checking it off writes nothing)
     app.screen = Rect::new(0, 0, 60, 6);
@@ -3024,7 +3028,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
-            column: 17,
+            column: 12,
             row: 1,
             modifiers: KeyModifiers::NONE,
         });
@@ -3033,8 +3037,8 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     assert_eq!(app.day_index, 1);
     let terminal = draw_app(&mut app, 60, 6);
     assert_eq!(
-        area_rows(terminal.backend().buffer(), Rect::new(14, 1, 31, 1)),
-        ["│ [10/17]Clean the garage      "]
+        area_rows(terminal.backend().buffer(), Rect::new(9, 1, 41, 1)),
+        ["│ [10/17]Clean the garage                "]
     );
     click(&mut app);
     assert_eq!(app.day_index, 1);
@@ -3493,7 +3497,8 @@ fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popu
 #[test]
 fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     // 10/17: one item outside any calendar, one in CAIS > Reports, one `!!!` in Life, a holiday.
-    // Widest line: 「 10/17 Send the report」 22 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 32
+    // Widest line: 「 10/17 Send the report」 22 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 32;
+    // the top border needs more: the date 18 + 「 3 open / 0 done 」 17 + one line cell + 2 corners = 38
     let text = "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n\
                 # Life\n- [ ] Pay the fine !!! @2026-10-17\n# Holidays type:holiday\n- Day off @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
@@ -3507,27 +3512,27 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     assert_eq!(
         area_rows(buffer, area),
         [
-            "╭ Sat Oct 17, 2026 ────────────╮",
-            "│                              │",
-            "│ [10/17]Loose end             │",
-            "│  10/17 Send the report CAIS  │",
-            "│  10/17 Pay the fine    Life  │",
-            "│  10/17 Day off               │",
-            "│                              │",
-            "╰──────────────────────────────╯",
+            "╭ Sat Oct 17, 2026 ─ 3 open / 0 done ╮",
+            "│                                    │",
+            "│ [10/17]Loose end                   │",
+            "│  10/17 Send the report       CAIS  │",
+            "│  10/17 Pay the fine          Life  │",
+            "│  10/17 Day off                     │",
+            "│                                    │",
+            "╰────────────────────────────────────╯",
         ]
     );
     // Colored like the time: muted, or the whole line's color with a priority
     let theme = Theme::default();
-    assert_eq!(buffer[(area.x + 25, area.y + 3)].symbol(), "C");
-    assert_eq!(buffer[(area.x + 25, area.y + 3)].fg, theme.muted);
-    assert_eq!(buffer[(area.x + 25, area.y + 4)].symbol(), "L");
-    assert_eq!(buffer[(area.x + 25, area.y + 4)].fg, theme.priority_high);
+    assert_eq!(buffer[(area.x + 31, area.y + 3)].symbol(), "C");
+    assert_eq!(buffer[(area.x + 31, area.y + 3)].fg, theme.muted);
+    assert_eq!(buffer[(area.x + 31, area.y + 4)].symbol(), "L");
+    assert_eq!(buffer[(area.x + 31, area.y + 4)].fg, theme.priority_high);
 }
 
 #[test]
 fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
-    // The same day as `the_day_popup_writes_each_items_outermost_calendar_at_the_right` (box 32 wide)
+    // Box 38 wide: the top border's date 18 + 「 2 open / 0 done 」 17 + one line cell + 2 corners
     let text =
         "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
@@ -3547,11 +3552,37 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
     assert_eq!(
         bottom(&mut app),
         (
-            "╰ CAIS > Reports ──────────────╯".to_string(),
+            "╰ CAIS > Reports ────────────────────╯".to_string(),
             Theme::default().label
         )
     );
     // The chosen item is outside any calendar: a plain border
     app.day_index = 0;
-    assert_eq!(bottom(&mut app).0, "╰──────────────────────────────╯");
+    assert_eq!(bottom(&mut app).0, "╰────────────────────────────────────╯");
+}
+
+#[test]
+fn the_day_popups_top_border_counts_the_days_tasks_on_the_right() {
+    // 10/17: 2 open (more than half of 3: red), 1 done (always green); an event does not count
+    let text = "- [ ] Email Kevin @2026-10-17\n- [ ] Draft the notes @2026-10-17\n\
+                - [x] Pay the fine @2026-10-17\n- Standup @2026-10-17 09:00\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    let top = &area_rows(buffer, area)[0];
+    // The counts end at the top-right corner, the date stays on the left
+    assert!(top.starts_with("╭ Sat Oct 17, 2026 ─"), "{top}");
+    assert!(top.ends_with(" 2 open / 1 done ╮"), "{top}");
+    // Colors: 「2 open」 red, 「/」 muted, 「1 done」 green (`today`)
+    let theme = Theme::default();
+    // Where `text` starts, in cells (the border characters take several bytes each)
+    let x_of = |text: &str| {
+        area.x + u16::try_from(Span::raw(&top[..top.find(text).unwrap()]).width()).unwrap()
+    };
+    assert_eq!(buffer[(x_of("2 open"), area.y)].fg, theme.priority_high);
+    assert_eq!(buffer[(x_of("/ 1"), area.y)].fg, theme.muted);
+    assert_eq!(buffer[(x_of("1 done"), area.y)].fg, theme.today);
 }

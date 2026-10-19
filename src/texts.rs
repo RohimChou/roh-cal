@@ -677,6 +677,22 @@ impl Texts {
         }
     }
 
+    /// A day's tasks not done yet, on the right of the day popup's top border, e.g. `3 open` / `未完成 3`
+    pub fn day_open(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} open"),
+            Lang::ZhTw => format!("未完成 {count}"),
+        }
+    }
+
+    /// A day's tasks done, after `day_open`, e.g. `2 done` / `已完成 2`
+    pub fn day_done(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} done"),
+            Lang::ZhTw => format!("已完成 {count}"),
+        }
+    }
+
     /// The hint on the line below a month when its items do not fit, e.g. `23 more` / `還有 23 件`
     pub fn more_items(&self, count: usize) -> String {
         match self.lang {

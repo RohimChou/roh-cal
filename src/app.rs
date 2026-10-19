@@ -484,11 +484,33 @@ impl App {
     /// Whether this item is shown: only if its calendar (group) and every calendar that one is inside are
     /// checked, and it is not a done task hidden by `[calendar_list] hide_done`
     pub fn is_shown(&self, item: &Item) -> bool {
+        self.in_checked_calendar(item) && !self.hidden_as_done(item)
+    }
+
+    /// Whether every calendar `item` is in (its own and the ones around it) is checked in the side menu
+    fn in_checked_calendar(&self, item: &Item) -> bool {
         self.groups
             .iter()
             .filter(|group| group.holds(item))
             .all(|group| group.shown)
-            && !self.hidden_as_done(item)
+    }
+
+    /// How many tasks on `day` are not done yet (in progress included) and how many are done: tasks in
+    /// checked calendars that cover `day`. Done ones count even when 「Hide done」 hides them, like the
+    /// numbers in the calendar list; events do not count
+    pub fn day_counts(&self, day: Date) -> (usize, usize) {
+        self.items
+            .iter()
+            .filter(|item| {
+                item.kind == Kind::Task && item.covers(day) && self.in_checked_calendar(item)
+            })
+            .fold((0, 0), |(open, done), item| {
+                if item.done {
+                    (open, done + 1)
+                } else {
+                    (open + 1, done)
+                }
+            })
     }
 
     /// Hiding done tasks (`[calendar_list] hide_done`) and `item` is a done task, or inside one (its subtasks

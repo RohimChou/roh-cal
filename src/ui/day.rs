@@ -11,16 +11,59 @@ use super::{
 };
 use crate::app::App;
 use crate::tasks::Item;
+use crate::theme::Theme;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
-    style::Style,
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, BorderType},
 };
 
 /// Narrowest popup width (incl. border): enough room for the date on the top border
 const MIN_WIDTH: u16 = 30;
+
+/// The top border's two titles: the selected day on the left; on the right, how many of its tasks are not
+/// done yet and done, e.g. 「 未完成 3 / 已完成 2 」 (`None` when the day has no tasks). The open count's color
+/// says how much is left (`open_color`); the done count is always green (`today`, green in most themes)
+fn top_titles(app: &App) -> (Line<'static>, Option<Line<'static>>) {
+    let theme = &app.theme;
+    let texts = app.lang.texts();
+    let date = Line::styled(
+        format!(" {} ", texts.date_title(app.selected)),
+        Style::new().fg(theme.text),
+    );
+    let (open, done) = app.day_counts(app.selected);
+    let counts = (open + done > 0).then(|| {
+        Line::from(vec![
+            Span::styled(
+                format!(" {}", texts.day_open(open)),
+                Style::new().fg(open_color(open, open + done, theme)),
+            ),
+            Span::styled(" / ", Style::new().fg(theme.muted)),
+            Span::styled(
+                format!("{} ", texts.day_done(done)),
+                Style::new().fg(theme.today),
+            ),
+        ])
+        .right_aligned()
+    });
+    (date, counts)
+}
+
+/// The color of a day's open count, by how much of its `total` tasks is left (the priority colors): more
+/// than half red, a third or more orange, more than a fifth yellow, otherwise the normal text color
+fn open_color(open: usize, total: usize, theme: &Theme) -> Color {
+    if open * 2 > total {
+        theme.priority_high
+    } else if open * 3 >= total {
+        theme.priority_medium
+    } else if open * 5 > total {
+        theme.priority_low
+    } else {
+        theme.text
+    }
+}
 
 /// Blank space between the border and the items when the month grid has room for it: one row above and
 /// below, one cell left and right
@@ -109,7 +152,13 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     } else {
         0
     };
-    let width = (bare_width + 2 * horizontal).max(MIN_WIDTH).min(main.width);
+    // The top border fits both titles, with at least one line cell between them
+    let (date, counts) = top_titles(app);
+    let titles = to_u16(date.width() + counts.as_ref().map_or(0, |counts| counts.width() + 1) + 2);
+    let width = (bare_width + 2 * horizontal)
+        .max(MIN_WIDTH)
+        .max(titles)
+        .min(main.width);
     // Lines: the items wrapped at the width inside the border and padding
     let lines: usize = heights(app, width.saturating_sub(2 + 2 * horizontal))
         .iter()
@@ -176,14 +225,14 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
-    let texts = app.lang.texts();
+    let (date, counts) = top_titles(app);
     let mut block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
-        .title_top(Line::styled(
-            format!(" {} ", texts.date_title(app.selected)),
-            Style::new().fg(theme.text),
-        ));
+        .title_top(date);
+    if let Some(counts) = counts {
+        block = block.title_top(counts);
+    }
     // Bottom border: the chosen item's whole calendar path, in the calendar headings' color (as on the tasks
     // page); cut off at the right if the box is narrower
     if let Some(path) = app
@@ -261,4 +310,25 @@ pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
         .iter()
         .zip(&heights)
         .position(|(&start, &height)| (start..start + height).contains(&line))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_open_count_turns_red_orange_yellow_by_how_much_is_left() {
+        let theme = Theme::default();
+        // More than half left: red (4 of 6); exactly half or a third: orange (3 of 6, 2 of 6)
+        assert_eq!(open_color(4, 6, &theme), theme.priority_high);
+        assert_eq!(open_color(3, 6, &theme), theme.priority_medium);
+        assert_eq!(open_color(2, 6, &theme), theme.priority_medium);
+        // Less than a third, more than a fifth: yellow (2 of 8 = a quarter, 2 of 7)
+        assert_eq!(open_color(2, 8, &theme), theme.priority_low);
+        assert_eq!(open_color(2, 7, &theme), theme.priority_low);
+        // A fifth or less: the normal text color (2 of 10, 1 of 10); none left too
+        assert_eq!(open_color(2, 10, &theme), theme.text);
+        assert_eq!(open_color(1, 10, &theme), theme.text);
+        assert_eq!(open_color(0, 4, &theme), theme.text);
+    }
 }
