@@ -26,7 +26,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **Live reload**: edit the task file in another editor and every view updates within a second
 - **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` makes its days holidays, colored like weekends
 - **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day, a second click checks off
-- **Themes**: six built in, and any color can be overridden per role from a settings page
+- **Themes**: eight built in, and any color can be overridden per role from a settings page
 - **English and 繁體中文**
 
 ## Install
