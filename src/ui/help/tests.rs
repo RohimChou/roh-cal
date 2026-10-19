@@ -88,12 +88,12 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    gg / G   第一件 / 最後一件     2        大月曆        │",
             "│    l / h    展開 / 收起           3        任務頁        │",
             "│    Space    打勾                  s        日曆清單      │",
-            "│    e        編輯                  Tab      換框          │",
-            "│    a / A    新增 / 新增子任務                            │",
-            "│    r        改期                系統                     │",
-            "│    d        刪除                  ?        說明          │",
-            "│    u        復原                  ,        設定          │",
-            "│                                   q        離開          │",
+            "│    /        進行中                Tab      換框          │",
+            "│    e        編輯                                         │",
+            "│    a / A    新增 / 新增子任務   系統                     │",
+            "│    r        改期                  ?        說明          │",
+            "│    d        刪除                  ,        設定          │",
+            "│    u        復原                  q        離開          │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
         ]
@@ -129,12 +129,12 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    j / k   選                     1       月曆 + 事項   │",
             "│    h / l   左右換欄（分欄時）     2       大月曆        │",
             "│    Space   打勾                   3       任務頁        │",
-            "│    e       編輯                   s       日曆清單      │",
-            "│    a / A   新增 / 新增子任務      Tab     換框          │",
-            "│    r       改期                                         │",
-            "│    d       刪除                 系統                    │",
-            "│    u       復原                   ?       說明          │",
-            "│                                   ,       設定          │",
+            "│    /       進行中                 s       日曆清單      │",
+            "│    e       編輯                   Tab     換框          │",
+            "│    a / A   新增 / 新增子任務                            │",
+            "│    r       改期                 系統                    │",
+            "│    d       刪除                   ?       說明          │",
+            "│    u       復原                   ,       設定          │",
             "│                                   q       離開          │",
             "│                                                         │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ─────────────────────────────╯",
@@ -222,14 +222,14 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
         let (area, rows, _) = draw(
             lang,
             100,
-            38,
+            39,
             Help {
                 full: true,
                 scroll: 0,
             },
         );
-        // The longer column (right) is 34 lines + padding 2 + border 2: it just fits, no scrolling
-        assert_eq!(area.height, 38, "{lang:?}");
+        // The longer column (right) is 35 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 39, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);

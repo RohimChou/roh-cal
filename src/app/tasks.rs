@@ -188,6 +188,7 @@ impl App {
             KeyCode::Char('J') => self.move_task(true),
             KeyCode::Char('K') => self.move_task(false),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),
             KeyCode::Char('A') => self.start_adding_subtask(),

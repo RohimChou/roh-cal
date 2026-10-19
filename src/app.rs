@@ -778,6 +778,7 @@ impl App {
             KeyCode::Char('l') | KeyCode::Right => self.choose_column(1),
             KeyCode::Char('h') | KeyCode::Left => self.choose_column(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),

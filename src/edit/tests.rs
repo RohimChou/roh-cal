@@ -721,6 +721,35 @@ fn toggle_checks_off_an_in_progress_task() {
 }
 
 #[test]
+fn toggle_progress_switches_between_open_and_in_progress() {
+    let text = "- [ ] Draft @2026-10-16\n  - [/] Outline\n- [x] Slides\n- Standup @2026-10-16\n";
+    // Open → in progress; in progress → open; done → in progress (back to work on it); only the box changes
+    assert_eq!(
+        toggle_progress(text, &item(text, 0)),
+        Ok(
+            "- [/] Draft @2026-10-16\n  - [/] Outline\n- [x] Slides\n- Standup @2026-10-16\n"
+                .into()
+        )
+    );
+    assert_eq!(
+        toggle_progress(text, &item(text, 1)),
+        Ok(
+            "- [ ] Draft @2026-10-16\n  - [ ] Outline\n- [x] Slides\n- Standup @2026-10-16\n"
+                .into()
+        )
+    );
+    assert_eq!(
+        toggle_progress(text, &item(text, 2)),
+        Ok(
+            "- [ ] Draft @2026-10-16\n  - [/] Outline\n- [/] Slides\n- Standup @2026-10-16\n"
+                .into()
+        )
+    );
+    // An event has no box: unchanged
+    assert_eq!(toggle_progress(text, &item(text, 3)), Ok(text.into()));
+}
+
+#[test]
 fn toggle_keeps_crlf_and_a_missing_last_newline() {
     let text = "- [ ] a\r\n- [ ] b";
     assert_eq!(

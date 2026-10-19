@@ -861,6 +861,19 @@ pub fn toggle(text: &str, item: &Item) -> Result<String, Changed> {
     replace_line(text, item, &toggled(&item.line_text))
 }
 
+/// Start / stop working on a task (`/`): `[ ]` or `[x]` → `[/]`, `[/]` → `[ ]`; only the box changes;
+/// return the whole changed file
+pub fn toggle_progress(text: &str, item: &Item) -> Result<String, Changed> {
+    let next = |mark| {
+        if mark == Mark::InProgress {
+            "[ ]"
+        } else {
+            "[/]"
+        }
+    };
+    replace_line(text, item, &with_box(&item.line_text, next))
+}
+
 /// Reschedule: replace only the date on that line, nothing else; return the whole changed file
 ///
 /// The time is kept; a multi-day range moves as a whole with the same number of days
@@ -921,20 +934,22 @@ fn whole_word(line: &str, word: &str) -> Option<usize> {
         })
 }
 
-/// Check / uncheck a line; the indent and the rest of the text stay as is (`line` is a parsed item's line)
+/// Check / uncheck a line (`line` is a parsed item's line)
 ///
-/// `- [ ] Team sync`, `- [/] Team sync` → `- [x] Team sync`; `- [x]`, `- [X]` → `- [ ]`; lines without a
-/// box (events) stay as is
+/// `- [ ] Team sync`, `- [/] Team sync` → `- [x] Team sync`; `- [x]`, `- [X]` → `- [ ]`
 fn toggled(line: &str) -> String {
+    with_box(line, |mark| if mark == Mark::Done { "[ ]" } else { "[x]" })
+}
+
+/// The line with its box replaced by what `next` gives for the box it has now; the indent and the rest of
+/// the text stay as is; lines without a box (events) stay as is
+fn with_box(line: &str, next: impl Fn(Mark) -> &'static str) -> String {
     let trimmed = line.trim_start();
     let indent = &line[..line.len() - trimmed.len()];
     let rest = trimmed.strip_prefix("- ").unwrap_or(trimmed);
     match tasks::checkbox(rest) {
         // Has a box: replace only the 3 characters of `[ ]` / `[/]` / `[x]`
-        Some((mark, after)) => {
-            let mark = if mark == Mark::Done { "[ ]" } else { "[x]" };
-            format!("{indent}- {mark}{after}")
-        }
+        Some((mark, after)) => format!("{indent}- {}{after}", next(mark)),
         None => line.to_string(),
     }
 }

@@ -5,7 +5,7 @@
 use super::{App, Focus, Mode, View};
 use crate::edit;
 use crate::files;
-use crate::tasks::{self, Kind, Parsed};
+use crate::tasks::{self, Item, Kind, Parsed};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -55,6 +55,18 @@ impl App {
     ///
     /// Does nothing without a task file (tests) or without a chosen item
     pub(super) fn toggle_chosen(&mut self) {
+        self.change_chosen_box(edit::toggle);
+    }
+
+    /// `/`: marks the chosen task in progress (`[/]`), or back to open if it already is; written back like
+    /// `toggle_chosen`
+    pub(super) fn toggle_chosen_progress(&mut self) {
+        self.change_chosen_box(edit::toggle_progress);
+    }
+
+    /// Changes the chosen task's box with `change` (`edit::toggle` or `edit::toggle_progress`) and writes
+    /// back; an event has no box (says so in `notice`); the line changed elsewhere: reload instead
+    fn change_chosen_box(&mut self, change: fn(&str, &Item) -> Result<String, edit::Changed>) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
         };
@@ -65,7 +77,7 @@ impl App {
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
-        match edit::toggle(&text, &item) {
+        match change(&text, &item) {
             Ok(after) => {
                 self.write_tasks(&path, text, after, item.title);
             }

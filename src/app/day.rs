@@ -26,6 +26,7 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.choose_day(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_day(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
             KeyCode::Char('a') => self.start_adding(),

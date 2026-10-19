@@ -591,3 +591,49 @@ fn a_task_file_that_cannot_be_read_keeps_the_screen_and_is_tried_again() {
     assert_eq!(app.items.len(), 2);
     clean_up(&path);
 }
+
+#[test]
+fn slash_marks_the_chosen_task_in_progress_and_back() {
+    let text = "- [ ] Draft the release notes @2026-10-17\n- Standup @2026-10-17 09:00\n";
+    let (mut app, path) = app_with_task_file("progress", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    // `/` on the chosen task (in the agenda): `[/]`, and the screen follows
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(
+        read(),
+        "- [/] Draft the release notes @2026-10-17\n- Standup @2026-10-17 09:00\n"
+    );
+    assert!(app.items[0].in_progress);
+    // Again: back to open; `u` undoes that
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(read(), text);
+    press(&mut app, KeyCode::Char('u'));
+    assert!(app.items[0].in_progress);
+    // Space checks an in-progress task off
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.items[0].done && !app.items[0].in_progress);
+    // An event has no box: the bottom row says so, the file stays
+    let before = read();
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(app.notice, Some(Notice::NotATask));
+    assert_eq!(read(), before);
+    clean_up(&path);
+}
+
+#[test]
+fn slash_works_in_the_day_popup_and_on_the_tasks_page() {
+    let text = "- [ ] Draft the release notes @2026-10-17\n";
+    let (mut app, path) = app_with_task_file("progress-views", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    // Layout 2's day popup
+    app.set_view(View::Month);
+    app.focus = Focus::Day;
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(read(), "- [/] Draft the release notes @2026-10-17\n");
+    // The tasks page
+    app.set_view(View::Tasks);
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(read(), text);
+    clean_up(&path);
+}
