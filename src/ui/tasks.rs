@@ -212,6 +212,21 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             ),
         };
         frame.render_widget(line, detail);
+    } else if let Some(heading) = cursor
+        .and_then(|cursor| match &rows[cursor] {
+            TaskRow::Heading { line, .. } => *line,
+            TaskRow::Item { .. } => None,
+        })
+        .and_then(|line| app.headings.iter().find(|heading| heading.line == line))
+    {
+        // A calendar's heading row: its heading line as written
+        frame.render_widget(
+            Line::styled(
+                texts.tasks_detail(heading.line, heading.text.trim()),
+                Style::new().fg(theme.muted),
+            ),
+            detail,
+        );
     }
 }
 
@@ -254,7 +269,7 @@ fn render_line(
 ) {
     let theme = &app.theme;
     match (row, layout) {
-        (TaskRow::Heading { name, depth }, _) => {
+        (TaskRow::Heading { name, depth, .. }, _) => {
             let name = name.as_deref().unwrap_or(app.lang.texts().ungrouped);
             let indent = "  ".repeat(*depth);
             frame.render_widget(
@@ -498,6 +513,13 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         .position(|(&start, layout)| (start..start + layout.height()).contains(&line))?;
     let levels = match rows.get(index)? {
         TaskRow::Item { index, .. } => levels(app.items.get(*index)?),
+        // A calendar's heading row (one that can be chosen)
+        TaskRow::Heading { line: Some(_), .. } => {
+            return Some(Click::TaskRow {
+                row: index,
+                on_marker: false,
+            });
+        }
         TaskRow::Heading { .. } => return None,
     };
     // `▸` sits at cell 1 + 2 × levels inside the box, on the item's first line

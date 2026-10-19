@@ -62,6 +62,49 @@ fn gg_and_capital_g_choose_the_first_and_last_item() {
 }
 
 #[test]
+fn a_calendars_heading_row_can_be_chosen_and_a_adds_there() {
+    use super::super::write::tests::clean_up;
+    let text = "# Work\n- [ ] Review PRs\n\n# Empty\n\n# Later\n- [ ] Book flights\n";
+    let (mut app, path) = tasks_app_with_file("tasks-heading-add", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    // The first item is chosen at start; j goes on to the Empty heading row (no item is chosen then)
+    assert_eq!(
+        app.tasks_chosen().map(|item| item.title.as_str()),
+        Some("Review PRs")
+    );
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.tasks_chosen(), None);
+    assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Empty".to_string()]));
+    // Keys for an item do nothing there (Space, e)
+    press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('e'));
+    assert!(app.editor().is_none());
+    assert_eq!(read(), text);
+    // a: adds at the end of Empty (not of the file); the new item is chosen
+    press(&mut app, KeyCode::Char('a'));
+    type_text(&mut app, "Plan the week");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        read(),
+        "# Work\n- [ ] Review PRs\n\n# Empty\n- [ ] Plan the week\n\n# Later\n- [ ] Book flights\n"
+    );
+    assert_eq!(
+        app.tasks_chosen().map(|item| item.title.as_str()),
+        Some("Plan the week")
+    );
+    // k goes back up through the Empty heading row to Review PRs, then the Work heading row
+    press(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Empty".to_string()]));
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Work".to_string()]));
+    // A click on a heading row chooses it (rows: Work, Review PRs, Empty, Plan the week, Later, …)
+    app.click_task(2, false);
+    assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Empty".to_string()]));
+    clean_up(&path);
+}
+
+#[test]
 fn every_checked_calendar_is_listed_even_with_no_items() {
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
@@ -253,7 +296,9 @@ fn plus_and_minus_expand_and_collapse_everything() {
 }
 
 #[test]
-fn j_and_k_skip_headings_and_stop_at_the_ends() {
+fn j_and_k_skip_heading_rows_without_a_line_and_stop_at_the_ends() {
+    // Only items given, no heading lines: the heading rows cannot be chosen (see
+    // `a_calendars_heading_row_can_be_chosen_and_a_adds_there` for ones that can)
     let mut app = tasks_app(TREE);
     for _ in 0..10 {
         press(&mut app, KeyCode::Char('j'));
@@ -424,9 +469,10 @@ fn shift_l_and_h_indent_and_outdent_with_the_subtasks() {
         ]
     );
     // "Go hiking": top level (H does nothing) and the first item of
-    // "Personal" ("Weekly update" above is in another group, so L does nothing)
+    // "Personal" ("Weekly update" above is in another group, so L does nothing); j stops on the Personal
+    // heading row on the way
     let before = read();
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Char('j'));
     }
     assert_eq!(chosen(&app).as_deref(), Some("Go hiking"));

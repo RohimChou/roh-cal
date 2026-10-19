@@ -290,9 +290,14 @@ impl App {
                 .into_iter()
                 .find(|path| !self.is_holiday_calendar(path))
         };
-        let place = match near {
-            Some(item) => Place::InGroupOf(item),
-            None => first_calendar().map_or(Place::End, Place::InCalendar),
+        // On the tasks page with a calendar's heading row chosen: at the end of that calendar
+        let heading = (self.focus == Focus::Tasks)
+            .then(|| self.tasks_chosen_calendar())
+            .flatten();
+        let place = match (near, heading) {
+            (_, Some(path)) => Place::InCalendar(path),
+            (Some(item), None) => Place::InGroupOf(item),
+            (None, None) => first_calendar().map_or(Place::End, Place::InCalendar),
         };
         // The tasks page has no selected day: no date
         let day = (self.view != super::View::Tasks).then_some(self.selected);

@@ -19,6 +19,9 @@ pub enum TaskRow {
         name: Option<String>,
         /// How many calendars it is inside (for indentation): 0 = top level, 1 = e.g. `SFAP` in `Work`
         depth: usize,
+        /// Its heading's line in the file, so the row can be chosen (`App::tasks_line`); `None` = no line of
+        /// its own (「未分組」, an outer calendar listed above one inside it, or no heading lines known)
+        line: Option<usize>,
     },
     /// An item
     Item {
@@ -50,7 +53,7 @@ impl App {
             // The headings above this item, each one listed (a calendar with no items gets its row too)
             while let Some(line) = headings.next_if(|line| line.line < item.line) {
                 if self.heading_shown(&line.heading) {
-                    push_heading(&mut rows, &mut listed, Some(&line.heading));
+                    push_heading(&mut rows, &mut listed, Some(&line.heading), Some(line.line));
                     last = Some(Some(&line.heading));
                 }
             }
@@ -59,7 +62,7 @@ impl App {
             }
             // No heading row for its calendar yet (e.g. no heading lines known, or before any heading)
             if last != Some(item.group.as_ref()) {
-                push_heading(&mut rows, &mut listed, item.group.as_ref());
+                push_heading(&mut rows, &mut listed, item.group.as_ref(), None);
                 last = Some(item.group.as_ref());
             }
             let children = self.items.iter().any(|other| other.parent == Some(index));
@@ -73,7 +76,7 @@ impl App {
         // The headings after the last item
         for line in headings {
             if self.heading_shown(&line.heading) {
-                push_heading(&mut rows, &mut listed, Some(&line.heading));
+                push_heading(&mut rows, &mut listed, Some(&line.heading), Some(line.line));
             }
         }
         rows
@@ -112,13 +115,45 @@ impl App {
     /// if that item is not on screen (e.g. just collapsed, or its
     /// calendar is unchecked) or nothing was chosen yet, the first item
     pub fn tasks_cursor(&self, rows: &[TaskRow]) -> Option<usize> {
-        let line_of = |row: &TaskRow| match row {
+        let item_line = |row: &TaskRow| match row {
             TaskRow::Item { index, .. } => self.items.get(*index).map(|item| item.line),
             TaskRow::Heading { .. } => None,
         };
         rows.iter()
-            .position(|row| self.tasks_line.is_some() && line_of(row) == self.tasks_line)
-            .or_else(|| rows.iter().position(|row| line_of(row).is_some()))
+            .position(|row| self.tasks_line.is_some() && self.row_line(row) == self.tasks_line)
+            .or_else(|| rows.iter().position(|row| item_line(row).is_some()))
+    }
+
+    /// The file line of a row that can be chosen: an item's line, or a heading row's own heading line
+    fn row_line(&self, row: &TaskRow) -> Option<usize> {
+        match row {
+            TaskRow::Item { index, .. } => self.items.get(*index).map(|item| item.line),
+            TaskRow::Heading { line, .. } => *line,
+        }
+    }
+
+    /// The path of the calendar whose heading row is chosen on the tasks page (e.g. `Work`, `SFAP`); `None`
+    /// when an item is chosen
+    pub fn tasks_chosen_calendar(&self) -> Option<Vec<String>> {
+        let rows = self.tasks_rows();
+        let TaskRow::Heading {
+            line: Some(line), ..
+        } = rows.get(self.tasks_cursor(&rows)?)?
+        else {
+            return None;
+        };
+        self.headings
+            .iter()
+            .find(|heading| heading.line == *line)
+            .map(|heading| {
+                let heading = &heading.heading;
+                heading
+                    .parents
+                    .iter()
+                    .chain([&heading.name])
+                    .cloned()
+                    .collect()
+            })
     }
 
     /// The item chosen on the tasks page
@@ -130,9 +165,9 @@ impl App {
         }
     }
 
-    /// Keyboard on the tasks page: `j` / `k` next / previous item (headings skipped), `gg` / `G` the first / last
-    /// item (like vim; `after_g`: the key before this one was `g`), `[` / `]` the previous / next calendar's
-    /// first item,
+    /// Keyboard on the tasks page: `j` / `k` next / previous row (an item, or a calendar's heading: `a` there adds
+    /// at the end of that calendar), `gg` / `G` the first / last row (like vim; `after_g`: the key before this
+    /// one was `g`), `[` / `]` the previous / next calendar's first item,
     /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
@@ -204,22 +239,18 @@ impl App {
         }
     }
 
-    /// Chooses the `step`-th item forward (negative = backward),
-    /// headings not counted; stops at the first / last item
+    /// Chooses the `step`-th row forward (negative = backward) from the chosen one: items and calendars'
+    /// heading rows (not the ones without a heading line of their own); stops at the first / last
     pub(super) fn choose_task(&mut self, step: isize) {
         let rows = self.tasks_rows();
-        let lines: Vec<usize> = rows
-            .iter()
-            .filter_map(|row| match row {
-                TaskRow::Item { index, .. } => self.items.get(*index).map(|item| item.line),
-                TaskRow::Heading { .. } => None,
-            })
-            .collect();
+        let lines: Vec<usize> = rows.iter().filter_map(|row| self.row_line(row)).collect();
         let Some(last) = lines.len().checked_sub(1) else {
             return;
         };
-        let current = self
-            .tasks_line
+        let chosen = self
+            .tasks_cursor(&rows)
+            .and_then(|cursor| self.row_line(&rows[cursor]));
+        let current = chosen
             .and_then(|line| lines.iter().position(|&other| other == line))
             .unwrap_or(0);
         self.tasks_line = Some(lines[current.saturating_add_signed(step).min(last)]);
@@ -413,11 +444,19 @@ impl App {
     /// one click chooses it; a click on `▸` / `▾` expands / collapses;
     /// clicks on headings are ignored
     pub(super) fn click_task(&mut self, row: usize, on_marker: bool) {
-        let Some(TaskRow::Item {
-            index, children, ..
-        }) = self.tasks_rows().get(row).cloned()
-        else {
-            return;
+        let (index, children) = match self.tasks_rows().get(row).cloned() {
+            Some(TaskRow::Item {
+                index, children, ..
+            }) => (index, children),
+            // A calendar's heading row: just choose it
+            Some(TaskRow::Heading {
+                line: Some(line), ..
+            }) => {
+                self.tasks_line = Some(line);
+                self.focus = super::Focus::Tasks;
+                return;
+            }
+            _ => return,
         };
         let Some(line) = self.items.get(index).map(|item| item.line) else {
             return;
@@ -471,11 +510,12 @@ impl App {
 
 /// Puts the heading row of `heading`'s calendar (`None` = 「未分組」) on `rows`, after rows for the calendars it is
 /// inside that the last heading listed (`listed`, its path) was not in; the calendar itself always gets a
-/// row (e.g. back in `Work` after `Work > SFAP`)
+/// row (e.g. back in `Work` after `Work > SFAP`), with its heading's `line` in the file (the outer ones none)
 fn push_heading<'a>(
     rows: &mut Vec<TaskRow>,
     listed: &mut Vec<&'a String>,
     heading: Option<&'a Heading>,
+    line: Option<usize>,
 ) {
     let path: Vec<&String> = heading
         .iter()
@@ -485,6 +525,7 @@ fn push_heading<'a>(
         rows.push(TaskRow::Heading {
             name: None,
             depth: 0,
+            line: None,
         });
     }
     let same = path
@@ -497,6 +538,7 @@ fn push_heading<'a>(
         rows.push(TaskRow::Heading {
             name: Some((*name).clone()),
             depth,
+            line: (depth + 1 == path.len()).then_some(line).flatten(),
         });
     }
     *listed = path;
