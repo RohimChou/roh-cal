@@ -557,8 +557,9 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 cell = [first]
                 for s in slots[k][:shown]:
                     if s and s[0] == "item":
-                        _, time, title, _, _, _ = s[1]
-                        cell.append(" " + (time + " " if time else "") + title)
+                        _, time, title, _, _, in_progress = s[1]
+                        # An in-progress item's time is left out: its 🚧 already takes most of the cell
+                        cell.append(" " + (time + " " if time and not in_progress else "") + title)
                     else:
                         cell.append("")
                 if shown < len(slots[k]):

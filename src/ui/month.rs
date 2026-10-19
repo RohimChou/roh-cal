@@ -566,7 +566,8 @@ fn item_colors(item: &Item, app: &App) -> (Color, Color) {
     }
 }
 
-/// One item in a cell: 「 14:00 標題」 (time only if it has one)
+/// One item in a cell: 「 14:00 標題」 (time only if it has one; not for an in-progress item, whose 🚧
+/// would leave no room for the title in a narrow cell: the day popup shows its time)
 ///
 /// Same as layout 1's agenda: items not over yet are in the normal text color with the time muted, an
 /// item with a priority or a holiday all in that color (`open_item_color`); items that are over are gray
@@ -574,7 +575,7 @@ fn item_colors(item: &Item, app: &App) -> (Color, Color) {
 fn item_line(item: &Item, app: &App) -> Line<'static> {
     let (color, time_color) = item_colors(item, app);
     let mut spans = vec![Span::styled(" ", Style::new().fg(color))];
-    if let Some(time) = item.time {
+    if let Some(time) = item.time.filter(|_| !item.in_progress) {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
             Style::new().fg(time_color),

@@ -2178,7 +2178,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 18:30 🚧│ Dinner w│ 07:00 Go│",
+            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 🚧 Team │ Dinner w│ 07:00 Go│",
             "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
@@ -3467,4 +3467,25 @@ fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
     app.view = View::Tasks;
     app.focus = Focus::Tasks;
     check(&mut app, "tasks page", false);
+}
+
+#[test]
+fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popup_shows_it() {
+    // In a narrow cell, 「18:30 🚧」 would leave no room for the title
+    let text = "- [/] Team happy hour @2026-10-17 18:30\n- [ ] Buy groceries @2026-10-17 17:30\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 30);
+    let terminal = draw_app(&mut app, 80, 30);
+    let grid = text_rows(terminal.backend().buffer()).join("\n");
+    assert!(
+        grid.contains("│ 🚧 Team") && !grid.contains("18:30"),
+        "{grid}"
+    );
+    // An item not in progress keeps its time
+    assert!(grid.contains("17:30 Buy"), "{grid}");
+    // The day popup has room: the time is there
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 80, 30);
+    let popup = area_rows(terminal.backend().buffer(), day_area(&app)).join("\n");
+    assert!(popup.contains("18:30 🚧 Team happy hour"), "{popup}");
 }
