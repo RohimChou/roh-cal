@@ -109,7 +109,7 @@ pub enum Priority {
 
 impl Priority {
     /// The priority a word stands for: exactly `!`, `!!` or `!!!`; anything else (`!!!!`, `wow!`) is `None`
-    fn from_word(word: &str) -> Option<Self> {
+    pub(crate) fn from_word(word: &str) -> Option<Self> {
         match word {
             "!" => Some(Self::Low),
             "!!" => Some(Self::Medium),

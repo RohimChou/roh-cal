@@ -1258,6 +1258,15 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     assert_eq!(color_of(buffer, 12, "高"), Some(theme.priority_high));
     assert_eq!(color_of(buffer, 12, "優"), Some(theme.muted));
     assert_eq!(color_of(buffer, 10, "P"), Some(theme.text));
+    // In the typed text, `!!!` is in italics, the title is not
+    let italic_on_8 = |symbol: &str| {
+        (0..80)
+            .map(|x| &buffer[(x, 8)])
+            .find(|cell| cell.symbol() == symbol)
+            .map(|cell| cell.modifier.contains(Modifier::ITALIC))
+    };
+    assert_eq!(italic_on_8("!"), Some(true));
+    assert_eq!(italic_on_8("P"), Some(false));
     // The hint row: `! !! !!!` each in its priority's color, what to type in the key color, the labels
     // muted
     let marks: Vec<Color> = (0..80)

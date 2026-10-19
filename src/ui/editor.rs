@@ -160,9 +160,11 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         .priority()
         .map_or(theme.text, |priority| theme.priority(priority));
     frame.render_widget(
-        Paragraph::new(editor.input.value())
-            .style(Style::new().fg(color))
-            .scroll((0, u16::try_from(scroll).unwrap_or(u16::MAX))),
+        Paragraph::new(Line::from(typed_spans(
+            editor.input.value(),
+            Style::new().fg(color),
+        )))
+        .scroll((0, u16::try_from(scroll).unwrap_or(u16::MAX))),
         input_area,
     );
     let cursor = editor.input.visual_cursor().saturating_sub(scroll);
@@ -182,6 +184,46 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         );
     }
     render_list(frame, editor, app);
+}
+
+/// The typed text in `style`, with what is not the title in italics so it stands out: an `@date` or
+/// `@date..date`, a time (`@10:00` on the selected day, or right after a date), `!` `!!` `!!!`, and a `#`
+/// word (a calendar being picked)
+fn typed_spans(text: &str, style: Style) -> Vec<Span<'static>> {
+    let italic = style.add_modifier(Modifier::ITALIC);
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut after_date = false;
+    let mut rest = text;
+    while !rest.is_empty() {
+        // The next run of blanks, or of other characters (a word)
+        let blank = rest.starts_with(char::is_whitespace);
+        let end = rest
+            .find(|c: char| c.is_whitespace() != blank)
+            .unwrap_or(rest.len());
+        let (run, next) = rest.split_at(end);
+        rest = next;
+        if blank {
+            spans.push(Span::styled(run.to_string(), style));
+            continue;
+        }
+        let date = run.strip_prefix('@').is_some_and(|word| {
+            crate::tasks::looks_like_date(word) || crate::tasks::looks_like_range(word)
+        });
+        let time = run
+            .strip_prefix('@')
+            .is_some_and(crate::tasks::looks_like_time)
+            || (after_date && crate::tasks::looks_like_time(run));
+        let syntax = date
+            || time
+            || Priority::from_word(run).is_some()
+            || (run.starts_with('#') && run.len() > 1);
+        spans.push(Span::styled(
+            run.to_string(),
+            if syntax { italic } else { style },
+        ));
+        after_date = date;
+    }
+    spans
 }
 
 /// The lines under the typed text: what it reads as, field by field (`fields`), then after a blank line
@@ -411,5 +453,35 @@ fn render_list(frame: &mut Frame, editor: &Editor, app: &App) {
                 ..inner
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The words of `text` that `typed_spans` puts in italics
+    fn italic_words(text: &str) -> Vec<String> {
+        typed_spans(text, Style::new())
+            .into_iter()
+            .filter(|span| span.style.add_modifier.contains(Modifier::ITALIC))
+            .map(|span| span.content.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn the_syntax_in_the_typed_text_is_italic() {
+        // A date and the time right after it, a priority, a `#` word; the title and `- [ ]` are not
+        assert_eq!(
+            italic_words("- [ ] Pay rent !!! @2026-10-21 10:00 #sf"),
+            ["!!!", "@2026-10-21", "10:00", "#sf"]
+        );
+        // A range, a time on the selected day
+        assert_eq!(
+            italic_words("- Trip @2026-10-20..2026-10-25 and @10:00"),
+            ["@2026-10-20..2026-10-25", "@10:00"]
+        );
+        // Not syntax: a time with no date before it, four `!`, a lone `#`, an e-mail-like `@`
+        assert!(italic_words("- [ ] Call at 10:00 !!!! # me@example.com").is_empty());
     }
 }
