@@ -53,15 +53,16 @@ fn wheel_moves_a_week() {
 
 #[test]
 fn left_click_on_a_date_selects_it() {
-    // 40 × 26 screen, October at the top: the 16th is at (24-26, 5); see the screen tests in ui/tests.rs
+    // 47 × 26 screen, October at the top: the 16th is at (28-31, 5), the 17th at (32-35, 5); see the screen
+    // tests in ui/tests.rs
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-    app.screen = Rect::new(0, 0, 40, 26);
+    app.screen = Rect::new(0, 0, 47, 26);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 29, 5));
     assert_eq!(app.selected, date(2026, 10, 16));
     // Right click, click on the header: ignored
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 28, 5));
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 1));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 33, 5));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 1));
     assert_eq!(app.selected, date(2026, 10, 16));
 }
 
@@ -256,12 +257,12 @@ fn wheel_in_the_agenda_moves_an_item() {
 
 #[test]
 fn clicking_an_item_moves_the_keyboard_there() {
-    // 70 × 23, October at the top: the agenda's first row is 10/10 a (the inside of the agenda box starts
-    // at x 36, y 3)
+    // 77 × 23, October at the top: the agenda's first row is 10/10 a (the inside of the agenda box starts
+    // at x 43, y 3)
     let mut app = app_with(ITEMS);
-    app.screen = Rect::new(0, 0, 70, 23);
+    app.screen = Rect::new(0, 0, 77, 23);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 40, 3));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 47, 3));
     assert_eq!(app.focus, Focus::Agenda);
     assert_eq!(
         app.chosen().map(|entry| entry.item.title.as_str()),
@@ -269,7 +270,7 @@ fn clicking_an_item_moves_the_keyboard_there() {
     );
     assert_eq!(app.selected, date(2026, 10, 10));
     // Then click a date on the calendar: the keyboard goes back to the calendar
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 25, 5));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 29, 5));
     assert_eq!(app.focus, Focus::Calendar);
     assert_eq!(app.selected, date(2026, 10, 16));
 }
@@ -376,26 +377,26 @@ fn unchecked_groups_leave_the_agenda() {
 
 #[test]
 fn h_and_l_move_across_agenda_columns() {
-    // 100 wide: the agenda has 2 columns. October has 5 week rows and 11 items, so each column takes
+    // 107 wide: the agenda has 2 columns. October has 5 week rows and 11 items, so each column takes
     // max(5, 11 ÷ 2 rounded up = 6) = 6 rows: items 0-5 in the first column, 6-10 in the second
     let text: String = (1..=11)
         .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
         .collect();
     let mut app = app_with(&text);
-    app.screen = Rect::new(0, 0, 100, 30);
+    app.screen = Rect::new(0, 0, 107, 30);
     app.focus = Focus::Agenda;
     let title = |app: &App| app.chosen().map(|entry| entry.item.title.clone());
     // On screen, Item 3 and Item 9 share a row (left and right column): the moves below follow what is
     // drawn
     let mut terminal =
-        ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).expect("terminal");
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(107, 30)).expect("terminal");
     terminal
         .draw(|frame| crate::ui::render(frame, &mut app))
         .expect("draw");
     let row_of = |text: &str| {
         let buffer = terminal.backend().buffer();
         (0..30).find(|&y| {
-            let row: String = (0..100).map(|x| buffer[(x, y)].symbol()).collect();
+            let row: String = (0..107).map(|x| buffer[(x, y)].symbol()).collect();
             row.contains(text)
         })
     };
@@ -424,17 +425,17 @@ fn h_and_l_move_across_agenda_columns() {
         .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
         .collect();
     let mut app = app_with(&text);
-    app.screen = Rect::new(0, 0, 100, 30);
+    app.screen = Rect::new(0, 0, 107, 30);
     app.focus = Focus::Agenda;
     let mut terminal =
-        ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).expect("terminal");
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(107, 30)).expect("terminal");
     terminal
         .draw(|frame| crate::ui::render(frame, &mut app))
         .expect("draw");
     let buffer = terminal.backend().buffer();
     let row_of = |text: &str| {
         (0..30).find(|&y| {
-            let row: String = (0..100).map(|x| buffer[(x, y)].symbol()).collect();
+            let row: String = (0..107).map(|x| buffer[(x, y)].symbol()).collect();
             row.contains(text)
         })
     };
@@ -705,15 +706,15 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
     app.handle_mouse(mouse(left, 3, 4));
     assert!(!app.groups[1].shown);
-    // Click outside the box (10/16 on the calendar; with October at the top, 10/17 is at x 27-29, y 5):
+    // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 5):
     // only hides it, the selected day stays
     app.calendar_top = Some(0);
     let selected = app.selected;
     assert_eq!(
-        ui::click_at(&app, 25, 5),
+        ui::click_at(&app, 29, 5),
         Some(Click::Day(date(2026, 10, 16)))
     );
-    app.handle_mouse(mouse(left, 25, 5));
+    app.handle_mouse(mouse(left, 29, 5));
     assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
     assert_eq!(ui::side_overlay(&app), None);
 }
@@ -820,14 +821,14 @@ fn enter_on_the_calendar_goes_into_that_days_items() {
         (app.view, app.focus, app.day_index),
         (View::Month, Focus::Day, 0)
     );
-    // With the mouse it takes a double click (70 × 23, October at the top: 10/17 is at x 27-29, y 5):
+    // With the mouse it takes a double click (70 × 23, October at the top: 10/17 is at x 32-35, y 5):
     // one click on the selected day only selects it, a second one right away opens the popup
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 70, 23);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 5));
     assert_eq!(app.focus, Focus::Calendar);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 28, 5));
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 5));
     assert_eq!(app.focus, Focus::Day);
 }
 

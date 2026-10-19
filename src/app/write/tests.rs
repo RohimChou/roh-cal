@@ -110,12 +110,12 @@ fn toggle_without_a_task_file_does_nothing() {
 
 #[test]
 fn a_notice_from_a_click_stays_after_the_button_is_released() {
-    // 70 × 23, October at the top: the agenda's first row (y 3) is the event on 10/10;
+    // 77 × 23, October at the top: the agenda's first row (y 3, from x 43) is the event on 10/10;
     // a double click = trying to check it off, and events cannot be checked off
     let text = "- Team sync @2026-10-10\n";
     let (mut app, path) = app_with_task_file("click-notice", text);
     app.focus = Focus::Calendar;
-    app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+    app.screen = ratatui::layout::Rect::new(0, 0, 77, 23);
     app.calendar_top = Some(0);
     let mouse = |kind, column| MouseEvent {
         kind,
@@ -126,13 +126,13 @@ fn a_notice_from_a_click_stays_after_the_button_is_released() {
     let down = MouseEventKind::Down(MouseButton::Left);
     let up = MouseEventKind::Up(MouseButton::Left);
     for _ in 0..2 {
-        app.handle_mouse(mouse(down, 40));
-        app.handle_mouse(mouse(up, 40));
+        app.handle_mouse(mouse(down, 47));
+        app.handle_mouse(mouse(up, 47));
     }
     // The release does not clear the notice; neither does moving or dragging
     assert_eq!(app.notice, Some(Notice::NotATask));
-    app.handle_mouse(mouse(MouseEventKind::Moved, 50));
-    app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), 50));
+    app.handle_mouse(mouse(MouseEventKind::Moved, 57));
+    app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), 57));
     assert_eq!(app.notice, Some(Notice::NotATask));
     // The next press: it has been seen, so clear it
     app.handle_mouse(mouse(down, 5));
@@ -142,15 +142,15 @@ fn a_notice_from_a_click_stays_after_the_button_is_released() {
 
 #[test]
 fn only_a_double_click_checks_an_item_off() {
-    // 70 × 23, October at the top: the agenda's first row (y 3, from x 36) is 10/10's "Review PRs"
+    // 77 × 23, October at the top: the agenda's first row (y 3, from x 43) is 10/10's "Review PRs"
     let text = "- [ ] Review PRs @2026-10-10\n";
     let (mut app, path) = app_with_task_file("click", text);
     app.focus = Focus::Calendar;
-    app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+    app.screen = ratatui::layout::Rect::new(0, 0, 77, 23);
     app.calendar_top = Some(0);
     let click = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: 40,
+        column: 47,
         row: 3,
         modifiers: KeyModifiers::NONE,
     };

@@ -282,7 +282,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     t = TEXTS[lang]
     body_h = h - 5  # box top and bottom, header, header line, hints line
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0  # side menu width
-    aw = w - sw - 35  # agenda box width (borders included)
+    aw = w - sw - 42  # agenda box width (borders included); the calendar box is 42 wide
     iw = max(aw - 2, 0)  # width inside the agenda box
     n = min(max((iw + 2) // 30, 1), 4)  # number of columns
     colw = (iw - 2 * (n - 1)) // n if iw else 0
@@ -300,7 +300,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
             s = " " + rjust(d, 5) + " " + rest
         return ljust(cut(s, colw), colw)
 
-    rule = lambda thick: ("━" * 10 + "┿" + "━" * 22) if thick else ("─" * 10 + "┼" + "─" * 22)
+    rule = lambda thick: ("━" * 10 + "┿" + "━" * 29) if thick else ("─" * 10 + "┼" + "─" * 29)
     # Each row: (calendar half, agenda half, year of this row's week (None when there is no date),
     # whether the right border is the scrollbar thumb)
     rows = []
@@ -344,17 +344,19 @@ def screen(lang, w, h, selected, first, skip, items, groups):
                 label = t["month"](m)
             if i < len(weeks):
                 week = weeks[i]
-                days = list("".join(f"{d:>3}" if d else "   " for d in week) + " ")
+                # 4 cells a day: blanks, the date right-aligned in cells 2-3, a blank after it; one more
+                # blank after Sunday
+                days = list("".join(f"{d:>3} " if d else "    " for d in week) + " ")
                 for k, d in enumerate(week):
                     if d and datetime.date(y, m, d) == selected:
-                        start = 3 * k + 3 - len(str(d))
+                        start = 4 * k + 3 - len(str(d))
                         days[start - 1] = "["
-                        days[3 * k + 3] = "]"
+                        days[4 * k + 3] = "]"
                 day = next(d for d in week if d)
                 left = rjust(label, 6) + f"{week_number(datetime.date(y, m, day), selected):>3} " + "│" + "".join(days)
                 year = y
             else:
-                left = " " * 10 + "│" + " " * 22
+                left = " " * 10 + "│" + " " * 29
                 year = None
             cols = []
             for c in range(n):
@@ -366,7 +368,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     visible = rows[skip:skip + body_h]
     # The top-left corner always shows the year of the top week on screen
     month_header = t["year"](next(year for _, _, year, _ in visible if year is not None))
-    header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d for d in t["wd"]), 22)
+    header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d + " " for d in t["wd"]), 29)
     # Agenda header: 「重要事項」 on the left, the selected day on the right (one space after it);
     # when narrow the date stays whole and 「重要事項」 is cut, with at least one space between them
     date = t["date"](selected) + " "
@@ -384,9 +386,9 @@ def screen(lang, w, h, selected, first, skip, items, groups):
             line += "│" + right + ("┃" if thumb else "│")
         return line
 
-    lines = ["╭" + "─" * 33 + "╮" + ("╭" + "─" * iw + "╮" if aw else "")]
+    lines = ["╭" + "─" * 40 + "╮" + ("╭" + "─" * iw + "╮" if aw else "")]
     lines += [framed(l, r, b) for l, r, b in inner]
-    lines.append("╰" + "─" * 33 + "╯" + ("╰" + "─" * iw + "╯" if aw else ""))
+    lines.append("╰" + "─" * 40 + "╯" + ("╰" + "─" * iw + "╯" if aw else ""))
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
     # Hints line (has `s` whether wide or narrow)

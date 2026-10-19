@@ -26,16 +26,19 @@ use ratatui::{
 };
 use std::rc::Rc;
 
-/// The four columns in the calendar box: year/month, week number, │, 7 days (3 cells per day, plus 1 extra
-/// cell for the selected day's `]`)
+/// Cells per day: a blank, the date (right-aligned in 2 cells), and one cell after it
+const DAY_WIDTH: u16 = 4;
+/// The 7 days, plus 1 extra cell at the end for Sunday's `]` when the cell after its date is taken
+const DAYS_WIDTH: u16 = 7 * DAY_WIDTH + 1;
+/// The four columns in the calendar box: year/month, week number, │, 7 days
 const COLUMNS: [Constraint; 4] = [
     Constraint::Length(6),
     Constraint::Length(4),
     Constraint::Length(1),
-    Constraint::Length(22),
+    Constraint::Length(DAYS_WIDTH),
 ];
 /// Width of the calendar box: the four columns + left and right border
-pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + 22 + 2;
+pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + DAYS_WIDTH + 2;
 /// How many rows to keep between the selected row and the screen's top and bottom edges; scroll only when
 /// there are fewer (like vim's scrolloff)
 const SCROLLOFF: i64 = 2;
@@ -257,8 +260,8 @@ pub(super) fn inner_areas(area: Rect) -> [Rect; 3] {
 /// (`calendar`) or an item in the agenda on the right (`agenda`);
 /// `None` when it is not on a date or an item
 ///
-/// The scroll position is `app.calendar_top`, stored at the last draw; each calendar day takes 3 cells
-/// (the blank before the date counts as that day)
+/// The scroll position is `app.calendar_top`, stored at the last draw; each calendar day takes `DAY_WIDTH`
+/// cells (the blanks before and after the date count as that day)
 pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, calendar_body] = inner_areas(calendar);
     let [_, _, agenda_body] = inner_areas(agenda);
@@ -279,10 +282,10 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
         else {
             return None;
         };
-        // Which day: which group of 3 cells in the 7-day column; the extra cell at the end
+        // Which day: which group of `DAY_WIDTH` cells in the 7-day column; the extra cell at the end
         // is the 8th and has no date
         let [_, _, _, days_area] = Layout::horizontal(COLUMNS).areas(calendar_body);
-        let weekday = usize::from(column.checked_sub(days_area.x)? / 3);
+        let weekday = usize::from(column.checked_sub(days_area.x)? / DAY_WIDTH);
         days.get(weekday).copied().flatten().map(Click::Day)
     } else if agenda_body.contains(position) {
         let Row::Week { items, .. } = rows.get(usize::from(row - agenda_body.y))? else {
@@ -321,7 +324,8 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
             } else {
                 muted
             };
-            Span::styled(format!(" {name}"), style)
+            // Over its date: a blank before, the cell after the date after
+            Span::styled(format!(" {name} "), style)
         })
         .collect();
     render_cells(
@@ -336,7 +340,7 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
     );
 }
 
-/// One row of the calendar box: year / month on the left, week number, │, 7 days (3 cells per day,
+/// One row of the calendar box: year / month on the left, week number, │, 7 days (`DAY_WIDTH` cells per day,
 /// dates right-aligned); item-only rows draw only │
 ///
 /// If the selected day is in this row: the week number is bright and the whole row gets the
@@ -387,29 +391,21 @@ fn render_week(
     }
 }
 
-/// The dates of the 7 days, 3 cells per day, right-aligned; the selected day gets brackets `[17]`
+/// The dates of the 7 days, `DAY_WIDTH` cells per day: a blank, the date right-aligned in 2 cells, and a
+/// blank after it; the selected day gets brackets `[17]`
 ///
-/// A date has at most 2 digits, so there is always a blank before it: `[` takes its own day's blank,
-/// `]` takes the next day's blank (for Sunday, the extra cell at the end)
+/// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
+/// date, `]` the blank after it
 fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);
     let mut spans = Vec::new();
-    // The previous day is the selected one: put `]` in the blank before this cell first
-    let mut close = false;
     for day in days {
         let number = day.map(|day| day.day().to_string()).unwrap_or_default();
         let selected = *day == Some(app.selected);
-        // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus cells taken by brackets
-        let mut gap = 3 - number.len();
-        if close {
-            spans.push(Span::styled("]", bracket));
-            gap -= 1;
-        }
-        if selected {
-            gap -= 1;
-        }
+        // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus the cell `[` takes
+        let gap = 3 - number.len() - usize::from(selected);
         spans.push(Span::raw(" ".repeat(gap)));
         if selected {
             spans.push(Span::styled("[", bracket));
@@ -425,10 +421,12 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             }
             spans.push(Span::styled(number, style));
         }
-        close = selected;
-    }
-    if close {
-        spans.push(Span::styled("]", bracket));
+        // The cell after the date
+        if selected {
+            spans.push(Span::styled("]", bracket));
+        } else {
+            spans.push(Span::raw(" "));
+        }
     }
     Line::from(spans)
 }
