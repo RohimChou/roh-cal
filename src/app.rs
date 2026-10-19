@@ -9,7 +9,7 @@ mod settings;
 mod tasks;
 mod write;
 
-pub use editor::{Editor, Reading, Target};
+pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
 pub use picker::Picker;

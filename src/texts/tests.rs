@@ -58,37 +58,22 @@ fn notices_in_both_languages() {
 }
 
 #[test]
-fn preview_says_what_a_line_reads_as() {
+fn when_says_the_date_time_and_range() {
     let item = |line: &str| crate::tasks::parse(line).items[0].clone();
     let zh = Lang::ZhTw.texts();
     assert_eq!(
-        zh.preview(&item("- [ ] Send the weekly update @2026-10-16 17:30")),
-        " 任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」"
+        zh.when(&item("- [ ] Send the weekly update @2026-10-16 17:30")),
+        "2026/10/16（五） 17:30"
     );
     assert_eq!(
-        zh.preview(&item("- Business trip to NYC @2026-10-20..2026-10-25")),
-        " 行程 · 2026/10/20（二）～2026/10/25（日） · 「Business trip to NYC」"
+        zh.when(&item("- Business trip to NYC @2026-10-20..2026-10-25")),
+        "2026/10/20（二）～2026/10/25（日）"
     );
-    assert_eq!(
-        zh.preview(&item("- [x] Organize the bookshelf")),
-        " 做完的任務 · 沒有日期 · 「Organize the bookshelf」"
-    );
-    assert_eq!(
-        zh.preview(&item("- [ ] Pay the fine !!!")),
-        " 任務 · 優先度高 · 沒有日期 · 「Pay the fine」"
-    );
+    assert_eq!(zh.when(&item("- [x] Organize the bookshelf")), "沒有日期");
     let en = Lang::En.texts();
     assert_eq!(
-        en.preview(&item("- Dentist appointment @2026-10-14 10:30")),
-        " Event · Wed Oct 14, 2026 10:30 · \"Dentist appointment\""
-    );
-    assert_eq!(
-        en.preview(&item("- [ ] ! Call the bank @2026-10-14")),
-        " Task · low priority · Wed Oct 14, 2026 · \"Call the bank\""
-    );
-    assert_eq!(
-        en.preview(&item("- [ ] Call the bank !!")),
-        " Task · medium priority · no date · \"Call the bank\""
+        en.when(&item("- Dentist appointment @2026-10-14 10:30")),
+        "Wed Oct 14, 2026 10:30"
     );
     assert_eq!(
         en.problem(&Problem::Mistake(WarningKind::NoSuchDate(

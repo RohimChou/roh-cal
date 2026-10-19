@@ -40,9 +40,11 @@ pub fn agenda_columns(app: &App) -> usize {
     planner::columns(areas(app.screen, app).agenda)
 }
 
-/// Where the edit box is (so a mouse click outside it can cancel)
+/// Where the edit box is (so a mouse click outside it can cancel); nothing while it is closed
 pub fn editor_area(app: &App) -> Rect {
-    editor::area(areas(app.screen, app).main)
+    app.editor().map_or(Rect::default(), |editor| {
+        editor::area(app, areas(app.screen, app).main, editor)
+    })
 }
 
 /// Where the editor's `#` list is and which calendar is on its first row (so a click can pick one); `None`

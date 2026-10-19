@@ -43,6 +43,9 @@ pub struct Editor {
     pub day: Option<Date>,
     /// The `#` list of calendars to pick from
     pub hash_list: HashList,
+    /// `Enter` was pressed but it could not be saved: an empty title (or name) shows as a mistake from then
+    /// on, until the text changes (before that, a gray hint where the title goes)
+    pub tried: bool,
 }
 
 /// The `#` list: typing `#` and part of a calendar's name (e.g. `#sf`) lists the calendars that match, best
@@ -186,6 +189,9 @@ impl Editor {
             return;
         };
         let changed = self.input.handle(request).is_some_and(|state| state.value);
+        if changed {
+            self.tried = false;
+        }
         self.hash_list.open = changed && self.hash_word().is_some();
         self.hash_list.index = 0;
     }
@@ -263,6 +269,7 @@ impl App {
                 calendar: None,
             },
             day,
+            tried: false,
             hash_list: HashList {
                 calendars: self.calendars(),
                 ..HashList::default()
@@ -305,6 +312,7 @@ impl App {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(place),
             day,
+            tried: false,
             hash_list: HashList {
                 calendars: self.calendars(),
                 ..HashList::default()
@@ -322,6 +330,7 @@ impl App {
             input: Input::new("- [ ] ".to_string()),
             target: Target::Add(Place::ChildOf(item)),
             day: None,
+            tried: false,
             hash_list: HashList::default(),
         });
     }
@@ -367,6 +376,7 @@ impl App {
             input: Input::default(),
             target: Target::AddCalendar { parent, others },
             day: None,
+            tried: false,
             hash_list: HashList {
                 calendars,
                 top: Some(self.lang.texts().top_level.to_string()),
@@ -433,6 +443,7 @@ impl App {
                 others,
             },
             day: None,
+            tried: false,
             hash_list: HashList {
                 calendars,
                 top: Some(self.lang.texts().top_level.to_string()),
@@ -565,6 +576,10 @@ impl App {
         };
         // Save only if it can be saved; `reading` = what the typed text reads as
         let Ok(reading) = editor.check() else {
+            // Cannot save: from now on an empty title (or name) shows as a mistake too
+            if let Mode::Editor(editor) = &mut self.mode {
+                editor.tried = true;
+            }
             return;
         };
         let new = editor.line().trim().to_string();

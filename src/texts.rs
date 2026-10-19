@@ -2,7 +2,7 @@
 
 use crate::app::{Focus, Notice, Row, View};
 use crate::edit::Problem;
-use crate::tasks::{Heading, Item, Kind, Priority, WarningKind};
+use crate::tasks::{Item, WarningKind};
 use jiff::civil::Date;
 
 /// Supported languages
@@ -78,8 +78,8 @@ pub struct Texts {
     pub hints_side: &'static str,
     /// The keys on the bottom border of the editor's `#` list
     pub hash_list_keys: &'static str,
-    /// The editor's hint row: what can be typed in the line
-    pub editor_hints: EditorHints,
+    /// The editor's words: the fields of what the line reads as, and the hint row (what can be typed)
+    pub editor_words: EditorWords,
     /// The title on the editor's top border when adding a calendar
     pub add_calendar_title: &'static str,
     /// The calendar a new item goes into when the task file has no calendar yet (`# 預設`)
@@ -107,23 +107,40 @@ pub struct Texts {
     pub picker_typing: &'static str,
 }
 
-/// The words on the editor's hint row (what can be typed in the line)
+/// The editor's words: the labels of the fields under the typed line (what it reads as), and the hint row
+/// (what can be typed: each with the same label, then what to type)
 #[derive(Debug, Clone, Copy)]
-pub struct EditorHints {
-    /// After `@2026-10-19`: an item's date
+pub struct EditorWords {
+    /// In front of the hint row: 「可以打」
+    pub can_type: &'static str,
+    /// An item's title
+    pub title: &'static str,
+    /// The title field while nothing is typed after `- [ ] ` yet
+    pub title_placeholder: &'static str,
+    /// An item's date (`@2026-10-19`)
     pub date: &'static str,
-    /// After `@10:00`: its time
+    /// Its time (`@10:00`)
     pub time: &'static str,
-    /// After `! !! !!!`: its priority
+    /// Its priority (`! !! !!!`)
     pub priority: &'static str,
+    /// The priorities: high, medium, low
+    pub levels: [&'static str; 3],
+    /// The calendar an item is in (`#name` picks another)
+    pub calendar: &'static str,
+    /// The item a subtask goes under
+    pub under: &'static str,
+    /// A calendar's name
+    pub name: &'static str,
+    /// The name field while nothing is typed yet
+    pub name_placeholder: &'static str,
+    /// A calendar's kind: shown only for a holiday calendar
+    pub kind: &'static str,
+    /// A holiday calendar (`type:holiday`)
+    pub holiday: &'static str,
+    /// The calendar a calendar is inside (`#name` picks another)
+    pub inside: &'static str,
     /// What to type before part of a calendar's name: `#name`
     pub name_key: &'static str,
-    /// After `#name` for an item: it switches calendar
-    pub calendar: &'static str,
-    /// After `type:holiday` for a calendar: a holiday calendar
-    pub holiday: &'static str,
-    /// After `#name` for a calendar: the calendar it goes inside
-    pub inside: &'static str,
 }
 
 /// The help page: the short version (what `?` opens: the sections of `short` that work where the keyboard
@@ -183,14 +200,22 @@ const EN: Texts = Texts {
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  Esc close",
     hints_side: " jk move  Space show / hide  a/A add calendar  e rename  d delete  Esc back",
     hash_list_keys: " Enter pick  Esc close ",
-    editor_hints: EditorHints {
-        date: "date",
-        time: "time",
-        priority: "priority",
-        name_key: "#name",
-        calendar: "calendar",
+    editor_words: EditorWords {
+        can_type: "Add",
+        title: "Title",
+        title_placeholder: "(type it after - [ ])",
+        date: "Date",
+        time: "Time",
+        priority: "Priority",
+        levels: ["high", "medium", "low"],
+        calendar: "Calendar",
+        under: "Under",
+        name: "Name",
+        name_placeholder: "(type its name)",
+        kind: "Kind",
         holiday: "holiday calendar",
-        inside: "inside it",
+        inside: "Inside",
+        name_key: "#name",
     },
     add_calendar_title: " New calendar ",
     default_calendar: "Default",
@@ -406,14 +431,22 @@ const ZH_TW: Texts = Texts {
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  a/A 新增日曆  e 改名  d 刪除  Esc 回去",
     hash_list_keys: " Enter 選定  Esc 收起 ",
-    editor_hints: EditorHints {
+    editor_words: EditorWords {
+        can_type: "可以打",
+        title: "標題",
+        title_placeholder: "（打在 - [ ] 後面）",
         date: "日期",
         time: "時間",
         priority: "優先度",
-        name_key: "#名字",
-        calendar: "換日曆",
+        levels: ["高", "中", "低"],
+        calendar: "所屬日曆",
+        under: "上層事項",
+        name: "名字",
+        name_placeholder: "（打日曆的名字）",
+        kind: "類型",
         holiday: "假日日曆",
-        inside: "放到哪個日曆裡",
+        inside: "上層日曆",
+        name_key: "#名字",
     },
     add_calendar_title: " 新增日曆 ",
     default_calendar: "預設",
@@ -714,12 +747,12 @@ impl Texts {
         }
     }
 
-    /// The title on the editor's top border when adding: ` 新增 ` / ` 新增子任務 `
+    /// The title on the editor's top border when adding: ` 新增事項 ` / ` 新增子任務 `
     pub fn add_title(&self, subtask: bool) -> &'static str {
         match (self.lang, subtask) {
             (Lang::En, false) => " New item ",
             (Lang::En, true) => " New subtask ",
-            (Lang::ZhTw, false) => " 新增 ",
+            (Lang::ZhTw, false) => " 新增事項 ",
             (Lang::ZhTw, true) => " 新增子任務 ",
         }
     }
@@ -732,29 +765,9 @@ impl Texts {
         }
     }
 
-    /// What the line typed in the editor reads as, e.g. `任務 · 2026/10/16（五） 17:30 · 「Send the weekly update」`,
-    /// `任務 · 優先度高 · 沒有日期 · 「Pay the fine」` (`preview_parts` with ` · ` before the priority; the
-    /// screen draws the parts, tests check the whole)
-    #[cfg(test)]
-    pub fn preview(&self, item: &Item) -> String {
-        match self.preview_parts(item) {
-            (kind, Some(priority), rest) => format!("{kind} · {priority}{rest}"),
-            (kind, None, rest) => format!("{kind}{rest}"),
-        }
-    }
-
-    /// `preview` in three parts, so the priority can get its own color: the kind (` 任務`), the priority
-    /// (`優先度高`; `None` without one) and the rest (` · 沒有日期 · 「Pay the fine」`)
-    pub fn preview_parts(&self, item: &Item) -> (String, Option<&'static str>, String) {
-        let kind = match (self.lang, item.kind, item.done) {
-            (Lang::En, Kind::Task, false) => "Task",
-            (Lang::En, Kind::Task, true) => "Done task",
-            (Lang::En, Kind::Event, _) => "Event",
-            (Lang::ZhTw, Kind::Task, false) => "任務",
-            (Lang::ZhTw, Kind::Task, true) => "做完的任務",
-            (Lang::ZhTw, Kind::Event, _) => "行程",
-        };
-        let when = match item.date {
+    /// When an item is, e.g. `2026/10/16（五） 17:30`, `2026/10/20（二）～2026/10/25（日）`, `沒有日期`
+    pub fn when(&self, item: &Item) -> String {
+        match item.date {
             None => match self.lang {
                 Lang::En => "no date".to_string(),
                 Lang::ZhTw => "沒有日期".to_string(),
@@ -769,30 +782,6 @@ impl Texts {
                 }
                 when
             }
-        };
-        // With a priority: right after the kind, e.g. 「任務 · 優先度高 · …」
-        let priority = item.priority.map(|priority| match (self.lang, priority) {
-            (Lang::En, Priority::High) => "high priority",
-            (Lang::En, Priority::Medium) => "medium priority",
-            (Lang::En, Priority::Low) => "low priority",
-            (Lang::ZhTw, Priority::High) => "優先度高",
-            (Lang::ZhTw, Priority::Medium) => "優先度中",
-            (Lang::ZhTw, Priority::Low) => "優先度低",
-        });
-        let rest = match self.lang {
-            Lang::En => format!(" · {when} · \"{}\"", item.title),
-            Lang::ZhTw => format!(" · {when} · 「{}」", item.title),
-        };
-        (format!(" {kind}"), priority, rest)
-    }
-
-    /// What the name typed for a calendar reads as, e.g. ` 日曆「Side projects」`, ` 假日日曆「US holidays」`
-    pub fn calendar_preview(&self, heading: &Heading) -> String {
-        match (self.lang, heading.holiday) {
-            (Lang::En, false) => format!(" Calendar \"{}\"", heading.name),
-            (Lang::En, true) => format!(" Holiday calendar \"{}\"", heading.name),
-            (Lang::ZhTw, false) => format!(" 日曆「{}」", heading.name),
-            (Lang::ZhTw, true) => format!(" 假日日曆「{}」", heading.name),
         }
     }
 

@@ -1,8 +1,8 @@
 //! One-line editor: a box in the middle of the main view (like the day popup), with some blank space inside
 //! the border when there is room; the `#` list of calendars opens right under the typed text
 
-use crate::app::{App, Editor, Reading, Target};
-use crate::edit::Place;
+use crate::app::{App, Editor, Target};
+use crate::edit::{Place, Problem};
 use crate::tasks::Priority;
 use ratatui::{
     Frame,
@@ -11,10 +11,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, Paragraph},
 };
-
-/// Editor height: top border, the typing row, a blank row, the check-result row, the hint row (what can be
-/// typed), bottom border
-const HEIGHT: u16 = 6;
 
 /// The widest the editor gets: a usual task line fits with room to spare; a longer one scrolls
 const MAX_WIDTH: u16 = 80;
@@ -30,38 +26,41 @@ const PADDING: Margin = Margin::new(1, 1);
 const LIST_ROWS: usize = 8;
 
 /// The editor's area on the main view (`main`: right of the side menu, above the key-hint row): in the
-/// middle both ways, like the day popup; 2 cells from each side, at most `MAX_WIDTH` wide.
-/// Used for drawing and for the mouse (a click outside the box = cancel)
-pub fn area(main: Rect) -> Rect {
-    layout(main).0
+/// middle both ways, like the day popup; 2 cells from each side, at most `MAX_WIDTH` wide, as tall as what
+/// is in it (see `layout`). Used for drawing and for the mouse (a click outside the box = cancel)
+pub fn area(app: &App, main: Rect, editor: &Editor) -> Rect {
+    layout(app, main, editor).0
 }
 
-/// The editor's area (see `area`) and where the text goes inside it: the border taken off, and the
-/// padding too when there is room for it
-fn layout(main: Rect) -> (Rect, Rect) {
-    let rows = main.height;
+/// The editor's area (see `area`), where the text goes inside it (the border taken off, and the padding too
+/// when there is room for it), and the lines under the typed text (`body`). Inside: the typed text, a
+/// blank row, then the body; when the main view is too short, no padding rows, and the body is cut
+fn layout(app: &App, main: Rect, editor: &Editor) -> (Rect, Rect, Vec<Line<'static>>) {
     let wide = main.width >= NARROW;
-    let padding = Margin::new(
-        if wide { PADDING.horizontal } else { 0 },
-        if rows >= HEIGHT + 2 * PADDING.vertical {
-            PADDING.vertical
-        } else {
-            0
-        },
-    );
-    let height = (HEIGHT + 2 * padding.vertical).min(rows);
     let width = if wide {
         (main.width - 4).min(MAX_WIDTH)
     } else {
         main.width
     };
+    let horizontal = if wide { PADDING.horizontal } else { 0 };
+    let body = body(editor, app, width.saturating_sub(2 + 2 * horizontal));
+    let rows = 2 + u16::try_from(body.len()).unwrap_or(u16::MAX);
+    let vertical = if main.height >= rows + 2 + 2 * PADDING.vertical {
+        PADDING.vertical
+    } else {
+        0
+    };
+    let height = (rows + 2 + 2 * vertical).min(main.height);
     let area = Rect::new(
         main.x + (main.width - width) / 2,
-        main.y + (rows - height) / 2,
+        main.y + (main.height - height) / 2,
         width,
         height,
     );
-    (area, Block::bordered().inner(area).inner(padding))
+    let inner = Block::bordered()
+        .inner(area)
+        .inner(Margin::new(horizontal, vertical));
+    (area, inner, body)
 }
 
 /// Where the typed text goes: the first row inside the box, after one blank cell
@@ -89,7 +88,7 @@ fn input_scroll(editor: &Editor, input_area: Rect) -> usize {
 pub fn list_area(app: &App, screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usize)> {
     let found = editor.suggestions()?;
     let (start, _) = editor.hash_word()?;
-    let input_area = input_area(layout(super::areas(screen, app).main).1);
+    let input_area = input_area(layout(app, super::areas(screen, app).main, editor).1);
     // Where the `#` is on screen: the cells before it, less what the typed text is scrolled
     let before: String = editor.input.value().chars().take(start).collect();
     let column = Span::raw(before)
@@ -118,41 +117,22 @@ pub fn list_area(app: &App, screen: Rect, editor: &Editor, keys: &str) -> Option
     Some((Rect::new(x, y, width, height), top))
 }
 
-/// Draws the editor: the top border says 「編輯事項 ∙ its calendar」 when editing an item (or 「新增 ∙ the
-/// calendar it goes into」, 「新增日曆」); row 1 is the typed text
-/// (cursor at the typing position); after a blank row, row 3 shows live what the line will be read as (red text when something
-/// is wrong, saying what is wrong and that it cannot be saved); the bottom border shows how to save
+/// Draws the editor: the top border says what it does (「新增事項」, 「編輯事項」, 「新增日曆」…); row 1 is the typed
+/// text (cursor at the typing position, the text in its priority's color as soon as it has one); after a
+/// blank row, the body (what it reads as, then what can be typed); the bottom border says how to save
 pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let (area, inner) = layout(super::areas(frame.area(), app).main);
+    let (area, inner, body) = layout(app, super::areas(frame.area(), app).main, editor);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
         .title_top(Line::styled(
             match &editor.target {
-                // Editing an item: the calendar it is in (or moves to), e.g. 「 編輯事項 ∙ Work > SFAP 」
-                Target::Edit { .. } if let Some(path) = editor.calendar() => {
-                    format!("{}∙ {} ", texts.edit_title(), path.join(" > "))
-                }
-                Target::Edit { .. } => texts.edit_title().to_string(),
-                // Adding an item: which calendar it goes into, e.g. 「 新增 ∙ Work > SFAP 」
-                Target::Add(_) if let Some(path) = editor.calendar() => {
-                    format!("{}∙ {} ", texts.add_title(false), path.join(" > "))
-                }
-                Target::Add(place) => texts
-                    .add_title(matches!(place, Place::ChildOf(_)))
-                    .to_string(),
-                // A calendar inside another one: where it goes, e.g. 「 新增日曆 ∙ Work > SFAP 」
-                Target::AddCalendar { parent, .. } if !parent.is_empty() => {
-                    format!("{}∙ {} ", texts.add_calendar_title, parent.join(" > "))
-                }
-                Target::AddCalendar { .. } => texts.add_calendar_title.to_string(),
-                // Renaming a calendar inside another one: the calendar it is in (or moves to)
-                Target::RenameCalendar { parent, .. } if !parent.is_empty() => {
-                    format!("{}∙ {} ", texts.rename_calendar_title, parent.join(" > "))
-                }
-                Target::RenameCalendar { .. } => texts.rename_calendar_title.to_string(),
+                Target::Edit { .. } => texts.edit_title(),
+                Target::Add(place) => texts.add_title(matches!(place, Place::ChildOf(_))),
+                Target::AddCalendar { .. } => texts.add_calendar_title,
+                Target::RenameCalendar { .. } => texts.rename_calendar_title,
             },
             Style::new().fg(theme.label),
         ))
@@ -190,47 +170,13 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
         input_area.x + u16::try_from(cursor).unwrap_or(0),
         input_area.y,
     ));
-    // Check result: what it reads as (muted), or what is wrong (red); a blank row between it and the typed
-    // text (left out when the terminal is too short for it)
-    if inner.height > 1 {
-        let muted = Style::new().fg(theme.muted);
-        let check = match editor.check() {
-            // What it reads as; the priority in its own color, e.g. 「任務 · 優先度高 · …」 with 優先度高 red
-            Ok(Reading::Item(item)) => {
-                let (kind, priority, rest) = texts.preview_parts(&item);
-                let mut spans = vec![Span::styled(kind, muted)];
-                if let (Some(label), Some(priority)) = (priority, item.priority) {
-                    spans.push(Span::styled(" · ", muted));
-                    spans.push(Span::styled(
-                        label,
-                        Style::new().fg(theme.priority(priority)),
-                    ));
-                }
-                spans.push(Span::styled(rest, muted));
-                Line::from(spans)
-            }
-            Ok(Reading::Calendar(heading)) => Line::styled(
-                texts.calendar_preview(&heading),
-                Style::new().fg(theme.muted),
-            ),
-            Err(problem) => Line::styled(texts.problem(&problem), Style::new().fg(theme.error)),
-        };
+    // The body, after a blank row (cut at the bottom when the terminal is too short)
+    if inner.height > 2 {
         frame.render_widget(
-            check,
+            Paragraph::new(body),
             Rect {
-                y: inner.y + 2.min(inner.height - 1),
-                height: 1,
-                ..inner
-            },
-        );
-    }
-    // What can be typed, under the check result (left out when the terminal is too short for it)
-    if inner.height > 3 {
-        frame.render_widget(
-            hint_line(editor, app),
-            Rect {
-                y: inner.y + 3,
-                height: 1,
+                y: inner.y + 2,
+                height: inner.height - 2,
                 ..inner
             },
         );
@@ -238,48 +184,179 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
     render_list(frame, editor, app);
 }
 
-/// The hint row: what can be typed, the thing to type in the help page's key color and what it does muted.
-/// An item's line: `@2026-10-19 日期  @10:00 時間  ! !! !!! 優先度  #名字 換日曆` (today's date; `!` `!!` `!!!` each in
-/// its priority's color; `#` only when it can pick a calendar, not for a subtask); a calendar's name:
-/// `type:holiday 假日日曆  #名字 放到哪個日曆裡`
-fn hint_line(editor: &Editor, app: &App) -> Line<'static> {
+/// The lines under the typed text: what it reads as, field by field (`fields`), then after a blank line
+/// what can be typed (`hints`, wrapped to `width` cells)
+fn body(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
+    let mut lines = fields(editor, app);
+    lines.push(Line::default());
+    lines.extend(hints(editor, app, width));
+    lines
+}
+
+/// What the typed text reads as, one field per line with its label in front (only the fields it has), e.g.
+/// `標題  Pay rent`, `日期  2026/10/21（三） 10:00`, `優先度  高` (in its color), `所屬日曆  Work > SFAP`; then what
+/// is wrong, in red on its own line. An item is read leniently (a wrong date stays in the title as text), so
+/// the fields show while it is being fixed; an empty title (or name) is a gray hint until `Enter` could not
+/// save it (`Editor::tried`). A calendar: its name, `類型  假日日曆` for a holiday calendar, the calendar it is
+/// inside (`上層日曆  最外層` at the top level)
+fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
-    let hints = &app.lang.texts().editor_hints;
-    let key = |text: String| Span::styled(text, Style::new().fg(theme.help_key));
-    let says = |text: &str| Span::styled(format!(" {text}  "), Style::new().fg(theme.muted));
-    let mut spans = vec![Span::raw(" ")];
-    match editor.target {
+    let texts = app.lang.texts();
+    let words = &texts.editor_words;
+    let text = Style::new().fg(theme.text);
+    let muted = Style::new().fg(theme.muted);
+    let mut fields: Vec<(&str, Span<'static>)> = Vec::new();
+    match &editor.target {
+        Target::Edit { .. } | Target::Add(_) => {
+            if let Some(item) = crate::tasks::parse(&editor.line()).items.into_iter().next() {
+                fields.push(match item.title.is_empty() {
+                    true => (words.title, Span::styled(words.title_placeholder, muted)),
+                    false => (words.title, Span::styled(item.title.clone(), text)),
+                });
+                if item.date.is_some() {
+                    fields.push((words.date, Span::styled(texts.when(&item), text)));
+                }
+                if let Some(priority) = item.priority {
+                    let level = match priority {
+                        Priority::High => words.levels[0],
+                        Priority::Medium => words.levels[1],
+                        Priority::Low => words.levels[2],
+                    };
+                    let color = Style::new().fg(theme.priority(priority));
+                    fields.push((words.priority, Span::styled(level, color)));
+                }
+            }
+            // Where it goes: the item a subtask goes under, or the calendar
+            match (&editor.target, editor.calendar()) {
+                (Target::Add(Place::ChildOf(parent)), _) => {
+                    fields.push((words.under, Span::styled(parent.title.clone(), text)));
+                }
+                (_, Some(path)) => {
+                    fields.push((words.calendar, Span::styled(path.join(" > "), text)))
+                }
+                _ => {}
+            }
+        }
+        Target::AddCalendar { parent, .. } | Target::RenameCalendar { parent, .. } => {
+            let heading = crate::tasks::parse(&format!("# {}", editor.input.value().trim()))
+                .headings
+                .into_iter()
+                .next()
+                .map(|line| line.heading)
+                .filter(|heading| !heading.name.is_empty());
+            fields.push(match &heading {
+                Some(heading) => (words.name, Span::styled(heading.name.clone(), text)),
+                None => (words.name, Span::styled(words.name_placeholder, muted)),
+            });
+            if heading.as_ref().is_some_and(|heading| heading.holiday) {
+                fields.push((words.kind, Span::styled(words.holiday, text)));
+            }
+            let inside = match parent.is_empty() {
+                true => texts.top_level.to_string(),
+                false => parent.join(" > "),
+            };
+            fields.push((words.inside, Span::styled(inside, text)));
+        }
+    }
+    // Labels padded to the widest one (+ 2 cells), so the values line up
+    let label_width = fields
+        .iter()
+        .map(|(label, _)| Span::raw(*label).width())
+        .max()
+        .unwrap_or(0)
+        + 2;
+    let mut lines: Vec<Line> = fields
+        .into_iter()
+        .map(|(label, value)| {
+            let padding = " ".repeat(label_width - Span::raw(label).width());
+            Line::from(vec![
+                Span::raw(" "),
+                Span::styled(format!("{label}{padding}"), muted),
+                value,
+            ])
+        })
+        .collect();
+    let empty = matches!(
+        editor.check(),
+        Err(Problem::EmptyTitle | Problem::EmptyName)
+    );
+    if let Err(problem) = editor.check()
+        && (!empty || editor.tried)
+    {
+        lines.push(Line::styled(
+            texts.problem(&problem),
+            Style::new().fg(theme.error),
+        ));
+    }
+    lines
+}
+
+/// What can be typed, after 「可以打」: each thing with its label (as in the fields) then what to type, in
+/// the help page's key color, e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  所屬日曆 #名字`
+/// (today's date; `!` `!!` `!!!` each in its priority's color; `#` only when it can pick a calendar, not
+/// for a subtask). A calendar: `可以打  假日日曆 type:holiday  上層日曆 #名字`. Wrapped to `width` cells
+/// between the things, the next lines lined up under the first one
+fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
+    let theme = &app.theme;
+    let words = &app.lang.texts().editor_words;
+    let muted = Style::new().fg(theme.muted);
+    let key = Style::new().fg(theme.help_key);
+    // Each thing that can be typed: its spans (label, a blank, what to type)
+    let thing = |label: &str, typed: String| {
+        vec![
+            Span::styled(format!("{label} "), muted),
+            Span::styled(typed, key),
+        ]
+    };
+    let mut things = match editor.target {
         Target::AddCalendar { .. } | Target::RenameCalendar { .. } => {
-            spans.extend([key("type:holiday".to_string()), says(hints.holiday)]);
+            vec![thing(words.holiday, "type:holiday".to_string())]
         }
         Target::Edit { .. } | Target::Add(_) => {
-            spans.extend([
-                key(format!("@{}", app.today)),
-                says(hints.date),
-                key("@10:00".to_string()),
-                says(hints.time),
-            ]);
-            for (marks, priority) in [
+            let mut priority = vec![Span::styled(format!("{} ", words.priority), muted)];
+            for (marks, level) in [
                 ("!", Priority::Low),
                 (" !!", Priority::Medium),
                 (" !!!", Priority::High),
             ] {
-                spans.push(Span::styled(
-                    marks,
-                    Style::new().fg(theme.priority(priority)),
-                ));
+                priority.push(Span::styled(marks, Style::new().fg(theme.priority(level))));
             }
-            spans.push(says(hints.priority));
+            vec![
+                thing(words.date, format!("@{}", app.today)),
+                thing(words.time, "@10:00".to_string()),
+                priority,
+            ]
         }
-    }
+    };
     if !editor.hash_list.calendars.is_empty() {
-        let what = match editor.target {
-            Target::AddCalendar { .. } | Target::RenameCalendar { .. } => hints.inside,
-            Target::Edit { .. } | Target::Add(_) => hints.calendar,
+        let label = match editor.target {
+            Target::AddCalendar { .. } | Target::RenameCalendar { .. } => words.inside,
+            Target::Edit { .. } | Target::Add(_) => words.calendar,
         };
-        spans.extend([key(hints.name_key.to_string()), says(what)]);
+        things.push(thing(label, words.name_key.to_string()));
     }
-    Line::from(spans)
+    let prefix = format!(" {}  ", words.can_type);
+    let indent = Span::raw(prefix.clone()).width();
+    let mut lines = vec![vec![Span::styled(prefix, muted)]];
+    let mut used = indent;
+    for (index, spans) in things.into_iter().enumerate() {
+        let size = Line::from(spans.clone()).width();
+        // Two blank cells between things; a thing that does not fit goes on a new line under the first one
+        if index > 0 && used + 2 + size > usize::from(width) {
+            lines.push(vec![Span::raw(" ".repeat(indent))]);
+            used = indent;
+        } else if index > 0 {
+            if let Some(line) = lines.last_mut() {
+                line.push(Span::raw("  "));
+            }
+            used += 2;
+        }
+        if let Some(line) = lines.last_mut() {
+            line.extend(spans);
+        }
+        used += size;
+    }
+    lines.into_iter().map(Line::from).collect()
 }
 
 /// Draws the `#` list over the editor (see `list_area`): one calendar per row, its full path; the characters
