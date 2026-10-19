@@ -98,6 +98,14 @@ pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
     settings::row_at(app, app.screen, column, row)
 }
 
+/// The short calendar name at the right end of an item's first line in layout 2's day popup: its outermost
+/// calendar (`CAIS` for `CAIS > 2603_…`); `None` outside any calendar, or in a holiday calendar (those items
+/// are blue already)
+fn calendar_tag(item: &Item) -> Option<&str> {
+    let group = item.group.as_ref().filter(|group| !group.holiday)?;
+    Some(group.parents.first().unwrap_or(&group.name))
+}
+
 /// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
 /// and a space
 const IN_PROGRESS_ICON: &str = "🚧 ";

@@ -486,6 +486,19 @@ pub(super) fn date_text(item: &Item) -> String {
     }
 }
 
+/// The color of an item's time (and of its calendar in the day popup): the line's own color when a priority
+/// or a holiday colors the whole line, otherwise muted (gray once over too)
+pub(super) fn secondary_color(item: &Item, app: &App) -> Color {
+    let theme = &app.theme;
+    match item
+        .is_open(app.today)
+        .then(|| open_item_color(item, theme))
+    {
+        Some((color, true)) => color,
+        _ => theme.muted,
+    }
+}
+
 /// One agenda item: 「 10/16 17:30 交週報」 (date at least 5 cells, right-aligned; a multi-day date is
 /// longer and pushes the title right; time only if it has one)
 ///
@@ -496,10 +509,10 @@ pub(super) fn date_text(item: &Item) -> String {
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
     // The line follows the item itself, not its day; gray once over
-    let (color, whole_line) = if item.is_open(app.today) {
-        open_item_color(item, theme)
+    let color = if item.is_open(app.today) {
+        open_item_color(item, theme).0
     } else {
-        (theme.muted, false)
+        theme.muted
     };
     let date = date_text(item);
     // The date part is at least 7 cells wide: 「 10/17 」; the chosen one is 「[10/17]」 (a shorter date
@@ -518,7 +531,7 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     if let Some(time) = item.time {
         spans.push(Span::styled(
             format!("{} ", time.strftime("%H:%M")),
-            Style::new().fg(if whole_line { color } else { theme.muted }),
+            Style::new().fg(secondary_color(item, app)),
         ));
     }
     spans.push(title_span(item, color));

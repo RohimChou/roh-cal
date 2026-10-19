@@ -3489,3 +3489,38 @@ fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popu
     let popup = area_rows(terminal.backend().buffer(), day_area(&app)).join("\n");
     assert!(popup.contains("18:30 🚧 Team happy hour"), "{popup}");
 }
+
+#[test]
+fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
+    // 10/17: one item outside any calendar, one in CAIS > Reports, one `!!!` in Life, a holiday.
+    // Widest line: 「 10/17 Send the report」 22 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 32
+    let text = "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n\
+                # Life\n- [ ] Pay the fine !!! @2026-10-17\n# Holidays type:holiday\n- Day off @2026-10-17\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    // The outermost calendar ends one blank cell before the padding; none outside a calendar or for a
+    // holiday
+    assert_eq!(
+        area_rows(buffer, area),
+        [
+            "╭ Sat Oct 17, 2026 ────────────╮",
+            "│                              │",
+            "│ [10/17]Loose end             │",
+            "│  10/17 Send the report CAIS  │",
+            "│  10/17 Pay the fine    Life  │",
+            "│  10/17 Day off               │",
+            "│                              │",
+            "╰──────────────────────────────╯",
+        ]
+    );
+    // Colored like the time: muted, or the whole line's color with a priority
+    let theme = Theme::default();
+    assert_eq!(buffer[(area.x + 25, area.y + 3)].symbol(), "C");
+    assert_eq!(buffer[(area.x + 25, area.y + 3)].fg, theme.muted);
+    assert_eq!(buffer[(area.x + 25, area.y + 4)].symbol(), "L");
+    assert_eq!(buffer[(area.x + 25, area.y + 4)].fg, theme.priority_high);
+}

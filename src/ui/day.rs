@@ -3,7 +3,11 @@
 //! and some blank space inside the border when there is room
 
 use super::{
-    clear_with_ring, months::scrolled_to_range, planner::item_line, render_scrollbar, tasks::wrap,
+    calendar_tag, clear_with_ring,
+    months::scrolled_to_range,
+    planner::{item_line, secondary_color},
+    render_scrollbar,
+    tasks::wrap,
 };
 use crate::app::App;
 use crate::tasks::Item;
@@ -29,21 +33,42 @@ pub fn area(app: &App, main: Rect) -> Rect {
     layout(app, main).0
 }
 
-/// One item's lines at `width` cells (one blank cell kept at the end): its date and time, then its title;
-/// a title that does not fit wraps onto the next lines, which start under the title
+/// An item's calendar at the right end of its first line, with the blank cell before it, in the time's
+/// color (see `calendar_tag`)
+fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
+    calendar_tag(item).map(|tag| {
+        Span::styled(
+            format!(" {tag}"),
+            Style::new().fg(secondary_color(item, app)),
+        )
+    })
+}
+
+/// One item's lines at `width` cells (one blank cell kept at the end): its date and time, then its title,
+/// and its calendar's short name at the right end of the first line; a title that does not fit wraps onto
+/// the next lines, which start under the title (and leave the calendar's cells free too)
 fn item_lines(item: &Item, app: &App, chosen: bool, width: u16) -> Vec<Line<'static>> {
     let mut spans = item_line(item, app, chosen).spans;
     // The last span is the title, the ones before it the date (and time)
     let title = spans.pop().into_iter().collect::<Vec<_>>();
     let prefix_width = Line::from(spans.clone()).width();
-    let room = usize::from(width).saturating_sub(prefix_width + 1);
+    let tag = tag_span(item, app);
+    let tag_width = tag.as_ref().map_or(0, Span::width);
+    let room = usize::from(width).saturating_sub(prefix_width + 1 + tag_width);
     let mut wrapped = wrap(&title, room).into_iter();
-    let mut lines = vec![Line::from(
+    let mut first = Line::from(
         spans
             .into_iter()
             .chain(wrapped.next().unwrap_or_default())
             .collect::<Vec<_>>(),
-    )];
+    );
+    if let Some(tag) = tag {
+        // Blank cells up to the calendar, which ends one cell before the edge
+        let pad = usize::from(width).saturating_sub(first.width() + tag_width + 1);
+        first.spans.push(Span::raw(" ".repeat(pad)));
+        first.spans.push(tag);
+    }
+    let mut lines = vec![first];
     lines.extend(wrapped.map(|line| {
         Line::from(
             std::iter::once(Span::raw(" ".repeat(prefix_width)))
@@ -67,9 +92,13 @@ fn heights(app: &App, width: u16) -> Vec<usize> {
 /// padding, so as many lines as possible show)
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let items = app.items_on(app.selected);
+    // The widest line: date, time, title and the calendar at the right end
     let widest = items
         .iter()
-        .map(|item| item_line(item, app, false).width())
+        .map(|item| {
+            item_line(item, app, false).width()
+                + tag_span(item, app).as_ref().map_or(0, Span::width)
+        })
         .max()
         .unwrap_or(0);
     let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
