@@ -4,18 +4,17 @@ use crate::tasks;
 use jiff::ToSpan;
 use jiff::civil::{Date, date};
 
-/// The sample task file `testdata/tasks.md`, copied into the program when it is compiled, so `--sample` also
-/// works without the repo (e.g. after `cargo install`). The tests read the same file, so changing it changes
-/// both
-const TEXT: &str = include_str!("../testdata/tasks.md");
+/// The sample task file `src/sample.md`, copied into the program when it is compiled, so `--sample` also
+/// works without the repo (e.g. after `cargo install`). Short on purpose: one of each kind of item. The tests
+/// use their own, bigger `testdata/tasks.md`
+const TEXT: &str = include_str!("sample.md");
 
-/// The sample is written as if today were in the week starting Monday 2026-10-12 (the tests use days of
-/// that week as today)
+/// The sample is written as if today were in the week starting Monday 2026-10-12
 const WEEK: Date = date(2026, 10, 12);
 
 /// The sample with every date moved by whole weeks, so that its week (`WEEK`) becomes the week of `today`:
 /// whenever it is opened, it has things overdue, today and coming up, and each item keeps its weekday
-/// (the Monday team sync stays on a Monday)
+/// (Monday's "Buy diapers" stays on a Monday)
 pub fn text(today: Date) -> String {
     let days = WEEK.until(today).map_or(0, |span| span.get_days());
     move_dates(TEXT, days.div_euclid(7) * 7)
@@ -23,7 +22,7 @@ pub fn text(today: Date) -> String {
 
 /// Moves every date written as `YYYY-MM-DD` in `text` by `days`, wherever it is (`@2026-10-12`, both ends
 /// of `@2026-10-28..2026-11-03`, `due:2026-10-15`); one that does not exist, like `@2026-13-01`, stays as
-/// it is, so the sample keeps its mistake on purpose
+/// it is
 fn move_dates(text: &str, days: i32) -> String {
     let is_digit = |index: usize| text.as_bytes().get(index).is_some_and(u8::is_ascii_digit);
     let mut moved = String::with_capacity(text.len());
@@ -106,27 +105,27 @@ mod tests {
 
     #[test]
     fn the_sample_week_becomes_the_week_of_today() {
+        // The sample itself: 12 items, no mistakes
+        let parsed = tasks::parse(TEXT);
+        assert_eq!((parsed.items.len(), parsed.warnings.len()), (12, 0));
         // Today inside the sample's week (Mon 2026-10-12 to Sun 2026-10-18): the sample as it is
         for day in [12, 15, 18] {
             assert_eq!(text(date(2026, 10, day)), TEXT, "{day}");
         }
-        // The first Monday team sync (2026-10-12 in the sample) lands on the Monday of today's week
+        // Monday's "Buy diapers" (2026-10-12 in the sample) lands on the Monday of today's week
         for (today, monday) in [
-            (date(2026, 10, 20), "@2026-10-19 10:00"), // Tuesday, one week later
-            (date(2027, 3, 3), "@2027-03-01 10:00"),   // Wednesday, 20 weeks later
-            (date(2026, 1, 1), "@2025-12-29 10:00"),   // Thursday, 41 weeks earlier
+            (date(2026, 10, 20), "@2026-10-19"), // Tuesday, one week later
+            (date(2027, 3, 3), "@2027-03-01"),   // Wednesday, 20 weeks later
+            (date(2026, 1, 1), "@2025-12-29"),   // Thursday, 41 weeks earlier
         ] {
             let moved = text(today);
-            let first_sync = moved
-                .lines()
-                .find(|line| line.starts_with("- Team sync"))
-                .expect("team sync");
-            assert_eq!(first_sync, format!("- Team sync {monday}"), "{today}");
-            // Still the same items, and still only the one mistake (`@2026-13-01` is not moved)
+            let diapers = format!("\n- [ ] Buy diapers {monday}\n");
+            assert!(moved.contains(&diapers), "{today}");
+            // Still the same items, with no mistakes
             let parsed = tasks::parse(&moved);
             assert_eq!(
                 (parsed.items.len(), parsed.warnings.len()),
-                (57, 1),
+                (12, 0),
                 "{today}"
             );
         }

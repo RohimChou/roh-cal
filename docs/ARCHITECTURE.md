@@ -12,7 +12,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
 | `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字；`--sample` 先寫一份新的範例檔再打開，不能跟 `--tasks` 一起用）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
-| `src/sample.rs` | 內建的範例任務檔：`include_str!` 編譯時把 `testdata/tasks.md` 放進程式，`cargo install` 裝的也有；test 讀的也是這個檔，改它 = 兩邊一起改。`text(today)` 把每個 `YYYY-MM-DD` 整週整週地挪（`WEEK` = 範例當作「這週」的那個週一 → 今天這週的週一），星期幾不變；不存在的日期（`@2026-13-01`）照留。範例檔改寫時，「這週」要維持在 `WEEK` 那週 | |
+| `src/sample.rs` | 內建的範例任務檔：`include_str!` 編譯時把 `src/sample.md` 放進程式，`cargo install` 裝的也有；故意寫得短，每一種寫法各一個（test 用的是另一個、大很多的 `testdata/tasks.md`）。`text(today)` 把每個 `YYYY-MM-DD` 整週整週地挪（`WEEK` = 範例當作「這週」的那個週一 → 今天這週的週一），星期幾不變；不存在的日期（`@2026-13-01`）照留。範例檔改寫時，「這週」要維持在 `WEEK` 那週 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠（double click = 同一天或同一件事 0.5 秒內點兩下，`App::is_double_click`；事項要 double click 才打勾，點一下不會誤打勾）；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（框是 `Mark`：`[ ]` / `[/]` 進行中 / `[x]`，存成 `Item::done`、`Item::in_progress`），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
 | `src/paths.rs` | 任務檔、設定檔、`--sample` 範例檔（cache，每次重寫）的預設位置（XDG） | |
