@@ -2695,7 +2695,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│    ∙  Team sync                                        10/26 10:00 │",
             "│   [ ] Send the weekly update                           10/16 17:30 │",
             "│   [ ] Clean up this week's notes                       10/16       │",
-            "│   [ ] Draft the release notes                          10/16       │",
+            "│   [/] Draft the release notes                          10/16       │",
             "│    ∙  Team happy hour                                  10/16 18:30 │",
             "│    ∙  Requirements meeting with PM                      10/8 14:00 │",
             "│    ∙  Engineering all-hands                             10/8 16:00 │",
@@ -3408,4 +3408,56 @@ fn selected_day_is_bold_in_its_own_color() {
     assert_eq!(cell(26, 5), ("6", theme.text, true));
     assert_eq!(cell(27, 5), ("]", theme.selected, true));
     assert_eq!(cell(29, 5), ("7", theme.today, true));
+}
+
+#[test]
+fn an_in_progress_title_is_bold_in_every_view() {
+    // `[/]` Draft and the `[/]` multi-day Trip are bold; open Shop is not; done Clean is struck through
+    let text = "- [ ] Shop @2026-10-17\n- [/] Draft @2026-10-17\n- [x] Clean @2026-10-17\n\
+                - [/] Trip @2026-10-16..2026-10-18\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    // The screen size the popup's area is worked out from (the same as each draw below)
+    app.screen = Rect::new(0, 0, 100, 50);
+    // Where `word` starts inside `area` (the rows here hold no 2-cell characters, so a character = a
+    // cell) and its first cell's (bold, struck through)
+    let style = |buffer: &Buffer, area: Rect, word: &str| {
+        let rows = area_rows(buffer, area);
+        let (y, row) = rows
+            .iter()
+            .enumerate()
+            .find(|(_, row)| row.contains(word))
+            .unwrap_or_else(|| panic!("{word} is not on screen: {rows:#?}"));
+        let x = row[..row.find(word).unwrap()].chars().count();
+        let cell = &buffer[(
+            area.x + u16::try_from(x).unwrap(),
+            area.y + u16::try_from(y).unwrap(),
+        )];
+        (
+            cell.modifier.contains(Modifier::BOLD),
+            cell.modifier.contains(Modifier::CROSSED_OUT),
+        )
+    };
+    // `popup` = look only inside layout 2's day popup (the month grid behind it shows the same titles)
+    let check = |app: &mut App, view: &str, popup: bool| {
+        // Tall enough for 10/17's 4 items in its month grid cell
+        let terminal = draw_app(app, 100, 50);
+        let buffer = terminal.backend().buffer();
+        let area = if popup { day_area(app) } else { buffer.area };
+        assert_eq!(style(buffer, area, "Draft"), (true, false), "{view}");
+        assert_eq!(style(buffer, area, "Trip"), (true, false), "{view}");
+        assert_eq!(style(buffer, area, "Shop"), (false, false), "{view}");
+        assert_eq!(style(buffer, area, "Clean"), (false, true), "{view}");
+    };
+    check(&mut app, "layout 1", false);
+    app.view = View::Month;
+    check(&mut app, "layout 2", false);
+    app.focus = Focus::Day;
+    check(&mut app, "day popup", true);
+    app.view = View::Tasks;
+    app.focus = Focus::Tasks;
+    check(&mut app, "tasks page", false);
 }

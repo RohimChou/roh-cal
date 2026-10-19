@@ -176,7 +176,7 @@ def read_items(text, hidden):
     items = []
     paths, _ = calendar_paths(text)
     for i, line in enumerate(text.splitlines()):
-        m = re.match(r"\s*- (?:\[[ xX]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
+        m = re.match(r"\s*- (?:\[[ xX/]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
             items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end))
@@ -637,7 +637,8 @@ def month_screen(lang, w, h, selected, top, items, groups):
 
 def read_tree(text):
     """For the tasks page: read every item in the whole file (items without a date too); a separate,
-    simple parser. Returns ([dict(line, text, indent, depth, parent, task, done, title, date, end, time, group)]
+    simple parser. Returns ([dict(line, text, indent, depth, parent, task, done, in_progress, title, date, end, time,
+    group)]
     (in file order), mistakes [(line number, "date" / "time" / "range", the word)])"""
     items, stack, group, in_code, mistakes = [], [], None, False, []
     for n, raw in enumerate(text.splitlines(), start=1):
@@ -656,9 +657,10 @@ def read_tree(text):
             continue
         indent = sum(4 if c == "\t" else 1 for c in raw[: len(raw) - len(stripped)])
         rest = stripped[2:]
-        box = re.match(r"\[([ xX])\](?: |$)", rest)
+        box = re.match(r"\[([ xX/])\](?: |$)", rest)
         task = box is not None
         done = task and box.group(1) in "xX"
+        in_progress = task and box.group(1) == "/"
         if task:
             rest = rest[3:]
         # Take out the first valid date (or range) and the time right after it; the rest is the title.
@@ -699,7 +701,8 @@ def read_tree(text):
             stack.pop()
         parent = stack[-1][1] if stack else None
         items.append(dict(line=n, text=raw.strip(), indent=indent, depth=len(stack), parent=parent, task=task,
-                          done=done, title=" ".join(out), date=date, end=end, time=time, group=group))
+                          done=done, in_progress=in_progress, title=" ".join(out), date=date, end=end, time=time,
+                          group=group))
         stack.append((indent, len(items) - 1))
     return items, mistakes
 
@@ -818,7 +821,7 @@ def tasks_screen(lang, w, h, text, groups):
         it = items[k]
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
-        check = ("[x]" if it["done"] else "[ ]") if it["task"] else " ∙ "
+        check = ("[x]" if it["done"] else "[/]" if it["in_progress"] else "[ ]") if it["task"] else " ∙ "
         levels = (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]
         prefix = " " + "  " * levels + marker + " " + check + " "
         text = it["title"]

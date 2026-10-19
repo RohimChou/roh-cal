@@ -712,6 +712,15 @@ fn toggle_flips_only_the_box_of_that_line() {
 }
 
 #[test]
+fn toggle_checks_off_an_in_progress_task() {
+    let text = "- [/] Draft the release notes @2026-10-16\n";
+    assert_eq!(
+        toggle(text, &item(text, 0)),
+        Ok("- [x] Draft the release notes @2026-10-16\n".into())
+    );
+}
+
+#[test]
 fn toggle_keeps_crlf_and_a_missing_last_newline() {
     let text = "- [ ] a\r\n- [ ] b";
     assert_eq!(

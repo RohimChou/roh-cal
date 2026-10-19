@@ -15,13 +15,14 @@ mod side;
 mod tasks;
 
 use crate::app::{App, Editor, Focus, Mode, View};
+use crate::tasks::Item;
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
     Frame,
     buffer::Buffer,
     layout::{Constraint, Layout, Margin, Position, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Clear, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
@@ -95,6 +96,18 @@ pub fn picker_at(app: &App, column: u16, row: u16) -> Option<(usize, Option<u8>)
 /// Which settings row a mouse click at (`column`, `row`) hits (its index in `app::rows()`)
 pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
     settings::row_at(app, app.screen, column, row)
+}
+
+/// An item's title in `color`, the same in every view: crossed out once done, bold while in progress (`[/]`)
+fn title_style(item: &Item, color: Color) -> Style {
+    let style = Style::new().fg(color);
+    if item.done {
+        style.add_modifier(Modifier::CROSSED_OUT)
+    } else if item.in_progress {
+        style.add_modifier(Modifier::BOLD)
+    } else {
+        style
+    }
 }
 
 /// If the cell left of a popup (`area`) holds a CJK character (2 cells wide), its

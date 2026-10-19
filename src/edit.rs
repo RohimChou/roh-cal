@@ -7,7 +7,7 @@
 //! Every change checks first: if the line is not what was read (e.g. it was just edited in Obsidian),
 //! nothing is changed and `Changed` is returned
 
-use crate::tasks::{self, Heading, HeadingLine, Item, WarningKind};
+use crate::tasks::{self, Heading, HeadingLine, Item, Mark, WarningKind};
 use jiff::{ToSpan, civil::Date};
 
 /// The line differs from when it was read (edited elsewhere, a line added above, the file got shorter),
@@ -923,15 +923,16 @@ fn whole_word(line: &str, word: &str) -> Option<usize> {
 
 /// Check / uncheck a line; the indent and the rest of the text stay as is (`line` is a parsed item's line)
 ///
-/// `- [ ] Team sync` → `- [x] Team sync`; `- [x]`, `- [X]` → `- [ ]`; lines without a box (events) stay as is
+/// `- [ ] Team sync`, `- [/] Team sync` → `- [x] Team sync`; `- [x]`, `- [X]` → `- [ ]`; lines without a
+/// box (events) stay as is
 fn toggled(line: &str) -> String {
     let trimmed = line.trim_start();
     let indent = &line[..line.len() - trimmed.len()];
     let rest = trimmed.strip_prefix("- ").unwrap_or(trimmed);
     match tasks::checkbox(rest) {
-        // Has a box: replace only the 3 characters of `[ ]` / `[x]`
-        Some((done, after)) => {
-            let mark = if done { "[ ]" } else { "[x]" };
+        // Has a box: replace only the 3 characters of `[ ]` / `[/]` / `[x]`
+        Some((mark, after)) => {
+            let mark = if mark == Mark::Done { "[ ]" } else { "[x]" };
             format!("{indent}- {mark}{after}")
         }
         None => line.to_string(),

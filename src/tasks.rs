@@ -30,7 +30,7 @@ pub struct HeadingLine {
 /// The kind of item: with or without a box (rules 1 and 2 of the spec)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// `- [ ] text` / `- [x] text`: a task, which you check off yourself
+    /// `- [ ] text` / `- [/] text` / `- [x] text`: a task, which you check off yourself
     Task,
     /// `- text` (no box): an event (meeting, holiday, milestone); it cannot be checked off,
     /// and it is over once its day has passed
@@ -42,9 +42,12 @@ pub enum Kind {
 pub struct Item {
     /// Task (with a box) or event (no box)
     pub kind: Kind,
-    /// Whether the task is done: `[x]` / `[X]` is done, `[ ]` is not yet; always `false` for an event
-    /// (events cannot be checked off)
+    /// Whether the task is done: `[x]` / `[X]` is done, `[ ]` and `[/]` are not yet; always `false` for an
+    /// event (events cannot be checked off)
     pub done: bool,
+    /// Whether the task is being worked on: `[/]` (never done at the same time); always `false` for an
+    /// event. Its title is drawn in bold
+    pub in_progress: bool,
     /// Title: the text left after removing `- [ ] `, the date (and time) and a trailing `^id`, with runs of
     /// spaces collapsed to one, e.g. `Implement the refund API`
     pub title: String,
@@ -233,7 +236,7 @@ pub fn parse(text: &str) -> Parsed {
             continue;
         }
 
-        let Some((kind, done, rest)) = parse_item_start(trimmed) else {
+        let Some((kind, mark, rest)) = parse_item_start(trimmed) else {
             continue;
         };
 
@@ -249,7 +252,8 @@ pub fn parse(text: &str) -> Parsed {
         ancestors.push((indent, parsed.items.len()));
         parsed.items.push(Item {
             kind,
-            done,
+            done: mark == Mark::Done,
+            in_progress: mark == Mark::InProgress,
             title,
             date: when.date,
             end: when.end,
@@ -293,33 +297,49 @@ fn parse_heading(line: &str) -> Option<Heading> {
 /// The word in a heading that marks a holiday calendar (the spec's `key:value` form)
 const HOLIDAY: &str = "type:holiday";
 
-/// Whether this line is an item: returns (task or event, done or not, the remaining text);
+/// What a task's box says (rule 1 of the spec)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mark {
+    /// `[ ]`: not started
+    Open,
+    /// `[/]`: being worked on (the "in progress" of Obsidian's Tasks plugin and many themes)
+    InProgress,
+    /// `[x]` / `[X]`
+    Done,
+}
+
+/// Whether this line is an item: returns (task or event, what its box says, the remaining text);
 /// `None` if it does not start with `- `
 ///
-/// E.g. `- [x] Pack` → (task, true, `Pack`); `- [ ] Pack` → (task, false, ...);
-/// `- Dentist` → (event, false, ...)
-fn parse_item_start(trimmed: &str) -> Option<(Kind, bool, &str)> {
+/// E.g. `- [x] Pack` → (task, done, `Pack`); `- [/] Pack` → (task, in progress, ...);
+/// `- Dentist` → (event, open, ...)
+fn parse_item_start(trimmed: &str) -> Option<(Kind, Mark, &str)> {
     // Must be "- " with the space; `-Pack` does not count
     let rest = trimmed.strip_prefix("- ")?;
     match checkbox(rest) {
-        Some((done, after)) => Some((Kind::Task, done, after.trim_start())),
-        // No box: an event
-        None => Some((Kind::Event, false, rest)),
+        Some((mark, after)) => Some((Kind::Task, mark, after.trim_start())),
+        // No box: an event (never done or in progress)
+        None => Some((Kind::Event, Mark::Open, rest)),
     }
 }
 
-/// The checkbox after `- `: returns (done or not, the text after the checkbox with its spaces kept);
+/// The checkbox after `- `: returns (what it says, the text after the checkbox with its spaces kept);
 /// `None` if there is no checkbox
 ///
-/// `[ ]`, `[x]`, `[X]` must be followed by a space or the end. E.g. `[x] Pack` → (true, ` Pack`);
+/// `[ ]`, `[/]`, `[x]`, `[X]` must be followed by a space or the end. E.g. `[x] Pack` → (done, ` Pack`);
 /// `[ ]Pack` is not a checkbox
-pub(crate) fn checkbox(rest: &str) -> Option<(bool, &str)> {
-    let marks = [("[ ]", false), ("[x]", true), ("[X]", true)];
-    for (mark, done) in marks {
-        if let Some(after) = rest.strip_prefix(mark)
+pub(crate) fn checkbox(rest: &str) -> Option<(Mark, &str)> {
+    let marks = [
+        ("[ ]", Mark::Open),
+        ("[/]", Mark::InProgress),
+        ("[x]", Mark::Done),
+        ("[X]", Mark::Done),
+    ];
+    for (text, mark) in marks {
+        if let Some(after) = rest.strip_prefix(text)
             && (after.is_empty() || after.starts_with(' '))
         {
-            return Some((done, after));
+            return Some((mark, after));
         }
     }
     None

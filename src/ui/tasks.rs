@@ -6,6 +6,7 @@ use super::{
     Click,
     months::scrolled_to_range,
     planner::{date_text, day_color},
+    title_style,
 };
 use crate::{
     app::{App, Focus, TaskRow},
@@ -412,10 +413,11 @@ fn item_lines(
         (true, false) => "▸",
         (true, true) => "▾",
     };
-    let check = match (item.kind, item.done) {
-        (Kind::Task, false) => "[ ]",
-        (Kind::Task, true) => "[x]",
-        (Kind::Event, _) => " ∙ ",
+    let check = match (item.kind, item.done, item.in_progress) {
+        (Kind::Task, true, _) => "[x]",
+        (Kind::Task, false, true) => "[/]",
+        (Kind::Task, false, false) => "[ ]",
+        (Kind::Event, ..) => " ∙ ",
     };
     // That line has a mistake: red, underlined title
     let mistake = app.warnings.iter().any(|warning| warning.line == item.line);
@@ -424,12 +426,9 @@ fn item_lines(
         Some(priority) if open => theme.priority(priority),
         _ => color,
     };
-    let mut title = Style::new().fg(title_color);
+    let mut title = title_style(item, title_color);
     if mistake {
         title = title.add_modifier(Modifier::UNDERLINED);
-    }
-    if item.done {
-        title = title.add_modifier(Modifier::CROSSED_OUT);
     }
     // Subtasks (only tasks count): (how many done, how many in total)
     let (done, total) = app

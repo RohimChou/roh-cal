@@ -34,6 +34,26 @@ fn rule1_tasks_open_and_done() {
 }
 
 #[test]
+fn rule1_in_progress_is_a_task_not_done_yet() {
+    let item = one("- [/] Draft the release notes @2026-10-16");
+    assert_eq!(
+        (item.kind, item.done, item.in_progress),
+        (Kind::Task, false, true)
+    );
+    assert_eq!(item.title, "Draft the release notes");
+    // The other boxes and events are not in progress
+    assert!(!one("- [ ] Pack").in_progress);
+    assert!(!one("- [x] Pack").in_progress);
+    assert!(!one("- Dentist").in_progress);
+    // No space after `[/]` means no checkbox: the whole thing is an event's text
+    let item = one("- [/]Pack");
+    assert_eq!(
+        (item.kind, item.in_progress, item.title.as_str()),
+        (Kind::Event, false, "[/]Pack")
+    );
+}
+
+#[test]
 fn rule2_item_without_checkbox_is_an_event() {
     let item = one("- Dentist @2026-10-14");
     assert_eq!((item.kind, item.done), (Kind::Event, false));
@@ -420,10 +440,11 @@ fn sample_file_parses_like_a_real_one() {
     let parsed = parse(include_str!("../../testdata/tasks.md"));
     let count = |f: fn(&Item) -> bool| parsed.items.iter().filter(|item| f(item)).count();
     assert_eq!(parsed.items.len(), 57);
-    // Tasks: 6 `[x]` / `[X]`, 32 `[ ]`;
+    // Tasks: 6 `[x]` / `[X]`, 32 not done (31 `[ ]`, 1 `[/]`: Draft the release notes);
     // 19 events without a box (meetings, holidays, birthdays, milestones, trips)
     assert_eq!(count(|item| item.kind == Kind::Task && item.done), 6);
     assert_eq!(count(|item| item.kind == Kind::Task && !item.done), 32);
+    assert_eq!(count(|item| item.in_progress), 1);
     assert_eq!(count(|item| item.kind == Kind::Event), 19);
     assert_eq!(count(|item| item.date.is_none()), 11);
     // 3 multi-day items (Manager OOO, Tokyo, the long weekend)

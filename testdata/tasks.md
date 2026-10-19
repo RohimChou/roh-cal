@@ -23,7 +23,7 @@ My task file. roh-cal only reads list items that start with `- `; everything els
 - Team sync @2026-10-26 10:00
 - [ ] Send the weekly update @2026-10-16 17:30
 - [ ] Clean up this week's notes @2026-10-16
-- [ ] Draft the release notes @2026-10-16
+- [/] Draft the release notes @2026-10-16
 - Team happy hour @2026-10-16 18:30
 - Requirements meeting with PM @2026-10-08 14:00
 - Engineering all-hands @2026-10-08 16:00
