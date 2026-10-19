@@ -417,12 +417,19 @@ impl App {
     }
 
     /// Shows `text`, the task file as changed elsewhere: line numbers the screen remembers (the chosen
-    /// item, expanded subtasks) move along with `edit::line_map`; the earlier undo steps no longer match
-    /// the file, so they are cleared
+    /// item, expanded subtasks) move along with `edit::line_map`, and the item chosen in the agenda or
+    /// layout 2's popup stays chosen even if its day's order changed (e.g. marked `[/]` elsewhere); the
+    /// earlier undo steps no longer match the file, so they are cleared
     fn take_change_from_elsewhere(&mut self, text: String) {
-        self.remap_lines(edit::line_map(&self.tasks_text, &text));
+        let map = edit::line_map(&self.tasks_text, &text);
+        // Where the chosen item's line is in the new file (`None` = its line was removed or replaced)
+        let chosen = self.chosen_item().and_then(|item| map(item.line));
+        self.remap_lines(&map);
         self.show_tasks(text);
         self.undo.clear();
+        if let Some(line) = chosen {
+            self.keep_chosen_line(line);
+        }
     }
 
     /// Shows the task file's content `text` (at start, after a write, an undo or a reload) and remembers

@@ -679,3 +679,36 @@ fn with_done_tasks_hidden_checking_one_off_leaves_the_next_one_chosen() {
     );
     clean_up(&path);
 }
+
+#[test]
+fn the_chosen_item_stays_chosen_when_a_change_made_elsewhere_reorders_its_day() {
+    let text = "- [ ] Email Kevin @2026-10-17\n- [ ] Estimate 2601RC @2026-10-17\n- [ ] Pay the fine @2026-10-17\n";
+    let (mut app, path) = app_with_task_file("refresh-choice", text);
+    let chosen = |app: &App| app.chosen_item().map(|item| item.title.clone());
+    // Agenda: Pay the fine (3rd) is chosen; it is marked `[/]` elsewhere and moves to the top of its day
+    app.choose(2);
+    let marked = text.replace("- [ ] Pay", "- [/] Pay");
+    std::fs::write(&path, &marked).expect("edit");
+    app.refresh_tasks();
+    assert_eq!(app.agenda_index, 0);
+    assert_eq!(chosen(&app).as_deref(), Some("Pay the fine"));
+    // A line added above it elsewhere: its file line moves (3 → 4), and it is still the chosen one
+    app.choose(2);
+    assert_eq!(chosen(&app).as_deref(), Some("Estimate 2601RC"));
+    let added = format!("- [ ] Call Mom @2026-10-17\n{marked}");
+    std::fs::write(&path, &added).expect("edit");
+    app.refresh_tasks();
+    assert_eq!(app.agenda_index, 3);
+    assert_eq!(chosen(&app).as_deref(), Some("Estimate 2601RC"));
+    // Layout 2's day popup: Pay the fine (in progress), then file order: Call Mom, Email (2), Estimate.
+    // Email is marked `[/]` elsewhere: in progress ones keep file order, so it moves to the top
+    app.set_view(View::Month);
+    app.focus = Focus::Day;
+    app.day_index = 2;
+    assert_eq!(chosen(&app).as_deref(), Some("Email Kevin"));
+    std::fs::write(&path, added.replace("- [ ] Email", "- [/] Email")).expect("edit");
+    app.refresh_tasks();
+    assert_eq!(app.day_index, 0);
+    assert_eq!(chosen(&app).as_deref(), Some("Email Kevin"));
+    clean_up(&path);
+}

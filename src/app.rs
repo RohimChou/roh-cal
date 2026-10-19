@@ -1095,9 +1095,10 @@ impl App {
         }
     }
 
-    /// After a write that can move the chosen item within its day (`Space`, `/`: in-progress items come
-    /// first), keeps the item on file line `line` chosen in the agenda or layout 2's popup; if it is no
-    /// longer listed (e.g. hidden once done), the choice stays at the same position, on the next item
+    /// After the items change in a way that can move the chosen item within its day (`Space`, `/`:
+    /// in-progress items come first; a change made elsewhere), keeps the item on file line `line` chosen in
+    /// the agenda or layout 2's popup; if it is no longer listed (e.g. hidden once done), the choice stays
+    /// at the same position, on the next item
     fn keep_chosen_line(&mut self, line: usize) {
         match self.focus {
             Focus::Agenda => {
