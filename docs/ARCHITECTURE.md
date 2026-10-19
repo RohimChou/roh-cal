@@ -3,7 +3,7 @@
 
 ## 跑起來
 ```sh
-cargo run --release -- --tasks testdata/tasks.md    # 用範例任務檔打開
+cargo run --release -- --sample                     # 用內建的範例任務檔打開（每次一份新的）
 cargo test                                          # 全部 test
 cargo fmt && cargo clippy --all-targets -- -D warnings
 ```
@@ -11,10 +11,11 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 ## 模組地圖
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
-| `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
+| `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字；`--sample` 先寫一份新的範例檔再打開，不能跟 `--tasks` 一起用）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
+| `src/sample.rs` | 內建的範例任務檔：`include_str!` 編譯時把 `testdata/tasks.md` 放進程式，`cargo install` 裝的也有；test 讀的也是這個檔，改它 = 兩邊一起改 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠（double click = 同一天或同一件事 0.5 秒內點兩下，`App::is_double_click`；事項要 double click 才打勾，點一下不會誤打勾）；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（框是 `Mark`：`[ ]` / `[/]` 進行中 / `[x]`，存成 `Item::done`、`Item::in_progress`），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
-| `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
+| `src/paths.rs` | 任務檔、設定檔、`--sample` 範例檔（cache，每次重寫）的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排或搬到別的日曆的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |

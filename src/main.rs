@@ -6,6 +6,7 @@ mod config;
 mod edit;
 mod files;
 mod paths;
+mod sample;
 mod search;
 mod tasks;
 mod texts;
@@ -15,7 +16,10 @@ mod ui;
 use app::App;
 use app::Notice;
 use clap::{Parser, builder::PossibleValuesParser};
-use color_eyre::{Result, eyre::WrapErr};
+use color_eyre::{
+    Result,
+    eyre::{OptionExt, WrapErr},
+};
 use jiff::Zoned;
 use ratatui::crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -34,10 +38,12 @@ fn main() -> Result<()> {
     let args = Args::parse();
     // Language: --lang → the system language → English
     let lang = args.lang.unwrap_or_else(Lang::from_system);
-    // Task file: one given by --tasks must be readable; at the default location, missing means no tasks
-    let (path, required) = match args.tasks {
-        Some(path) => (Some(path), true),
-        None => (paths::tasks_file(), false),
+    // Task file: --sample writes a fresh copy of the built-in sample and opens it; one given by --tasks must
+    // be readable; at the default location, missing means no tasks
+    let (path, required) = match (args.sample, args.tasks) {
+        (true, _) => (Some(write_sample(paths::sample_file())?), true),
+        (false, Some(path)) => (Some(path), true),
+        (false, None) => (paths::tasks_file(), false),
     };
     let text = match &path {
         Some(path) => load_tasks(path, required)?,
@@ -89,6 +95,16 @@ fn load_tasks(path: &Path, required: bool) -> Result<String> {
             Err(error).wrap_err_with(|| format!("cannot read task file: {}", path.display()))
         }
     }
+}
+
+/// Writes a fresh copy of the built-in sample task file to `path` (`paths::sample_file`) and returns it, so
+/// every `--sample` starts from the original: what was checked off or deleted in the last copy is gone.
+/// `None` = no HOME to put it in
+fn write_sample(path: Option<PathBuf>) -> Result<PathBuf> {
+    let path = path.ok_or_eyre("cannot write the sample task file: HOME is not set")?;
+    files::write_atomically(&path, sample::TEXT)
+        .wrap_err_with(|| format!("cannot write the sample task file: {}", path.display()))?;
+    Ok(path)
 }
 
 /// Keeps mouse events on while it lives; drop turns them off (on a normal exit, an error, or a panic alike)
@@ -149,6 +165,13 @@ struct Args {
         help = "Task file to show [default: ~/.local/share/roh-cal/tasks.md]"
     )]
     tasks: Option<PathBuf>,
+    /// `--sample`: show a fresh copy of the built-in sample task file instead (cannot go with `--tasks`)
+    #[arg(
+        long,
+        conflicts_with = "tasks",
+        help = "Show a fresh copy of the built-in sample task file"
+    )]
+    sample: bool,
     /// `-v` / `-V` / `--version`: print the version and exit. clap's built-in version flag only takes `-V`,
     /// so the built-in one is turned off (`disable_version_flag`) and this one also takes lowercase `-v`
     /// (`-V` is not shown in `--help`)
@@ -196,6 +219,7 @@ mod tests {
             args("--theme terminal").expect("valid").theme.as_deref(),
             Some("terminal")
         );
+        assert!(args("--sample").expect("valid").sample);
         assert_eq!(args("").expect("no args"), Args::default());
     }
 
@@ -207,6 +231,7 @@ mod tests {
             "--lang ja",
             "--foo bar",
             "--theme solarized",
+            "--sample --tasks /tmp/tasks.md",
         ] {
             assert!(args(line).is_err(), "{line}");
         }
@@ -231,7 +256,11 @@ mod tests {
         assert!(
             help.starts_with("A simple, keyboard-driven terminal calendar for plain-text tasks\n")
         );
-        assert!(help.contains("Screen language") && help.contains("Task file to show"));
+        assert!(
+            help.contains("Screen language")
+                && help.contains("Task file to show")
+                && help.contains("built-in sample task file")
+        );
         assert!(
             !help.contains("follow the system language")
                 && !help.contains("Command-line arguments")
@@ -249,5 +278,21 @@ mod tests {
         let text = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
         let parsed = tasks::parse(&text);
         assert_eq!((parsed.items.len(), parsed.warnings.len()), (57, 1));
+    }
+
+    #[test]
+    fn sample_is_written_fresh_every_time() {
+        let dir = files::test_dir("sample");
+        let path = dir.join("roh-cal").join("sample.md");
+        // The folder does not exist yet: it is created, and the copy is the sample
+        assert_eq!(write_sample(Some(path.clone())).expect("write"), path);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), sample::TEXT);
+        // What was changed in the last copy is gone the next time
+        std::fs::write(&path, "- [x] Checked off in the last copy\n").expect("change");
+        write_sample(Some(path.clone())).expect("write again");
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), sample::TEXT);
+        // No HOME → an error
+        assert!(write_sample(None).is_err());
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 }

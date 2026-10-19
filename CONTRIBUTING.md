@@ -5,11 +5,10 @@ Thanks for taking the time to help with roh-cal.
 Open an issue at <https://github.com/RohimChou/roh-cal/issues>. For a bug, please include what you did, what you expected and what happened, your OS and terminal, and, when it is about the task file, the few lines involved.
 
 ## Build and try
-You need Rust (stable). roh-cal writes your changes back to the task file it shows, so try it on a copy of the sample file:
+You need Rust (stable). roh-cal writes your changes back to the task file it shows, so try it on a fresh copy of the sample file:
 
 ```sh
-cp testdata/tasks.md /tmp/tasks.md
-cargo run -- --tasks /tmp/tasks.md
+cargo run -- --sample
 ```
 
 ## Before a pull request

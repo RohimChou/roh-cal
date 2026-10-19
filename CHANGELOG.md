@@ -21,6 +21,7 @@ The first release: v2, a rewrite from scratch. The first version (never released
 - Eight built-in themes (`nord` by default) as TOML files (`catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `one-dark`, `rose-pine`, `terminal`) and per-role color overrides
 - English and Traditional Chinese
 - Mouse support: the wheel and clicks work in every view; a double click opens a day or checks off a task
+- `--sample` shows a fresh copy of the built-in sample task file, so it can be tried right after `cargo install`
 
 [Unreleased]: https://github.com/RohimChou/roh-cal/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/RohimChou/roh-cal/releases/tag/v0.1.0

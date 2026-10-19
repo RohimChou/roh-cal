@@ -24,6 +24,16 @@ pub fn config_file() -> Option<PathBuf> {
     )
 }
 
+/// Sample task file for `--sample`: `$XDG_CACHE_HOME/roh-cal/sample.md`, or `~/.cache/roh-cal/sample.md` if
+/// unset (a cache: every `--sample` writes a fresh copy)
+pub fn sample_file() -> Option<PathBuf> {
+    Some(
+        xdg_dir("XDG_CACHE_HOME", ".cache")?
+            .join("roh-cal")
+            .join("sample.md"),
+    )
+}
+
 /// Reads the environment variables `var` and `HOME` and lets `resolve` pick the folder
 fn xdg_dir(var: &str, fallback: &str) -> Option<PathBuf> {
     resolve(std::env::var_os(var), std::env::var_os("HOME"), fallback)
