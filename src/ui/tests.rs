@@ -2181,7 +2181,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 🚧Team h│ Dinner w│ 07:00 Go│",
+            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 🚧 Team │ Dinner w│ 07:00 Go│",
             "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
@@ -3446,16 +3446,15 @@ fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
             cell.modifier.contains(Modifier::CROSSED_OUT),
         )
     };
-    // `popup` = look only inside layout 2's day popup (the month grid behind it shows the same titles);
-    // `gap` = what is between 🚧 and the title (nothing in the month grid, where every cell counts)
-    let check = |app: &mut App, view: &str, popup: bool, gap: &str| {
+    // `popup` = look only inside layout 2's day popup (the month grid behind it shows the same titles)
+    let check = |app: &mut App, view: &str, popup: bool| {
         // Tall enough for 10/17's 4 items in its month grid cell
         let terminal = draw_app(app, 100, 50);
         let buffer = terminal.backend().buffer();
         let area = if popup { day_area(app) } else { buffer.area };
         let text = area_rows(buffer, area).join("\n");
         assert!(
-            text.contains(&format!("🚧{gap}Draft")) && text.contains(&format!("🚧{gap}Trip")),
+            text.contains("🚧 Draft") && text.contains("🚧 Trip"),
             "{view}: {text}"
         );
         assert_eq!(text.matches('🚧').count(), 2, "{view}: {text}");
@@ -3464,14 +3463,14 @@ fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
         assert_eq!(style(buffer, area, "Shop"), (false, false), "{view}");
         assert_eq!(style(buffer, area, "Clean"), (false, true), "{view}");
     };
-    check(&mut app, "layout 1", false, " ");
+    check(&mut app, "layout 1", false);
     app.view = View::Month;
-    check(&mut app, "layout 2", false, "");
+    check(&mut app, "layout 2", false);
     app.focus = Focus::Day;
-    check(&mut app, "day popup", true, " ");
+    check(&mut app, "day popup", true);
     app.view = View::Tasks;
     app.focus = Focus::Tasks;
-    check(&mut app, "tasks page", false, " ");
+    check(&mut app, "tasks page", false);
 }
 
 #[test]
@@ -3483,7 +3482,7 @@ fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popu
     let terminal = draw_app(&mut app, 80, 30);
     let grid = text_rows(terminal.backend().buffer()).join("\n");
     assert!(
-        grid.contains("│ 🚧Team") && !grid.contains("18:30"),
+        grid.contains("│ 🚧 Team") && !grid.contains("18:30"),
         "{grid}"
     );
     // An item not in progress keeps its time
