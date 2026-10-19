@@ -17,6 +17,7 @@
 # Life
 - [ ] Buy diapers @2026-10-12
 - [ ] Pay rent ! @2026-10-17
+- Grandma visits @2026-10-18..2026-10-20
 - Lily's soccer ⚽ @2026-10-31 09:00
   - [ ] Bring snacks
 - [ ] Clean garage
