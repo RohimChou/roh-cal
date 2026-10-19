@@ -745,7 +745,7 @@ def tasks_screen(lang, w, h, text, groups):
     t = TEXTS[lang]
     items, mistakes = read_tree(text)
     hidden = {groups[i][0] for i in HIDDEN}
-    paths, _ = calendar_paths(text)
+    paths, heading_lines = calendar_paths(text)
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     iw, ih = w - sw - 2, h - 3
@@ -762,25 +762,38 @@ def tasks_screen(lang, w, h, text, groups):
 
     # Calendars are a tree, like the side menu: a heading is indented 2 cells per calendar it is inside,
     # and so are its items (on top of their own subtask indent)
-    rows, previous, shown = [], object(), ()
-    for k, it in enumerate(items):
-        path = paths[it["line"]]
+    rows, shown, last = [], (), object()
+
+    def heading(path):
+        # A calendar's heading row; first, the calendars it is inside get theirs, except those already right
+        # above (the last heading listed was inside them too). No path = 「未分組」
+        nonlocal shown
+        if path is None:
+            rows.append(("heading", None, 0))
+            shown = ()
+            return
+        keep = 0
+        while keep < len(path) - 1 and keep < len(shown) and path[keep] == shown[keep]:
+            keep += 1
+        for depth in range(keep, len(path)):
+            rows.append(("heading", path[depth], depth))
+        shown = path
+
+    # Every heading line and every item, in file order: each heading of a checked calendar gets its row (one
+    # with no items too); an item whose calendar has no heading row yet (before any heading) gets one first
+    events = sorted([(n, -1) for n in heading_lines] + [(it["line"], k) for k, it in enumerate(items)])
+    for n, k in events:
+        path = paths[n]
+        if k < 0:
+            if not is_hidden(path, hidden):
+                heading(path)
+                last = path
+            continue
         if is_hidden(path, hidden) or not visible(k):
             continue
-        # A new calendar (path) gets a heading row; first, the calendars it is inside get theirs, except
-        # those already right above (the last heading listed was inside them too)
-        if (path, it["group"]) != previous:
-            if path is None:
-                rows.append(("heading", None, 0))
-                shown = ()
-            else:
-                keep = 0
-                while keep < len(path) - 1 and keep < len(shown) and path[keep] == shown[keep]:
-                    keep += 1
-                for depth in range(keep, len(path)):
-                    rows.append(("heading", path[depth], depth))
-                shown = path
-            previous = (path, it["group"])
+        if path != last:
+            heading(path)
+            last = path
         rows.append(("item", k))
     item_rows = [r for r, row in enumerate(rows) if row[0] == "item"]
     chosen_line = int(os.environ["CHOSEN_LINE"]) if "CHOSEN_LINE" in os.environ else None

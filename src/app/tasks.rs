@@ -4,7 +4,10 @@
 //! all), `L` / `H` indent / outdent, `J` / `K` move up / down
 
 use super::App;
-use crate::{edit, tasks::Item};
+use crate::{
+    edit,
+    tasks::{Heading, Item},
+};
 use ratatui::crossterm::event::KeyCode;
 
 /// One row of the tasks page
@@ -29,49 +32,35 @@ pub enum TaskRow {
 }
 
 impl App {
-    /// Every row of the tasks page, in file order: a heading row comes first whenever the calendar changes,
-    /// with the calendars it is inside before it as a tree (like the side menu: `Work` with no items of its
-    /// own still gets a row above `SFAP`, unless the heading right above is in `Work` too);
-    /// a subtask is listed only if every level above it is expanded;
+    /// Every row of the tasks page, in file order: every heading of a checked calendar (one with no items,
+    /// or whose items are all hidden, too), each item under its heading; the calendars a heading is inside
+    /// come before it as a tree (like the side menu: `Work` still gets a row above `SFAP` when the heading
+    /// right above is not in `Work`). Without heading lines (`App::headings` empty), a heading row comes
+    /// whenever an item's calendar changes; items before any heading are under 「未分組」.
+    /// A subtask is listed only if every level above it is expanded;
     /// calendars unchecked in the side menu are left out entirely
     pub fn tasks_rows(&self) -> Vec<TaskRow> {
         let mut rows = Vec::new();
-        // Which group the last listed item was in (a new group gets a heading)
-        let mut previous = None;
+        // The calendar of the last heading row (`None` inside = 「未分組」); `None` = no heading row yet
+        let mut last: Option<Option<&Heading>> = None;
         // The path of the last heading listed, e.g. `Work > SFAP`: those calendars are already on screen
         let mut listed: Vec<&String> = Vec::new();
+        let mut headings = self.headings.iter().peekable();
         for (index, item) in self.items.iter().enumerate() {
+            // The headings above this item, each one listed (a calendar with no items gets its row too)
+            while let Some(line) = headings.next_if(|line| line.line < item.line) {
+                if self.heading_shown(&line.heading) {
+                    push_heading(&mut rows, &mut listed, Some(&line.heading));
+                    last = Some(Some(&line.heading));
+                }
+            }
             if !self.is_shown(item) || !self.ancestors_expanded(item) {
                 continue;
             }
-            if previous != Some(&item.group) {
-                let path: Vec<&String> = item
-                    .group
-                    .iter()
-                    .flat_map(|heading| heading.parents.iter().chain([&heading.name]))
-                    .collect();
-                // Calendars shared with the last heading's path are listed already; the calendar itself
-                // always gets a row (e.g. back in `Work` after `Work > SFAP`)
-                let same = path
-                    .iter()
-                    .zip(&listed)
-                    .take_while(|(name, other)| name == other)
-                    .count()
-                    .min(path.len().saturating_sub(1));
-                if path.is_empty() {
-                    rows.push(TaskRow::Heading {
-                        name: None,
-                        depth: 0,
-                    });
-                }
-                for (depth, name) in path.iter().enumerate().skip(same) {
-                    rows.push(TaskRow::Heading {
-                        name: Some((*name).clone()),
-                        depth,
-                    });
-                }
-                listed = path;
-                previous = Some(&item.group);
+            // No heading row for its calendar yet (e.g. no heading lines known, or before any heading)
+            if last != Some(item.group.as_ref()) {
+                push_heading(&mut rows, &mut listed, item.group.as_ref());
+                last = Some(item.group.as_ref());
             }
             let children = self.items.iter().any(|other| other.parent == Some(index));
             rows.push(TaskRow::Item {
@@ -81,7 +70,27 @@ impl App {
                 expanded: children && self.expanded.contains(&item.line),
             });
         }
+        // The headings after the last item
+        for line in headings {
+            if self.heading_shown(&line.heading) {
+                push_heading(&mut rows, &mut listed, Some(&line.heading));
+            }
+        }
         rows
+    }
+
+    /// Whether the calendar of this heading is shown: it and every calendar it is inside are checked
+    fn heading_shown(&self, heading: &Heading) -> bool {
+        let path: Vec<&String> = heading.parents.iter().chain([&heading.name]).collect();
+        self.groups
+            .iter()
+            .filter(|group| {
+                let outer = group.path();
+                group.name.is_some()
+                    && outer.len() <= path.len()
+                    && outer.iter().eq(path[..outer.len()].iter().copied())
+            })
+            .all(|group| group.shown)
     }
 
     /// Whether every level above `item` (parent, parent's parent, ...) is expanded
@@ -454,6 +463,39 @@ impl App {
             .find_map(line_of)
             .or_else(|| rows.iter().rev().find_map(line_of));
     }
+}
+
+/// Puts the heading row of `heading`'s calendar (`None` = 「未分組」) on `rows`, after rows for the calendars it is
+/// inside that the last heading listed (`listed`, its path) was not in; the calendar itself always gets a
+/// row (e.g. back in `Work` after `Work > SFAP`)
+fn push_heading<'a>(
+    rows: &mut Vec<TaskRow>,
+    listed: &mut Vec<&'a String>,
+    heading: Option<&'a Heading>,
+) {
+    let path: Vec<&String> = heading
+        .iter()
+        .flat_map(|heading| heading.parents.iter().chain([&heading.name]))
+        .collect();
+    if path.is_empty() {
+        rows.push(TaskRow::Heading {
+            name: None,
+            depth: 0,
+        });
+    }
+    let same = path
+        .iter()
+        .zip(listed.iter())
+        .take_while(|(name, other)| name == other)
+        .count()
+        .min(path.len().saturating_sub(1));
+    for (depth, name) in path.iter().enumerate().skip(same) {
+        rows.push(TaskRow::Heading {
+            name: Some((*name).clone()),
+            depth,
+        });
+    }
+    *listed = path;
 }
 
 #[cfg(test)]

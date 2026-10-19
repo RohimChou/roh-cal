@@ -2570,11 +2570,14 @@ fn tasks_app(lang: Lang) -> App {
 
 #[test]
 fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
-    // testdata/calendars.md: `# Work` has no items of its own, so its heading row comes from `## SFAP`'s;
-    // a calendar is indented 2 cells per calendar it is inside, and so are its items (under its heading);
-    // `### Bugs` goes one deeper; `# Work` again at the end gets a heading again
-    let parsed = crate::tasks::parse(include_str!("../../testdata/calendars.md"));
-    let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
+    // testdata/calendars.md: every heading is listed, `# Work` with no items of its own, and the calendars
+    // with no items at all (`## Wishlist` in Personal, `# Someday`); a calendar is indented 2 cells per
+    // calendar it is inside, and so are its items (under its heading); `### Bugs` goes one deeper; `# Work`
+    // again near the end gets a heading again
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(include_str!(
+        "../../testdata/calendars.md"
+    )));
     (app.view, app.focus) = (View::Tasks, Focus::Tasks);
     app.screen = Rect::new(0, 0, 60, 22);
     assert_eq!(
@@ -2594,10 +2597,10 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             "│    ∙  Gym                                    10/18       │",
             "│   Moving                                                 │",
             "│     [ ] Pack the books                        11/1       │",
+            "│   Wishlist                                               │",
             "│ Work                                                     │",
             "│    ∙  Team sync                              10/19 10:00 │",
-            "│                                                          │",
-            "│                                                          │",
+            "│ Someday                                                  │",
             "│──────────────────────────────────────────────────────────│",
             "│ Line 3  - [ ] Fix the login bug @2026-10-20              │",
             "╰──────────────────────────────────────────────────────────╯",

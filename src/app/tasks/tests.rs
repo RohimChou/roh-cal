@@ -44,6 +44,22 @@ fn brackets_jump_to_the_previous_or_next_calendar() {
 }
 
 #[test]
+fn every_checked_calendar_is_listed_even_with_no_items() {
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(
+        "# Work\n- [ ] a\n# Empty\n# Done\n- [x] d\n",
+    ));
+    press(&mut app, KeyCode::Char('3'));
+    assert_eq!(shape(&app), ["#Work", "a", "#Empty", "#Done", "d"]);
+    // Done tasks hidden: Done keeps its heading row
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(shape(&app), ["#Work", "a", "#Empty", "#Done"]);
+    // Unchecked in the side menu: left out
+    app.groups[1].shown = false;
+    assert_eq!(shape(&app), ["#Work", "a", "#Done"]);
+}
+
+#[test]
 fn calendars_inside_calendars_list_their_outer_calendars_first() {
     // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
     let mut app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");
