@@ -334,7 +334,7 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
 }
 
 /// What can be typed, after 「可以打」: each thing with its label (as in the fields) then what to type, in
-/// the help page's key color, e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  日曆 #名字`
+/// the help page's section color (blue; the key color is orange in some themes, like a `!!` priority), e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  日曆 #名字`
 /// (today's date; `!` `!!` `!!!` each in its priority's color; `#` only when it can pick a calendar, not
 /// for a subtask). A calendar: `可以打  假日日曆 type:holiday  上層日曆 #名字`. Wrapped to `width` cells
 /// between the things, the next lines lined up under the first one
@@ -342,7 +342,7 @@ fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let words = &app.lang.texts().editor_words;
     let muted = Style::new().fg(theme.muted);
-    let key = Style::new().fg(theme.help_key);
+    let key = Style::new().fg(theme.help_section);
     // Each thing that can be typed: its spans (label, a blank, what to type)
     let thing = |label: &str, typed: String| {
         vec![

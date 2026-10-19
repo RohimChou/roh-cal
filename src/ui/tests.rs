@@ -1267,7 +1267,7 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     };
     assert_eq!(italic_on_8("!"), Some(true));
     assert_eq!(italic_on_8("P"), Some(false));
-    // The hint row: `! !! !!!` each in its priority's color, what to type in the key color, the labels
+    // The hint row: `! !! !!!` each in its priority's color, what to type in blue (the help page's section color), the labels
     // muted
     let marks: Vec<Color> = (0..80)
         .map(|x| &buffer[(x, 14)])
@@ -1280,7 +1280,7 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
         theme.priority_high,
     );
     assert_eq!(marks, [low, medium, medium, high, high, high]);
-    assert_eq!(color_of(buffer, 14, "@"), Some(theme.help_key));
+    assert_eq!(color_of(buffer, 14, "@"), Some(theme.help_section));
     assert_eq!(color_of(buffer, 14, "日"), Some(theme.muted));
     // `!!` instead: orange; no `!`: the normal text color, no priority field (the box is a row shorter: the
     // fields on rows 10-11, the hint row on row 13)
