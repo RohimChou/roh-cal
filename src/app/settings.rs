@@ -90,6 +90,8 @@ impl Row {
                 Some(&[View::Planner, View::Month])
             }
             Self::Color("grid" | "range") => Some(&[View::Month]),
+            // Only layout 1's calendar underlines overlapping multi-day items
+            Self::Color("range_overlap") => Some(&[View::Planner]),
             Self::Theme | Self::ListWidth | Self::HideDone | Self::Color(_) => None,
         }
     }

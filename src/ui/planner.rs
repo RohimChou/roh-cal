@@ -400,16 +400,17 @@ fn render_week(
 /// Sunday, the extra cell at the end)
 ///
 /// A multi-day item underlines its dates, and the cells between two of its days too, so its days read as
-/// one line (`runs_on`); two items back to back stay apart
+/// one line (`ranges_on`); two items back to back stay apart; where two or more overlap, the underline is
+/// in `range_overlap`
 fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);
-    // The cells between `day` and the next day: underlined in `day`'s color when one item runs on
+    // The cells between `day` and the next day: underlined when an item runs on, like `day`'s date
     let between = |day: Option<Date>, next: Option<Date>| match (day, next) {
-        (Some(day), Some(next)) if runs_on(day, next, app) => Style::new()
-            .add_modifier(Modifier::UNDERLINED)
-            .underline_color(day_color(day, app)),
+        (Some(day), Some(next)) => {
+            range_underline(ranges_on(day, next, app), day_color(day, app), app)
+        }
         _ => Style::new(),
     };
     let mut spans = Vec::new();
@@ -436,9 +437,8 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             if selected || *day == app.today {
                 style = style.add_modifier(Modifier::BOLD);
             }
-            if in_multi_day(*day, app) {
-                style = style.add_modifier(Modifier::UNDERLINED);
-            }
+            let ranges = ranges_on(*day, *day, app);
+            style = style.patch(range_underline(ranges, day_color(*day, app), app));
             spans.push(Span::styled(number, style));
         }
         // The cell after the date (between it and the next day's): its dots; when it has none, the
@@ -503,19 +503,33 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
 /// Whether `day` is inside a multi-day item (in a checked calendar, not a done task): if so, that date
 /// is underlined on the calendar
 pub(super) fn in_multi_day(day: Date, app: &App) -> bool {
-    runs_on(day, day, app)
+    ranges_on(day, day, app) > 0
 }
 
-/// Whether one multi-day item (in a checked calendar, not a done task) covers both `day` and `next`; the
-/// same day twice = whether `day` is in one
-fn runs_on(day: Date, next: Date, app: &App) -> bool {
-    app.items.iter().any(|item| {
-        item.end.is_some()
-            && !item.done
-            && app.is_shown(item)
-            && item.covers(day)
-            && item.covers(next)
-    })
+/// How many multi-day items (in a checked calendar, not a done task) cover both `day` and `next`; the
+/// same day twice = how many `day` is in
+fn ranges_on(day: Date, next: Date, app: &App) -> usize {
+    app.items
+        .iter()
+        .filter(|item| {
+            item.end.is_some()
+                && !item.done
+                && app.is_shown(item)
+                && item.covers(day)
+                && item.covers(next)
+        })
+        .count()
+}
+
+/// The underline for `count` multi-day items on a date or between two dates: none for 0, in `color` for 1,
+/// in `range_overlap` for two or more
+fn range_underline(count: usize, color: Color, app: &App) -> Style {
+    let underline = Style::new().add_modifier(Modifier::UNDERLINED);
+    match count {
+        0 => Style::new(),
+        1 => underline.underline_color(color),
+        _ => underline.underline_color(app.theme.range_overlap),
+    }
 }
 
 /// The agenda date: `10/5`; multi-day items show a range: `10/20~25`, across months `10/28~11/3`,

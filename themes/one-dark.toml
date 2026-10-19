@@ -49,6 +49,8 @@ grid = "special_grey"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
+# Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
+range_overlap = "dark_yellow"
 # Priorities (!!! / !! / !): red, orange, yellow
 priority_high = "bright_red"
 priority_medium = "dark_yellow"

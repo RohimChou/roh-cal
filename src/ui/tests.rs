@@ -3527,6 +3527,38 @@ fn a_multi_day_items_underline_runs_on_between_its_days() {
 }
 
 #[test]
+fn overlapping_multi_day_items_underline_in_their_own_color() {
+    // C (10/13-16) and D (10/15-18) overlap on 10/15-16: those dates and the cells between them take
+    // `range_overlap`; the rest take their day's color as usual (cells between two days: the earlier
+    // day's). The week of 10/12 at y 5, day k's date at x 12 + 4k + 1..2
+    let text = "- C @2026-10-13..2026-10-16\n- D @2026-10-15..2026-10-18\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    let terminal = draw_app(&mut app, 47, 26);
+    let buffer = terminal.backend().buffer();
+    let theme = Theme::default();
+    let expected = [
+        (20, theme.text),          // between 13 and 14: C
+        (24, theme.text),          // between 14 and 15: only C covers both
+        (25, theme.range_overlap), // 15: C and D
+        (28, theme.range_overlap), // between 15 and 16: C and D
+        (30, theme.range_overlap), // 16: C and D
+        (32, theme.text),          // between 16 and 17 (17's `[`): only D
+        (34, theme.today),         // 17 (today): D
+        (36, theme.today),         // between 17 and 18 (the `]`): D
+        (38, theme.weekend),       // 18 (Sunday): D
+    ];
+    for (x, color) in expected {
+        let cell = &buffer[(x, 5)];
+        assert!(cell.modifier.contains(Modifier::UNDERLINED), "x {x}");
+        assert_eq!(cell.underline_color, color, "x {x}");
+    }
+}
+
+#[test]
 fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
     // `[/]` Draft and the `[/]` multi-day Trip are bold with 🚧 in front; open Shop is not; done Clean is
     // struck through

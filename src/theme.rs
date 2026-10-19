@@ -59,6 +59,9 @@ pub struct Theme {
     pub other_month: Color,
     /// Background of a multi-day item's bar in the month grid (layout 2)
     pub range: Color,
+    /// The underline under the days where two or more multi-day items overlap, in layout 1's calendar (one
+    /// underline cannot be drawn twice, so it changes color instead)
+    pub range_overlap: Color,
     /// An item marked `!!!` (high priority) that is not over yet: its whole line (date, time, title)
     pub priority_high: Color,
     /// An item marked `!!` (medium priority) that is not over yet
@@ -97,7 +100,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 23] = [
+pub const ROLES: [&str; 24] = [
     "text",
     "muted",
     "line",
@@ -116,6 +119,7 @@ pub const ROLES: [&str; 23] = [
     "grid",
     "other_month",
     "range",
+    "range_overlap",
     "priority_high",
     "priority_medium",
     "priority_low",
@@ -292,6 +296,7 @@ impl Theme {
             "grid" => self.grid,
             "other_month" => self.other_month,
             "range" => self.range,
+            "range_overlap" => self.range_overlap,
             "priority_high" => self.priority_high,
             "priority_medium" => self.priority_medium,
             "priority_low" => self.priority_low,
