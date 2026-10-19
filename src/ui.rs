@@ -119,12 +119,22 @@ fn calendar_path(item: &Item) -> Option<String> {
 }
 
 /// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
-/// and a space
-const IN_PROGRESS_ICON: &str = "🚧 ";
+const IN_PROGRESS_ICON: &str = "🚧";
 
 /// An item's title in `color`, the same in every view: crossed out once done; while in progress (`[/]`)
-/// bold, with 🚧 in front
+/// bold, with 🚧 and a space in front
 fn title_span(item: &Item, color: Color) -> Span<'static> {
+    title_span_after_icon(item, color, " ")
+}
+
+/// Same as `title_span`, but 🚧 right against the title, no space: for the month grid, where every cell
+/// counts
+fn tight_title_span(item: &Item, color: Color) -> Span<'static> {
+    title_span_after_icon(item, color, "")
+}
+
+/// See `title_span`; `gap` goes between 🚧 and the title
+fn title_span_after_icon(item: &Item, color: Color, gap: &str) -> Span<'static> {
     let style = Style::new().fg(color);
     if item.done {
         Span::styled(
@@ -133,7 +143,7 @@ fn title_span(item: &Item, color: Color) -> Span<'static> {
         )
     } else if item.in_progress {
         Span::styled(
-            format!("{IN_PROGRESS_ICON}{}", item.title),
+            format!("{IN_PROGRESS_ICON}{gap}{}", item.title),
             style.add_modifier(Modifier::BOLD),
         )
     } else {

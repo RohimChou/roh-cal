@@ -163,6 +163,11 @@ def is_hidden(path, hidden):
 IN_PROGRESS = "🚧 "
 
 
+def tight(title, in_progress):
+    """The month grid's cells are narrow: there 🚧 goes right against the title, without the space"""
+    return title.replace(IN_PROGRESS, "🚧", 1) if in_progress else title
+
+
 def drop_priority(title):
     """The title without its priority: the first word that is exactly `!`, `!!` or `!!!` is not part of it"""
     words = title.split()
@@ -559,7 +564,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
                     if s and s[0] == "item":
                         _, time, title, _, _, in_progress = s[1]
                         # An in-progress item's time is left out: its 🚧 already takes most of the cell
-                        cell.append(" " + (time + " " if time and not in_progress else "") + title)
+                        cell.append(" " + (time + " " if time and not in_progress else "") + tight(title, in_progress))
                     else:
                         cell.append("")
                 if shown < len(slots[k]):
@@ -591,9 +596,9 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 x, y = xs[run + 1], week_y(i) + 1 + lane
                 band = xs[k + 1] + widths[k + 1] - x
                 c.put(x, y, " " * band)
-                _, time, title, _, _, _ = it
+                _, time, title, _, _, in_progress = it
                 starts = run == first_k and it[0] == days[run]
-                c.put(x, y, " " + (time + " " if time and starts else "") + title, band)
+                c.put(x, y, " " + (time + " " if time and starts else "") + tight(title, in_progress), band)
                 k += 1
     # Without grid lines: only a month's edge, drawn over the cells: the vertical stretch between the last
     # day and the 1st in the first column of the 1st's cell, the horizontal ones on the row between the
