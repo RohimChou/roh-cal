@@ -23,7 +23,6 @@ use ratatui::crossterm::{
 };
 use std::io::{ErrorKind, stdout};
 use std::path::{Path, PathBuf};
-use tasks::Parsed;
 use texts::Lang;
 
 /// Reads the command-line arguments, task file, and config file, then runs the TUI until quit. If the config
@@ -40,9 +39,9 @@ fn main() -> Result<()> {
         Some(path) => (Some(path), true),
         None => (paths::tasks_file(), false),
     };
-    let parsed = match &path {
+    let text = match &path {
         Some(path) => load_tasks(path, required)?,
-        None => Parsed::default(),
+        None => String::new(),
     };
     // Config file: if missing, use all defaults; if it has a mistake, print which line here (before the TUI)
     let config_path = paths::config_file();
@@ -63,7 +62,7 @@ fn main() -> Result<()> {
         let _mouse = MouseCapture::enable()?;
         let mut app = App::new(lang, today, Vec::new());
         // Items, mistakes and calendars from the task file
-        app.set_items(parsed);
+        app.show_tasks(text);
         app.settings = settings;
         app.apply_theme();
         // Changes made on the settings page are saved back to this same file
@@ -80,12 +79,12 @@ fn main() -> Result<()> {
     })
 }
 
-/// Reads the task file (items and mistakes). `required` = the user named this file (`--tasks`), so a
-/// missing file is an error; a missing file at the default location just means no tasks
-fn load_tasks(path: &Path, required: bool) -> Result<Parsed> {
+/// Reads the task file's text. `required` = the user named this file (`--tasks`), so a missing file is
+/// an error; a missing file at the default location just means no tasks (empty)
+fn load_tasks(path: &Path, required: bool) -> Result<String> {
     match std::fs::read_to_string(path) {
-        Ok(text) => Ok(tasks::parse(&text)),
-        Err(error) if !required && error.kind() == ErrorKind::NotFound => Ok(Parsed::default()),
+        Ok(text) => Ok(text),
+        Err(error) if !required && error.kind() == ErrorKind::NotFound => Ok(String::new()),
         Err(error) => {
             Err(error).wrap_err_with(|| format!("cannot read task file: {}", path.display()))
         }
@@ -245,12 +244,10 @@ mod tests {
         let missing = Path::new("testdata/no-such-file.md");
         assert!(load_tasks(missing, true).is_err());
         // The file at the default location does not exist → no tasks
-        assert_eq!(
-            load_tasks(missing, false).expect("no tasks"),
-            Parsed::default()
-        );
+        assert_eq!(load_tasks(missing, false).expect("no tasks"), "");
         // The sample file can be read (it has one date that is wrong on purpose)
-        let parsed = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
+        let text = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
+        let parsed = tasks::parse(&text);
         assert_eq!((parsed.items.len(), parsed.warnings.len()), (57, 1));
     }
 }

@@ -1,5 +1,6 @@
 //! Writing the task file: check off, delete, undo. Always re-read before
-//! writing; if the line was changed elsewhere, don't write and reload instead
+//! writing; if the line was changed elsewhere, don't write and reload instead.
+//! Changes made elsewhere while nothing is being written are picked up too (`refresh_tasks`)
 
 use super::{App, Focus, Mode, View};
 use crate::edit;
@@ -279,7 +280,7 @@ impl App {
             Some(swap) => self.remap_lines(|line| Some(swap.reversed().map(line))),
             None => self.remap_lines(edit::line_map(&step.after, &step.before)),
         }
-        self.set_items(tasks::parse(&step.before));
+        self.show_tasks(step.before);
         self.notice = Some(Notice::Undone(step.title));
     }
 
@@ -342,7 +343,7 @@ impl App {
             Some(swap) => self.remap_lines(|line| Some(swap.map(line))),
             None => self.remap_lines(edit::line_map(&before, &after)),
         }
-        self.set_items(tasks::parse(&after));
+        self.show_tasks(after.clone());
         self.undo.push(UndoStep {
             before,
             after,
@@ -356,12 +357,64 @@ impl App {
         true
     }
 
-    /// The task file was changed elsewhere: reload from the file's current content `text` and
-    /// tell the user this was not written; the earlier undo steps no longer match, so clear them
+    /// The task file was changed elsewhere when roh-cal was about to write: reload from the file's
+    /// current content `text` and tell the user this was not written
     pub(super) fn reload(&mut self, text: &str) {
-        self.set_items(tasks::parse(text));
-        self.undo.clear();
+        self.take_change_from_elsewhere(text.to_string());
         self.notice = Some(Notice::Reloaded);
+    }
+
+    /// Picks up changes made to the task file elsewhere (e.g. saved in Obsidian, or by a script) while
+    /// roh-cal is open; the main loop calls it every round. Quiet: no notice, the screen just updates.
+    ///
+    /// Reads the file only when its modified time changed, and reloads only when the content differs from
+    /// what the screen shows (roh-cal's own writes change the time but not that). Waits while an item is
+    /// being worked on (editor, rescheduling, delete question), so it does not change underneath; that
+    /// write re-reads the file anyway. A file that cannot be read (e.g. deleted) leaves the screen as it is
+    pub(super) fn refresh_tasks(&mut self) {
+        let busy = match self.mode {
+            Mode::Normal | Mode::Help(_) | Mode::Settings { .. } => false,
+            Mode::Editor(_)
+            | Mode::Moving(_)
+            | Mode::ConfirmDelete(..)
+            | Mode::ConfirmDeleteCalendar { .. } => true,
+        };
+        if busy {
+            return;
+        }
+        let Some(path) = &self.tasks_path else {
+            return;
+        };
+        let modified = std::fs::metadata(path)
+            .and_then(|meta| meta.modified())
+            .ok();
+        if modified == self.tasks_modified {
+            return;
+        }
+        // Not readable right now: keep the old time, so the next round tries again
+        let Ok(text) = std::fs::read_to_string(path) else {
+            return;
+        };
+        self.tasks_modified = modified;
+        if text != self.tasks_text {
+            self.take_change_from_elsewhere(text);
+        }
+    }
+
+    /// Shows `text`, the task file as changed elsewhere: line numbers the screen remembers (the chosen
+    /// item, expanded subtasks) move along with `edit::line_map`; the earlier undo steps no longer match
+    /// the file, so they are cleared
+    fn take_change_from_elsewhere(&mut self, text: String) {
+        self.remap_lines(edit::line_map(&self.tasks_text, &text));
+        self.show_tasks(text);
+        self.undo.clear();
+    }
+
+    /// Shows the task file's content `text` (at start, after a write, an undo or a reload) and remembers
+    /// it, so `refresh_tasks` can tell changes made elsewhere
+    pub(crate) fn show_tasks(&mut self, text: String) {
+        self.set_items(tasks::parse(&text));
+        self.tasks_text = text;
     }
 
     /// Maps the line numbers the screen remembers (the item chosen on the tasks page, expanded

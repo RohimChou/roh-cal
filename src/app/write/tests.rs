@@ -15,7 +15,7 @@ pub(crate) fn app_with_task_file(name: &str, text: &str) -> (App, PathBuf) {
     let path = dir.join("tasks.md");
     std::fs::write(&path, text).expect("write");
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
-    app.set_items(tasks::parse(text));
+    app.show_tasks(text.to_string());
     app.tasks_path = Some(path.clone());
     // Choose the first item, like pressing Tab: the keyboard moves
     // to the agenda, and the calendar selects that item's day
@@ -514,5 +514,80 @@ fn rewriting_keeps_the_calendars_checked_state() {
     press(&mut app, KeyCode::Char(' '));
     assert!(app.items[0].done);
     assert!(app.groups[0].shown && !app.groups[1].shown);
+    clean_up(&path);
+}
+
+#[test]
+fn a_change_made_elsewhere_shows_up_without_a_key_but_roh_cals_own_writes_do_not_count() {
+    let (mut app, path) = app_with_task_file("refresh", "- [ ] Review PRs @2026-10-17 09:00\n");
+    // A line was added elsewhere (e.g. saved in Obsidian): picked up quietly, no notice
+    let edited = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Book a haircut @2026-10-17 10:00\n";
+    std::fs::write(&path, edited).expect("edit");
+    app.refresh_tasks();
+    assert_eq!(app.items.len(), 2);
+    assert_eq!(app.notice, None);
+    // roh-cal's own write changes the file too, but it is what the screen shows: undo still works
+    press(&mut app, KeyCode::Char(' '));
+    app.refresh_tasks();
+    press(&mut app, KeyCode::Char('u'));
+    assert!(matches!(app.notice, Some(Notice::Undone(_))));
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
+    clean_up(&path);
+}
+
+#[test]
+fn a_change_made_elsewhere_waits_until_the_editor_closes() {
+    let (mut app, path) =
+        app_with_task_file("refresh-editor", "- [ ] Review PRs @2026-10-17 09:00\n");
+    press(&mut app, KeyCode::Char('e'));
+    let edited = "- [ ] Go to the gym @2026-10-17 08:00\n- [ ] Review PRs @2026-10-17 09:00\n";
+    std::fs::write(&path, edited).expect("edit");
+    // The editor is open: the items it points at stay as they are
+    app.refresh_tasks();
+    assert_eq!(app.items.len(), 1);
+    // Closed: picked up on the next round
+    press(&mut app, KeyCode::Esc);
+    app.refresh_tasks();
+    assert_eq!(app.items.len(), 2);
+    clean_up(&path);
+}
+
+#[test]
+fn the_chosen_item_on_the_tasks_page_follows_a_line_added_elsewhere() {
+    let text = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
+    let (mut app, path) = app_with_task_file("refresh-line", text);
+    app.set_view(View::Tasks);
+    app.tasks_line = Some(2);
+    // A line added above it elsewhere: "Deploy to staging" moves to line 3, and stays chosen
+    std::fs::write(
+        &path,
+        format!("- [ ] Go to the gym @2026-10-17 08:00\n{text}"),
+    )
+    .expect("edit");
+    app.refresh_tasks();
+    assert_eq!(app.tasks_line, Some(3));
+    assert_eq!(
+        app.chosen_item().map(|item| item.title.as_str()),
+        Some("Deploy to staging")
+    );
+    clean_up(&path);
+}
+
+#[test]
+fn a_task_file_that_cannot_be_read_keeps_the_screen_and_is_tried_again() {
+    use std::os::unix::fs::PermissionsExt;
+    let (mut app, path) =
+        app_with_task_file("refresh-unreadable", "- [ ] Review PRs @2026-10-17 09:00\n");
+    let edited = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Book a haircut @2026-10-17 10:00\n";
+    std::fs::write(&path, edited).expect("edit");
+    // Changed but not readable right now: the screen stays as it is
+    let mode = |bits| std::fs::Permissions::from_mode(bits);
+    std::fs::set_permissions(&path, mode(0o000)).expect("chmod");
+    app.refresh_tasks();
+    assert_eq!(app.items.len(), 1);
+    // Readable again (its modified time did not change): picked up on the next round
+    std::fs::set_permissions(&path, mode(0o644)).expect("chmod");
+    app.refresh_tasks();
+    assert_eq!(app.items.len(), 2);
     clean_up(&path);
 }

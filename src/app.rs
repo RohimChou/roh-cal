@@ -36,10 +36,13 @@ use ratatui::{
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Two clicks on the same day at most this far apart count as a double click
 const DOUBLE_CLICK: Duration = Duration::from_millis(500);
+
+/// With no input, the main loop goes round this often anyway, to check whether the task file changed elsewhere
+const REFRESH_EVERY: Duration = Duration::from_secs(1);
 
 /// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -306,6 +309,12 @@ pub struct App {
     pub screen: Rect,
     /// Where the task file is (checking and editing write back to it); `None` = no task file (tests), no writes
     pub tasks_path: Option<PathBuf>,
+    /// The task file's content that the screen shows (as read at start, or as roh-cal last wrote or reloaded
+    /// it); a file that differs from it was changed elsewhere
+    tasks_text: String,
+    /// The task file's modified time when last checked (`None` = not checked yet, or no file); a different
+    /// time means the file may have changed, so it is read again
+    tasks_modified: Option<SystemTime>,
     /// A notice that temporarily replaces the bottom row (write failed, reloaded, undo); gone on the next
     /// key or click
     pub notice: Option<Notice>,
@@ -356,6 +365,8 @@ impl App {
             config_path: None,
             screen: Rect::default(),
             tasks_path: None,
+            tasks_text: String::new(),
+            tasks_modified: None,
             notice: None,
             undo: Vec::new(),
             mode: Mode::Normal,
@@ -614,16 +625,22 @@ impl App {
         }
     }
 
-    /// Main loop: each round draws the screen once and waits for one input, until quit
+    /// Main loop: each round checks the task file, draws the screen once and waits for one input (at most
+    /// `REFRESH_EVERY`), until quit
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
+            // Changes made to the task file elsewhere (e.g. saved in Obsidian) show up in every view
+            self.refresh_tasks();
             // Record the terminal size first (it changes when the window is resized),
             // so drawing and mouse positions agree
             let size = terminal.size()?;
             self.resize(Rect::new(0, 0, size.width, size.height));
             terminal.draw(|frame| ui::render(frame, &mut self))?;
-            // event::read() blocks until there is input; only key presses are handled (some terminals also send
-            // key releases)
+            // No input for a while: go round again to check the task file
+            if !event::poll(REFRESH_EVERY)? {
+                continue;
+            }
+            // Only key presses are handled (some terminals also send key releases)
             let event = event::read()?;
             if let Some(key) = event.as_key_press_event() {
                 self.handle_key(key);
