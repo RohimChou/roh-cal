@@ -523,14 +523,14 @@ fn side_menu_lists_the_calendars_when_wide() {
             "│ 日曆                                    ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項               2026/10/17（六） │",
             "│─────────────────────────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────│",
             "│ ☑ 未分組                              2 ││  10月 40 │              1   2   3   4  ││ 10/10 Farmers market                    │",
-            "│ ☑ Personal                            5 ││       41 │  5   6   7   8   9  10  11  ││ 10/15 Fix the login bug                 ┃",
-            "│ ☑ Work                                1 ││       42 │ 12  13  14  15  16 [17] 18  ││ 10/16 17:30 Send the weekly update      ┃",
-            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20  21  22  23  24  25  ││ 10/17 Dinner with friends               ┃",
+            "│ ☑ Personal                            5 ││       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/15 Fix the login bug                 ┃",
+            "│ ☑ Work                                1 ││       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/16 17:30 Send the weekly update      ┃",
+            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 Dinner with friends               ┃",
             "│                                         ││       44 │ 26  27  28  29  30  31      ││ 10/17 08:00 Coffee chat                 ┃",
             "│                                         ││          │                             ││ 10/18 07:00 Go hiking                   │",
             "│                                         ││──────────┼─────────────────────────────││───────────────────────────── 還有 1 件 ─│",
             "│─────────────────────────────────────────││  11月 44 │                          1  ││  11/3 09:30 Release v2.3                │",
-            "│ ☐ 隱藏做完的                            ││       45 │  2   3   4   5   6   7   8  ││                                         │",
+            "│ ☐ 隱藏做完的                            ││       45 │  2   3⠂  4   5   6   7   8  ││                                         │",
             "╰─────────────────────────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────╯",
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
         ]
@@ -555,13 +555,13 @@ fn side_menu_lists_the_calendars_when_wide() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                                                          2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││  10/5 Pay the phone bill                   10/17 08:00 Coffee chat                 │",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/10 Farmers market                       10/18 07:00 Go hiking                   │",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/15 Fix the login bug                    10/20 A really long title that just keep│",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/16 17:30 Send the weekly update                                                 │",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market                       10/18 07:00 Go hiking                   │",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug                    10/20 A really long title that just keep│",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly update                                                 │",
             "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends                                                          │",
             "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
             "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3                                                           │",
-            "│       45 │  2   3   4   5   6   7   8  ││                                                                                    │",
+            "│       45 │  2   3⠂  4   5   6   7   8  ││                                                                                    │",
             "│       46 │  9  10  11  12  13  14  15  ││                                                                                    │",
             "╰────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────╯",
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
@@ -583,12 +583,12 @@ fn unchecked_calendars_hide_their_items() {
             "│─────────────────────────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────│",
             "│ ☑ Ungrouped                           2 ││   Oct 40 │              1   2   3   4  ││ 10/15 Fix the login bug                 │",
             "│ ☐ Personal                            5 ││       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly update      │",
-            "│ ☑ Work                                1 ││       42 │ 12  13  14  15  16 [17] 18  ││ 10/20 A really long title that just keep│",
-            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20  21  22  23  24  25  ││                                         │",
+            "│ ☑ Work                                1 ││       42 │ 12  13  14  15⠂ 16⠂[17] 18  ││ 10/20 A really long title that just keep│",
+            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││                                         │",
             "│                                         ││       44 │ 26  27  28  29  30  31      ││                                         │",
             "│                                         ││──────────┼─────────────────────────────││─────────────────────────────────────────│",
             "│                                         ││   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                │",
-            "│─────────────────────────────────────────││       45 │  2   3   4   5   6   7   8  ││                                         │",
+            "│─────────────────────────────────────────││       45 │  2   3⠂  4   5   6   7   8  ││                                         │",
             "│ ☐ Hide done                             ││       46 │  9  10  11  12  13  14  15  ││                                         │",
             "╰─────────────────────────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────╯",
             " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
@@ -688,16 +688,16 @@ fn agenda_lists_each_months_items_next_to_it() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││  10/5 Pay the phone bill        │",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/10 Farmers market            │",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/15 Fix the login bug         │",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market            │",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug         │",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
             "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends       │",
             "│          │                             ││ 10/17 08:00 Coffee chat         │",
             "│          │                             ││ 10/18 07:00 Go hiking           │",
             "│          │                             ││ 10/20 A really long title that j│",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3        │",
-            "│       45 │  2   3   4   5   6   7   8  ││                                 │",
+            "│       45 │  2   3⠂  4   5   6   7   8  ││                                 │",
             "│       46 │  9  10  11  12  13  14  15  ││                                 │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                 │",
             "│       48 │ 23  24  25  26  27  28  29  ││                                 │",
@@ -723,13 +723,13 @@ fn agenda_flows_into_columns_when_wide() {
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                                  Sat Oct 17, 2026 │",
             "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
             "│   Oct 40 │              1   2   3   4  ││  10/5 Pay the phone bill      10/17 08:00 Coffee chat    │",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/10 Farmers market          10/18 07:00 Go hiking      │",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/15 Fix the login bug       10/20 A really long title t│",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/16 17:30 Send the weekly                              │",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market          10/18 07:00 Go hiking      │",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug       10/20 A really long title t│",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly                              │",
             "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends                                │",
             "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
             "│   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                                 │",
-            "│       45 │  2   3   4   5   6   7   8  ││                                                          │",
+            "│       45 │  2   3⠂  4   5   6   7   8  ││                                                          │",
             "│       46 │  9  10  11  12  13  14  15  ││                                                          │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                                          │",
             "╰────────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
@@ -790,7 +790,8 @@ fn the_selected_day_and_its_items_stay_on_screen_with_tall_months() {
             .iter()
             .map(|row| row.split_once("││").unwrap_or((row, "")))
             .unzip();
-        let day = format!("[{}]", app.selected.day());
+        // The calendar's only `[` is the selected day's (its `]` comes after its dots, if it has any)
+        let day = format!("[{}", app.selected.day());
         assert!(
             left.iter().any(|row| row.contains(&day)),
             "{}: {day} is not on the calendar: {body:#?}",
@@ -887,16 +888,16 @@ fn agenda_focus_brackets_the_chosen_item() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││  10/5 Pay the phone bill        │",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/10 Farmers market            │",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/15 Fix the login bug         │",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market            │",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug         │",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
             "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends       │",
             "│          │                             ││[10/17]08:00 Coffee chat         │",
             "│          │                             ││ 10/18 07:00 Go hiking           │",
             "│          │                             ││ 10/20 A really long title that j│",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3        │",
-            "│       45 │  2   3   4   5   6   7   8  ││                                 │",
+            "│       45 │  2   3⠂  4   5   6   7   8  ││                                 │",
             "│       46 │  9  10  11  12  13  14  15  ││                                 │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                 │",
             "│       48 │ 23  24  25  26  27  28  29  ││                                 │",
@@ -959,8 +960,9 @@ fn the_chosen_item_is_always_on_screen() {
             body.iter().any(|row| row.contains(&chosen)),
             "item {index} is not on screen: {body:#?}"
         );
-        // The selected day is also visible in the calendar box (left of `││` in each row)
-        let day = format!("[{}]", app.selected.day());
+        // The selected day is also visible in the calendar box (left of `││` in each row; its `]` comes
+        // after its dots, if it has any)
+        let day = format!("[{}", app.selected.day());
         assert!(
             body.iter().any(|row| row
                 .split("││")
@@ -989,9 +991,9 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││ 10/16 17:30 Send the weekly upda│",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/17 Dinner with friends       │",
-            "│       42 │ 12  13  14  15  16  17  18  ││ 10/17 08:00 Coffee chat         ┃",
-            "│       43 │ 19 [20] 21  22  23  24  25  ││ 10/18 07:00 Go hiking           ┃",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/17 Dinner with friends       │",
+            "│       42 │ 12  13  14  15⠂ 16⠂ 17⠒ 18⠂ ││ 10/17 08:00 Coffee chat         ┃",
+            "│       43 │ 19 [20⠂]21  22  23  24  25  ││ 10/18 07:00 Go hiking           ┃",
             "│       44 │ 26  27  28  29  30  31      ││[10/20]A really long title that j┃",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
@@ -1028,9 +1030,9 @@ fn the_agenda_follows_the_calendar() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││ 10/16 17:30 Send the weekly upda│",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/17 Dinner with friends       │",
-            "│       42 │ 12  13  14  15  16  17  18  ││ 10/17 08:00 Coffee chat         ┃",
-            "│       43 │ 19 [20] 21  22  23  24  25  ││ 10/18 07:00 Go hiking           ┃",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/17 Dinner with friends       │",
+            "│       42 │ 12  13  14  15⠂ 16⠂ 17⠒ 18⠂ ││ 10/17 08:00 Coffee chat         ┃",
+            "│       43 │ 19 [20⠂]21  22  23  24  25  ││ 10/18 07:00 Go hiking           ┃",
             "│       44 │ 26  27  28  29  30  31      ││ 10/20 A really long title that j┃",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
@@ -1098,9 +1100,9 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││ 10/15 Fix the login bug         │",
-            "│       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly upda┃",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/17 Dinner with friends       ┃",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/17 08:00 Coffee chat         ┃",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/16 17:30 Send the weekly upda┃",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/17 Dinner with friends       ┃",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 08:00 Coffee chat         ┃",
             "│       44 │ 26  27  28  29  30  31      ││ 10/18 07:00 Go hiking           │",
             "│──────────┼─────────────────────────────││───────────────────── 還有 1 件 ─│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
@@ -1724,12 +1726,12 @@ fn multi_day_items_are_listed_once_per_month() {
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  10月 40 │              1   2   3   4  ││ 10/16 17:30 Send the weekly upda│",
             "│       41 │  5   6   7   8   9  10  11  ││ 10/20~25 Business trip to NYC   │",
-            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/22 Buy gifts for the team    │",
-            "│       43 │ 19  20  21  22  23  24  25  ││ 10/28~11/3 Manager OOO          │",
-            "│       44 │ 26  27  28  29  30  31      ││                                 │",
+            "│       42 │ 12  13  14  15  16⠂[17] 18  ││ 10/22 Buy gifts for the team    │",
+            "│       43 │ 19  20⠂ 21⠂ 22⠒ 23⠂ 24⠂ 25⠂ ││ 10/28~11/3 Manager OOO          │",
+            "│       44 │ 26  27  28⠂ 29⠂ 30⠂ 31⠂     ││                                 │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
-            "│  11月 44 │                          1  ││ 10/28~11/3 Manager OOO          │",
-            "│       45 │  2   3   4   5   6   7   8  ││  11/1 Prepare the monthly report│",
+            "│  11月 44 │                          1⠒ ││ 10/28~11/3 Manager OOO          │",
+            "│       45 │  2⠂  3⠂  4   5   6   7   8  ││  11/1 Prepare the monthly report│",
             "│       46 │  9  10  11  12  13  14  15  ││                                 │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                 │",
             "│       48 │ 23  24  25  26  27  28  29  ││                                 │",
@@ -1739,9 +1741,9 @@ fn multi_day_items_are_listed_once_per_month() {
             "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "│       51 │ 14  15  16  17  18  19  20  ││                                 │",
             "│       52 │ 21  22  23  24  25  26  27  ││                                 │",
-            "│       53 │ 28  29  30  31              ││                                 │",
+            "│       53 │ 28  29  30⠂ 31⠂             ││                                 │",
             "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━││━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│",
-            "│2027年  1 │                  1   2   3  ││ 12/30~1/2 09:00 New Year trip   │",
+            "│2027年  1 │                  1⠂  2⠂  3  ││ 12/30~1/2 09:00 New Year trip   │",
             "│   1月  2 │  4   5   6   7   8   9  10  ││                                 │",
             "│        3 │ 11  12  13  14  15  16  17  ││                                 │",
             "│        4 │ 18  19  20  21  22  23  24  ││                                 │",
@@ -1782,8 +1784,8 @@ fn multi_day_items_are_listed_once_per_month() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項        2026/11/2（一） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
-            "│  11月 44 │                          1  ││[10/28~11/3]Manager OOO          │",
-            "│       45 │ [2]  3   4   5   6   7   8  ││  11/1 Prepare the monthly report│",
+            "│  11月 44 │                          1⠒ ││[10/28~11/3]Manager OOO          │",
+            "│       45 │ [2⠂] 3⠂  4   5   6   7   8  ││  11/1 Prepare the monthly report│",
             "│       46 │  9  10  11  12  13  14  15  ││                                 │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                 │",
             "│       48 │ 23  24  25  26  27  28  29  ││                                 │",
@@ -1793,9 +1795,9 @@ fn multi_day_items_are_listed_once_per_month() {
             "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "│       51 │ 14  15  16  17  18  19  20  ││                                 │",
             "│       52 │ 21  22  23  24  25  26  27  ││                                 │",
-            "│       53 │ 28  29  30  31              ││                                 │",
+            "│       53 │ 28  29  30⠂ 31⠂             ││                                 │",
             "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━││━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│",
-            "│2027年  1 │                  1   2   3  ││ 12/30~1/2 09:00 New Year trip   │",
+            "│2027年  1 │                  1⠂  2⠂  3  ││ 12/30~1/2 09:00 New Year trip   │",
             "│   1月  2 │  4   5   6   7   8   9  10  ││                                 │",
             "│        3 │ 11  12  13  14  15  16  17  ││                                 │",
             "│        4 │ 18  19  20  21  22  23  24  ││                                 │",
@@ -3413,6 +3415,67 @@ fn selected_day_is_bold_in_its_own_color() {
     assert_eq!(cell(30, 5), ("6", theme.text, true));
     assert_eq!(cell(31, 5), ("]", theme.selected, true));
     assert_eq!(cell(34, 5), ("7", theme.today, true));
+}
+
+#[test]
+fn dots_right_of_each_date_count_its_items() {
+    // The week of 10/12 at y 5; day k's dots cell is at x 12 + 4k + 3 (border, year/month, week number, │,
+    // then a blank and the date before it): 10/13 has 2 items (one in Errands), 10/14 2, 10/15 3 (one done),
+    // 10/16 5 (Trip and 4 more: still 4 dots), 10/17 and 10/18 only Trip (a multi-day item counts on every
+    // day it covers); 10/12 none
+    let text = "# Work\n- [ ] Plan @2026-10-13\n- [ ] Pack @2026-10-14\n- [ ] Print @2026-10-14\n\
+                - [x] Pay @2026-10-15\n- Call @2026-10-15\n- Lunch @2026-10-15\n\
+                - Trip @2026-10-16..2026-10-18\n- [ ] A @2026-10-16\n- [ ] B @2026-10-16\n\
+                - [ ] C @2026-10-16\n- [ ] D @2026-10-16\n# Errands\n- [ ] Shop @2026-10-13\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    let theme = Theme::default();
+    let cells = |app: &mut App| {
+        let terminal = draw_app(app, 47, 26);
+        let buffer = terminal.backend().buffer();
+        [15, 19, 23, 27, 31, 35, 39]
+            .map(|x| (buffer[(x, 5)].symbol().to_string(), buffer[(x, 5)].fg))
+    };
+    let dot = |symbol: &str| (symbol.to_string(), theme.muted);
+    // 10/17 is selected and has a dot: its `]` comes after the dot (x 36)
+    assert_eq!(
+        cells(&mut app),
+        [
+            dot(" "),
+            dot("⠒"),
+            dot("⠒"),
+            dot("⠖"),
+            dot("⠶"),
+            dot("⠂"),
+            dot("⠂")
+        ]
+    );
+    let terminal = draw_app(&mut app, 47, 26);
+    assert_eq!(terminal.backend().buffer()[(36, 5)].symbol(), "]");
+    // An unchecked calendar's items are not counted (10/13 loses Shop), nor are done tasks hidden by
+    // 「Hide done」 (10/15 loses Pay)
+    let errands = app
+        .groups
+        .iter()
+        .position(|group| group.name.as_deref() == Some("Errands"))
+        .expect("Errands");
+    app.groups[errands].shown = false;
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(
+        cells(&mut app),
+        [
+            dot(" "),
+            dot("⠂"),
+            dot("⠒"),
+            dot("⠒"),
+            dot("⠶"),
+            dot("⠂"),
+            dot("⠂")
+        ]
+    );
 }
 
 #[test]

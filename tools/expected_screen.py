@@ -161,6 +161,8 @@ def is_hidden(path, hidden):
 
 # In front of an in-progress (`[/]`) item's title on every screen
 IN_PROGRESS = "🚧 "
+# Layout 1: the dots right of a date, for 0, 1, 2, 3 and 4 or more items that day
+DOTS = [" ", "⠂", "⠒", "⠖", "⠶"]
 
 
 def drop_priority(title):
@@ -290,6 +292,10 @@ def screen(lang, w, h, selected, first, skip, items, groups):
 
     entries = agenda_entries(items)
 
+    def on_day(day):
+        """How many items are on `day` (a multi-day item counts on every day it covers)"""
+        return sum(1 for it in items if it[0] <= day <= (it[4] or it[0]))
+
     def item_text(e):
         _, time, title, _, _, _ = e[2]
         d = range_text(e[2])
@@ -344,14 +350,16 @@ def screen(lang, w, h, selected, first, skip, items, groups):
                 label = t["month"](m)
             if i < len(weeks):
                 week = weeks[i]
-                # 4 cells a day: blanks, the date right-aligned in cells 2-3, a blank after it; one more
-                # blank after Sunday
-                days = list("".join(f"{d:>3} " if d else "    " for d in week) + " ")
+                # 4 cells a day: blanks, the date right-aligned in cells 2-3, then its dots; one more blank
+                # after Sunday
+                days = list("".join(f"{d:>3}" + DOTS[min(on_day(datetime.date(y, m, d)), 4)] if d else "    "
+                                    for d in week) + " ")
                 for k, d in enumerate(week):
                     if d and datetime.date(y, m, d) == selected:
                         start = 4 * k + 3 - len(str(d))
                         days[start - 1] = "["
-                        days[4 * k + 3] = "]"
+                        # `]` right after the date when it has no dots, else after its dots
+                        days[4 * k + 3 + (1 if on_day(datetime.date(y, m, d)) else 0)] = "]"
                 day = next(d for d in week if d)
                 left = rjust(label, 6) + f"{week_number(datetime.date(y, m, day), selected):>3} " + "│" + "".join(days)
                 year = y

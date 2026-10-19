@@ -391,21 +391,29 @@ fn render_week(
     }
 }
 
-/// The dates of the 7 days, `DAY_WIDTH` cells per day: a blank, the date right-aligned in 2 cells, and a
-/// blank after it; the selected day gets brackets `[17]`
+/// The dates of the 7 days, `DAY_WIDTH` cells per day: a blank, the date right-aligned in 2 cells, and its
+/// dots after it (one per item that day, `dots`); the selected day gets brackets: `[17]`, or `[17⠒]` around
+/// its dots
 ///
 /// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
-/// date, `]` the blank after it
+/// date; `]` takes the cell after the date when it has no dots, else the next day's first blank (for
+/// Sunday, the extra cell at the end)
 fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);
     let mut spans = Vec::new();
+    // The previous day is the selected one and has dots: its `]` goes in this day's first blank
+    let mut close = false;
     for day in days {
         let number = day.map(|day| day.day().to_string()).unwrap_or_default();
         let selected = *day == Some(app.selected);
-        // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus the cell `[` takes
-        let gap = 3 - number.len() - usize::from(selected);
+        // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus the cells brackets take
+        let mut gap = 3 - number.len() - usize::from(selected);
+        if close {
+            spans.push(Span::styled("]", bracket));
+            gap -= 1;
+        }
         spans.push(Span::raw(" ".repeat(gap)));
         if selected {
             spans.push(Span::styled("[", bracket));
@@ -421,14 +429,31 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             }
             spans.push(Span::styled(number, style));
         }
-        // The cell after the date
-        if selected {
+        // The cell after the date: its dots; when it has none, the selected day's `]`
+        let count = day.map_or(0, |day| app.items_on(day).len());
+        close = selected && count > 0;
+        if selected && count == 0 {
             spans.push(Span::styled("]", bracket));
         } else {
-            spans.push(Span::raw(" "));
+            spans.push(Span::styled(dots(count), Style::new().fg(app.theme.muted)));
         }
     }
+    if close {
+        spans.push(Span::styled("]", bracket));
+    }
     Line::from(spans)
+}
+
+/// The dots right of a date: one per item that day (`count`), at most 4, stacked in one cell; a blank for
+/// none. Braille dots are always 1 cell wide (`•` is 2 cells in terminals with wide CJK characters on)
+fn dots(count: usize) -> &'static str {
+    match count {
+        0 => " ",
+        1 => "⠂",
+        2 => "⠒",
+        3 => "⠖",
+        _ => "⠶",
+    }
 }
 
 /// Whether the item is in a holiday calendar (its heading has `type:holiday`)
@@ -601,5 +626,11 @@ mod tests {
         assert_eq!(agenda_columns(88), 3);
         assert_eq!(agenda_columns(118), 4);
         assert_eq!(agenda_columns(500), 4);
+    }
+
+    #[test]
+    fn dots_stack_up_to_four() {
+        let shown: Vec<&str> = (0..=6).map(dots).collect();
+        assert_eq!(shown, [" ", "⠂", "⠒", "⠖", "⠶", "⠶", "⠶"]);
     }
 }
