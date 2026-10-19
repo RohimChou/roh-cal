@@ -2,9 +2,10 @@
 //! items on the selected day (also ones a cell cannot fit and shows as `+N`). The keys are the same as in
 //! layout 1's agenda (drawing is in `ui::day`)
 
-use super::{App, Focus};
+use super::{App, ClickTarget, Focus};
 use crate::ui;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
+use std::time::Instant;
 
 impl App {
     /// Opens the popup with the first item chosen; does not open if the day has no items
@@ -13,7 +14,6 @@ impl App {
             return;
         }
         self.day_index = 0;
-        self.day_clicked = false;
         self.day_top = 0;
         self.focus = Focus::Day;
     }
@@ -42,21 +42,22 @@ impl App {
         self.day_index = self.day_index.saturating_add_signed(step).min(last);
     }
 
-    /// Left click while the popup is open: clicking an item chooses it; clicking the chosen item again
-    /// checks it (like the agenda; the first click after opening only chooses, see `day_clicked`).
+    /// Left click at time `now` while the popup is open: clicking an item chooses it; a double click checks
+    /// it (like the agenda).
     /// A click outside the box closes the popup (like `Esc`); clicks on the border or empty space are ignored
-    pub(super) fn click_day(&mut self, column: u16, row: u16) {
+    pub(super) fn click_day(&mut self, column: u16, row: u16, now: Instant) {
         if !ui::day_area(self).contains(Position::new(column, row)) {
             self.focus = Focus::Calendar;
             return;
         }
-        match ui::day_item_at(self, column, row) {
-            Some(index) if index == self.day_index && self.day_clicked => self.toggle_chosen(),
-            Some(index) => {
-                self.day_index = index;
-                self.day_clicked = true;
-            }
-            None => {}
+        let Some(index) = ui::day_item_at(self, column, row) else {
+            return;
+        };
+        self.day_index = index;
+        if let Some(line) = self.chosen_item().map(|item| item.line)
+            && self.is_double_click(ClickTarget::Item(line), now)
+        {
+            self.toggle_chosen();
         }
     }
 

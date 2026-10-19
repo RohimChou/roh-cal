@@ -12,7 +12,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
 | `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
-| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
+| `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠（double click = 同一天或同一件事 0.5 秒內點兩下，`App::is_double_click`；事項要 double click 才打勾，點一下不會誤打勾）；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（框是 `Mark`：`[ ]` / `[/]` 進行中 / `[x]`，存成 `Item::done`、`Item::in_progress`），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
 | `src/paths.rs` | 任務檔、設定檔的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
@@ -132,7 +132,7 @@ App::run 的迴圈
 - `day_color`、`in_multi_day`、`date_text`、`open_item_color` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
 - test 的小工具抄了好幾份（`press` 4 份、`mouse` 3 份、`type_text` 3 份）：可以放一個共用的 test module
-- 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，再點一次就點到別件（版型 2 的跳窗、side menu 已經改成跑出框外才捲）
+- 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，第二下就點到別件，所以那幾列 double click 打不了勾（版型 2 的跳窗、side menu 已經改成跑出框外才捲）
 - 操作說明比 80 格寬的：任務頁英文 96 格、中文 87 格，月曆的英文 82 格（加了 `123 view`），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
 - `L`、`A` 縮排一律加 2 格空白：用 tab 縮排的檔（Obsidian 預設）會變成 tab、空白混著；可以改成照上面那件現有子任務的寫法
 - `read_tasks` 和 `read_tasks_for_adding` 只差檔案不存在時怎麼辦：可以合成一個、多一個參數

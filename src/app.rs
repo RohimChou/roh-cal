@@ -38,7 +38,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
-/// Two clicks on the same day at most this far apart count as a double click
+/// Two clicks on the same day or item at most this far apart count as a double click
 const DOUBLE_CLICK: Duration = Duration::from_millis(500);
 
 /// With no input, the main loop goes round this often anyway, to check whether the task file changed elsewhere
@@ -58,6 +58,15 @@ pub enum Focus {
     Tasks,
     /// Layout 2's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
     Day,
+}
+
+/// What a click landed on, to tell a double click (two clicks on the same one within `DOUBLE_CLICK`)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClickTarget {
+    /// A day on the calendar (both layouts)
+    Day(Date),
+    /// An item in the agenda, the day popup or on the tasks page: its line in the task file
+    Item(usize),
 }
 
 /// Which layout is shown (number keys switch)
@@ -279,15 +288,11 @@ pub struct App {
     /// Which item is chosen in layout 2's popup (index in `items_on(selected)`);
     /// used only when the keyboard is in the popup
     pub day_index: usize,
-    /// Whether the mouse has clicked in the popup since it opened; before that, clicking the chosen item only
-    /// chooses it and does not check it
-    /// (double-clicking the selected day: the first click opens the popup, the second lands on its first item)
-    pub day_clicked: bool,
     /// Popup scroll: which line is at the top (a long title wraps onto more than one line; it scrolls only
     /// when the chosen item leaves the box)
     pub day_top: usize,
-    /// The day and time of the last click on a calendar day (both layouts), to tell a double click
-    last_click: Option<(Date, Instant)>,
+    /// What the last click on a day or an item hit and when, to tell a double click
+    last_click: Option<(ClickTarget, Instant)>,
     /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
     /// day's month at the top)
     pub calendar_top: Option<i64>,
@@ -354,7 +359,6 @@ impl App {
             view: View::Planner,
             agenda_index: 0,
             day_index: 0,
-            day_clicked: false,
             day_top: 0,
             last_click: None,
             calendar_top: None,
@@ -897,9 +901,9 @@ impl App {
     /// Mouse when no popup is open: the wheel moves up / down (a week on the calendar, one item in the agenda
     /// or on the tasks page, one calendar in the side menu);
     /// a left click on a calendar date selects it (a double click = go into that day's items), on an agenda item
-    /// chooses it (again = check it),
-    /// on a tasks page row chooses it (again = check it; on `▸` = expand / collapse), on a side menu calendar
-    /// chooses it (again = check / uncheck)
+    /// chooses it (a double click = check it),
+    /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse), on a side menu
+    /// calendar chooses it (again = check / uncheck)
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
@@ -914,26 +918,22 @@ impl App {
             }
             // Layout 2's popup is open: click items in it, a click outside closes it
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
-                self.click_day(mouse.column, mouse.row);
+                self.click_day(mouse.column, mouse.row, Instant::now());
             }
             // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
                     Some(Click::Day(date)) => self.click_calendar_day(date, Instant::now()),
-                    // Clicking the chosen item again = check it
-                    Some(Click::Item(index))
-                        if self.focus == Focus::Agenda && self.agenda_index == index =>
-                    {
-                        self.toggle_chosen();
-                    }
-                    Some(Click::Item(index)) => self.choose(index),
+                    Some(Click::Item(index)) => self.click_item(index, Instant::now()),
                     Some(Click::Group(index)) => self.click_group(index),
                     Some(Click::HideDone) => {
                         self.focus = Focus::Side;
                         self.group_index = self.groups.len();
                         self.toggle_hide_done();
                     }
-                    Some(Click::TaskRow { row, on_marker }) => self.click_task(row, on_marker),
+                    Some(Click::TaskRow { row, on_marker }) => {
+                        self.click_task(row, on_marker, Instant::now());
+                    }
                     Some(Click::View(view)) => self.set_view(view),
                     None => {}
                 }
@@ -947,18 +947,34 @@ impl App {
     /// day within `DOUBLE_CLICK` (a double click) goes into that day's items, like `Enter`. Clicking the
     /// selected day again later only selects it, so a stray click does not move the keyboard or open a popup
     fn click_calendar_day(&mut self, day: Date, now: Instant) {
-        let double = self
-            .last_click
-            .is_some_and(|(last, at)| last == day && now.duration_since(at) <= DOUBLE_CLICK);
+        let double = self.is_double_click(ClickTarget::Day(day), now);
         self.selected = day;
         self.focus = Focus::Calendar;
         if double {
-            // A third quick click starts over instead of counting as another double click
-            self.last_click = None;
             self.open_day();
-        } else {
-            self.last_click = Some((day, now));
         }
+    }
+
+    /// A click on agenda row `index` at time `now`: chooses it; a double click checks it off. Clicking the
+    /// chosen item again later only chooses it, so a stray click does not check it off by accident
+    fn click_item(&mut self, index: usize, now: Instant) {
+        self.choose(index);
+        if let Some(line) = self.chosen_item().map(|item| item.line)
+            && self.is_double_click(ClickTarget::Item(line), now)
+        {
+            self.toggle_chosen();
+        }
+    }
+
+    /// Whether a click on `target` at time `now` is the second click of a double click (the click before it
+    /// was on the same one, at most `DOUBLE_CLICK` earlier); remembers this click for the next one
+    fn is_double_click(&mut self, target: ClickTarget, now: Instant) -> bool {
+        let double = self
+            .last_click
+            .is_some_and(|(last, at)| last == target && now.duration_since(at) <= DOUBLE_CLICK);
+        // A third quick click starts over instead of counting as another double click
+        self.last_click = if double { None } else { Some((target, now)) };
+        double
     }
 
     /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on the calendar, one item in the

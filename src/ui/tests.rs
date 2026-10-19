@@ -3022,7 +3022,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     );
     assert!((1..4).any(|y| buffer[(50, y)].symbol() == "┃"));
     // Click the top row (Clean the garage): it gets chosen, the scroll stays; clicking the same spot
-    // again is still it (no task file, so checking it off writes nothing)
+    // again right away (a double click) is still it (no task file, so checking it off writes nothing)
     app.screen = Rect::new(0, 0, 60, 6);
     let click = |app: &mut App| {
         use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};

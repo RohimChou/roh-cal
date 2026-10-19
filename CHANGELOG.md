@@ -18,6 +18,6 @@ v2, a rewrite from scratch. The first version (never released) lives on the [`v1
 - Help page (`?`) with the keys for where the keyboard is, settings page (`,`) and the config file `config.toml`; a color picker (`e` on a color row) for any color, not only the theme's palette
 - Eight built-in themes (`nord` by default) as TOML files (`catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `one-dark`, `rose-pine`, `terminal`) and per-role color overrides
 - English and Traditional Chinese
-- Mouse support: the wheel and clicks work in every view
+- Mouse support: the wheel and clicks work in every view; a double click opens a day or checks off a task
 
 [Unreleased]: https://github.com/RohimChou/roh-cal/commits/main

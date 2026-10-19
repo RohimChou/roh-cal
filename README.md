@@ -25,7 +25,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **Safe writes**: only the changed lines are rewritten, through a temp file; if the file changed elsewhere since roh-cal read it, roh-cal reloads instead of overwriting
 - **Live reload**: edit the task file in another editor and every view updates within a second
 - **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` makes its days holidays, colored like weekends
-- **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day, a second click checks off
+- **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day or checks off a task
 - **Themes**: eight built in, and any color can be overridden per role from a settings page
 - **English and 繁體中文**
 
@@ -158,7 +158,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Action | Effect |
 | :- | :- |
 | Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar) |
-| Click | Select a day, an item or a calendar; double-click a day to go into its items; click a chosen task again to check it off, a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
+| Click | Select a day, an item or a calendar; double-click a day to go into its items, a task to check it off (a single click never checks one off); click a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
 
 ## Config file
 `~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says what is wrong (the line, or for `[colors]` the role and value). The settings page (`,`) edits it for you. Example: [testdata/config.toml](testdata/config.toml).

@@ -9,6 +9,7 @@ use crate::{
     tasks::{Heading, Item},
 };
 use ratatui::crossterm::event::KeyCode;
+use std::time::Instant;
 
 /// One row of the tasks page
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -441,10 +442,10 @@ impl App {
         }
     }
 
-    /// Clicks row `row` of the tasks page (its position in `tasks_rows()`):
-    /// one click chooses it; a click on `▸` / `▾` expands / collapses;
-    /// clicks on headings are ignored
-    pub(super) fn click_task(&mut self, row: usize, on_marker: bool) {
+    /// Clicks row `row` of the tasks page (its position in `tasks_rows()`) at time `now`:
+    /// one click chooses it, a double click checks it off; a click on `▸` / `▾` expands / collapses;
+    /// a click on a calendar's heading row only chooses it
+    pub(super) fn click_task(&mut self, row: usize, on_marker: bool, now: Instant) {
         let (index, children) = match self.tasks_rows().get(row).cloned() {
             Some(TaskRow::Item {
                 index, children, ..
@@ -462,17 +463,17 @@ impl App {
         let Some(line) = self.items.get(index).map(|item| item.line) else {
             return;
         };
-        if on_marker && children {
-            if !self.expanded.remove(&line) {
-                self.expanded.insert(line);
-            }
-        } else if self.focus == super::Focus::Tasks && self.tasks_line == Some(line) {
-            // Clicking the already chosen item again = check it off (same as the agenda)
-            self.toggle_chosen();
-            return;
+        // On `▸` / `▾`: expand / collapse
+        let on_toggle = on_marker && children;
+        if on_toggle && !self.expanded.remove(&line) {
+            self.expanded.insert(line);
         }
         self.tasks_line = Some(line);
         self.focus = super::Focus::Tasks;
+        // A double click on the item (not on `▸`) = check it off (same as the agenda)
+        if !on_toggle && self.is_double_click(super::ClickTarget::Item(line), now) {
+            self.toggle_chosen();
+        }
     }
 
     /// After a write, the tasks page chooses the item on line `line`;

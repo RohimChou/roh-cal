@@ -4,6 +4,7 @@ use jiff::civil::date;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use std::time::{Duration, Instant};
 
 /// A task file in a temp folder (content `text`) and an app that reads
 /// it (today 2026/10/17, keyboard in the agenda, first item chosen);
@@ -140,7 +141,7 @@ fn a_notice_from_a_click_stays_after_the_button_is_released() {
 }
 
 #[test]
-fn clicking_the_chosen_item_again_checks_it_off() {
+fn only_a_double_click_checks_an_item_off() {
     // 70 × 23, October at the top: the agenda's first row (y 3, from x 36) is 10/10's "Review PRs"
     let text = "- [ ] Review PRs @2026-10-10\n";
     let (mut app, path) = app_with_task_file("click", text);
@@ -158,8 +159,12 @@ fn clicking_the_chosen_item_again_checks_it_off() {
     app.handle_mouse(click);
     assert_eq!(app.focus, Focus::Agenda);
     assert_eq!(read(), text);
-    // Click again: checked off
-    app.handle_mouse(click);
+    // Clicked again 0.9 s later: still only chosen
+    let later = Instant::now() + Duration::from_millis(900);
+    app.click_item(0, later);
+    assert_eq!(read(), text);
+    // Another click 0.3 s after that one: a double click, checked off
+    app.click_item(0, later + Duration::from_millis(300));
     assert_eq!(read(), "- [x] Review PRs @2026-10-10\n");
     clean_up(&path);
 }

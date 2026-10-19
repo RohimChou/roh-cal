@@ -99,7 +99,7 @@ fn a_calendars_heading_row_can_be_chosen_and_a_adds_there() {
     press(&mut app, KeyCode::Char('k'));
     assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Work".to_string()]));
     // A click on a heading row chooses it (rows: Work, Review PRs, Empty, Plan the week, Later, …)
-    app.click_task(2, false);
+    app.click_task(2, false, Instant::now());
     assert_eq!(app.tasks_chosen_calendar(), Some(vec!["Empty".to_string()]));
     clean_up(&path);
 }
@@ -407,6 +407,35 @@ fn the_writing_keys_work_on_the_tasks_page() {
     press(&mut app, KeyCode::Enter);
     assert!(read().contains("- [ ] Sprint planning @2026-10-20 10:00\n"));
     assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+    clean_up(&path);
+}
+
+#[test]
+fn only_a_double_click_checks_a_task_off() {
+    use super::super::write::tests::clean_up;
+    use std::time::Duration;
+    let text = "# Work\n- [ ] Design doc\n  - [ ] Research\n- [ ] Weekly update\n";
+    let (mut app, path) = tasks_app_with_file("tasks-double-click", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    let start = Instant::now();
+    let at = |ms: u64| start + Duration::from_millis(ms);
+    // Rows: Work, Design doc (Research collapsed under it), Weekly update.
+    // Weekly update clicked, then again 0.9 s later: only chosen, not checked off
+    app.click_task(2, false, at(0));
+    app.click_task(2, false, at(900));
+    assert_eq!(
+        app.tasks_chosen().map(|item| item.title.as_str()),
+        Some("Weekly update")
+    );
+    assert_eq!(read(), text);
+    // Another click 0.3 s after that one: a double click, checked off
+    app.click_task(2, false, at(1200));
+    assert!(read().contains("- [x] Weekly update\n"));
+    // Two quick clicks on Design doc's ▸: expand, then collapse; it is not checked off
+    app.click_task(1, true, at(2000));
+    app.click_task(1, true, at(2200));
+    assert!(read().contains("- [ ] Design doc\n"));
+    assert!(!app.expanded.contains(&2));
     clean_up(&path);
 }
 
