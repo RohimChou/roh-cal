@@ -1089,17 +1089,36 @@ impl App {
             self.focus = Focus::Calendar;
             return;
         }
-        let index = {
-            let agenda = self.agenda();
-            agenda
-                .iter()
-                .position(|entry| entry.item.line == line && entry.is_on(self.selected))
-                .or_else(|| agenda.iter().position(|entry| entry.item.line == line))
-        };
-        match index {
+        match self.agenda_index_of(line) {
             Some(index) => self.choose(index),
             None => self.focus = Focus::Calendar,
         }
+    }
+
+    /// After a write that can move the chosen item within its day (`Space`, `/`: in-progress items come
+    /// first), keeps the item on file line `line` chosen in the agenda or layout 2's popup; if it is no
+    /// longer listed (e.g. hidden once done), the choice stays at the same position, on the next item
+    fn keep_chosen_line(&mut self, line: usize) {
+        match self.focus {
+            Focus::Agenda => {
+                if let Some(index) = self.agenda_index_of(line) {
+                    self.choose(index);
+                }
+            }
+            Focus::Day => self.choose_day_line(line),
+            // The tasks page remembers its choice by file line already
+            Focus::Calendar | Focus::Side | Focus::Tasks => {}
+        }
+    }
+
+    /// Where the item on file line `line` is in the agenda; for an item spanning months, the row in the
+    /// selected day's month
+    fn agenda_index_of(&self, line: usize) -> Option<usize> {
+        let agenda = self.agenda();
+        agenda
+            .iter()
+            .position(|entry| entry.item.line == line && entry.is_on(self.selected))
+            .or_else(|| agenda.iter().position(|entry| entry.item.line == line))
     }
 
     /// Chooses the item `step` items further down (negative = up); stops at the first / last item

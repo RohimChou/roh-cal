@@ -77,9 +77,12 @@ impl App {
         let Some((path, text)) = self.read_tasks() else {
             return;
         };
+        let line = item.line;
         match change(&text, &item) {
             Ok(after) => {
-                self.write_tasks(&path, text, after, item.title);
+                if self.write_tasks(&path, text, after, item.title) {
+                    self.keep_chosen_line(line);
+                }
             }
             Err(edit::Changed) => self.reload(&text),
         }

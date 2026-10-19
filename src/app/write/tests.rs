@@ -637,3 +637,45 @@ fn slash_works_in_the_day_popup_and_on_the_tasks_page() {
     assert_eq!(read(), text);
     clean_up(&path);
 }
+
+#[test]
+fn the_chosen_item_stays_chosen_when_space_or_slash_moves_it_within_its_day() {
+    let text = "- [ ] Email Kevin @2026-10-17\n- [ ] Estimate 2601RC @2026-10-17\n- [ ] Pay the fine @2026-10-17\n";
+    let (mut app, path) = app_with_task_file("progress-choice", text);
+    let chosen = |app: &App| {
+        app.chosen_item()
+            .map(|item| (item.title.clone(), item.line))
+    };
+    // Agenda: choose Estimate (2nd); `/` moves it to the top of the day, and it is still the chosen one
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(app.agenda_index, 0);
+    assert_eq!(chosen(&app), Some(("Estimate 2601RC".into(), 2)));
+    // Space checks it off: back to its place in the file order, still chosen
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(app.agenda_index, 1);
+    assert_eq!(chosen(&app), Some(("Estimate 2601RC".into(), 2)));
+    // Layout 2's day popup: the same
+    app.set_view(View::Month);
+    app.focus = Focus::Day;
+    app.day_index = 2;
+    press(&mut app, KeyCode::Char('/'));
+    assert_eq!(app.day_index, 0);
+    assert_eq!(chosen(&app), Some(("Pay the fine".into(), 3)));
+    clean_up(&path);
+}
+
+#[test]
+fn with_done_tasks_hidden_checking_one_off_leaves_the_next_one_chosen() {
+    let text = "- [ ] Email Kevin @2026-10-17\n- [ ] Estimate 2601RC @2026-10-17\n- [ ] Pay the fine @2026-10-17\n";
+    let (mut app, path) = app_with_task_file("progress-hidden", text);
+    app.settings.calendar_list.hide_done = true;
+    // Email is checked off and hidden: the next one (Estimate) is chosen, ready for the next Space
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(app.focus, Focus::Agenda);
+    assert_eq!(
+        app.chosen_item().map(|item| item.title.as_str()),
+        Some("Estimate 2601RC")
+    );
+    clean_up(&path);
+}
