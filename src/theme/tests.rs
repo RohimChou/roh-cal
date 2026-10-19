@@ -160,6 +160,12 @@ fn every_builtin_theme_reads() {
         Theme::builtin("terminal").map(|theme| theme.text),
         Some(Color::Reset)
     );
+    // High priority (!!!) is a red bright enough to stand out: nord's own red (nord11) is too dim, so a
+    // lighter one
+    assert_eq!(
+        Theme::builtin("nord").map(|theme| theme.priority_high),
+        Some(Color::Rgb(0xe5, 0x78, 0x83))
+    );
     // Dimmed text (what does not work here): text and the background half and half, e.g. nord4 #d8dee9
     // and nord0 #2e3440 → #838995; fainter than muted (secondary) text in every theme with RGB colors
     assert_eq!(

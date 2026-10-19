@@ -18,6 +18,8 @@ yellow = "#fabd2f"
 dim_yellow = "#bb902d"
 orange = "#fe8019"
 red = "#fb4934"
+# High priority (!!!): red with more light (same hue), so it stands out on the background
+bright_red = "#fc6d5c"
 purple = "#d3869b"
 # Multi-day bars: blue and the background (dark0 #282828) mixed 3:7. A tinted band, dark enough for text on it
 dim_blue = "#434e4a"
@@ -46,7 +48,7 @@ other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_blue"
 # Priorities (!!! / !! / !): red, orange, yellow
-priority_high = "red"
+priority_high = "bright_red"
 priority_medium = "orange"
 priority_low = "yellow"
 help_section = "blue"
