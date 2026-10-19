@@ -1,5 +1,5 @@
 # Holidays type:holiday
-- Day off @2026-10-23
+- 🌴 Day off @2026-10-23
 
 # Work
 ## Project A
@@ -17,6 +17,6 @@
 # Life
 - [ ] Buy diapers @2026-10-12
 - [ ] Pay rent ! @2026-10-17
-- Lily's soccer ⚽ @2026-11-14 09:00
+- Lily's soccer ⚽ @2026-11-07 09:00
   - [ ] Bring snacks
 - [ ] Clean garage
