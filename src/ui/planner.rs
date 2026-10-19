@@ -398,25 +398,37 @@ fn render_week(
 /// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
 /// date; `]` takes the cell after the date when it has no dots, else the next day's first blank (for
 /// Sunday, the extra cell at the end)
+///
+/// A multi-day item underlines its dates, and the cells between two of its days too, so its days read as
+/// one line (`runs_on`); two items back to back stay apart
 fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);
+    // The cells between `day` and the next day: underlined in `day`'s color when one item runs on
+    let between = |day: Option<Date>, next: Option<Date>| match (day, next) {
+        (Some(day), Some(next)) if runs_on(day, next, app) => Style::new()
+            .add_modifier(Modifier::UNDERLINED)
+            .underline_color(day_color(day, app)),
+        _ => Style::new(),
+    };
     let mut spans = Vec::new();
     // The previous day is the selected one and has dots: its `]` goes in this day's first blank
     let mut close = false;
-    for day in days {
+    for (i, day) in days.iter().enumerate() {
         let number = day.map(|day| day.day().to_string()).unwrap_or_default();
         let selected = *day == Some(app.selected);
+        // The blanks and brackets before the date sit between it and the previous day's
+        let before = between(i.checked_sub(1).and_then(|previous| days[previous]), *day);
         // How many blanks to pad before the date, e.g. `17` gets 1, `5` gets 2; minus the cells brackets take
         let mut gap = 3 - number.len() - usize::from(selected);
         if close {
-            spans.push(Span::styled("]", bracket));
+            spans.push(Span::styled("]", bracket.patch(before)));
             gap -= 1;
         }
-        spans.push(Span::raw(" ".repeat(gap)));
+        spans.push(Span::styled(" ".repeat(gap), before));
         if selected {
-            spans.push(Span::styled("[", bracket));
+            spans.push(Span::styled("[", bracket.patch(before)));
         }
         if let Some(day) = day {
             // The selected day and today are bold; days covered by a multi-day item are underlined
@@ -429,13 +441,16 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
             }
             spans.push(Span::styled(number, style));
         }
-        // The cell after the date: its dots; when it has none, the selected day's `]`
+        // The cell after the date (between it and the next day's): its dots; when it has none, the
+        // selected day's `]`
+        let after = between(*day, days.get(i + 1).copied().flatten());
         let count = day.map_or(0, |day| app.items_on(day).len());
         close = selected && count > 0;
         if selected && count == 0 {
-            spans.push(Span::styled("]", bracket));
+            spans.push(Span::styled("]", bracket.patch(after)));
         } else {
-            spans.push(Span::styled(dots(count), Style::new().fg(app.theme.muted)));
+            let style = Style::new().fg(app.theme.muted).patch(after);
+            spans.push(Span::styled(dots(count), style));
         }
     }
     if close {
@@ -488,9 +503,19 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
 /// Whether `day` is inside a multi-day item (in a checked calendar, not a done task): if so, that date
 /// is underlined on the calendar
 pub(super) fn in_multi_day(day: Date, app: &App) -> bool {
-    app.items
-        .iter()
-        .any(|item| item.end.is_some() && !item.done && app.is_shown(item) && item.covers(day))
+    runs_on(day, day, app)
+}
+
+/// Whether one multi-day item (in a checked calendar, not a done task) covers both `day` and `next`; the
+/// same day twice = whether `day` is in one
+fn runs_on(day: Date, next: Date, app: &App) -> bool {
+    app.items.iter().any(|item| {
+        item.end.is_some()
+            && !item.done
+            && app.is_shown(item)
+            && item.covers(day)
+            && item.covers(next)
+    })
 }
 
 /// The agenda date: `10/5`; multi-day items show a range: `10/20~25`, across months `10/28~11/3`,

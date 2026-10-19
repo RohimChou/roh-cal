@@ -3479,6 +3479,54 @@ fn dots_right_of_each_date_count_its_items() {
 }
 
 #[test]
+fn a_multi_day_items_underline_runs_on_between_its_days() {
+    // A (10/13-14), B (10/15-16) right after it, Trip (10/17-20) into the next week. Day k's date is at
+    // x 12 + 4k + 1..2 and the cell after it (its dots) at 12 + 4k + 3; the week of 10/12 at y 5, of 10/19
+    // at y 6
+    let text = "- A @2026-10-13..2026-10-14\n- B @2026-10-15..2026-10-16\n- Trip @2026-10-17..2026-10-20\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    let terminal = draw_app(&mut app, 47, 26);
+    let buffer = terminal.backend().buffer();
+    let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
+    // Between the days of one item: 13-14 (A), 15-16 (B), 17-18 (Trip: 17's dot, then the `]` in 18's
+    // blank), 19-20 (Trip, next week)
+    for (x, y) in [
+        (19, 5),
+        (20, 5),
+        (27, 5),
+        (28, 5),
+        (35, 5),
+        (36, 5),
+        (15, 6),
+        (16, 6),
+    ] {
+        assert!(underlined(x, y), "({x}, {y})");
+    }
+    // Between two items (14-15, 16-17 at the `[`), before the first day (12-13), after Sunday (18) and
+    // after the last day (20-21): not
+    for (x, y) in [
+        (16, 5),
+        (23, 5),
+        (24, 5),
+        (31, 5),
+        (32, 5),
+        (39, 5),
+        (19, 6),
+        (20, 6),
+    ] {
+        assert!(!underlined(x, y), "({x}, {y})");
+    }
+    // The cells between two days take the first day's color: 13 the normal color, 17 today's
+    let theme = Theme::default();
+    assert_eq!(buffer[(20, 5)].underline_color, theme.text);
+    assert_eq!(buffer[(36, 5)].underline_color, theme.today);
+}
+
+#[test]
 fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
     // `[/]` Draft and the `[/]` multi-day Trip are bold with 🚧 in front; open Shop is not; done Clean is
     // struck through
