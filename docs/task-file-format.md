@@ -25,7 +25,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 ## Rules
 | # | Line | Meaning |
 | :- | :- | :- |
-| 1 | `- [ ] text` / `- [/] text` / `- [x] text` | **Task**, open / in progress / done (`[X]` also counts as done). `[/]` is the "in progress" of Obsidian's Tasks plugin and many themes, not standard Markdown; roh-cal draws its title in bold and lists it first on its day (the calendar views; the tasks page keeps file order) |
+| 1 | `- [ ] text` / `- [/] text` / `- [x] text` | **Task**, open / in progress / done (`[X]` also counts as done). `[/]` is the "in progress" of Obsidian's Tasks plugin and many themes, not standard Markdown; roh-cal draws its title in bold with 🚧 in front and lists it first on its day (the calendar views; the tasks page keeps file order) |
 | 2 | `- text` (no checkbox) | **Event**: an appointment, a holiday, a milestone. It cannot be checked off; once its day has passed it is over (shown grayed out, not crossed out) |
 | 3 | `@YYYY-MM-DD` or `@YYYY-MM-DD HH:MM` anywhere in an item | The day (and 24-hour time) the item appears on the calendar. No date → the item is **unscheduled** |
 | 3b | `@YYYY-MM-DD..YYYY-MM-DD` (optionally followed by `HH:MM`) | A **multi-day** item, from the first date to the last, both included (a trip, a training course). The time is the start time on the first day |

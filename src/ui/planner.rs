@@ -6,7 +6,7 @@
 use super::{
     Click,
     months::{Label, Months, Row},
-    title_style,
+    title_span,
 };
 use crate::{
     app::{App, Focus},
@@ -521,7 +521,7 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
             Style::new().fg(if whole_line { color } else { theme.muted }),
         ));
     }
-    spans.push(Span::styled(item.title.clone(), title_style(item, color)));
+    spans.push(title_span(item, color));
     Line::from(spans)
 }
 

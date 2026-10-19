@@ -10,7 +10,7 @@
 use super::{
     Click,
     planner::{day_color, in_multi_day, open_item_color},
-    title_style,
+    title_span,
 };
 use crate::{
     app::{App, Focus},
@@ -462,7 +462,7 @@ fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
             Style::new().fg(time_color),
         ));
     }
-    spans.push(Span::styled(item.title.clone(), title_style(item, color)));
+    spans.push(title_span(item, color));
     Line::from(spans).style(Style::new().bg(theme.range))
 }
 
@@ -580,7 +580,7 @@ fn item_line(item: &Item, app: &App) -> Line<'static> {
             Style::new().fg(time_color),
         ));
     }
-    spans.push(Span::styled(item.title.clone(), title_style(item, color)));
+    spans.push(title_span(item, color));
     Line::from(spans)
 }
 

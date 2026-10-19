@@ -98,15 +98,26 @@ pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
     settings::row_at(app, app.screen, column, row)
 }
 
-/// An item's title in `color`, the same in every view: crossed out once done, bold while in progress (`[/]`)
-fn title_style(item: &Item, color: Color) -> Style {
+/// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
+/// and a space
+const IN_PROGRESS_ICON: &str = "🚧 ";
+
+/// An item's title in `color`, the same in every view: crossed out once done; while in progress (`[/]`)
+/// bold, with 🚧 in front
+fn title_span(item: &Item, color: Color) -> Span<'static> {
     let style = Style::new().fg(color);
     if item.done {
-        style.add_modifier(Modifier::CROSSED_OUT)
+        Span::styled(
+            item.title.clone(),
+            style.add_modifier(Modifier::CROSSED_OUT),
+        )
     } else if item.in_progress {
-        style.add_modifier(Modifier::BOLD)
+        Span::styled(
+            format!("{IN_PROGRESS_ICON}{}", item.title),
+            style.add_modifier(Modifier::BOLD),
+        )
     } else {
-        style
+        Span::styled(item.title.clone(), style)
     }
 }
 

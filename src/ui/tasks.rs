@@ -6,7 +6,7 @@ use super::{
     Click,
     months::scrolled_to_range,
     planner::{date_text, day_color},
-    title_style,
+    title_span,
 };
 use crate::{
     app::{App, Focus, TaskRow},
@@ -426,9 +426,9 @@ fn item_lines(
         Some(priority) if open => theme.priority(priority),
         _ => color,
     };
-    let mut title = title_style(item, title_color);
+    let mut title = title_span(item, title_color);
     if mistake {
-        title = title.add_modifier(Modifier::UNDERLINED);
+        title = title.patch_style(Style::new().add_modifier(Modifier::UNDERLINED));
     }
     // Subtasks (only tasks count): (how many done, how many in total)
     let (done, total) = app
@@ -445,7 +445,7 @@ fn item_lines(
         ),
         Span::styled(format!("{check} "), Style::new().fg(color)),
     ];
-    let mut text = vec![Span::styled(item.title.clone(), title)];
+    let mut text = vec![title];
     if total > 0 {
         text.push(Span::styled(
             format!("  {done}/{total}"),

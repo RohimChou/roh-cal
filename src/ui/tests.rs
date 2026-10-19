@@ -2178,7 +2178,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
-            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 18:30 Te│ Dinner w│ 07:00 Go│",
+            "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 18:30 🚧│ Dinner w│ 07:00 Go│",
             "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
@@ -2695,7 +2695,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│    ∙  Team sync                                        10/26 10:00 │",
             "│   [ ] Send the weekly update                           10/16 17:30 │",
             "│   [ ] Clean up this week's notes                       10/16       │",
-            "│   [/] Draft the release notes                          10/16       │",
+            "│   [/] 🚧 Draft the release notes                       10/16       │",
             "│    ∙  Team happy hour                                  10/16 18:30 │",
             "│    ∙  Requirements meeting with PM                      10/8 14:00 │",
             "│    ∙  Engineering all-hands                             10/8 16:00 │",
@@ -3411,8 +3411,9 @@ fn selected_day_is_bold_in_its_own_color() {
 }
 
 #[test]
-fn an_in_progress_title_is_bold_in_every_view() {
-    // `[/]` Draft and the `[/]` multi-day Trip are bold; open Shop is not; done Clean is struck through
+fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
+    // `[/]` Draft and the `[/]` multi-day Trip are bold with 🚧 in front; open Shop is not; done Clean is
+    // struck through
     let text = "- [ ] Shop @2026-10-17\n- [/] Draft @2026-10-17\n- [x] Clean @2026-10-17\n\
                 - [/] Trip @2026-10-16..2026-10-18\n";
     let mut app = App::new(
@@ -3422,8 +3423,8 @@ fn an_in_progress_title_is_bold_in_every_view() {
     );
     // The screen size the popup's area is worked out from (the same as each draw below)
     app.screen = Rect::new(0, 0, 100, 50);
-    // Where `word` starts inside `area` (the rows here hold no 2-cell characters, so a character = a
-    // cell) and its first cell's (bold, struck through)
+    // Where `word` starts inside `area` (counting cells: 🚧 takes 2) and its first cell's (bold, struck
+    // through)
     let style = |buffer: &Buffer, area: Rect, word: &str| {
         let rows = area_rows(buffer, area);
         let (y, row) = rows
@@ -3431,7 +3432,7 @@ fn an_in_progress_title_is_bold_in_every_view() {
             .enumerate()
             .find(|(_, row)| row.contains(word))
             .unwrap_or_else(|| panic!("{word} is not on screen: {rows:#?}"));
-        let x = row[..row.find(word).unwrap()].chars().count();
+        let x = Span::raw(&row[..row.find(word).unwrap()]).width();
         let cell = &buffer[(
             area.x + u16::try_from(x).unwrap(),
             area.y + u16::try_from(y).unwrap(),
@@ -3447,6 +3448,12 @@ fn an_in_progress_title_is_bold_in_every_view() {
         let terminal = draw_app(app, 100, 50);
         let buffer = terminal.backend().buffer();
         let area = if popup { day_area(app) } else { buffer.area };
+        let text = area_rows(buffer, area).join("\n");
+        assert!(
+            text.contains("🚧 Draft") && text.contains("🚧 Trip"),
+            "{view}: {text}"
+        );
+        assert_eq!(text.matches('🚧').count(), 2, "{view}: {text}");
         assert_eq!(style(buffer, area, "Draft"), (true, false), "{view}");
         assert_eq!(style(buffer, area, "Trip"), (true, false), "{view}");
         assert_eq!(style(buffer, area, "Shop"), (false, false), "{view}");

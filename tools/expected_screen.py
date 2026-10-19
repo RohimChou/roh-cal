@@ -159,6 +159,10 @@ def is_hidden(path, hidden):
     return any(path[:k] in hidden for k in range(1, len(path) + 1))
 
 
+# In front of an in-progress (`[/]`) item's title on every screen
+IN_PROGRESS = "🚧 "
+
+
 def drop_priority(title):
     """The title without its priority: the first word that is exactly `!`, `!!` or `!!!` is not part of it"""
     words = title.split()
@@ -179,8 +183,9 @@ def read_items(text, hidden):
         m = re.match(r"\s*- (?:\[[ xX/]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
-            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end,
-                          re.match(r"\s*- \[/\] ", line) is not None))
+            in_progress = re.match(r"\s*- \[/\] ", line) is not None
+            title = (IN_PROGRESS if in_progress else "") + drop_priority(m.group(1))
+            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), title, i, end, in_progress))
     # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
@@ -703,7 +708,8 @@ def read_tree(text):
             stack.pop()
         parent = stack[-1][1] if stack else None
         items.append(dict(line=n, text=raw.strip(), indent=indent, depth=len(stack), parent=parent, task=task,
-                          done=done, in_progress=in_progress, title=" ".join(out), date=date, end=end, time=time,
+                          done=done, in_progress=in_progress,
+                          title=(IN_PROGRESS if in_progress else "") + " ".join(out), date=date, end=end, time=time,
                           group=group))
         stack.append((indent, len(items) - 1))
     return items, mistakes
