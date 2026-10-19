@@ -376,52 +376,10 @@ fn unchecked_groups_leave_the_agenda() {
 }
 
 #[test]
-fn h_and_l_move_across_agenda_columns() {
-    // 107 wide: the agenda has 2 columns. October has 5 week rows and 11 items, so each column takes
-    // max(5, 11 ÷ 2 rounded up = 6) = 6 rows: items 0-5 in the first column, 6-10 in the second
+fn the_agenda_is_one_column_so_h_and_l_keep_the_choice() {
+    // 107 wide, 11 items in October: one column however wide, one item per row (Item 9 is 6 rows below
+    // Item 3); h, l and the arrows keep the chosen item
     let text: String = (1..=11)
-        .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
-        .collect();
-    let mut app = app_with(&text);
-    app.screen = Rect::new(0, 0, 107, 30);
-    app.focus = Focus::Agenda;
-    let title = |app: &App| app.chosen().map(|entry| entry.item.title.clone());
-    // On screen, Item 3 and Item 9 share a row (left and right column): the moves below follow what is
-    // drawn
-    let mut terminal =
-        ratatui::Terminal::new(ratatui::backend::TestBackend::new(107, 30)).expect("terminal");
-    terminal
-        .draw(|frame| crate::ui::render(frame, &mut app))
-        .expect("draw");
-    let row_of = |text: &str| {
-        let buffer = terminal.backend().buffer();
-        (0..30).find(|&y| {
-            let row: String = (0..107).map(|x| buffer[(x, y)].symbol()).collect();
-            row.contains(text)
-        })
-    };
-    assert_eq!(row_of("Item 3 "), row_of("Item 9 "));
-    assert!(row_of("Item 3 ").is_some());
-    app.choose(2);
-    // l: the same row of the next column; l again: no third column, stays; h: back
-    press(&mut app, KeyCode::Char('l'));
-    assert_eq!(title(&app).as_deref(), Some("Item 9"));
-    press(&mut app, KeyCode::Char('l'));
-    assert_eq!(title(&app).as_deref(), Some("Item 9"));
-    press(&mut app, KeyCode::Left);
-    assert_eq!(title(&app).as_deref(), Some("Item 3"));
-    // The last row of the first column: the second column is one shorter, so its last item
-    app.choose(5);
-    press(&mut app, KeyCode::Right);
-    assert_eq!(title(&app).as_deref(), Some("Item 11"));
-    // Narrow (1 column): h and l do nothing
-    app.screen = Rect::new(0, 0, 60, 30);
-    app.choose(2);
-    press(&mut app, KeyCode::Char('l'));
-    assert_eq!(title(&app).as_deref(), Some("Item 3"));
-    // Fewer items than weeks: 6 items still take 5 rows per column (October's weeks), so the second
-    // column holds only Item 6, on the first row next to Item 1
-    let text: String = (1..=6)
         .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
         .collect();
     let mut app = app_with(&text);
@@ -439,10 +397,19 @@ fn h_and_l_move_across_agenda_columns() {
             row.contains(text)
         })
     };
-    assert_eq!(row_of("Item 1 "), row_of("Item 6 "));
-    app.choose(0);
-    press(&mut app, KeyCode::Char('l'));
-    assert_eq!(title(&app).as_deref(), Some("Item 6"));
+    let row = row_of("Item 3 ").expect("Item 3 on screen");
+    assert_eq!(row_of("Item 9 "), Some(row + 6));
+    app.choose(2);
+    let title = |app: &App| app.chosen().map(|entry| entry.item.title.clone());
+    for code in [
+        KeyCode::Char('l'),
+        KeyCode::Right,
+        KeyCode::Char('h'),
+        KeyCode::Left,
+    ] {
+        press(&mut app, code);
+        assert_eq!(title(&app).as_deref(), Some("Item 3"), "{code:?}");
+    }
 }
 
 #[test]

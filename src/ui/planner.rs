@@ -44,8 +44,8 @@ pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + DAYS_WIDTH + 2;
 const SCROLLOFF: i64 = 2;
 /// When the agenda is split into columns, the minimum width of each column
 const AGENDA_COLUMN_WIDTH: u16 = 28;
-/// The most columns the agenda can split into
-const MAX_AGENDA_COLUMNS: u16 = 4;
+/// The most columns the agenda can split into: 1, so it reads top to bottom however wide the terminal is
+const MAX_AGENDA_COLUMNS: u16 = 1;
 /// Gap between agenda columns
 const AGENDA_GAP: u16 = 2;
 
@@ -78,11 +78,15 @@ fn first_day(days: &WeekRow) -> Option<Date> {
 /// The largest share of the calendar height one month may take (at least its week count), so the months
 /// below stay visible: (numerator, denominator) = 2/3
 const MAX_MONTH_SHARE: (u16, u16) = (2, 3);
+/// The most rows one month takes however tall the terminal is (at least its week count); a busy month's
+/// agenda scrolls inside it
+const MAX_MONTH_ROWS: usize = 16;
 
-/// The most rows one month takes: `MAX_MONTH_SHARE` of the calendar height
+/// The most rows one month takes: `MAX_MONTH_SHARE` of the calendar height, at most `MAX_MONTH_ROWS`
 fn max_month_height(body: Rect) -> usize {
     let (numerator, denominator) = MAX_MONTH_SHARE;
-    usize::from(body.height) * usize::from(numerator) / usize::from(denominator)
+    let share = usize::from(body.height) * usize::from(numerator) / usize::from(denominator);
+    share.min(MAX_MONTH_ROWS)
 }
 
 /// Draws the calendar box on the left (`calendar`) and the agenda on the right (`agenda`)
@@ -657,14 +661,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn agenda_columns_are_at_least_28_wide() {
-        // 2 cells between columns: 2 columns need 28 + 2 + 28 = 58 cells
-        assert_eq!(agenda_columns(0), 1);
-        assert_eq!(agenda_columns(57), 1);
-        assert_eq!(agenda_columns(58), 2);
-        assert_eq!(agenda_columns(88), 3);
-        assert_eq!(agenda_columns(118), 4);
-        assert_eq!(agenda_columns(500), 4);
+    fn the_agenda_is_one_column_however_wide() {
+        for width in [0, 57, 58, 88, 118, 500] {
+            assert_eq!(agenda_columns(width), 1, "{width}");
+        }
+    }
+
+    #[test]
+    fn a_month_takes_two_thirds_of_the_height_but_at_most_16_rows() {
+        let body = |height| Rect::new(0, 0, 40, height);
+        // 2/3 rounded down: 18 → 12, 24 → 16; taller ones stop at 16
+        assert_eq!(max_month_height(body(18)), 12);
+        assert_eq!(max_month_height(body(24)), 16);
+        assert_eq!(max_month_height(body(25)), 16);
+        assert_eq!(max_month_height(body(60)), 16);
     }
 
     #[test]

@@ -286,7 +286,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0  # side menu width
     aw = w - sw - 42  # agenda box width (borders included); the calendar box is 42 wide
     iw = max(aw - 2, 0)  # width inside the agenda box
-    n = min(max((iw + 2) // 30, 1), 4)  # number of columns
+    n = 1  # number of columns: the agenda is always one column
     colw = (iw - 2 * (n - 1)) // n if iw else 0
     assert iw == 0 or colw * n + 2 * (n - 1) == iw, "pick a width that divides evenly"
 
@@ -326,9 +326,9 @@ def screen(lang, w, h, selected, first, skip, items, groups):
         weeks = calendar.monthcalendar(y, m)
         month_items = [e for e in entries if (e[0].year, e[0].month) == (y, m)]
         # Rows per column (no height limit), and the rows this block really gets
-        # (at most 2/3 of the calendar height, at least the number of weeks)
+        # (at most 2/3 of the calendar height and at most 16 rows, at least the number of weeks)
         layout = max(len(weeks), -(-len(month_items) // n))
-        height = min(layout, max(len(weeks), body_h * 2 // 3))
+        height = min(layout, max(len(weeks), min(body_h * 2 // 3, 16)))
         # How many rows the selected month's agenda is scrolled; other months start from the top
         offset = min(WINDOW, layout - height) if (y, m) == (selected.year, selected.month) else 0
         # After scrolling, how many items below are still out of view: count every column

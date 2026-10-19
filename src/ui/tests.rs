@@ -554,15 +554,15 @@ fn side_menu_lists_the_calendars_when_wide() {
             "╭────────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                                                          2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
-            "│  10月 40 │              1   2   3   4  ││  10/5 Pay the phone bill                   10/17 08:00 Coffee chat                 │",
-            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market                       10/18 07:00 Go hiking                   │",
-            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug                    10/20 A really long title that just keep│",
-            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly update                                                 │",
-            "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends                                                          │",
-            "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
+            "│  10月 40 │              1   2   3   4  ││ 10/10 Farmers market                                                               │",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/15 Fix the login bug                                                            ┃",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/16 17:30 Send the weekly update                                                 ┃",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 Dinner with friends                                                          ┃",
+            "│       44 │ 26  27  28  29  30  31      ││ 10/17 08:00 Coffee chat                                                            ┃",
+            "│          │                             ││ 10/18 07:00 Go hiking                                                              │",
+            "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────────────────── 還有 1 件 ─│",
             "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3                                                           │",
             "│       45 │  2   3⠂  4   5   6   7   8  ││                                                                                    │",
-            "│       46 │  9  10  11  12  13  14  15  ││                                                                                    │",
             "╰────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────╯",
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
         ]
@@ -712,9 +712,10 @@ fn agenda_lists_each_months_items_next_to_it() {
 }
 
 #[test]
-fn agenda_flows_into_columns_when_wide() {
-    // Agenda 58 cells wide: 2 columns, filled like a newspaper,
-    // the first column full (October's 5 rows) before the second
+fn the_agenda_stays_one_column_when_wide() {
+    // Agenda 58 cells wide: still one column. October's 8 items need more than its 6 rows (2/3 of the
+    // calendar's 9), so its agenda scrolls to keep 10/17's two items in view with one row after them:
+    // it starts at the 2nd item
     let mut app = agenda_app(Lang::En);
     assert_eq!(
         text_rows(draw_app(&mut app, 102, 15).backend().buffer()),
@@ -722,16 +723,16 @@ fn agenda_flows_into_columns_when_wide() {
             "╭────────────────────────────────────────╮╭──────────────────────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                                  Sat Oct 17, 2026 │",
             "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
-            "│   Oct 40 │              1   2   3   4  ││  10/5 Pay the phone bill      10/17 08:00 Coffee chat    │",
-            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/10 Farmers market          10/18 07:00 Go hiking      │",
-            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug       10/20 A really long title t│",
-            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly                              │",
-            "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends                                │",
-            "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
+            "│   Oct 40 │              1   2   3   4  ││ 10/10 Farmers market                                     │",
+            "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/15 Fix the login bug                                  ┃",
+            "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/16 17:30 Send the weekly update                       ┃",
+            "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 Dinner with friends                                ┃",
+            "│       44 │ 26  27  28  29  30  31      ││ 10/17 08:00 Coffee chat                                  ┃",
+            "│          │                             ││ 10/18 07:00 Go hiking                                    │",
+            "│──────────┼─────────────────────────────││───────────────────────────────────────────────── 1 more ─│",
             "│   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                                 │",
             "│       45 │  2   3⠂  4   5   6   7   8  ││                                                          │",
             "│       46 │  9  10  11  12  13  14  15  ││                                                          │",
-            "│       47 │ 16  17  18  19  20  21  22  ││                                                          │",
             "╰────────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
             " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
         ]
@@ -756,16 +757,14 @@ fn clicking_an_item_selects_its_day() {
     // Which agenda item was clicked (in `App::agenda()` order)
     assert_eq!(click_at(&app, 47, 3), Some(Click::Item(0)));
     assert_eq!(click_at(&app, 20, 5), Some(Click::Day(date(2026, 10, 14))));
-    // Two columns (screen: see `agenda_flows_into_columns_when_wide`): the second column starts
-    // at x 43 + 28 + 2 = 73; the 2 blank cells between do not count
+    // Wide, still one column (screen: see `the_agenda_stays_one_column_when_wide`, scrolled one row): a
+    // row is one item all the way across, the 2nd item (10/10) at y 3, the 7th (10/18) at y 8
     let mut app = agenda_app(Lang::En);
     app.screen = Rect::new(0, 0, 102, 15);
     draw_app(&mut app, 102, 15);
-    assert_eq!(date_at(&app, 77, 3), Some(date(2026, 10, 17)));
-    assert_eq!(date_at(&app, 70, 3), Some(date(2026, 10, 5)));
-    assert_eq!(date_at(&app, 71, 3), None);
-    assert_eq!(date_at(&app, 72, 3), None);
-    assert_eq!(date_at(&app, 73, 3), Some(date(2026, 10, 17)));
+    assert_eq!(date_at(&app, 47, 3), Some(date(2026, 10, 10)));
+    assert_eq!(date_at(&app, 98, 3), Some(date(2026, 10, 10)));
+    assert_eq!(date_at(&app, 47, 8), Some(date(2026, 10, 18)));
 }
 
 #[test]
@@ -1068,6 +1067,25 @@ fn the_year_in_the_corner_is_the_top_weeks() {
     let rows = text_rows(draw_app(&mut app, 42, 11).backend().buffer());
     assert_eq!(rows[1], "│2026年 週 │ 一  二  三  四  五  六  日  │");
     assert_eq!(rows[3], "│       53 │ 28  29  30  31              │");
+}
+
+#[test]
+fn a_busy_month_stops_at_16_rows_on_a_tall_screen() {
+    // 50 × 40: the calendar has 35 rows, 2/3 of them is 23, but a month takes at most 16; October's 20
+    // items need 20, so October's block is rows 3 to 18 and the line under it is at y 19
+    let text: String = (1..=20)
+        .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
+        .collect();
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(&text).items,
+    );
+    let rows = text_rows(draw_app(&mut app, 50, 40).backend().buffer());
+    let lines: Vec<usize> = (3..rows.len())
+        .filter(|&y| rows[y].starts_with("│──────────┼"))
+        .collect();
+    assert_eq!(lines.first(), Some(&19), "{rows:#?}");
 }
 
 #[test]
