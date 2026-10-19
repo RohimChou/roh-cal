@@ -3,7 +3,7 @@
 //! and some blank space inside the border when there is room
 
 use super::{
-    calendar_tag, clear_with_ring,
+    calendar_path, calendar_tag, clear_with_ring,
     months::scrolled_to_range,
     planner::{item_line, secondary_color},
     render_scrollbar,
@@ -177,13 +177,25 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let app = &*app;
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let block = Block::bordered()
+    let mut block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
         .title_top(Line::styled(
             format!(" {} ", texts.date_title(app.selected)),
             Style::new().fg(theme.text),
         ));
+    // Bottom border: the chosen item's whole calendar path, in the calendar headings' color (as on the tasks
+    // page); cut off at the right if the box is narrower
+    if let Some(path) = app
+        .items_on(app.selected)
+        .get(app.day_index)
+        .and_then(|item| calendar_path(item))
+    {
+        block = block.title_bottom(Line::styled(
+            format!(" {path} "),
+            Style::new().fg(theme.label),
+        ));
+    }
     clear_with_ring(frame, area, main);
     frame.render_widget(block, area);
     for (index, (item, start)) in app.items_on(app.selected).iter().zip(&starts).enumerate() {

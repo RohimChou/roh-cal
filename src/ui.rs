@@ -106,6 +106,18 @@ fn calendar_tag(item: &Item) -> Option<&str> {
     Some(group.parents.first().unwrap_or(&group.name))
 }
 
+/// An item's whole calendar path, e.g. `CAIS > 2603_中信_CAIS_CAMS報表轉送CAIS系統`; `None` outside any calendar
+fn calendar_path(item: &Item) -> Option<String> {
+    let group = item.group.as_ref()?;
+    let names: Vec<&str> = group
+        .parents
+        .iter()
+        .chain([&group.name])
+        .map(String::as_str)
+        .collect();
+    Some(names.join(" > "))
+}
+
 /// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
 /// and a space
 const IN_PROGRESS_ICON: &str = "🚧 ";

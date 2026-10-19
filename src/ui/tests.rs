@@ -3524,3 +3524,34 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     assert_eq!(buffer[(area.x + 25, area.y + 4)].symbol(), "L");
     assert_eq!(buffer[(area.x + 25, area.y + 4)].fg, theme.priority_high);
 }
+
+#[test]
+fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
+    // The same day as `the_day_popup_writes_each_items_outermost_calendar_at_the_right` (box 32 wide)
+    let text =
+        "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let bottom = |app: &mut App| {
+        let terminal = draw_app(app, 80, 24);
+        let buffer = terminal.backend().buffer();
+        let area = day_area(app);
+        let rows = area_rows(buffer, area);
+        let color = buffer[(area.x + 2, area.bottom() - 1)].fg;
+        (rows.last().cloned().unwrap_or_default(), color)
+    };
+    // The chosen item is in CAIS > Reports: its whole path on the left of the bottom border, in the color
+    // of the tasks page's calendar headings
+    app.day_index = 1;
+    assert_eq!(
+        bottom(&mut app),
+        (
+            "╰ CAIS > Reports ──────────────╯".to_string(),
+            Theme::default().label
+        )
+    );
+    // The chosen item is outside any calendar: a plain border
+    app.day_index = 0;
+    assert_eq!(bottom(&mut app).0, "╰──────────────────────────────╯");
+}
