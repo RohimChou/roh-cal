@@ -962,3 +962,45 @@ fn other_keys_do_not_quit() {
         assert!(!app.should_quit, "{key:?} should not quit");
     }
 }
+
+#[test]
+fn in_progress_items_come_first_on_their_day() {
+    // 10/17: Lunch (09:00), Email (no time), Report `[/]` (14:00), Slides `[/]` (no time); the multi-day
+    // Trip started 10/16 and covers 10/17. 10/1: Prep talk `[/]`, and Conference carried over from 9/30
+    let text = "- [ ] Lunch @2026-10-17 09:00\n- [ ] Email @2026-10-17\n\
+                - [/] Report @2026-10-17 14:00\n- [/] Slides @2026-10-17\n- Trip @2026-10-16..2026-10-18\n\
+                - Conference @2026-09-30..2026-10-02\n- [/] Prep talk @2026-10-01\n";
+    let app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    // Agenda (layout 1): in-progress first (before an item carried over to the 1st, too), each group still
+    // by time (no time first)
+    let agenda: Vec<(Date, &str)> = app
+        .agenda()
+        .iter()
+        .map(|entry| (entry.date, entry.item.title.as_str()))
+        .collect();
+    let day = date(2026, 10, 17);
+    assert_eq!(
+        agenda,
+        [
+            (date(2026, 9, 30), "Conference"),
+            (date(2026, 10, 1), "Prep talk"),
+            (date(2026, 10, 1), "Conference"),
+            (date(2026, 10, 16), "Trip"),
+            (day, "Slides"),
+            (day, "Report"),
+            (day, "Email"),
+            (day, "Lunch"),
+        ]
+    );
+    // Layout 2's cell and popup: in-progress first, then the earlier start (Trip), then by time
+    let on_day: Vec<&str> = app
+        .items_on(day)
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(on_day, ["Slides", "Report", "Trip", "Email", "Lunch"]);
+}

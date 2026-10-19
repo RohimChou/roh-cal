@@ -518,7 +518,8 @@ impl App {
     }
 
     /// Items listed in the agenda: ones with a date whose calendar is checked, sorted by listed day and time
-    /// (on the same day, items without a time come first; same date and time keep file order)
+    /// (on the same day, in-progress `[/]` items come first, then items without a time; same date and time
+    /// keep file order)
     ///
     /// A multi-day item that spans months is listed once in each month it touches: in the first month on its
     /// start day, in later months on the 1st, at the top of that month.
@@ -538,26 +539,32 @@ impl App {
                 .take_while(|&month| month <= last);
             entries.extend(months.map(|date| Entry { item, date }));
         }
-        // sort_by_key is a stable sort: equal keys keep their order. On the same day, items carried over from
-        // the previous month come first, then ones without a time (`None` sorts before `Some`)
+        // sort_by_key is a stable sort: equal keys keep their order. On the same day, in-progress items come
+        // first (`false` sorts before `true`), then items carried over from the previous month, then ones
+        // without a time (`None` sorts before `Some`)
         entries.sort_by_key(|entry| {
             let continued = Some(entry.date) != entry.item.date;
-            (entry.date, !continued, entry.item.time)
+            (
+                entry.date,
+                !entry.item.in_progress,
+                !continued,
+                entry.item.time,
+            )
         });
         entries
     }
 
-    /// Items on `day` (calendar checked; a multi-day item counts if it covers that day): earlier starts
-    /// first, items starting the same day by time
-    /// (no time first; same time keeps file order). Layout 2's cells and `a` on the calendar (to find that
-    /// day's group) both use this
+    /// Items on `day` (calendar checked; a multi-day item counts if it covers that day): in-progress `[/]`
+    /// items first, then earlier starts, items starting the same day by time
+    /// (no time first; same time keeps file order). Layout 2's cells and popup, and `a` on the calendar (to
+    /// find that day's group) use this
     pub fn items_on(&self, day: Date) -> Vec<&Item> {
         let mut items: Vec<&Item> = self
             .items
             .iter()
             .filter(|item| item.covers(day) && self.is_shown(item))
             .collect();
-        items.sort_by_key(|item| (item.date, item.time));
+        items.sort_by_key(|item| (!item.in_progress, item.date, item.time));
         items
     }
 

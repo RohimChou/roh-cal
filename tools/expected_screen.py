@@ -172,14 +172,15 @@ def read_items(text, hidden):
     """Simple version: lines that start with `- ` and end with `@YYYY-MM-DD` or `@YYYY-MM-DD..YYYY-MM-DD`
     (a time may follow). Lines whose calendar is hidden (`hidden` = paths of the unchecked calendars,
     see `is_hidden`) are skipped.
-    Returns (date, time, title, line index, last day of a multi-day item or None), sorted"""
+    Returns (date, time, title, line index, last day of a multi-day item or None, in progress `[/]`), sorted"""
     items = []
     paths, _ = calendar_paths(text)
     for i, line in enumerate(text.splitlines()):
         m = re.match(r"\s*- (?:\[[ xX/]\] )?(.*?) @(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?(?: (\d{2}:\d{2}))?$", line)
         if m and not is_hidden(paths[i + 1], hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
-            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end))
+            items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), drop_priority(m.group(1)), i, end,
+                          re.match(r"\s*- \[/\] ", line) is not None))
     # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
     return items
@@ -188,7 +189,7 @@ def read_items(text, hidden):
 def agenda_entries(items):
     """Each line of the agenda: (day it is listed on, whether it carries over from the previous month, the item).
     An item that crosses months gets one line in every month it touches; in the later months it is listed on
-    the 1st, first in that day"""
+    the 1st, first in that day (after the day's in-progress items, which always come first)"""
     entries = []
     for it in items:
         entries.append((it[0], False, it))
@@ -200,7 +201,7 @@ def agenda_entries(items):
                 if first_day > it[4]:
                     break
                 entries.append((first_day, True, it))
-    entries.sort(key=lambda e: (e[0], not e[1], e[2][1] is not None, e[2][1] or "", e[2][3]))
+    entries.sort(key=lambda e: (e[0], not e[2][5], not e[1], e[2][1] is not None, e[2][1] or "", e[2][3]))
     return entries
 
 
@@ -285,7 +286,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     entries = agenda_entries(items)
 
     def item_text(e):
-        _, time, title, _, _ = e[2]
+        _, time, title, _, _, _ = e[2]
         d = range_text(e[2])
         rest = (time + " " if time else "") + title
         if CHOSEN is not None and entries.index(e) == CHOSEN:
@@ -500,9 +501,10 @@ def month_screen(lang, w, h, selected, top, items, groups):
             for r, label in enumerate(labels[:max(wh - 1, 0)]):
                 c.put(0, week_y(i) + 1 + r, " " + rjust(label, 3), 5)
         week_cells = []  # the lines of each of this row's 7 cells
-        # Items on each day of the row (a multi-day item on each of its days; items are already sorted by
-        # start day and time)
-        day_items = [[it for it in items if it[0] <= d <= (it[4] or it[0])] for d in days]
+        # Items on each day of the row (a multi-day item on each of its days): in-progress ones first, then
+        # by start day and time (items are already sorted that way; sorted() keeps that order among equals)
+        day_items = [sorted((it for it in items if it[0] <= d <= (it[4] or it[0])), key=lambda it: not it[5])
+                     for d in days]
         # Multi-day items get one line each for the whole row: [item, line, first column, last column];
         # going from Monday, the first one met gets the topmost line that is free on all its days
         bars = []
@@ -550,7 +552,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 cell = [first]
                 for s in slots[k][:shown]:
                     if s and s[0] == "item":
-                        _, time, title, _, _ = s[1]
+                        _, time, title, _, _, _ = s[1]
                         cell.append(" " + (time + " " if time else "") + title)
                     else:
                         cell.append("")
@@ -583,7 +585,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
                 x, y = xs[run + 1], week_y(i) + 1 + lane
                 band = xs[k + 1] + widths[k + 1] - x
                 c.put(x, y, " " * band)
-                _, time, title, _, _ = it
+                _, time, title, _, _, _ = it
                 starts = run == first_k and it[0] == days[run]
                 c.put(x, y, " " + (time + " " if time and starts else "") + title, band)
                 k += 1

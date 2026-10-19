@@ -332,7 +332,7 @@ struct Bar<'a> {
 /// Lays out one row's items (`days` = Monday to Sunday): every multi-day item covering some of the days
 /// gets a line of its own on all of them (`Bar::lane`), so its days line up into one bar; the earlier it
 /// starts in the row, the higher its line, and a line is used again once free. Each day's one-day items
-/// then fill that day's free lines from the top (in `App::items_on` order), then go below
+/// then fill that day's free lines from the top (in `App::items_on` order: in progress first), then go below
 ///
 /// Returns the bars and, for each day, what each line under its date holds
 fn layout_row<'a>(days: &[Date], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a>>>) {
