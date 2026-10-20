@@ -1,0 +1,59 @@
+# Nord bright: Nord with more light and color (same hues), for terminals where Nord looks washed out (e.g. on a
+# translucent background). Palette: nord1-nord15 from https://www.nordtheme.com, each one lighter and more
+# saturated; text is nord6 #eceff4, the brightest of Nord's whites (background: nord0 #2e3440)
+
+[palette]
+nord1 = "#434c5e"
+nord3 = "#55637f"
+nord4 = "#eceff4"
+# Light gray: nord4 and the background mixed 7:3. Fainter than normal text, for secondary text
+nord4_dim = "#b3b7be"
+# Faint gray: text and the background mixed half and half. Dimmer than secondary text, for what
+# does not work here (settings rows, help sections)
+faint = "#8d929a"
+nord8 = "#94d1e3"
+nord9 = "#8cb0d4"
+nord11 = "#d66973"
+# High priority (!!!): nord11 with more light and color (same hue), so it stands out among the other colors
+nord11_bright = "#ed717c"
+nord12 = "#e69379"
+nord13 = "#fddb98"
+# Dim yellow: nord13 (yellow) and the background mixed 7:3. Still reads as yellow,
+# but darker than the selected week's number
+nord13_dim = "#bfa97e"
+nord14 = "#b2d098"
+nord15 = "#c69bbe"
+# Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
+nord8_dim = "#4d6371"
+# Selection background: nord15 and the background (nord0 #2e3440) mixed 3:7. A light purple that stands out
+# from the background (also a translucent one), dark enough for text on it
+nord15_dim = "#5c5366"
+
+[roles]
+text = "nord4"
+muted = "nord4_dim"
+line = "nord3"
+year_line = "nord8"
+label = "nord8"
+week_number = "nord13"
+week_number_dim = "nord13_dim"
+weekend = "nord9"
+today = "nord14"
+selected = "nord11"
+selection = "nord15_dim"
+focus = "nord15"
+checked = "nord15"
+notice = "nord13"
+error = "nord11"
+grid = "nord1"
+other_month = "faint"
+# Multi-day bars in the month grid: a tinted band
+range = "nord8_dim"
+# Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
+range_overlap = "nord12"
+# Priorities (!!! / !! / !): red, orange, yellow
+priority_high = "nord11_bright"
+priority_medium = "nord12"
+priority_low = "nord13"
+help_section = "nord9"
+help_key = "nord12"

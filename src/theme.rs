@@ -76,7 +76,7 @@ pub struct Theme {
 
 /// Built-in themes: (name, theme file content); the files are in the repo's `themes/`,
 /// compiled into the binary
-pub const BUILTIN: [(&str, &str); 8] = [
+pub const BUILTIN: [(&str, &str); 9] = [
     (
         "catppuccin-mocha",
         include_str!("../themes/catppuccin-mocha.toml"),
@@ -85,6 +85,7 @@ pub const BUILTIN: [(&str, &str); 8] = [
     ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
     ("dracula", include_str!("../themes/dracula.toml")),
     ("nord", include_str!("../themes/nord.toml")),
+    ("nord-bright", include_str!("../themes/nord-bright.toml")),
     ("one-dark", include_str!("../themes/one-dark.toml")),
     ("rose-pine", include_str!("../themes/rose-pine.toml")),
     ("terminal", include_str!("../themes/terminal.toml")),
