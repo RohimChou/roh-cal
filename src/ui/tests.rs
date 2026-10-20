@@ -941,8 +941,8 @@ fn the_selected_week_row_has_a_background() {
 }
 
 #[test]
-fn agenda_focus_brackets_the_chosen_item() {
-    // Keyboard in the agenda, the 6th item chosen (10/17 08:00 Coffee chat): its date gets brackets
+fn agenda_focus_highlights_the_chosen_item() {
+    // Keyboard in the agenda, the 6th item chosen (10/17 08:00 Coffee chat): no brackets, only a background
     let mut app = agenda_app(Lang::ZhTw);
     app.focus = Focus::Agenda;
     app.agenda_index = 5;
@@ -958,7 +958,7 @@ fn agenda_focus_brackets_the_chosen_item() {
             "│       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/15 Fix the login bug         │",
             "│       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
             "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends       │",
-            "│          │                             ││[10/17]08:00 Coffee chat         │",
+            "│          │                             ││ 10/17 08:00 Coffee chat         │",
             "│          │                             ││ 10/18 07:00 Go hiking           │",
             "│          │                             ││ 10/20 A really long title that j│",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -980,15 +980,11 @@ fn agenda_focus_brackets_the_chosen_item() {
     // The agenda's border lights up, and the calendar box's goes back to a normal line
     assert_eq!(buffer[(42, 0)].fg, theme.focus);
     assert_eq!(buffer[(0, 0)].fg, theme.line);
-    // The brackets are in the selected color; the chosen item gets the highlight across the whole column
-    // (x 43-75), the items above and below do not
+    // Its date keeps the line's color (no bracket in the selected color); the chosen item gets the
+    // highlight across the whole column (x 43-75), the items above and below do not
     assert_eq!(
-        (buffer[(43, 8)].symbol(), buffer[(43, 8)].fg),
-        ("[", theme.selected)
-    );
-    assert_eq!(
-        (buffer[(49, 8)].symbol(), buffer[(49, 8)].fg),
-        ("]", theme.selected)
+        (buffer[(44, 8)].symbol(), buffer[(44, 8)].fg),
+        ("1", theme.text)
     );
     // The second half of a wide (CJK) character is not sent to the terminal, so skip it (on a real
     // terminal the background covers both cells)
@@ -1004,8 +1000,8 @@ fn agenda_focus_brackets_the_chosen_item() {
 #[test]
 fn the_chosen_item_is_always_on_screen() {
     // Sample task file: October has far more items than weeks (a month does not fit, so the agenda
-    // scrolls inside it); choose items one by one going down, then going up; the chosen item (date in
-    // brackets) and the selected day on the calendar both stay on screen
+    // scrolls inside it); choose items one by one going down, then going up; the chosen item (its
+    // background) and the selected day on the calendar both stay on screen
     let mut app = App::new(
         Lang::En,
         date(2026, 10, 17),
@@ -1017,13 +1013,18 @@ fn the_chosen_item_is_always_on_screen() {
         app.agenda_index = index;
         app.selected = app.agenda()[index].date;
         let first = app.agenda()[index].item.date.expect("has a date");
-        let rows = text_rows(draw_app(&mut app, 70, 13).backend().buffer());
+        let terminal = draw_app(&mut app, 70, 13);
+        let buffer = terminal.backend().buffer();
+        let rows = text_rows(buffer);
         let body = &rows[3..rows.len() - 2];
-        // The chosen item's date gets brackets; for a multi-day
-        // item the brackets hold the range, e.g. `[10/28~11/3]`
-        let chosen = format!("[{}/{}", first.month(), first.day());
+        // The chosen item's row: the agenda's last cell inside the border (x 68) has the selection
+        // background, and the row has its date (for a multi-day item, the range starts with it)
+        let chosen = format!(" {}/{}", first.month(), first.day());
         assert!(
-            body.iter().any(|row| row.contains(&chosen)),
+            (3..rows.len() - 2).any(|y| {
+                let y16 = u16::try_from(y).unwrap();
+                buffer[(68, y16)].bg == Theme::default().selection && rows[y].contains(&chosen)
+            }),
             "item {index} is not on screen: {body:#?}"
         );
         // The selected day is also visible in the calendar box (left of `││` in each row; its `]` comes
@@ -1060,7 +1061,7 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
             "│       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/17 Dinner with friends       │",
             "│       42 │ 12  13  14  15⠂ 16⠂ 17⠒ 18⠂ ││ 10/17 08:00 Coffee chat         ┃",
             "│       43 │ 19 [20⠂]21  22  23  24  25  ││ 10/18 07:00 Go hiking           ┃",
-            "│       44 │ 26  27  28  29  30  31      ││[10/20]A really long title that j┃",
+            "│       44 │ 26  27  28  29  30  31      ││ 10/20 A really long title that j┃",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
@@ -1847,8 +1848,7 @@ fn multi_day_items_are_listed_once_per_month() {
     let theme = Theme::default();
     assert_eq!(buffer[(18, 6)].fg, theme.text);
     assert_eq!(buffer[(22, 6)].fg, theme.text);
-    // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2): the brackets hold
-    // the range; November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from
+    // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2); November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from
     // the top edge, so it scrolls up one more row and shows the line under October)
     let mut app = App::new(
         Lang::ZhTw,
@@ -1865,7 +1865,7 @@ fn multi_day_items_are_listed_once_per_month() {
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項        2026/11/2（一） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
-            "│  11月 44 │                          1⠒ ││[10/28~11/3]Manager OOO          │",
+            "│  11月 44 │                          1⠒ ││ 10/28~11/3 Manager OOO          │",
             "│       45 │ [2⠂] 3⠂  4   5   6   7   8  ││  11/1 Prepare the monthly report│",
             "│       46 │  9  10  11  12  13  14  15  ││                                 │",
             "│       47 │ 16  17  18  19  20  21  22  ││                                 │",

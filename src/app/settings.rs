@@ -114,8 +114,8 @@ impl Row {
             // lines and multi-day bars
             Self::Color("year_line" | "week_number" | "week_number_dim") => Some(CALENDARS),
             Self::Color("grid" | "range") => Some(MONTH),
-            // Only layout 1 has brackets around the selected day and the chosen item (the month grid gives
-            // the selected day a background), and underlines overlapping multi-day items
+            // Only layout 1's calendar has brackets around the selected day (the month grid gives it a
+            // background) and underlines overlapping multi-day items
             Self::Color("selected" | "range_overlap") => Some(PLANNER),
             // The calendar list's ☑ and the day popup's switch
             Self::Color("checked") => Some(&[Place::CalendarList, Place::DayPopup]),

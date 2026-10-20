@@ -303,10 +303,8 @@ def screen(lang, w, h, selected, first, skip, items, groups):
         _, time, title, _, _, _ = e[2]
         d = range_text(e[2])
         rest = (time + " " if time else "") + title
-        if CHOSEN is not None and entries.index(e) == CHOSEN:
-            s = " " * (5 - len(d)) + "[" + d + "]" + rest
-        else:
-            s = " " + rjust(d, 5) + " " + rest
+        # The chosen item (CHOSEN) only gets a background, which these text rows do not show
+        s = " " + rjust(d, 5) + " " + rest
         return ljust(cut(s, colw), colw)
 
     rule = lambda thick: ("━" * 10 + "┿" + "━" * 29) if thick else ("─" * 10 + "┼" + "─" * 29)

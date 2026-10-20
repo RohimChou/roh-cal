@@ -217,13 +217,13 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
                     .zip(split_columns(agenda_row, items.len()).iter())
                 {
                     if let Some(entry) = entry {
-                        // Chosen line (keyboard on the agenda): date in brackets, background color
+                        // Chosen line (keyboard on the agenda): background color
                         let is_chosen = chosen == Some(*entry);
                         // Keyboard on the calendar: the selected day's items get a background color (same as
                         // that week on the calendar; a multi-day item counts if it covers that day)
                         let on_selected_day =
                             app.focus == Focus::Calendar && entry.is_on(app.selected);
-                        frame.render_widget(item_line(entry.item, app, is_chosen), *area);
+                        frame.render_widget(item_line(entry.item, app), *area);
                         if is_chosen || on_selected_day {
                             frame
                                 .buffer_mut()
@@ -593,25 +593,14 @@ pub(super) fn secondary_color(item: &Item, app: &App) -> Color {
 ///
 /// Not over yet: see `open_item_color` (a priority or a holiday colors the whole line, otherwise the
 /// normal color with the time muted). Over: the whole line turns gray; done tasks also get a
-/// struck-through title, past events do not.
-/// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
-pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
-    let theme = &app.theme;
-    let color = item_color(item, app);
-    let date = date_text(item);
-    // The date part is at least 7 cells wide: 「 10/17 」; the chosen one is 「[10/17]」 (a shorter date
-    // gets blanks before the bracket; a multi-day range is longer)
-    let mut spans = if chosen {
-        let bracket = Style::new().fg(theme.selected).add_modifier(Modifier::BOLD);
-        vec![
-            Span::raw(" ".repeat(5_usize.saturating_sub(date.len()))),
-            Span::styled("[", bracket),
-            Span::styled(date, Style::new().fg(color).add_modifier(Modifier::BOLD)),
-            Span::styled("]", bracket),
-        ]
-    } else {
-        vec![Span::styled(format!(" {date:>5} "), Style::new().fg(color))]
-    };
+/// struck-through title, past events do not. The chosen item (keyboard on the agenda) is shown by its
+/// background alone (see `render`)
+pub(super) fn item_line(item: &Item, app: &App) -> Line<'static> {
+    // The date part is at least 7 cells wide: 「 10/17 」 (a multi-day range is longer)
+    let mut spans = vec![Span::styled(
+        format!(" {:>5} ", date_text(item)),
+        Style::new().fg(item_color(item, app)),
+    )];
     spans.extend(time_and_title(item, app));
     Line::from(spans)
 }

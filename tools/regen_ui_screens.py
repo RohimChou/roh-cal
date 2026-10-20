@@ -27,7 +27,7 @@ PLAN = {
     "agenda_lists_each_months_items_next_to_it": [(["zh", "77", "23", "2026-10-17"], True, {})],
     "the_calendar_without_dots": [(["zh", "77", "23", "2026-10-17"], True, {"NO_DOTS": "1"})],
     "the_agenda_stays_one_column_when_wide": [(["en", "102", "15", "2026-10-17"], True, {"WINDOW": "1"})],
-    "agenda_focus_brackets_the_chosen_item": [(["zh", "77", "23", "2026-10-17"], True, {"CHOSEN": "5"})],
+    "agenda_focus_highlights_the_chosen_item": [(["zh", "77", "23", "2026-10-17"], True, {"CHOSEN": "5"})],
     "a_capped_month_scrolls_inside_while_choosing_items": [(["zh", "77", "11", "2026-10-20"], True, {"CHOSEN": "7", "WINDOW": "3"})],
     "the_agenda_follows_the_calendar": [(["zh", "77", "11", "2026-10-20"], True, {"WINDOW": "3"})],
     "a_hint_tells_how_many_more_items_a_month_has": [(["zh", "77", "11", "2026-10-17"], True, {"WINDOW": "2"})],
