@@ -44,6 +44,12 @@ const DOUBLE_CLICK: Duration = Duration::from_millis(500);
 /// With no input, the main loop goes round this often anyway, to check whether the task file changed elsewhere
 const REFRESH_EVERY: Duration = Duration::from_secs(1);
 
+/// How long the intro plays at start (`Mode::Splash`) before the calendar shows
+const SPLASH_FOR: Duration = Duration::from_millis(5_500);
+
+/// How often the intro redraws while it plays (about 30 frames a second)
+const FRAME_EVERY: Duration = Duration::from_millis(33);
+
 /// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
@@ -240,6 +246,9 @@ pub enum Mode {
     Editor(Editor),
     /// Rescheduling (`r`): which item to move
     Moving(Moving),
+    /// The intro played at start (`ui::splash`), since `opened`: it closes after `SPLASH_FOR`, and any key, a
+    /// click or the wheel skips it (that key or click does nothing else)
+    Splash { opened: Instant },
 }
 
 /// State of the whole app
@@ -307,6 +316,9 @@ pub struct App {
     /// Where the config file is (saved back when the settings page closes); `None` = do not save (tests, or
     /// no place for a config file)
     pub config_path: Option<PathBuf>,
+    /// Where the marker that the intro has played is (`paths::splash_seen_file`): resetting all settings
+    /// deletes it, so the intro plays again on the next start; `None` = no marker (tests, or no HOME)
+    pub splash_marker: Option<PathBuf>,
     /// Terminal size (updated before each draw); needed to map mouse click positions
     pub screen: Rect,
     /// Where the task file is (checking and editing write back to it); `None` = no task file (tests), no writes
@@ -371,6 +383,7 @@ impl App {
             theme: Theme::default(),
             settings: Settings::default(),
             config_path: None,
+            splash_marker: None,
             screen: Rect::default(),
             tasks_path: None,
             tasks_text: String::new(),
@@ -675,9 +688,15 @@ impl App {
             // so drawing and mouse positions agree
             let size = terminal.size()?;
             self.resize(Rect::new(0, 0, size.width, size.height));
+            self.end_finished_splash(Instant::now());
             terminal.draw(|frame| ui::render(frame, &mut self))?;
-            // No input for a while: go round again to check the task file
-            if !event::poll(REFRESH_EVERY)? {
+            // No input for a while: go round again to check the task file (while the intro plays, soon: it
+            // moves)
+            let wait = match self.mode {
+                Mode::Splash { .. } => FRAME_EVERY,
+                _ => REFRESH_EVERY,
+            };
+            if !event::poll(wait)? {
                 continue;
             }
             // Only key presses are handled (some terminals also send key releases)
@@ -697,6 +716,12 @@ impl App {
 
     /// Keys: the open popup or action in progress (`mode`) gets them first; otherwise see `handle_normal_key`
     pub(crate) fn handle_key(&mut self, key: KeyEvent) {
+        // The intro: any key skips it and does nothing else (a notice from the start, e.g. mistakes in the
+        // task file, is still there after it)
+        if let Mode::Splash { .. } = self.mode {
+            self.mode = Mode::Normal;
+            return;
+        }
         // The last notice has been seen: any key clears it
         self.notice = None;
         // A `g` waits for the very next key only (`gg`)
@@ -713,7 +738,25 @@ impl App {
             Mode::Editor(_) => self.handle_editor_key(key),
             // Rescheduling: only moving the date, confirming, cancelling
             Mode::Moving(_) => self.handle_moving_key(key),
+            // The intro: skipped above
+            Mode::Splash { .. } => {}
             Mode::Normal => self.handle_normal_key(key, after_g),
+        }
+    }
+
+    /// Plays the intro (`Mode::Splash`) from now
+    pub fn play_splash(&mut self) {
+        self.mode = Mode::Splash {
+            opened: Instant::now(),
+        };
+    }
+
+    /// Closes the intro once it has played for `SPLASH_FOR` by `now`
+    fn end_finished_splash(&mut self, now: Instant) {
+        if let Mode::Splash { opened } = self.mode
+            && now.saturating_duration_since(opened) >= SPLASH_FOR
+        {
+            self.mode = Mode::Normal;
         }
     }
 
@@ -944,14 +987,23 @@ impl App {
 
     /// Mouse: the open popup or action in progress (`mode`) gets it first; otherwise see `handle_normal_mouse`
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent) {
+        let pressed = matches!(
+            mouse.kind,
+            MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+        );
+        // The intro: a click or the wheel skips it and does nothing else (moving the mouse does not; a
+        // notice from the start stays, like with a key)
+        if let Mode::Splash { .. } = self.mode {
+            if pressed {
+                self.mode = Mode::Normal;
+            }
+            return;
+        }
         // The last notice has been seen, but only a press or the wheel counts; release, move, and drag do not.
         // A click sends a press and then a release,
         // and if the release cleared it too, a notice from the click (e.g. an event cannot be checked) would
         // vanish right away
-        if matches!(
-            mouse.kind,
-            MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-        ) {
+        if pressed {
             self.notice = None;
             // A click or the wheel between two `g`s: no longer `gg`
             self.pending_g = false;
@@ -976,6 +1028,8 @@ impl App {
             // Rescheduling: the wheel moves the selected day as usual, clicking a date picks the new date,
             // other clicks are ignored
             Mode::Moving(_) => self.handle_moving_mouse(mouse),
+            // The intro: skipped above
+            Mode::Splash { .. } => {}
             Mode::Normal => self.handle_normal_mouse(mouse),
         }
     }

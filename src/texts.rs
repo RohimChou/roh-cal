@@ -110,6 +110,10 @@ pub struct Texts {
     pub picker_hint: &'static str,
     /// The color picker's last line: a color code can be typed too
     pub picker_typing: &'static str,
+    /// The line under the logo in the intro played at start (`ui::splash`)
+    pub splash_tagline: &'static str,
+    /// The hint in the intro's bottom-left corner
+    pub splash_skip: &'static str,
 }
 
 /// The editor's words: the labels of the fields under the typed line (what it reads as), and the hint row
@@ -437,6 +441,8 @@ const EN: Texts = Texts {
     picker_title: "Custom color",
     picker_hint: "jk pick  hl HL change  Enter keep  Esc undo",
     picker_typing: "Or type a color code: a6e3a1",
+    splash_tagline: "a simple, keyboard-driven calendar for plain-text tasks",
+    splash_skip: "Press any key to skip",
 };
 
 /// Traditional Chinese text
@@ -688,6 +694,8 @@ const ZH_TW: Texts = Texts {
     picker_title: "自訂顏色",
     picker_hint: "jk 選  hl HL 調  Enter 存  Esc 取消",
     picker_typing: "也可以直接打色碼：a6e3a1",
+    splash_tagline: "用純文字記事、全鍵盤操作的 terminal 月曆",
+    splash_skip: "按任意鍵跳過",
 };
 
 /// English month abbreviations; `[0]` is January
@@ -696,6 +704,31 @@ const EN_MONTHS: [&str; 12] = [
 ];
 /// English weekday abbreviations (for title rows; the header uses the 2-letter `weekdays`); `[0]` is Monday
 const EN_WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/// English month names in full (for the intro's date); `[0]` is January
+const EN_MONTHS_FULL: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+/// English weekday names in full (for the intro's date); `[0]` is Monday
+const EN_WEEKDAYS_FULL: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
 
 impl Texts {
     /// The year in the calendar's left column, e.g. `2027年` / `2027`
@@ -1011,6 +1044,29 @@ impl Texts {
             ),
             Lang::ZhTw => format!(
                 "{}/{}/{}（{}）",
+                date.year(),
+                date.month(),
+                date.day(),
+                self.weekdays[weekday]
+            ),
+        }
+    }
+
+    /// Today's date written out in full under the intro's tagline, e.g. `Tuesday, October 20, 2026` /
+    /// `2026 年 10 月 20 日 星期二`
+    pub fn splash_date(&self, date: Date) -> String {
+        // Monday = 0, Sunday = 6
+        let weekday = date.weekday().to_monday_zero_offset() as usize;
+        match self.lang {
+            Lang::En => format!(
+                "{}, {} {}, {}",
+                EN_WEEKDAYS_FULL[weekday],
+                EN_MONTHS_FULL[month_index(date)],
+                date.day(),
+                date.year()
+            ),
+            Lang::ZhTw => format!(
+                "{} 年 {} 月 {} 日 星期{}",
                 date.year(),
                 date.month(),
                 date.day(),

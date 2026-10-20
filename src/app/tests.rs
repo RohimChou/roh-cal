@@ -1126,3 +1126,53 @@ fn day_counts_are_the_days_tasks_not_done_and_done() {
     assert_eq!(app.day_counts(date(2026, 10, 18)), (1, 0));
     assert_eq!(app.day_counts(date(2026, 10, 19)), (0, 0));
 }
+
+#[test]
+fn any_key_click_or_wheel_skips_the_intro_and_does_nothing_else() {
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    // A mistake in the task file is noticed at start, before the intro
+    app.notice = Some(Notice::Mistakes(1));
+    app.play_splash();
+    // `l` skips it without moving to the next day; the notice is still there to be seen
+    press(&mut app, KeyCode::Char('l'));
+    assert!(matches!(app.mode, Mode::Normal));
+    assert_eq!(app.selected, date(2026, 10, 17));
+    assert!(app.notice.is_some());
+    // `q` only skips it, it does not quit
+    app.play_splash();
+    press(&mut app, KeyCode::Char('q'));
+    assert!(matches!(app.mode, Mode::Normal) && !app.should_quit);
+    // A click or the wheel: the same
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::ScrollDown,
+        MouseEventKind::ScrollUp,
+    ] {
+        app.play_splash();
+        app.handle_mouse(mouse(kind, 30, 5));
+        assert!(matches!(app.mode, Mode::Normal), "{kind:?}");
+        assert_eq!(app.selected, date(2026, 10, 17), "{kind:?}");
+    }
+    assert!(app.notice.is_some());
+    // Moving the mouse does not skip it
+    app.play_splash();
+    app.handle_mouse(mouse(MouseEventKind::Moved, 30, 5));
+    assert!(matches!(app.mode, Mode::Splash { .. }));
+}
+
+#[test]
+fn the_intro_closes_by_itself_after_5_5_seconds() {
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.play_splash();
+    let Mode::Splash { opened } = app.mode else {
+        panic!("the intro is not playing");
+    };
+    app.end_finished_splash(opened + Duration::from_millis(5_490));
+    assert!(matches!(app.mode, Mode::Splash { .. }));
+    app.end_finished_splash(opened + Duration::from_millis(5_500));
+    assert!(matches!(app.mode, Mode::Normal));
+    // Nothing else is closed by it
+    app.mode = Mode::Help(Help::default());
+    app.end_finished_splash(opened + Duration::from_secs(60));
+    assert!(matches!(app.mode, Mode::Help(_)));
+}

@@ -23,6 +23,7 @@ The first release: v2, a rewrite from scratch. The first version (never released
 - Mouse support: the wheel and clicks work in every view; a double click opens a day or checks off a task
 - `--sample` shows a fresh copy of the built-in sample task file, its dates moved to this week, so it can be tried right after `cargo install`
 - `o` on the tasks page opens the task file in your editor (`$VISUAL` / `$EDITOR`, else `vi`) on the chosen line
+- A 5.5-second intro the very first time roh-cal starts, with every `--sample`, and on the next start after resetting all settings: the `roh-cal` logo drops in under a starry sky; any key, a click or the wheel skips it
 
 [Unreleased]: https://github.com/RohimChou/roh-cal/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/RohimChou/roh-cal/releases/tag/v0.1.0

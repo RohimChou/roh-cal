@@ -11,11 +11,11 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 ## 模組地圖
 | 檔案 | 做什麼 | 畫畫面 |
 | :- | :- | :- |
-| `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字；`--sample` 先寫一份新的範例檔再打開，不能跟 `--tasks` 一起用）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠 | |
+| `src/main.rs` | 讀命令列參數（`--theme` 只收內建的名字；`--sample` 先寫一份新的範例檔再打開，不能跟 `--tasks` 一起用）、讀任務檔和設定檔、開 / 關 TUI 和滑鼠；第一次開才播開場動畫（`first_run`：記號檔不在才播，並馬上寫下去；寫不進去的話下次再播一次；沒有 HOME 就不播，沒地方記），`--sample` 每次都播（`plays_intro`；記號檔照樣寫，用 `--sample` 第一次開之後，一般開不會又播）；設定頁「全部還原」（`R` `y`）刪掉記號檔（`App::splash_marker`），下次開又播 | |
 | `src/sample.rs` | 內建的範例任務檔：`include_str!` 編譯時把 `src/sample.md` 放進程式，`cargo install` 裝的也有；故意寫得短，每一種寫法各一個（test 用的是另一個、大很多的 `testdata/tasks.md`）。`text(today)` 把每個 `YYYY-MM-DD` 整週整週地挪（`WEEK` = 範例當作「這週」的那個週一 → 今天這週的週一），星期幾不變；不存在的日期（`@2026-13-01`）照留。範例檔改寫時，「這週」要維持在 `WEEK` 那週 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠（double click = 同一天或同一件事 0.5 秒內點兩下，`App::is_double_click`；事項要 double click 才打勾，點一下不會誤打勾）；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（框是 `Mark`：`[ ]` / `[/]` 進行中 / `[x]`，存成 `Item::done`、`Item::in_progress`），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
-| `src/paths.rs` | 任務檔、設定檔、`--sample` 範例檔（cache，每次重寫）的預設位置（XDG） | |
+| `src/paths.rs` | 任務檔、設定檔、`--sample` 範例檔（cache，每次重寫）、開場動畫播過的記號檔（state：`splash-seen`，空的檔）的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[day_popup] by_calendar`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排或搬到別的日曆的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
 | `src/files.rs` | 安全寫檔：先寫暫存檔再 rename（symlink 寫進真正的檔案） | |
@@ -45,6 +45,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框；月曆一天 `DAY_WIDTH` = 4 格（空格、靠右的日期 2 格、日期後面 1 格），寬度、標題列、滑鼠換算都從它算。日期後面那格是點點（`dots`：那天幾件事，數 `App::items_on`，跟著日曆勾選、隱藏做完的；點字 `⠂ ⠒ ⠖ ⠶`，最多 4 個；4 個點是同一個字、只能一個顏色，用那天還沒做完的事裡最急的那件的顏色（`dots_color`：最高的優先度，沒有就看有沒有假日的藍，都沒有就 `muted`；做完的、過去的行程不算）；設定檔 `[calendar] dots = false` 時那格空白、月曆寬度不變）；選到的那天沒點點是 `[17]`，有點點是 `[17⠒]`（`]` 放進下一天的第一個空格，週日放進最後多的那格）；右邊事項欄選到的那件只墊底色，不加括號 | ✓ |
 | `src/ui/side.rs` | 畫 side menu（標題下面兩個開關 + 一條線：「隱藏全部」是 `App::group_index` = 日曆數量 + 1，全部日曆都沒勾時才是 ☑（`App::all_hidden`，不另外存），按了 = 全部取消勾選 / 全部勾回來；「隱藏做完的」是 = 日曆數量，切換 `[calendar_list] hide_done` 並馬上存進設定檔（任何畫面按 `.` 也一樣，`App::toggle_hide_done`：選到的那件照行號選回來，藏起來了就留在原位置，超過最後一件就選最後一件，跳窗空了就關掉，`App::keep_choice_in_range`）；`App::side_switch` 把 `group_index` 讀成哪個開關，上下移動照畫面的順序換算，`App::choose_group`；重新讀任務檔時開關照樣選著，`group_index` 跟著新的日曆數量）：日曆清單（日曆 = 任務檔的 `#` 分組，`App::groups`；底下還沒有事的標題也算；`#` 越少越上層，日曆 = 整條路徑 `Heading::parents` + 名字，清單照樹排、裡面的縮排 2 格；勾 / 取消一個日曆時裡面的日曆跟著一樣（`App::toggle_calendar`）；顯示與否只看自己的勾，不看外層（`App::is_shown` 看 `Group::includes`，任務頁的標題看 `Group::is`），所以外層沒勾、裡面有勾的照樣顯示）；寬度跟著最長的名字，22 格到設定檔的 `[calendar_list] max_width`（預設 38，最多算到 60）；放不下時捲到選到的那個看得到（跑出框外才捲，點一下看得到的那個不會捲走；捲到哪記在 `App::side_top`），右框線上有捲軸 | ✓ |
 | `src/ui/month.rs` | 版型 2（大月曆）：6 列等高的格子（`Grid`，畫畫面和滑鼠換算都用它）；一列是一整週（星期一～日，跨月的那週兩個月的日子在同一列）；一週一週捲（`App::month_top`）；滾輪只捲畫面、選到的那天不動，可以捲到畫面外（`App::month_free` 記著捲的時候選到哪天，選的日子一變，畫面就照常跟著它） | ✓ |
+| `src/ui/splash.rs` | 第一次開 rcal（和每次 `--sample`）時播的開場動畫（`Mode::Splash`，蓋住整個畫面，播 5.5 秒 = `SPLASH_FOR`）：靜的星空（固定位置的星星各自慢慢閃；其中三顆是點綴，在角落（寬和高外側的三分之一）：左上、右下各一顆金色（往橘飄），右上一顆藍色（往紫飄，`weekend` → `focus`））、大字 `roh-cal` 一個字一個字掉下來、越掉越快、落地後小彈一下（每欄 1～3 列高，`bounce_height`）才停、最下排揚起一點灰塵、停下來後顏色波浪、字都停下來（1.4 秒，`SETTLED`）才打出副標、日期慢慢浮現、3.6 秒（`GLINT_AT`）斜面閃光掃一次（每件事錯開），每 6 秒一顆流星（尾巴是 braille 點，`Dots`：一格 2 × 4 點，斜線才不會一階一階）；左下角灰字提示按任意鍵跳過；星星和流星不進中間那塊（`quiet`）。畫面全部由「播了幾秒」（`seconds`）算出來，同一個秒數畫出來一定一樣，test 直接帶秒數畫 | ✓ |
 | `tools/` | 另外算預期畫面的 Python（見「改了畫面之後」） | |
 
 ## 一輪怎麼跑
@@ -59,10 +60,12 @@ App::run 的迴圈
  │   │   ├─ Months::scrolled_to   整個畫面捲到哪                 → app.calendar_top
  │   │   ├─ Months::visible_rows  畫面上每一列是什麼
  │   │   └─ 一列一列畫，左右兩個框的同一列在同一個高度
- │   └─ 跳窗（版型 2 那天的事、不夠寬時的 side menu、編輯框、說明頁、設定頁）蓋在最上面；設定頁先捲到選到的那列（settings::scrolled）
- └─ 等一個輸入，最多等 1 秒（REFRESH_EVERY；沒輸入就直接下一輪，回去檢查任務檔）
+ │   ├─ 跳窗（版型 2 那天的事、不夠寬時的 side menu、編輯框、說明頁、設定頁）蓋在最上面；設定頁先捲到選到的那列（settings::scrolled）
+ │   └─ 開場動畫（Mode::Splash）蓋住全部：splash::render，帶「播了幾秒」；播滿 5.5 秒（SPLASH_FOR），畫之前就關掉（App::end_finished_splash）
+ └─ 等一個輸入，最多等 1 秒（REFRESH_EVERY；沒輸入就直接下一輪，回去檢查任務檔）；開場動畫播放中只等 33 毫秒（FRAME_EVERY），它才動得起來
      → App::handle_key / App::handle_mouse（滑鼠點的位置用 ui::click_at 換算）
-     └─ 先看 App::mode（同時只會有一種）：說明頁、設定頁、問要不要刪、編輯框、改期中各自收按鍵和滑鼠，
+     └─ 先看 App::mode（同時只會有一種）：開場動畫播放中，任何鍵、點一下、滾輪都只是跳過它（不清最下面一列的通知，
+        剛打開時的「任務檔有 N 處寫錯」才看得到）；說明頁、設定頁、問要不要刪、編輯框、改期中各自收按鍵和滑鼠，
         都沒開（Mode::Normal）才照鍵盤在哪個框處理；多一種模式時，沒處理到的 match compiler 會抓到
 ```
 畫畫面和換算滑鼠位置用的是同一組 function（`ui::areas`、`inner_areas`、`visible_rows`），所以兩邊一定對得起來；改版面時改這幾個就好。
@@ -146,4 +149,5 @@ App::run 的迴圈
 - 任務頁選到的那件、展開的子任務是用行號記的：在別處改過、重新載入時也用 `edit::line_map` 跟著搬，但它假設只改了一段；別處一次改好幾段（或改到選到的那行、行數又變了）時對不到，會選回第一件
 - `refresh_tasks` 每秒看一次修改時間（`std::fs::metadata`）：很便宜，但不是馬上；要即時可以換成 `notify` crate 監看檔案（多一個 crate、多一條 thread）
 - 最下面一列是通知（例：剛打開時的「任務檔有 1 處寫錯」）時，點最左邊 3 格照樣會換版型：點的那一下先清掉通知，`click_at` 看到的是 `123`；要分得出來得在清掉通知之前記下它
+- 開場動畫的小工具（`noise`、`mix`、`gradient`、`cycle`、braille 的 `Dots`）都放在 `ui/splash.rs`：別的畫面要用（例：其他地方也要漸層色、braille 線）時，搬到 `ui.rs` 或自己一個 module
 - `tools/expected_screen.py` 有 4 種畫面（版型 1、3、任務頁、side menu）擠在一個檔：可以一個版型一個檔，共用的（字寬、讀任務檔）放一起

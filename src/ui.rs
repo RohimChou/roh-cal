@@ -1,7 +1,7 @@
 //! Draws the whole screen: the side menu on the far left (only when wide enough; when narrow, `s` shows it
 //! over the left side), the main view on the right (layout 1's calendar box + agenda, layout 2's month grid,
 //! or the tasks page), the key hints on the bottom row; popups (layout 2's day popup, the edit box, the help
-//! page, the settings page) go on top
+//! page, the settings page) go on top, and the intro played at start over all of it
 
 mod day;
 mod editor;
@@ -12,6 +12,7 @@ mod picker;
 mod planner;
 mod settings;
 mod side;
+mod splash;
 mod tasks;
 
 use crate::app::{App, Editor, Focus, Mode, View};
@@ -398,6 +399,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             if let Some(picker) = app.picker() {
                 picker::render(frame, app, picker);
             }
+        }
+        // The intro played at start: over the whole screen
+        Mode::Splash { opened } => {
+            let seconds = opened.elapsed().as_secs_f64();
+            splash::render(frame, app, seconds);
         }
         // Delete confirmation and rescheduling: shown on the bottom row (already drawn above)
         Mode::ConfirmDelete(..)

@@ -327,6 +327,11 @@ impl App {
             if key.code == KeyCode::Char('y') {
                 self.settings = Settings::default();
                 self.apply_theme();
+                // Like a fresh start: the intro plays again on the next start (fine if the marker is gone
+                // already or cannot be deleted)
+                if let Some(marker) = &self.splash_marker {
+                    let _ = std::fs::remove_file(marker);
+                }
             }
             self.set_settings_page(SettingsPage {
                 confirm_reset: false,

@@ -34,6 +34,16 @@ pub fn sample_file() -> Option<PathBuf> {
     )
 }
 
+/// Marker that the intro has played (it plays only on the very first run): `$XDG_STATE_HOME/roh-cal/splash-seen`,
+/// or `~/.local/state/roh-cal/splash-seen` if unset (state: kept between runs, nothing worth backing up)
+pub fn splash_seen_file() -> Option<PathBuf> {
+    Some(
+        xdg_dir("XDG_STATE_HOME", ".local/state")?
+            .join("roh-cal")
+            .join("splash-seen"),
+    )
+}
+
 /// Reads the environment variables `var` and `HOME` and lets `resolve` pick the folder
 fn xdg_dir(var: &str, fallback: &str) -> Option<PathBuf> {
     resolve(std::env::var_os(var), std::env::var_os("HOME"), fallback)

@@ -395,6 +395,23 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     assert_eq!(app.settings, Settings::default());
     assert_eq!(app.theme, Theme::default());
     assert!(app.settings_page().is_some());
+    // Resetting everything plays the intro again on the next start: its marker is deleted (only by R then y;
+    // a cancelled R leaves it)
+    let dir = crate::files::test_dir("reset-intro");
+    let marker = dir.join("splash-seen");
+    crate::files::write_atomically(&marker, "").expect("write the marker");
+    app.splash_marker = Some(marker.clone());
+    press(&mut app, KeyCode::Char('R'));
+    press(&mut app, KeyCode::Char('n'));
+    assert!(marker.exists());
+    press(&mut app, KeyCode::Char('R'));
+    press(&mut app, KeyCode::Char('y'));
+    assert!(!marker.exists());
+    // Already gone: resetting again is fine
+    press(&mut app, KeyCode::Char('R'));
+    press(&mut app, KeyCode::Char('y'));
+    assert_eq!(app.settings, Settings::default());
+    std::fs::remove_dir_all(&dir).expect("clean up");
     // The theme row can also be reset alone with r
     for _ in 0..3 {
         press(&mut app, KeyCode::Char('k'));

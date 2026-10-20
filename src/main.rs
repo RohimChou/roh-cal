@@ -41,9 +41,10 @@ fn main() -> Result<()> {
     let lang = args.lang.unwrap_or_else(Lang::from_system);
     // Today: the date in the system time zone
     let today = Zoned::now().date();
+    let sample = args.sample;
     // Task file: --sample writes a fresh copy of the built-in sample and opens it; one given by --tasks must
     // be readable; at the default location, missing means no tasks
-    let (path, required) = match (args.sample, args.tasks) {
+    let (path, required) = match (sample, args.tasks) {
         (true, _) => (Some(write_sample(paths::sample_file(), today)?), true),
         (false, Some(path)) => (Some(path), true),
         (false, None) => (paths::tasks_file(), false),
@@ -82,6 +83,13 @@ fn main() -> Result<()> {
         if !app.warnings.is_empty() {
             app.notice = Some(Notice::Mistakes(app.warnings.len()));
         }
+        // The intro plays the very first time, and with every --sample; resetting all settings deletes the
+        // marker, so it plays again on the next start
+        let marker = paths::splash_seen_file();
+        if plays_intro(sample, marker.as_deref()) {
+            app.play_splash();
+        }
+        app.splash_marker = marker;
         app.run(terminal)
     })
 }
@@ -96,6 +104,29 @@ fn load_tasks(path: &Path, required: bool) -> Result<String> {
             Err(error).wrap_err_with(|| format!("cannot read task file: {}", path.display()))
         }
     }
+}
+
+/// Whether the intro plays this run: the very first time (`first_run`), and with every `--sample` (`sample`),
+/// a fresh start like its task file
+fn plays_intro(sample: bool, marker: Option<&Path>) -> bool {
+    // `first_run` comes first, so the marker is written either way: a first run with --sample counts as the
+    // first, and the next run without it does not play
+    first_run(marker) || sample
+}
+
+/// Whether this is the very first run: the marker file `marker` (`paths::splash_seen_file`) is not there yet.
+/// It is written right away, so the next run is not the first (if it cannot be written, the next run counts
+/// as the first again). Without a marker path (no HOME) it is never the first: there is nowhere to remember
+/// it, and it would play every time
+fn first_run(marker: Option<&Path>) -> bool {
+    let Some(marker) = marker else {
+        return false;
+    };
+    if marker.exists() {
+        return false;
+    }
+    let _ = files::write_atomically(marker, "");
+    true
 }
 
 /// Writes a fresh copy of the built-in sample task file, its dates moved to the week of `today`, to `path`
@@ -279,6 +310,44 @@ mod tests {
         let text = load_tasks(Path::new("testdata/tasks.md"), true).expect("sample file");
         let parsed = tasks::parse(&text);
         assert_eq!((parsed.items.len(), parsed.warnings.len()), (57, 1));
+    }
+
+    #[test]
+    fn only_the_very_first_run_is_the_first() {
+        let dir = files::test_dir("first-run");
+        let marker = dir.join("roh-cal").join("splash-seen");
+        // No marker yet (not even its folder): the first run, and the marker is written
+        assert!(first_run(Some(&marker)));
+        assert!(marker.exists());
+        // From then on, never again
+        assert!(!first_run(Some(&marker)));
+        assert!(!first_run(Some(&marker)));
+        // The marker deleted: the first run again
+        std::fs::remove_file(&marker).expect("delete the marker");
+        assert!(first_run(Some(&marker)));
+        // No place for a marker (no HOME): never
+        assert!(!first_run(None));
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
+    #[test]
+    fn every_sample_plays_the_intro_too() {
+        let dir = files::test_dir("sample-intro");
+        let marker = dir.join("roh-cal").join("splash-seen");
+        // The first run plays it
+        assert!(plays_intro(false, Some(&marker)));
+        // From then on only --sample does, every time
+        assert!(!plays_intro(false, Some(&marker)));
+        assert!(plays_intro(true, Some(&marker)));
+        assert!(plays_intro(true, Some(&marker)));
+        assert!(!plays_intro(false, Some(&marker)));
+        // A first run with --sample writes the marker too: the next run without it does not play
+        std::fs::remove_file(&marker).expect("delete the marker");
+        assert!(plays_intro(true, Some(&marker)));
+        assert!(!plays_intro(false, Some(&marker)));
+        // No place for a marker (no HOME): only --sample
+        assert!(plays_intro(true, None) && !plays_intro(false, None));
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]

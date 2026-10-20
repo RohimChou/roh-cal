@@ -390,7 +390,7 @@ impl App {
     /// write re-reads the file anyway. A file that cannot be read (e.g. deleted) leaves the screen as it is
     pub(super) fn refresh_tasks(&mut self) {
         let busy = match self.mode {
-            Mode::Normal | Mode::Help(_) | Mode::Settings { .. } => false,
+            Mode::Normal | Mode::Help(_) | Mode::Settings { .. } | Mode::Splash { .. } => false,
             Mode::Editor(_)
             | Mode::Moving(_)
             | Mode::ConfirmDelete(..)

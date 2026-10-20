@@ -157,3 +157,19 @@ fn date_title_in_both_languages() {
     assert_eq!(zh.date_title(date(2026, 10, 17)), "2026/10/17（六）");
     assert_eq!(zh.date_title(date(2026, 10, 18)), "2026/10/18（日）");
 }
+
+#[test]
+fn splash_date_is_written_out_in_full() {
+    let en = Lang::En.texts();
+    let zh = Lang::ZhTw.texts();
+    assert_eq!(
+        en.splash_date(date(2026, 10, 20)),
+        "Tuesday, October 20, 2026"
+    );
+    assert_eq!(
+        zh.splash_date(date(2026, 10, 20)),
+        "2026 年 10 月 20 日 星期二"
+    );
+    assert_eq!(en.splash_date(date(2027, 1, 3)), "Sunday, January 3, 2027");
+    assert_eq!(zh.splash_date(date(2027, 1, 3)), "2027 年 1 月 3 日 星期日");
+}
