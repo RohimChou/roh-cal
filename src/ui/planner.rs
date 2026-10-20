@@ -189,7 +189,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
         ..agenda_header
     };
     frame.render_widget(
-        Line::styled(texts.header_items, Style::new().fg(theme.muted)),
+        Line::styled(texts.header_items, Style::new().fg(theme.text)),
         label_area,
     );
     frame.render_widget(Line::styled(date, Style::new().fg(theme.text)), date_area);
@@ -311,11 +311,11 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     }
 }
 
-/// Header: 「2026年  週 │ 一 二 … 日」; Saturday and Sunday use the weekend color
+/// Header: 「2026年  週 │ 一 二 … 日」 in the normal text color; Saturday and Sunday use the weekend color
 ///
 /// The year/month column shows the year of `year`, e.g. 「2026年  週」
 fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, year: Date) {
-    let muted = Style::new().fg(theme.muted);
+    let normal = Style::new().fg(theme.text);
     let month_header = texts.year_label(year);
     let weekdays: Vec<Span> = texts
         .weekdays
@@ -326,7 +326,7 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
             let style = if i >= 5 {
                 Style::new().fg(theme.weekend)
             } else {
-                muted
+                normal
             };
             // Over its date: a blank before, the cell after the date after
             Span::styled(format!(" {name} "), style)
@@ -336,8 +336,8 @@ fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, ye
         frame,
         area,
         [
-            Line::styled(month_header, muted).right_aligned(),
-            Line::styled(texts.header_week, muted).right_aligned(),
+            Line::styled(month_header, normal).right_aligned(),
+            Line::styled(texts.header_week, normal).right_aligned(),
             Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
             Line::from(weekdays),
         ],

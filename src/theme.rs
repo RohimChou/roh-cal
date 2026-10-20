@@ -19,9 +19,9 @@ use toml_edit::DocumentMut;
 #[cfg_attr(test, derive(Serialize))]
 #[serde(deny_unknown_fields)]
 pub struct Theme {
-    /// Normal text: weekday dates
+    /// Normal text: weekday dates, the headers
     pub text: Color,
-    /// Secondary text: headers, the key hints at the bottom
+    /// Secondary text: the key hints at the bottom
     pub muted: Color,
     /// Lines: outer borders, between columns, between months
     pub line: Color,

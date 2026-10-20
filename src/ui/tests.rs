@@ -547,9 +547,8 @@ fn side_menu_lists_the_calendars_when_wide() {
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
         ]
     );
-    // ☑ uses the `checked` color, names are normal text, numbers
-    // and the header are muted, the border is a normal line; a switch that is off: ☐ muted, its name
-    // normal text
+    // ☑ uses the `checked` color, names and the header are normal text, numbers are muted, the border is a
+    // normal line; a switch that is off: ☐ muted, its name normal text
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
@@ -558,7 +557,7 @@ fn side_menu_lists_the_calendars_when_wide() {
     assert_eq!(cell(35, 7), ("5", theme.muted));
     assert_eq!(cell(2, 3), ("☐", theme.muted));
     assert_eq!(cell(4, 3), ("隱", theme.text));
-    assert_eq!(cell(2, 1), ("日", theme.muted));
+    assert_eq!(cell(2, 1), ("日", theme.text));
     assert_eq!(cell(0, 0), ("╭", theme.line));
     // `s` hides it: the calendar moves back to the far left,
     // and the key hints still have `s` (press it again to open)
@@ -898,9 +897,9 @@ fn item_colors_follow_the_item() {
             cell.modifier.contains(Modifier::CROSSED_OUT),
         )
     };
-    // Agenda header: 「重要事項」 muted, the selected day on
-    // the right in the normal color (2026/10/17 starts at x 59)
-    assert_eq!(cell(44, 1), ("重", theme.muted, false));
+    // Agenda header: 「重要事項」 and the selected day on the right both in the normal color (2026/10/17
+    // starts at x 59)
+    assert_eq!(cell(44, 1), ("重", theme.text, false));
     assert_eq!(cell(59, 1), ("2", theme.text, false));
     // 10/5 has an unfinished item: date and title in the normal color
     assert_eq!(cell(45, 3), ("1", theme.text, false));
@@ -1749,10 +1748,10 @@ fn colors_by_role() {
     assert_eq!(cell(11, 25), ("h", theme.muted, false));
     // Keyboard in the calendar: the calendar box's border uses the focus color
     assert_eq!(cell(0, 0), ("╭", theme.focus, false));
-    // Header: weekdays muted, Sat and Sun in the weekend color, vertical line
+    // Header: weekdays in the normal text color, Sat and Sun in the weekend color, vertical line
     // The year in the top-left corner (2026年, shown even when January is on screen)
-    assert_eq!(cell(5, 1), ("年", theme.muted, false));
-    assert_eq!(cell(13, 1), ("一", theme.muted, false));
+    assert_eq!(cell(5, 1), ("年", theme.text, false));
+    assert_eq!(cell(13, 1), ("一", theme.text, false));
     assert_eq!(cell(33, 1), ("六", theme.weekend, false));
     assert_eq!(cell(37, 1), ("日", theme.weekend, false));
     assert_eq!(cell(11, 1), ("│", theme.line, false));
@@ -1777,12 +1776,12 @@ fn colors_by_role() {
 }
 
 #[test]
-fn year_hint_in_the_header_is_muted() {
+fn year_hint_in_the_header_is_normal_text() {
     // No January on screen: 2026 is shown left of the header's `Wk`,
-    // as muted as the header (screen: see `calendar_in_english`)
+    // in the header's normal text color (screen: see `calendar_in_english`)
     let terminal = draw(Lang::En, 40, 11, date(2026, 10, 17));
     let cell = &terminal.backend().buffer()[(3, 1)];
-    assert_eq!((cell.symbol(), cell.fg), ("2", Theme::default().muted));
+    assert_eq!((cell.symbol(), cell.fg), ("2", Theme::default().text));
 }
 
 /// Task file for the multi-day tests (`tools/expected_screen.py`
@@ -2977,6 +2976,8 @@ fn tasks_page_colors_and_clicks() {
             cell.modifier.contains(Modifier::CROSSED_OUT),
         )
     };
+    // Header 「 任務」 (the border at x 0, a blank at x 1): normal text
+    assert_eq!(cell(2, 1), ("任", theme.text, false));
     // Heading: ▾ muted, Work (label color, bold)
     assert_eq!(cell(2, 3), ("▾", theme.muted, false));
     assert_eq!(buffer[(4, 3)].fg, theme.label);
@@ -3578,8 +3579,8 @@ fn month_view_colors_by_role() {
     // Week numbers: the selected row (week 42) bright, other rows (week 40) dim
     assert_eq!(cell(3, 11), ("4", theme.week_number, false));
     assert_eq!(cell(3, 3), ("4", theme.week_number_dim, false));
-    // Header: weekdays muted, Sat and Sun in the weekend color
-    assert_eq!(cell(8, 1), ("一", theme.muted, false));
+    // Header: weekdays in the normal text color, Sat and Sun in the weekend color
+    assert_eq!(cell(8, 1), ("一", theme.text, false));
     assert_eq!(cell(61, 1), ("六", theme.weekend, false));
     // Grid lines are faint within a month; the joints where they meet the outer border
     // have the border's color (keyboard in the calendar: focus color)

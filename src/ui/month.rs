@@ -204,22 +204,22 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         render_grid_lines(frame.buffer_mut(), inner, &grid, top, app, border);
     }
 
-    // Header: the week-number column says 「週」; each day's name sits at the far left of its column, lined
-    // up with the dates below; Saturday and Sunday use the weekend color
-    let muted = Style::new().fg(theme.muted);
+    // Header, in the normal text color: the week-number column says 「週」; each day's name sits at the far
+    // left of its column, lined up with the dates below; Saturday and Sunday use the weekend color
+    let normal = Style::new().fg(theme.text);
     let header = |column: usize| {
         let (x, width) = grid.columns[column];
         Rect::new(x, grid.header_y, width, 1)
     };
     frame.render_widget(
-        Line::styled(format!(" {}", texts.header_week), muted),
+        Line::styled(format!(" {}", texts.header_week), normal),
         header(0),
     );
     for (column, name) in (1..).zip(texts.weekdays) {
         let style = if column >= 6 {
             Style::new().fg(theme.weekend)
         } else {
-            muted
+            normal
         };
         frame.render_widget(Line::styled(format!(" {name}"), style), header(column));
     }

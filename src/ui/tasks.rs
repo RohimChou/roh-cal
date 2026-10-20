@@ -144,7 +144,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .border_style(Style::new().fg(if focused { theme.focus } else { theme.line }));
     frame.render_widget(block, area);
     frame.render_widget(
-        Line::styled(texts.header_tasks, Style::new().fg(theme.muted)),
+        Line::styled(texts.header_tasks, Style::new().fg(theme.text)),
         header,
     );
     // Right side of the header: if the task file has mistakes, say how many (red text)
