@@ -123,6 +123,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
                 max_width: 30,
                 hide_done: true,
             },
+            day_popup: DayPopupSettings { by_calendar: false },
             colors: BTreeMap::from([("weekend".to_string(), "red".to_string())]),
         }
     );

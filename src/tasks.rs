@@ -149,6 +149,13 @@ pub struct Heading {
     pub parents: Vec<String>,
 }
 
+impl Heading {
+    /// The outermost calendar it is in, or itself at the top level: `CAIS` for `CAIS > 2603_…`
+    pub fn outermost(&self) -> &str {
+        self.parents.first().unwrap_or(&self.name)
+    }
+}
+
 /// A problem found while parsing that does not stop the file from being read
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Warning {

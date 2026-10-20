@@ -3,11 +3,30 @@
 //! layout 1's agenda (drawing is in `ui::day`)
 
 use super::{App, ClickTarget, Focus};
+use crate::tasks::Item;
 use crate::ui;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
 use std::time::Instant;
 
 impl App {
+    /// The popup's items in display order (`day_index` counts in it): `items_on(selected)`, and with
+    /// `[day_popup] by_calendar` grouped by their outermost calendar, the calendars in the calendar list's
+    /// order and items outside any calendar first; inside a group the order stays
+    pub fn day_items(&self) -> Vec<&Item> {
+        let mut items = self.items_on(self.selected);
+        if self.settings.day_popup.by_calendar {
+            items.sort_by_key(|item| {
+                item.group.as_ref().map(|group| {
+                    self.groups.iter().position(|calendar| {
+                        calendar.parents.is_empty()
+                            && calendar.name.as_deref() == Some(group.outermost())
+                    })
+                })
+            });
+        }
+        items
+    }
+
     /// Opens the popup with the first item chosen; does not open if the day has no items
     pub(super) fn open_day_popup(&mut self) {
         if self.items_on(self.selected).is_empty() {
@@ -38,7 +57,7 @@ impl App {
 
     /// Chooses the item `step` items further down in the popup (negative = up); stops at the first / last item
     pub(super) fn choose_day(&mut self, step: isize) {
-        let last = self.items_on(self.selected).len().saturating_sub(1);
+        let last = self.day_items().len().saturating_sub(1);
         self.day_index = self.day_index.saturating_add_signed(step).min(last);
     }
 
@@ -64,11 +83,7 @@ impl App {
     /// After a write, chooses the item on file line `line` in the popup. If it is no longer on the selected
     /// day (e.g. its date changed), the choice stays at the same position
     pub(super) fn choose_day_line(&mut self, line: usize) {
-        if let Some(index) = self
-            .items_on(self.selected)
-            .iter()
-            .position(|item| item.line == line)
-        {
+        if let Some(index) = self.day_items().iter().position(|item| item.line == line) {
             self.day_index = index;
         }
         self.keep_day_choice();
@@ -77,7 +92,7 @@ impl App {
     /// The day has fewer items (after a delete, an undo, or a date change): if the choice is now out of range,
     /// choose the last item; if no items are left, close the popup
     pub(super) fn keep_day_choice(&mut self) {
-        match self.items_on(self.selected).len().checked_sub(1) {
+        match self.day_items().len().checked_sub(1) {
             Some(last) => self.day_index = self.day_index.min(last),
             None => self.focus = Focus::Calendar,
         }

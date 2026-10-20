@@ -11,7 +11,7 @@ use super::{
     tasks::wrap,
 };
 use crate::app::App;
-use crate::tasks::Item;
+use crate::tasks::{Heading, Item};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
@@ -102,15 +102,16 @@ fn popup_line(item: &Item, app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// One item's lines at `width` cells (one blank cell kept at the end): see `popup_line`, and its
-/// calendar's short name at the right end of the first line; a title that does not fit wraps onto the
-/// next lines, which start under the title (and leave the calendar's cells free too)
+/// One item's lines at `width` cells (one blank cell kept at the end): see `popup_line`, moved in and with
+/// its calendar at the right end of the first line as `indent_and_tag` says; a title that does not fit wraps
+/// onto the next lines, which start under the title (and leave the calendar's cells free too)
 fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
+    let (indent, tag) = indent_and_tag(item, app);
     let mut spans = popup_line(item, app).spans;
-    // The last span is the title, the ones before it the dates (and time)
+    spans.insert(0, Span::raw(" ".repeat(indent)));
+    // The last span is the title, the ones before it the indent, dates (and time)
     let title = spans.pop().into_iter().collect::<Vec<_>>();
     let prefix_width = Line::from(spans.clone()).width();
-    let tag = tag_span(item, app);
     let tag_width = tag.as_ref().map_or(0, Span::width);
     let room = usize::from(width).saturating_sub(prefix_width + 1 + tag_width);
     let mut wrapped = wrap(&title, room).into_iter();
@@ -137,24 +138,78 @@ fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
     lines
 }
 
-/// How many lines each of the day's items takes at `width` cells (see `item_lines`)
-fn heights(app: &App, width: u16) -> Vec<usize> {
-    app.items_on(app.selected)
-        .iter()
-        .map(|item| item_lines(item, app, width).len())
-        .collect()
+/// Grouped by calendar (`[day_popup] by_calendar`): an item in a calendar starts 2 cells in, under its
+/// calendar's heading, and has nothing at the right end. Not grouped: no indent, its outermost calendar at
+/// the right end (`tag_span`)
+fn indent_and_tag(item: &Item, app: &App) -> (usize, Option<Span<'static>>) {
+    if !app.settings.day_popup.by_calendar {
+        return (0, tag_span(item, app));
+    }
+    (if item.group.is_some() { 2 } else { 0 }, None)
+}
+
+/// The line over a group of items when grouped by calendar: their outermost calendar, in the calendar
+/// headings' color (as on the tasks page), e.g. 「 CAIS」
+fn heading_line(name: &str, app: &App) -> Line<'static> {
+    Line::styled(format!(" {name}"), Style::new().fg(app.theme.label))
+}
+
+/// One piece of the popup's lines: one item's (`item` = its index in `App::day_items`), or a calendar's
+/// heading (`item` = `None`)
+struct Piece {
+    item: Option<usize>,
+    lines: Vec<Line<'static>>,
+}
+
+/// The popup's lines at `width` cells, top to bottom: the day's items in `App::day_items` order; grouped by
+/// calendar, a heading before the first item of each outermost calendar (none for items outside any
+/// calendar, which come first)
+fn pieces(app: &App, width: u16) -> Vec<Piece> {
+    let mut pieces = Vec::new();
+    let mut calendar = None;
+    for (index, item) in app.day_items().into_iter().enumerate() {
+        let outermost = item.group.as_ref().map(Heading::outermost);
+        if app.settings.day_popup.by_calendar
+            && let Some(name) = outermost
+            && outermost != calendar
+        {
+            pieces.push(Piece {
+                item: None,
+                lines: vec![heading_line(name, app)],
+            });
+        }
+        calendar = outermost;
+        pieces.push(Piece {
+            item: Some(index),
+            lines: item_lines(item, app, width),
+        });
+    }
+    pieces
+}
+
+/// How many lines each piece takes
+fn heights(pieces: &[Piece]) -> Vec<usize> {
+    pieces.iter().map(|piece| piece.lines.len()).collect()
 }
 
 /// The popup's area (see `area`) and where the items go inside it: the border taken off, and the padding
 /// too, each way only when the box still fits on the month grid with it (too many lines to fit = no rows of
 /// padding, so as many lines as possible show)
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
-    let items = app.items_on(app.selected);
-    // The widest line: dates, time, title and the calendar at the right end
-    let widest = items
+    let grouped = app.settings.day_popup.by_calendar;
+    // The widest line: indent, dates, time, title and the calendar at the right end; or a heading
+    let widest = app
+        .day_items()
         .iter()
         .map(|item| {
-            popup_line(item, app).width() + tag_span(item, app).as_ref().map_or(0, Span::width)
+            let (indent, tag) = indent_and_tag(item, app);
+            let line = indent + popup_line(item, app).width() + tag.as_ref().map_or(0, Span::width);
+            let heading = item
+                .group
+                .as_ref()
+                .filter(|_| grouped)
+                .map_or(0, |group| heading_line(group.outermost(), app).width());
+            line.max(heading)
         })
         .max()
         .unwrap_or(0);
@@ -174,7 +229,7 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
         .max(titles)
         .min(main.width);
     // Lines: the items wrapped at the width inside the border and padding
-    let lines: usize = heights(app, width.saturating_sub(2 + 2 * horizontal))
+    let lines: usize = heights(&pieces(app, width.saturating_sub(2 + 2 * horizontal)))
         .iter()
         .sum();
     let bare_height = to_u16(lines + 2);
@@ -198,7 +253,7 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     )
 }
 
-/// Where each of the day's items starts, counting lines from the first item's first line, and the total
+/// Where each piece starts, counting lines from the first piece's first line, and the total
 fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
     let mut total = 0;
     let starts = heights
@@ -219,18 +274,26 @@ fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
 /// (same as layout 1's agenda). When the lines do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
-    let heights = heights(app, inner.width);
+    let pieces = pieces(app, inner.width);
+    let heights = heights(&pieces);
     let (starts, total) = starts(&heights);
     let visible = i64::from(inner.height);
     let to_i64 = |n: usize| i64::try_from(n).unwrap_or(i64::MAX);
-    if let (Some(&first), Some(&height)) = (starts.get(app.day_index), heights.get(app.day_index)) {
-        let top = scrolled_to_range(
-            to_i64(app.day_top),
-            to_i64(first),
-            to_i64(first + height) - 1,
-            visible,
-            0,
-        );
+    if let Some(chosen) = pieces
+        .iter()
+        .position(|piece| piece.item == Some(app.day_index))
+    {
+        let last = starts[chosen] + heights[chosen] - 1;
+        // The heading right above comes into view with the item, when both fit
+        let first = match chosen.checked_sub(1) {
+            Some(above)
+                if pieces[above].item.is_none() && heights[chosen] < usize::from(inner.height) =>
+            {
+                starts[above]
+            }
+            _ => starts[chosen],
+        };
+        let top = scrolled_to_range(to_i64(app.day_top), to_i64(first), to_i64(last), visible, 0);
         // Do not overscroll: the last line just touches the bottom
         let max = to_i64(total) - visible;
         app.day_top = usize::try_from(top.min(max).max(0)).unwrap_or(0);
@@ -249,7 +312,7 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     // Bottom border: the chosen item's whole calendar path, in the calendar headings' color (as on the tasks
     // page); cut off at the right if the box is narrower
     if let Some(path) = app
-        .items_on(app.selected)
+        .day_items()
         .get(app.day_index)
         .and_then(|item| calendar_path(item))
     {
@@ -260,9 +323,9 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     }
     clear_with_ring(frame, area, main);
     frame.render_widget(block, area);
-    for (index, (item, start)) in app.items_on(app.selected).iter().zip(&starts).enumerate() {
-        let chosen = index == app.day_index;
-        for (part, line) in item_lines(item, app, inner.width).iter().enumerate() {
+    for (piece, start) in pieces.iter().zip(&starts) {
+        let chosen = piece.item == Some(app.day_index);
+        for (part, line) in piece.lines.iter().enumerate() {
             // Above the top of the box: skip; below its bottom: done
             let Some(offset) = (start + part).checked_sub(app.day_top) else {
                 continue;
@@ -306,20 +369,24 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     }
 }
 
-/// Which popup item the mouse click at (`column`, `row`) hits (its index in `items_on(selected)`; any line
-/// of a wrapped item); `None` on the border, in the padding, outside the box, or below the last item
+/// Which popup item the mouse click at (`column`, `row`) hits (its index in `App::day_items`; any line of a
+/// wrapped item); `None` on a calendar's heading, the border, in the padding, outside the box, or below the
+/// last item
 pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     let (_, inner) = layout(app, main);
     if !inner.contains(Position::new(column, row)) {
         return None;
     }
     let line = app.day_top + usize::from(row - inner.y);
-    let heights = heights(app, inner.width);
+    let pieces = pieces(app, inner.width);
+    let heights = heights(&pieces);
     let (starts, _) = starts(&heights);
     starts
         .iter()
         .zip(&heights)
-        .position(|(&start, &height)| (start..start + height).contains(&line))
+        .zip(&pieces)
+        .find(|&((&start, &height), _)| (start..start + height).contains(&line))
+        .and_then(|(_, piece)| piece.item)
 }
 
 #[cfg(test)]

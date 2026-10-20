@@ -48,6 +48,8 @@ pub enum Row {
     ListWidth,
     /// `[calendar_list] hide_done`
     HideDone,
+    /// `[day_popup] by_calendar`
+    ByCalendar,
     /// One role in `[colors]` (a name in `theme::ROLES`): overrides that color of the theme
     Color(&'static str),
 }
@@ -63,6 +65,7 @@ pub fn rows() -> Vec<Row> {
         Row::CenterCursor,
         Row::ListWidth,
         Row::HideDone,
+        Row::ByCalendar,
     ];
     rows.extend(theme::ROLES.map(Row::Color));
     rows
@@ -77,6 +80,7 @@ impl Row {
             Self::RelativeWeeks | Self::Dots => Some("calendar"),
             Self::GridLines | Self::CenterCursor => Some("month"),
             Self::ListWidth | Self::HideDone => Some("calendar_list"),
+            Self::ByCalendar => Some("day_popup"),
             Self::Color(_) => Some("colors"),
         }
     }
@@ -85,7 +89,8 @@ impl Row {
     /// `None` = every view
     pub fn views(self) -> Option<&'static [View]> {
         match self {
-            Self::RelativeWeeks => Some(&[View::Planner, View::Month]),
+            // The day popup opens in layouts 1 and 2 too
+            Self::RelativeWeeks | Self::ByCalendar => Some(&[View::Planner, View::Month]),
             // Only layout 1's calendar has dots
             Self::Dots => Some(&[View::Planner]),
             Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
@@ -116,6 +121,7 @@ impl Row {
             Self::CenterCursor => "center_cursor",
             Self::ListWidth => "max_width",
             Self::HideDone => "hide_done",
+            Self::ByCalendar => "by_calendar",
             Self::Color(role) => role,
         }
     }
@@ -130,6 +136,7 @@ impl Row {
             Self::GridLines => Some(&mut settings.month.grid_lines),
             Self::CenterCursor => Some(&mut settings.month.center_cursor),
             Self::HideDone => Some(&mut settings.calendar_list.hide_done),
+            Self::ByCalendar => Some(&mut settings.day_popup.by_calendar),
         }
     }
 
@@ -155,6 +162,7 @@ impl Row {
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::CenterCursor => on_off(settings.month.center_cursor),
             Self::HideDone => on_off(settings.calendar_list.hide_done),
+            Self::ByCalendar => on_off(settings.day_popup.by_calendar),
             Self::ListWidth => settings.calendar_list.max_width().to_string(),
         }
     }

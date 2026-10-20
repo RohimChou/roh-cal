@@ -1,5 +1,5 @@
 use super::*;
-use crate::config::{CalendarSettings, MonthSettings};
+use crate::config::{CalendarSettings, DayPopupSettings, MonthSettings};
 use crate::texts::Lang;
 use crate::theme::Theme;
 use jiff::civil::date;
@@ -72,9 +72,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
 #[test]
 fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     let mut app = app_with_settings();
-    // Row 8 is text's color: l switches to the palette's next color
+    // Row 9 is text's color: l switches to the palette's next color
     // (subtext0), records it in [colors], and the screen changes right away
-    for _ in 0..7 {
+    for _ in 0..8 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -215,8 +215,9 @@ fn every_switch_has_a_row() {
                 max_width: _,
                 hide_done: _,
             },
+        day_popup: DayPopupSettings { by_calendar: _ },
     } = Settings::default();
-    assert_eq!(rows().len(), 7 + theme::ROLES.len());
+    assert_eq!(rows().len(), 8 + theme::ROLES.len());
 }
 
 #[test]
@@ -369,8 +370,8 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
 
 #[test]
 fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-    // 100 × 30: the box (26 tall) starts at row 2; grid_lines is list line 5 (theme, [calendar],
-    // relative_weeks, dots, [month], grid_lines): 2 + border 1 + 5 = 8
+    // 100 × 30: the box (28 tall) starts at row 1; grid_lines is list line 5 (theme, [calendar],
+    // relative_weeks, dots, [month], grid_lines): 1 + border 1 + 5 = 7
     let mut app = app_with_settings();
     let click = |app: &mut App, column, row| {
         app.handle_mouse(MouseEvent {
@@ -380,17 +381,17 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
             modifiers: KeyModifiers::NONE,
         });
     };
-    click(&mut app, 50, 8);
+    click(&mut app, 50, 7);
     assert_eq!(app.settings_page().map(|page| page.row), Some(3));
     assert!(app.settings.month.grid_lines);
     // Click the chosen row again: change the value
-    click(&mut app, 50, 8);
+    click(&mut app, 50, 7);
     assert!(!app.settings.month.grid_lines);
     // Wheel: choose the next row
     app.handle_mouse(MouseEvent {
         kind: MouseEventKind::ScrollDown,
         column: 50,
-        row: 8,
+        row: 7,
         modifiers: KeyModifiers::NONE,
     });
     assert_eq!(app.settings_page().map(|page| page.row), Some(4));

@@ -85,9 +85,9 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     // the inside is as wide as a row (indent 4 + name column 18 + the longest value, catppuccin-mocha,
     // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells: the descriptions
     // and the key hints on the bottom border fit in it;
-    // no blank lines; `[colors]` shows its first 10 colors (13 more below): 26 rows tall
+    // no blank lines; `[colors]` shows its first 10 colors (13 more below): 28 rows tall
     let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-    assert_eq!(area, Rect::new(14, 9, 43, 26));
+    assert_eq!(area, Rect::new(14, 8, 43, 28));
     assert_eq!(
         rows,
         [
@@ -102,6 +102,8 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
             "│  [calendar_list]                        │",
             "│    max_width         38                 │",
             "│    hide_done         off                │",
+            "│  [day_popup]                            │",
+            "│    by_calendar       on                 │",
             "│  [colors]                               │",
             "│    text                 text            │",
             "│    muted                subtext0        │",
@@ -269,13 +271,13 @@ fn colors_scroll_inside_their_section() {
         app.settings_page().map(|page| (page.top, page.colors_top)),
         Some((0, 3))
     );
-    assert_eq!(rows[12], "│    year_line            lavender        │");
-    assert_eq!(rows[21], "│    checked              mauve           │");
-    // The scrollbar beside the colors (x 42, rows 12-21): its thumb moved down from the top, and the
+    assert_eq!(rows[14], "│    year_line            lavender        │");
+    assert_eq!(rows[23], "│    checked              mauve           │");
+    // The scrollbar beside the colors (x 42, rows 14-23): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border
     let border = |dy: u16| cell(&buffer, area, 42, dy).symbol().to_string();
-    assert_eq!(border(12), "│");
-    assert!((13..=21).any(|dy| border(dy) == "┃"));
+    assert_eq!(border(14), "│");
+    assert!((15..=23).any(|dy| border(dy) == "┃"));
     assert_eq!(border(5), "│");
     // Back up to text: `[colors]` scrolls back to its first color; a row above `[colors]` keeps it
     let page = SettingsPage {

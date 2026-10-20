@@ -21,7 +21,7 @@ use toml_edit::{DocumentMut, Item, Table, TableLike};
 
 /// The settings that can change at runtime = the config file's content, with the same structure: `theme` =
 /// the top-level `theme = "..."`, `calendar` = `[calendar]`, `month` = `[month]`,
-/// `calendar_list` = `[calendar_list]`, `colors` = `[colors]`
+/// `calendar_list` = `[calendar_list]`, `day_popup` = `[day_popup]`, `colors` = `[colors]`
 ///
 /// The names in the config file are the field names (e.g. `grid_lines = false` under `[month]`). serde's
 /// `default`: fields left out use the `Default` value; `deny_unknown_fields`: unknown names are
@@ -38,6 +38,8 @@ pub struct Settings {
     pub month: MonthSettings,
     /// `[calendar_list]`: the calendar list on the far left (the side menu)
     pub calendar_list: CalendarListSettings,
+    /// `[day_popup]`: the popup with one day's items (layouts 1 and 2)
+    pub day_popup: DayPopupSettings,
     /// `[colors]`: overrides some of the theme's roles (role → color,
     /// e.g. `today = "#a6e3a1"`); roles left out follow the theme.
     /// The settings page writes only the ones that differ from the theme (resetting one removes its line)
@@ -68,6 +70,7 @@ impl Default for Settings {
             calendar: CalendarSettings::default(),
             month: MonthSettings::default(),
             calendar_list: CalendarListSettings::default(),
+            day_popup: DayPopupSettings::default(),
             colors: BTreeMap::new(),
         }
     }
@@ -145,6 +148,21 @@ impl Default for CalendarListSettings {
             max_width: 38,
             hide_done: false,
         }
+    }
+}
+
+/// The day popup (the config file's `[day_popup]`); defaults are in `Default`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DayPopupSettings {
+    /// Lists the items under their outermost calendar's name, the calendars in the calendar list's order;
+    /// when off, one list with each item's outermost calendar at its right end
+    pub by_calendar: bool,
+}
+
+impl Default for DayPopupSettings {
+    fn default() -> Self {
+        Self { by_calendar: true }
     }
 }
 

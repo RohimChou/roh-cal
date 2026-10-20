@@ -59,7 +59,7 @@ pub fn day_area(app: &App) -> Rect {
     day::area(app, areas(app.screen, app).main)
 }
 
-/// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::items_on(selected)`)
+/// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::day_items`)
 pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
     day::item_at(app, areas(app.screen, app).main, column, row)
 }
@@ -103,7 +103,7 @@ pub fn settings_row_at(app: &App, column: u16, row: u16) -> Option<usize> {
 /// are blue already)
 fn calendar_tag(item: &Item) -> Option<&str> {
     let group = item.group.as_ref().filter(|group| !group.holiday)?;
-    Some(group.parents.first().unwrap_or(&group.name))
+    Some(group.outermost())
 }
 
 /// An item's whole calendar path, e.g. `CAIS > 2603_中信_CAIS_CAMS報表轉送CAIS系統`; `None` outside any calendar

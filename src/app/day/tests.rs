@@ -130,16 +130,20 @@ fn clicks_and_the_wheel_choose_in_the_popup() {
     let mut app = month_app();
     press(&mut app, KeyCode::Enter);
     let area = ui::day_area(&app);
-    // Click the 3rd item (below the border and a blank row of padding): chooses "Team sync"; clicks
-    // on the border and on the padding are ignored
+    // Click the 3rd item (below the border, a blank row of padding and the calendar's heading `Work`):
+    // chooses "Team sync"; clicks on the border, the padding and the heading are ignored
     mouse(
         &mut app,
         MouseEventKind::Down(MouseButton::Left),
         area.x + 3,
-        area.y + 4,
+        area.y + 5,
     );
     assert_eq!(chosen(&app).as_deref(), Some("Team sync"));
-    for (column, row) in [(area.x, area.y + 4), (area.x + 3, area.y + 1)] {
+    for (column, row) in [
+        (area.x, area.y + 5),
+        (area.x + 3, area.y + 1),
+        (area.x + 3, area.y + 2),
+    ] {
         mouse(
             &mut app,
             MouseEventKind::Down(MouseButton::Left),
@@ -195,7 +199,7 @@ fn checking_and_editing_keep_the_popup_on_the_same_item() {
     let area = ui::day_area(&app);
     let start = Instant::now();
     let click = |app: &mut App, ms: u64| {
-        app.click_day(area.x + 3, area.y + 3, start + Duration::from_millis(ms));
+        app.click_day(area.x + 3, area.y + 4, start + Duration::from_millis(ms));
     };
     click(&mut app, 0);
     click(&mut app, 900);

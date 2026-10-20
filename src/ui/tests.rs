@@ -3862,11 +3862,12 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.screen = Rect::new(0, 0, 80, 24);
     app.focus = Focus::Day;
+    app.settings.day_popup.by_calendar = false;
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
-    // The outermost calendar ends one blank cell before the padding; none outside a calendar or for a
-    // holiday
+    // Not grouped by calendar: the outermost calendar ends one blank cell before the padding; none
+    // outside a calendar or for a holiday
     assert_eq!(
         area_rows(buffer, area),
         [
@@ -3886,6 +3887,67 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     assert_eq!(buffer[(area.x + 31, area.y + 3)].fg, theme.muted);
     assert_eq!(buffer[(area.x + 31, area.y + 4)].symbol(), "L");
     assert_eq!(buffer[(area.x + 31, area.y + 4)].fg, theme.priority_high);
+}
+
+#[test]
+fn the_day_popup_lists_items_under_their_outermost_calendar() {
+    // By time the calendars take turns (Day off, CAIS 08:00, Life 09:00, CAIS 17:00, no calendar 20:00);
+    // grouped (the default): the item outside any calendar first, then each outermost calendar in the
+    // calendar list's order, its name on its own line and its items 2 cells in, by time inside it.
+    // Widest line: 「   08:00 Send the report」 24 + border 2 + a blank cell 1 + padding 2 = 29; the top
+    // border needs more: the date 18 + 「 4 open / 0 done 」 17 + one line cell + 2 corners = 38
+    let text = "- [ ] Loose end @2026-10-17 20:00\n# CAIS\n- [ ] Ship the fix @2026-10-17 17:00\n\
+                ## Reports\n- [ ] Send the report @2026-10-17 08:00\n\
+                # Life\n- [ ] Pay the fine !!! @2026-10-17 09:00\n# Holidays type:holiday\n- Day off @2026-10-17\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let titles: Vec<&str> = app
+        .day_items()
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            "Loose end",
+            "Send the report",
+            "Ship the fix",
+            "Pay the fine",
+            "Day off"
+        ]
+    );
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    assert_eq!(
+        area_rows(buffer, area),
+        [
+            "╭ Sat Oct 17, 2026 ─ 4 open / 0 done ╮",
+            "│                                    │",
+            "│  20:00 Loose end                   │",
+            "│  CAIS                              │",
+            "│    08:00 Send the report           │",
+            "│    17:00 Ship the fix              │",
+            "│  Life                              │",
+            "│    09:00 Pay the fine              │",
+            "│  Holidays                          │",
+            "│    Day off                         │",
+            "│                                    │",
+            "╰────────────────────────────────────╯",
+        ]
+    );
+    // A calendar's name is in the color of the tasks page's calendar headings
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].symbol(), "C");
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].fg, Theme::default().label);
+    // Clicking a calendar's name chooses nothing; the line under it is its first item
+    assert_eq!(day_item_at(&app, area.x + 5, area.y + 3), None);
+    assert_eq!(day_item_at(&app, area.x + 5, area.y + 4), Some(1));
+    // The bottom border still has the chosen item's whole path
+    app.day_index = 1;
+    let terminal = draw_app(&mut app, 80, 24);
+    let rows = area_rows(terminal.backend().buffer(), area);
+    assert!(rows[11].starts_with("╰ CAIS > Reports ─"), "{rows:#?}");
 }
 
 #[test]

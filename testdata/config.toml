@@ -28,6 +28,12 @@ max_width = 30
 # Hide done tasks (and their subtasks) everywhere; also switched at the bottom of the list (default false)
 hide_done = true
 
+# The popup with one day's items (Enter on the calendar)
+[day_popup]
+# List the items under their outermost calendar's name; when off, one list with each item's outermost
+# calendar at its right end (default true)
+by_calendar = false
+
 # Override some of the theme's roles (for role names see [roles] in themes/): a color, or a palette
 # name from that theme
 [colors]

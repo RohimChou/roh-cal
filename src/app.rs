@@ -279,7 +279,7 @@ pub struct App {
     pub view: View,
     /// Which item is chosen in the agenda (index in `agenda()`); used only when the keyboard is there
     pub agenda_index: usize,
-    /// Which item is chosen in layout 2's popup (index in `items_on(selected)`);
+    /// Which item is chosen in layout 2's popup (index in `day_items()`);
     /// used only when the keyboard is in the popup
     pub day_index: usize,
     /// Popup scroll: which line is at the top (a long title wraps onto more than one line; it scrolls only
@@ -615,7 +615,7 @@ impl App {
         match self.focus {
             Focus::Agenda => self.chosen().map(|entry| entry.item),
             Focus::Tasks => self.tasks_chosen(),
-            Focus::Day => self.items_on(self.selected).get(self.day_index).copied(),
+            Focus::Day => self.day_items().get(self.day_index).copied(),
             Focus::Calendar | Focus::Side => None,
         }
     }

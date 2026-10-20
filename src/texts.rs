@@ -957,6 +957,8 @@ impl Texts {
             (Lang::ZhTw, Row::ListWidth) => "日曆清單最寬幾格：h 窄一格、l 寬一格",
             (Lang::En, Row::HideDone) => "Hide done tasks everywhere",
             (Lang::ZhTw, Row::HideDone) => "做完的任務藏起來（日曆清單也能切）",
+            (Lang::En, Row::ByCalendar) => "Day popup: items under their calendar",
+            (Lang::ZhTw, Row::ByCalendar) => "那天的事：照日曆分組",
             (Lang::En, Row::Color(_)) => "Color: l next, e custom, r reset",
             (Lang::ZhTw, Row::Color(_)) => "顏色：l 換下一個，e 自訂，r 還原",
         }
