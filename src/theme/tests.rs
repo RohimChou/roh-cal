@@ -181,6 +181,11 @@ fn every_builtin_theme_reads() {
             assert!(dim < muted, "{theme:?}");
         }
     }
+    // nord-bright's year line: nord8 #94d1e3 and the background nord0 #2e3440 mixed 55:45 → #668a9a, fainter
+    // than the month names (label, nord8 itself)
+    let bright = Theme::builtin("nord-bright").expect("built in");
+    assert_eq!(bright.year_line, Color::Rgb(0x66, 0x8a, 0x9a));
+    assert!(brightness(bright.year_line) < brightness(bright.label));
 }
 
 #[test]

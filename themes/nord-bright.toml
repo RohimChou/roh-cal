@@ -25,6 +25,9 @@ nord14 = "#b2d098"
 nord15 = "#c69bbe"
 # Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
 nord8_dim = "#4d6371"
+# The line where the year changes: nord8 and the background mixed 55:45. Still the cyan of the month names,
+# but faint, so it marks the year without standing out
+nord8_faint = "#668a9a"
 # Selection background: nord15 and the background (nord0 #2e3440) mixed 3:7. A light purple that stands out
 # from the background (also a translucent one), dark enough for text on it
 nord15_dim = "#5c5366"
@@ -33,7 +36,7 @@ nord15_dim = "#5c5366"
 text = "nord4"
 muted = "nord4_dim"
 line = "nord3"
-year_line = "nord8"
+year_line = "nord8_faint"
 label = "nord8"
 week_number = "nord13"
 week_number_dim = "nord13_dim"
