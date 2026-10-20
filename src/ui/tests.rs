@@ -3694,6 +3694,42 @@ fn dots_right_of_each_date_count_its_items() {
 }
 
 #[test]
+fn dots_take_the_color_of_the_days_most_urgent_open_item() {
+    // The week of 10/12 at y 5 (day k's dots at x 12 + 4k + 3), today 10/17: 10/12 a plain task (muted),
+    // 10/13 `!!!` among `!` and none (red), 10/14 `!!` and `!` (orange), 10/15 a done `!!!` and an open `!`
+    // (yellow: done tasks do not count), 10/16 a done `!!!` and a past `!!!` event (muted), 10/17 a holiday
+    // (blue), 10/18 a holiday and a `!` (yellow: a priority beats the holiday)
+    let text = "# Work\n- [ ] Plain @2026-10-12\n- [ ] Plan @2026-10-13\n- [ ] Fix ! @2026-10-13\n\
+                - [ ] Ship !!! @2026-10-13\n- [ ] Pack !! @2026-10-14\n- [ ] Print ! @2026-10-14\n\
+                - [x] Pay !!! @2026-10-15\n- [ ] Mail ! @2026-10-15\n- [x] Done !!! @2026-10-16\n\
+                - Lunch !!! @2026-10-16\n- [ ] Chore ! @2026-10-18\n\
+                # Holidays type:holiday\n- Day off @2026-10-17\n- Day off 2 @2026-10-18\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    let theme = Theme::default();
+    let terminal = draw_app(&mut app, 47, 26);
+    let buffer = terminal.backend().buffer();
+    let cells = [15, 19, 23, 27, 31, 35, 39]
+        .map(|x| (buffer[(x, 5)].symbol().to_string(), buffer[(x, 5)].fg));
+    let dot = |symbol: &str, color| (symbol.to_string(), color);
+    assert_eq!(
+        cells,
+        [
+            dot("⠂", theme.muted),
+            dot("⠖", theme.priority_high),
+            dot("⠒", theme.priority_medium),
+            dot("⠒", theme.priority_low),
+            dot("⠒", theme.muted),
+            dot("⠂", theme.weekend),
+            dot("⠒", theme.priority_low),
+        ]
+    );
+}
+
+#[test]
 fn a_multi_day_items_underline_runs_on_between_its_days() {
     // A (10/13-14), B (10/15-16) right after it, Trip (10/17-20) into the next week. Day k's date is at
     // x 12 + 4k + 1..2 and the cell after it (its dots) at 12 + 4k + 3; the week of 10/12 at y 5, of 10/19

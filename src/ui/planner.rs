@@ -396,7 +396,8 @@ fn render_week(
 }
 
 /// The dates of the 7 days, `DAY_WIDTH` cells per day: a blank, the date right-aligned in 2 cells, and its
-/// dots after it (one per item that day, `dots`; a blank when `[calendar] dots` is off); the selected day
+/// dots after it (one per item that day, `dots`, colored by `dots_color`; a blank when `[calendar] dots` is
+/// off); the selected day
 /// gets brackets: `[17]`, or `[17⠒]` around its dots
 ///
 /// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
@@ -448,15 +449,16 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
         // The cell after the date (between it and the next day's): its dots; when it has none, the
         // selected day's `]`
         let after = between(*day, days.get(i + 1).copied().flatten());
-        let count = match day {
-            Some(day) if app.settings.calendar.dots => app.items_on(*day).len(),
-            _ => 0,
+        let items = match day {
+            Some(day) if app.settings.calendar.dots => app.items_on(*day),
+            _ => Vec::new(),
         };
+        let count = items.len();
         close = selected && count > 0;
         if selected && count == 0 {
             spans.push(Span::styled("]", bracket.patch(after)));
         } else {
-            let style = Style::new().fg(app.theme.muted).patch(after);
+            let style = Style::new().fg(dots_color(&items, app)).patch(after);
             spans.push(Span::styled(dots(count), style));
         }
     }
@@ -475,6 +477,24 @@ fn dots(count: usize) -> &'static str {
         2 => "⠒",
         3 => "⠖",
         _ => "⠶",
+    }
+}
+
+/// The dots' color: that of the day's most urgent open item, i.e. the highest priority's, else a holiday's
+/// (as in the agenda, where a priority beats a holiday's blue); otherwise muted. Done tasks and past events
+/// do not count: the agenda grays them out
+fn dots_color(items: &[&Item], app: &App) -> Color {
+    let open: Vec<&Item> = items
+        .iter()
+        .copied()
+        .filter(|item| item.is_open(app.today))
+        .collect();
+    if let Some(priority) = open.iter().filter_map(|item| item.priority).max() {
+        app.theme.priority(priority)
+    } else if open.iter().any(|item| is_holiday_item(item)) {
+        app.theme.weekend
+    } else {
+        app.theme.muted
     }
 }
 

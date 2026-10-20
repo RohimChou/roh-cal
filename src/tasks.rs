@@ -99,8 +99,9 @@ impl Item {
     }
 }
 
-/// How urgent an item is (rule 6 of the spec): more `!` = more urgent; the screen colors the title by it
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How urgent an item is (rule 6 of the spec): more `!` = more urgent; the screen colors the title by it.
+/// Ordered by urgency: `Low < Medium < High`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Priority {
     /// `!`
     Low,
