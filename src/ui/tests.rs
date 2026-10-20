@@ -2978,10 +2978,10 @@ fn tasks_page_colors_and_clicks() {
     };
     // Header 「 任務」 (the border at x 0, a blank at x 1): normal text
     assert_eq!(cell(2, 1), ("任", theme.text, false));
-    // Heading: ▾ muted, Work (label color, bold)
+    // Heading: ▾ muted, Work in the label color, not bold
     assert_eq!(cell(2, 3), ("▾", theme.muted, false));
     assert_eq!(buffer[(4, 3)].fg, theme.label);
-    assert!(buffer[(4, 3)].modifier.contains(Modifier::BOLD));
+    assert!(!buffer[(4, 3)].modifier.contains(Modifier::BOLD));
     // Send the weekly update (y 4-5): not done → normal text, also on the wrapped line; date (x 33-37) in
     // its day's color (normal); the chosen item gets the highlight across both of its lines
     assert_eq!(cell(10, 4), ("S", theme.text, false));

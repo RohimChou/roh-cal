@@ -260,7 +260,7 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
 
 /// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is `▾` / `▸` (open /
 /// collapsed; a blank when nothing is inside it, and for 「未分組」; muted) and its name (the label color,
-/// bold), indented 2 cells per calendar it is inside; a collapsed one ends with how many items are inside
+/// not bold), indented 2 cells per calendar it is inside; a collapsed one ends with how many items are inside
 /// (`App::calendar_item_count`, muted), e.g. 「▸ Recurring  14」. An item's line is that line of its left
 /// part, and on the first line its date and time columns on the right
 fn render_line(
@@ -292,10 +292,7 @@ fn render_line(
             let indent = "  ".repeat(*depth);
             let mut spans = vec![
                 Span::styled(format!(" {indent}{marker} "), Style::new().fg(theme.muted)),
-                Span::styled(
-                    name.to_string(),
-                    Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
-                ),
+                Span::styled(name.to_string(), Style::new().fg(theme.label)),
             ];
             if *collapsed {
                 spans.push(Span::styled(
