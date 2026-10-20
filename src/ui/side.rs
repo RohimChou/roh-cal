@@ -53,15 +53,18 @@ fn name<'a>(group: &'a Group, texts: &'static Texts) -> &'a str {
     group.name.as_deref().unwrap_or(texts.ungrouped)
 }
 
-/// The number to the right of a calendar (one blank on each side), e.g. 「 12 」: how many of that
-/// calendar's items have a date (counted even when unchecked)
+/// The number to the right of a calendar (one blank on each side), e.g. 「 12 」 (`count`)
 fn count_text(app: &App, group: &Group) -> String {
-    let count = app
-        .items
+    format!(" {} ", count(app, group))
+}
+
+/// How many of a calendar's own items have a date (counted even when unchecked); the tasks page shows it
+/// too, after a collapsed calendar's name
+pub(super) fn count(app: &App, group: &Group) -> usize {
+    app.items
         .iter()
         .filter(|item| item.date.is_some() && group.includes(item))
-        .count();
-    format!(" {count} ")
+        .count()
 }
 
 /// The side menu's parts: the header 「日曆」 and its rule, (when the box has room) the 「隱藏全部」 and

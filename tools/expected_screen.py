@@ -28,7 +28,8 @@ RELATIVE = week-number column in layouts 1 and 2: the selected week shows its we
 how many weeks away they are (`[calendar] relative_weeks = true`);
 NO_DOTS = layout 1's calendar draws no dots right of the dates (`[calendar] dots = false`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
-are not shown; LAYOUT = 2 is layout 2, 3 is the tasks page
+are not shown; COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
+`Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page
 Today is always 2026-10-17.
 """
 import calendar
@@ -773,6 +774,18 @@ def tasks_screen(lang, w, h, text, groups):
     hidden = {groups[i][0] for i in HIDDEN}
     paths, heading_lines = calendar_paths(text)
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
+    collapsed = {tuple(p.split(" > ")) for p in os.environ.get("COLLAPSED", "").split(",") if p}
+    counts = dict(groups)
+    # Calendars with anything inside: every calendar an item is in or inside, every calendar another one is
+    # inside
+    filled = set()
+    for inner in [paths[it["line"]] for it in items] + [paths[n][:-1] for n in heading_lines]:
+        if inner:
+            filled.update(inner[:k] for k in range(1, len(inner) + 1))
+
+    def collapsed_away(path):
+        # What is in calendar `path` is hidden: it, or a calendar it is inside, is collapsed
+        return any(path[:k] in collapsed for k in range(1, len(path) + 1))
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     iw, ih = w - sw - 2, h - 3
     body_h = ih - 4
@@ -795,14 +808,16 @@ def tasks_screen(lang, w, h, text, groups):
         # above (the last heading listed was inside them too). No path = 「未分組」
         nonlocal shown
         if path is None:
-            rows.append(("heading", None, 0))
+            rows.append(("heading", None, 0, ()))
             shown = ()
             return
         keep = 0
         while keep < len(path) - 1 and keep < len(shown) and path[keep] == shown[keep]:
             keep += 1
         for depth in range(keep, len(path)):
-            rows.append(("heading", path[depth], depth))
+            # Inside a collapsed calendar: no row
+            if not collapsed_away(path[:depth]):
+                rows.append(("heading", path[depth], depth, path[:depth + 1]))
         shown = path
 
     # Every heading line and every item, in file order: each heading of a checked calendar gets its row (one
@@ -815,7 +830,7 @@ def tasks_screen(lang, w, h, text, groups):
                 heading(path)
                 last = path
             continue
-        if is_hidden(path, hidden) or not visible(k):
+        if is_hidden(path, hidden) or not visible(k) or (path and collapsed_away(path)):
             continue
         if path != last:
             heading(path)
@@ -867,10 +882,15 @@ def tasks_screen(lang, w, h, text, groups):
     row_lines = []
     for row in rows:
         if row[0] == "heading":
-            _, name, depth = row
-            # `▾` before a calendar's name (「未分組」 has a blank there)
-            marker = " " if name is None else "▾"
-            row_lines.append([ljust(cut(" " + "  " * depth + marker + " " + (t["ungrouped"] if name is None else name), iw), iw)])
+            _, name, depth, own = row
+            # `▾` before a calendar's name, `▸` when collapsed (then the calendar list's number after it); a
+            # blank for 「未分組」 and for a calendar with nothing inside
+            shut = own in filled and own in collapsed
+            marker = " " if own not in filled else ("▸" if shut else "▾")
+            label = t["ungrouped"] if name is None else name
+            if shut:
+                label += f"  {counts[own]}"
+            row_lines.append([ljust(cut(" " + "  " * depth + marker + " " + label, iw), iw)])
         else:
             row_lines.append(item_lines(row[1]))
     all_lines = [line for lines in row_lines for line in lines]

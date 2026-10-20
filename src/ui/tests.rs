@@ -2733,6 +2733,49 @@ fn tasks_app(lang: Lang) -> App {
 }
 
 #[test]
+fn tasks_page_with_collapsed_calendars() {
+    // testdata/calendars.md with Work > SFAP and Personal collapsed: their headings get ▸ and the calendar
+    // list's number, and nothing inside them is listed (Bugs inside SFAP, Moving and Wishlist inside
+    // Personal); Work itself stays open; the chosen row is the first item still listed
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(include_str!(
+        "../../testdata/calendars.md"
+    )));
+    (app.view, app.focus) = (View::Tasks, Focus::Tasks);
+    app.collapsed = std::collections::BTreeSet::from([
+        vec!["Work".to_string(), "SFAP".to_string()],
+        vec!["Personal".to_string()],
+    ]);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 60, 22).backend().buffer()),
+        [
+            "╭──────────────────────────────────────────────────────────╮",
+            "│ Tasks                                                    │",
+            "│──────────────────────────────────────────────────────────│",
+            "│ ▾ Work                                                   │",
+            "│   ▸ SFAP  1                                              │",
+            "│   ▾ CAIS                                                 │",
+            "│       [ ] Ship the monthly report            10/22       │",
+            "│ ▸ Personal  1                                            │",
+            "│ ▾ Work                                                   │",
+            "│      ∙  Team sync                            10/19 10:00 │",
+            "│   Someday                                                │",
+            "│                                                          │",
+            "│                                                          │",
+            "│                                                          │",
+            "│                                                          │",
+            "│                                                          │",
+            "│                                                          │",
+            "│                                                          │",
+            "│──────────────────────────────────────────────────────────│",
+            "│ Line 8  - [ ] Ship the monthly report @2026-10-22        │",
+            "╰──────────────────────────────────────────────────────────╯",
+            " 123 view  jk move  hl fold  Space check  e edit  a add  s c",
+        ]
+    );
+}
+
+#[test]
 fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
     // testdata/calendars.md: every heading is listed, `# Work` with no items of its own, and the calendars
     // with no items at all (`## Wishlist` in Personal, `# Someday`); a calendar is indented 2 cells per
@@ -2761,10 +2804,10 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             "│      ∙  Gym                                  10/18       │",
             "│   ▾ Moving                                               │",
             "│       [ ] Pack the books                      11/1       │",
-            "│   ▾ Wishlist                                             │",
+            "│     Wishlist                                             │",
             "│ ▾ Work                                                   │",
             "│      ∙  Team sync                            10/19 10:00 │",
-            "│ ▾ Someday                                                │",
+            "│   Someday                                                │",
             "│──────────────────────────────────────────────────────────│",
             "│ Line 3  - [ ] Fix the login bug @2026-10-20              │",
             "╰──────────────────────────────────────────────────────────╯",
@@ -2787,6 +2830,29 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             on_marker: false
         })
     );
+    // A calendar heading's `▾` (Work, row 3: x = 1 + 1) is a marker too; the rest of the row only chooses it;
+    // an empty calendar (Someday, row 17) has no marker
+    assert_eq!(
+        click_at(&app, 2, 3),
+        Some(Click::TaskRow {
+            row: 0,
+            on_marker: true
+        })
+    );
+    assert_eq!(
+        click_at(&app, 5, 3),
+        Some(Click::TaskRow {
+            row: 0,
+            on_marker: false
+        })
+    );
+    assert!(matches!(
+        click_at(&app, 2, 17),
+        Some(Click::TaskRow {
+            on_marker: false,
+            ..
+        })
+    ));
     // A right click on `▸` expands that item's whole subtree; another one collapses it
     use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     let right_click = |app: &mut App| {

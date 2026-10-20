@@ -258,10 +258,11 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
         })
 }
 
-/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is `▾` (muted) and its name
-/// (the label color, bold), indented 2 cells per calendar it is inside; 「未分組」 has a blank instead of `▾`.
-/// An item's line is that line of its left part, and on the first line its date and time columns on the
-/// right
+/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is `▾` / `▸` (open /
+/// collapsed; a blank when nothing is inside it, and for 「未分組」; muted) and its name (the label color,
+/// bold), indented 2 cells per calendar it is inside; a collapsed one ends with the calendar list's number
+/// (muted), e.g. 「▸ Recurring  14」. An item's line is that line of its left part, and on the first line its
+/// date and time columns on the right
 fn render_line(
     frame: &mut Frame,
     area: Rect,
@@ -271,20 +272,39 @@ fn render_line(
 ) {
     let theme = &app.theme;
     match (row, layout) {
-        (TaskRow::Heading { name, depth, .. }, _) => {
-            let marker = if name.is_some() { "▾" } else { " " };
+        (
+            TaskRow::Heading {
+                name,
+                depth,
+                path,
+                children,
+                collapsed,
+                ..
+            },
+            _,
+        ) => {
+            let marker = match (children, collapsed) {
+                (false, _) => " ",
+                (true, false) => "▾",
+                (true, true) => "▸",
+            };
             let name = name.as_deref().unwrap_or(app.lang.texts().ungrouped);
             let indent = "  ".repeat(*depth);
-            frame.render_widget(
-                Line::from(vec![
-                    Span::styled(format!(" {indent}{marker} "), Style::new().fg(theme.muted)),
-                    Span::styled(
-                        name.to_string(),
-                        Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                area,
-            );
+            let mut spans = vec![
+                Span::styled(format!(" {indent}{marker} "), Style::new().fg(theme.muted)),
+                Span::styled(
+                    name.to_string(),
+                    Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
+                ),
+            ];
+            if *collapsed && let Some(group) = app.groups.iter().find(|group| group.path() == *path)
+            {
+                spans.push(Span::styled(
+                    format!("  {}", super::side::count(app, group)),
+                    Style::new().fg(theme.muted),
+                ));
+            }
+            frame.render_widget(Line::from(spans), area);
         }
         (TaskRow::Item { .. }, RowLines::Item { left, right }) => {
             // The left part stops one blank cell before the right part (on every line, so the wrapped lines
@@ -502,8 +522,9 @@ fn item_lines(
 }
 
 /// Which row a mouse click at (`column`, `row`) on the tasks page (`area`) hits (any line of a wrapped
-/// item); `on_marker` = the click is on the `▸` / `▾` cell.
-/// `None` on the header, the rules, the bottom row or the outer border
+/// item); `on_marker` = the click is on the `▸` / `▾` cell (an item's, or a calendar heading's).
+/// `None` on the header, the rules, the bottom row, the outer border, and on a heading row that cannot be
+/// chosen anywhere but its `▸` / `▾`
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, body, _, _] = inner_areas(area);
     if !body.contains(Position::new(column, row)) {
@@ -519,14 +540,19 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         .position(|(&start, layout)| (start..start + layout.height()).contains(&line))?;
     let levels = match rows.get(index)? {
         TaskRow::Item { index, .. } => levels(app.items.get(*index)?),
-        // A calendar's heading row (one that can be chosen)
-        TaskRow::Heading { line: Some(_), .. } => {
-            return Some(Click::TaskRow {
+        // A calendar's heading row: its `▸` / `▾` sits at cell 1 + 2 × depth inside the box
+        TaskRow::Heading {
+            depth,
+            line,
+            children,
+            ..
+        } => {
+            let on_marker = *children && usize::from(column) == usize::from(body.x) + 1 + 2 * depth;
+            return (line.is_some() || on_marker).then_some(Click::TaskRow {
                 row: index,
-                on_marker: false,
+                on_marker,
             });
         }
-        TaskRow::Heading { .. } => return None,
     };
     // `▸` sits at cell 1 + 2 × levels inside the box, on the item's first line
     let marker = usize::from(body.x) + 1 + 2 * levels;

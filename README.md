@@ -135,9 +135,9 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | `gg` / `G` | Choose the first / last item |
 | `j` `k` on a heading | `j` `k` stop on each calendar's heading row too (an empty calendar is listed as one); `a` there adds an item at the end of that calendar |
-| `l` / `h` (`→` / `←`) | Expand / collapse the chosen item's subtasks (`l` again goes to the first subtask, `h` again to the parent); click `▸` to do the same |
-| `Shift+→` / `Shift+←` | Expand / collapse the chosen item's whole subtree, every level under it; on an item without subtasks, `Shift+←` closes the one it is under. Right-click `▸` to do the same |
-| `=` / `-` | Expand / collapse every item's subtasks (when the chosen item gets hidden, its top-level item is chosen instead); `+` works as `=` |
+| `l` / `h` (`→` / `←`) | Expand / collapse the chosen item's subtasks, or on a calendar's heading row that calendar (collapsed, it shows the calendar list's number); `l` again goes to the first row inside, `h` again to the parent (from a top-level item, to its calendar's heading); click `▸` to do the same |
+| `Shift+→` / `Shift+←` | Expand / collapse the chosen item's or calendar's whole subtree, every level under it; on an item without subtasks, `Shift+←` closes the one it is under. Right-click `▸` to do the same |
+| `=` / `-` | Expand / collapse everything, calendars too: after `-` only the top-level calendars are left, and the chosen row becomes the top-level calendar it was in; `+` works as `=` |
 | `L` / `H` | Indent the chosen item with its subtasks under the item above it at the same level (2 more spaces than that item, like `A`) / outdent it to its parent's level, where the items below it at the same level become its subtasks (as in Obsidian); written back to the task file |
 | `J` / `K` | Move the chosen item with its subtasks below / above the next item at the same level (it stays under the same parent and calendar); written back to the task file |
 | `[` / `]` | Jump to the heading row of the previous / next calendar |

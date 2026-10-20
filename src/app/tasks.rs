@@ -13,6 +13,7 @@ use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
+use std::collections::BTreeSet;
 use std::time::Instant;
 
 /// One row of the tasks page
@@ -27,6 +28,12 @@ pub enum TaskRow {
         /// Its heading's line in the file, so the row can be chosen (`App::tasks_line`); `None` = no line of
         /// its own (「未分組」, an outer calendar listed above one inside it, or no heading lines known)
         line: Option<usize>,
+        /// The calendar's whole path, e.g. `["Work", "SFAP"]` (empty for 「未分組」)
+        path: Vec<String>,
+        /// Whether anything is inside it (items, or calendars inside it), so it can be collapsed (`▾` / `▸`)
+        children: bool,
+        /// Collapsed (`App::collapsed`; always `false` without anything inside): nothing inside it is listed
+        collapsed: bool,
     },
     /// An item
     Item {
@@ -45,10 +52,14 @@ impl App {
     /// come before it as a tree (like the side menu: `Work` still gets a row above `SFAP` when the heading
     /// right above is not in `Work`). Without heading lines (`App::headings` empty), a heading row comes
     /// whenever an item's calendar changes; items before any heading are under 「未分組」.
-    /// A subtask is listed only if every level above it is expanded;
-    /// calendars unchecked in the side menu are left out entirely
+    /// A subtask is listed only if every level above it is expanded, and what is inside a collapsed calendar
+    /// is not listed (`App::collapsed`); calendars unchecked in the side menu are left out entirely
     pub fn tasks_rows(&self) -> Vec<TaskRow> {
         let mut rows = Vec::new();
+        let calendars = Calendars {
+            filled: self.filled_calendars(),
+            collapsed: &self.collapsed,
+        };
         // The calendar of the last heading row (`None` inside = 「未分組」); `None` = no heading row yet
         let mut last: Option<Option<&Heading>> = None;
         // The path of the last heading listed, e.g. `Work > SFAP`: those calendars are already on screen
@@ -58,17 +69,28 @@ impl App {
             // The headings above this item, each one listed (a calendar with no items gets its row too)
             while let Some(line) = headings.next_if(|line| line.line < item.line) {
                 if self.heading_shown(&line.heading) {
-                    push_heading(&mut rows, &mut listed, Some(&line.heading), Some(line.line));
+                    let heading = Some(&line.heading);
+                    push_heading(&mut rows, &mut listed, heading, Some(line.line), &calendars);
                     last = Some(Some(&line.heading));
                 }
             }
             if !self.is_shown(item) || !self.ancestors_expanded(item) {
                 continue;
             }
-            // No heading row for its calendar yet (e.g. no heading lines known, or before any heading)
+            // No heading row for its calendar yet (e.g. no heading lines known, or before any heading); its
+            // calendar gets one even when collapsed
             if last != Some(item.group.as_ref()) {
-                push_heading(&mut rows, &mut listed, item.group.as_ref(), None);
+                push_heading(
+                    &mut rows,
+                    &mut listed,
+                    item.group.as_ref(),
+                    None,
+                    &calendars,
+                );
                 last = Some(item.group.as_ref());
+            }
+            if calendars.hides(&calendar_path(item.group.as_ref())) {
+                continue;
             }
             let children = self.items.iter().any(|other| other.parent == Some(index));
             rows.push(TaskRow::Item {
@@ -81,10 +103,32 @@ impl App {
         // The headings after the last item
         for line in headings {
             if self.heading_shown(&line.heading) {
-                push_heading(&mut rows, &mut listed, Some(&line.heading), Some(line.line));
+                let heading = Some(&line.heading);
+                push_heading(&mut rows, &mut listed, heading, Some(line.line), &calendars);
             }
         }
         rows
+    }
+
+    /// The calendars with anything inside them, at any depth: every calendar an item is in or inside, and
+    /// every calendar another one is inside
+    fn filled_calendars(&self) -> BTreeSet<Vec<String>> {
+        let items = self
+            .items
+            .iter()
+            .map(|item| calendar_path(item.group.as_ref()));
+        let inside = self
+            .groups
+            .iter()
+            .map(|group| group.path())
+            .filter_map(|path| path.split_last().map(|(_, outer)| outer.to_vec()));
+        let mut filled = BTreeSet::new();
+        for path in items.chain(inside) {
+            for depth in 1..=path.len() {
+                filled.insert(path[..depth].to_vec());
+            }
+        }
+        filled
     }
 
     /// Whether the calendar of this heading is shown: it is checked (the calendars it is inside do not
@@ -301,8 +345,16 @@ impl App {
     }
 
     /// `l`: if the chosen item has subtasks and is collapsed,
-    /// expand it; if already expanded, jump to its first subtask
+    /// expand it; if already expanded, jump to its first subtask. On a calendar's heading the same: open it,
+    /// or go to the first row inside it
     fn expand_task(&mut self) {
+        if let Some(path) = self.tasks_chosen_calendar() {
+            if !self.filled_calendars().contains(&path) || self.collapsed.remove(&path) {
+                return;
+            }
+            self.choose_task(1);
+            return;
+        }
         let Some(line) = self.tasks_chosen().map(|item| item.line) else {
             return;
         };
@@ -315,25 +367,65 @@ impl App {
         self.choose_task(1);
     }
 
-    /// `h`: if the chosen item is expanded, collapse it;
-    /// otherwise jump to its parent (like VS Code's file tree)
+    /// `h`: if the chosen item is expanded, collapse it; otherwise jump to its parent (like VS Code's file
+    /// tree), or for a top-level item to its calendar's heading. On a calendar's heading the same: close it,
+    /// or go to the calendar it is inside
     fn collapse_task(&mut self) {
-        let Some((line, parent)) = self.tasks_chosen().map(|item| (item.line, item.parent)) else {
+        if let Some(path) = self.tasks_chosen_calendar() {
+            if self.filled_calendars().contains(&path) && self.collapsed.insert(path.clone()) {
+                return;
+            }
+            self.choose_calendar_heading(&path[..path.len().saturating_sub(1)]);
+            return;
+        }
+        let Some(item) = self.tasks_chosen().cloned() else {
             return;
         };
         // Remembered as expanded but with no subtasks (all deleted)
         // is a stale record: clear it and still jump to the parent
-        if self.expanded.remove(&line) && self.has_children(line) {
+        if self.expanded.remove(&item.line) && self.has_children(item.line) {
             return;
         }
-        if let Some(parent) = parent.and_then(|index| self.items.get(index)) {
-            self.tasks_line = Some(parent.line);
+        match item.parent.and_then(|index| self.items.get(index)) {
+            Some(parent) => self.tasks_line = Some(parent.line),
+            None => self.choose_calendar_heading(&calendar_path(item.group.as_ref())),
+        }
+    }
+
+    /// Chooses the heading row of the calendar `path` on the tasks page: the nearest one above the chosen row
+    /// (a calendar can have more than one part in the file), else the first one; nothing for an empty path
+    /// (「未分組」) or one with no heading row that can be chosen
+    fn choose_calendar_heading(&mut self, path: &[String]) {
+        let rows = self.tasks_rows();
+        let cursor = self.tasks_cursor(&rows).unwrap_or(0);
+        let lines: Vec<(usize, usize)> = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(position, row)| match row {
+                TaskRow::Heading {
+                    path: other,
+                    line: Some(line),
+                    ..
+                } if !path.is_empty() && other == path => Some((position, *line)),
+                _ => None,
+            })
+            .collect();
+        let above = lines
+            .iter()
+            .rev()
+            .find(|&&(position, _)| position <= cursor);
+        if let Some(&(_, line)) = above.or(lines.first()) {
+            self.tasks_line = Some(line);
         }
     }
 
     /// `Shift+→`: expands the chosen item and every subtask under it that has subtasks of its own, any number of
-    /// levels down
+    /// levels down; on a calendar's heading, everything inside the calendar (`expand_calendar`)
     fn expand_subtree(&mut self) {
+        if let Some(path) = self.tasks_chosen_calendar() {
+            self.expand_calendar(&path);
+            return;
+        }
         let Some(index) = self.tasks_chosen_index() else {
             return;
         };
@@ -347,13 +439,21 @@ impl App {
     }
 
     /// `Shift+←`: collapses the chosen item and everything under it, so the next `l` opens one level again; on an
-    /// item without subtasks, the item it is under (which then gets chosen, like `h`)
+    /// item without subtasks, the item it is under (which then gets chosen, like `h`), or for a top-level item
+    /// its calendar. On a calendar's heading, everything inside the calendar (`collapse_calendar`)
     fn collapse_subtree(&mut self) {
+        if let Some(path) = self.tasks_chosen_calendar() {
+            self.collapse_calendar(&path);
+            return;
+        }
         let Some(mut index) = self.tasks_chosen_index() else {
             return;
         };
         if !self.items.iter().any(|item| item.parent == Some(index)) {
             let Some(parent) = self.items[index].parent else {
+                let path = calendar_path(self.items[index].group.as_ref());
+                self.collapse_calendar(&path);
+                self.choose_calendar_heading(&path);
                 return;
             };
             index = parent;
@@ -364,23 +464,78 @@ impl App {
         }
     }
 
-    /// Right click on an item's `▸` / `▾` (row `row` of the tasks page): chooses it, then expands its whole
-    /// subtree (`Shift+→`), or collapses it if it is expanded (`Shift+←`)
-    pub(super) fn right_click_task(&mut self, row: usize) {
-        let Some(TaskRow::Item {
-            index,
-            children: true,
-            expanded,
-        }) = self.tasks_rows().get(row).cloned()
-        else {
+    /// Opens the calendar `path`, every calendar inside it and every item in them that has subtasks
+    fn expand_calendar(&mut self, path: &[String]) {
+        self.collapsed.retain(|other| !other.starts_with(path));
+        let lines: Vec<usize> = self
+            .items
+            .iter()
+            .filter(|item| calendar_path(item.group.as_ref()).starts_with(path))
+            .filter_map(|item| item.parent)
+            .map(|index| self.items[index].line)
+            .collect();
+        self.expanded.extend(lines);
+    }
+
+    /// Closes the calendar `path`, every calendar inside it and every item in them, so opening it again
+    /// opens one level at a time (nothing for an empty path, 「未分組」)
+    fn collapse_calendar(&mut self, path: &[String]) {
+        if path.is_empty() {
             return;
-        };
-        self.tasks_line = Some(self.items[index].line);
-        self.focus = super::Focus::Tasks;
-        if expanded {
-            self.collapse_subtree();
-        } else {
-            self.expand_subtree();
+        }
+        let inside: Vec<Vec<String>> = self
+            .filled_calendars()
+            .into_iter()
+            .filter(|other| other.starts_with(path))
+            .collect();
+        self.collapsed.extend(inside);
+        let lines: Vec<usize> = self
+            .items
+            .iter()
+            .filter(|item| calendar_path(item.group.as_ref()).starts_with(path))
+            .map(|item| item.line)
+            .collect();
+        for line in lines {
+            self.expanded.remove(&line);
+        }
+    }
+
+    /// Right click on an item's or a calendar's `▸` / `▾` (row `row` of the tasks page): chooses it (a
+    /// calendar row that cannot be chosen stays unchosen), then expands its whole subtree (`Shift+→`), or
+    /// collapses it if it is expanded (`Shift+←`)
+    pub(super) fn right_click_task(&mut self, row: usize) {
+        match self.tasks_rows().get(row).cloned() {
+            Some(TaskRow::Item {
+                index,
+                children: true,
+                expanded,
+            }) => {
+                self.tasks_line = Some(self.items[index].line);
+                self.focus = super::Focus::Tasks;
+                if expanded {
+                    self.collapse_subtree();
+                } else {
+                    self.expand_subtree();
+                }
+            }
+            Some(TaskRow::Heading {
+                path,
+                line,
+                children: true,
+                collapsed,
+                ..
+            }) => {
+                if let Some(line) = line {
+                    self.tasks_line = Some(line);
+                    self.focus = super::Focus::Tasks;
+                }
+                if collapsed {
+                    self.expand_calendar(&path);
+                } else {
+                    self.collapse_calendar(&path);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -406,8 +561,9 @@ impl App {
             .collect()
     }
 
-    /// `=` (`+`): expands every item that has subtasks
+    /// `=` (`+`): opens every calendar and expands every item that has subtasks
     fn expand_all(&mut self) {
+        self.collapsed.clear();
         let parents: Vec<usize> = self
             .items
             .iter()
@@ -418,20 +574,28 @@ impl App {
         self.expanded.extend(parents);
     }
 
-    /// `-`: collapses everything; if the chosen item is a subtask
-    /// (it would be hidden), choose its top-level item instead
+    /// `-`: collapses everything, calendars too, so only the top-level calendars (and 「未分組」's items) are
+    /// left; the chosen row becomes the top-level calendar it was in (for an item in 「未分組」, its top-level
+    /// item)
     fn collapse_all(&mut self) {
-        let top = self.tasks_chosen().map(|chosen| {
-            let mut item = chosen;
-            while let Some(parent) = item.parent.and_then(|index| self.items.get(index)) {
-                item = parent;
-            }
-            item.line
-        });
-        if let Some(line) = top {
-            self.tasks_line = Some(line);
+        let chosen = self.tasks_chosen().cloned();
+        let top_calendar = match &chosen {
+            Some(item) => calendar_path(item.group.as_ref()),
+            None => self.tasks_chosen_calendar().unwrap_or_default(),
+        };
+        let mut top_item = chosen.as_ref();
+        while let Some(parent) = top_item
+            .and_then(|item| item.parent)
+            .and_then(|index| self.items.get(index))
+        {
+            top_item = Some(parent);
+        }
+        if let Some(item) = top_item {
+            self.tasks_line = Some(item.line);
         }
         self.expanded.clear();
+        self.collapsed = self.filled_calendars();
+        self.choose_calendar_heading(&top_calendar[..top_calendar.len().min(1)]);
     }
 
     /// `L`: indents the chosen item (with its subtasks) one level, making it a subtask of the
@@ -553,21 +717,28 @@ impl App {
 
     /// Clicks row `row` of the tasks page (its position in `tasks_rows()`) at time `now`:
     /// one click chooses it, a double click checks it off; a click on `▸` / `▾` expands / collapses;
-    /// a click on a calendar's heading row only chooses it
+    /// a click on a calendar's heading row chooses it, and on its `▸` / `▾` opens / closes the calendar
     pub(super) fn click_task(&mut self, row: usize, on_marker: bool, now: Instant) {
         let (index, children) = match self.tasks_rows().get(row).cloned() {
             Some(TaskRow::Item {
                 index, children, ..
             }) => (index, children),
-            // A calendar's heading row: just choose it
             Some(TaskRow::Heading {
-                line: Some(line), ..
+                path,
+                line,
+                children,
+                ..
             }) => {
-                self.tasks_line = Some(line);
-                self.focus = super::Focus::Tasks;
+                if let Some(line) = line {
+                    self.tasks_line = Some(line);
+                    self.focus = super::Focus::Tasks;
+                }
+                if on_marker && children && !self.collapsed.remove(&path) {
+                    self.collapsed.insert(path);
+                }
                 return;
             }
-            _ => return,
+            None => return,
         };
         let Some(line) = self.items.get(index).map(|item| item.line) else {
             return;
@@ -586,14 +757,14 @@ impl App {
     }
 
     /// After a write, the tasks page chooses the item on line `line`;
-    /// if it is under a collapsed parent, expand every level above it
+    /// if it is under a collapsed parent, expand every level above it, and open its calendar and the ones
+    /// that calendar is inside
     pub(super) fn choose_task_line(&mut self, line: usize) {
         self.tasks_line = Some(line);
-        let mut parent = self
-            .items
-            .iter()
-            .find(|item| item.line == line)
-            .and_then(|item| item.parent);
+        let item = self.items.iter().find(|item| item.line == line);
+        let path = calendar_path(item.and_then(|item| item.group.as_ref()));
+        self.collapsed.retain(|other| !path.starts_with(other));
+        let mut parent = item.and_then(|item| item.parent);
         while let Some(index) = parent {
             let Some(ancestor) = self.items.get(index) else {
                 break;
@@ -627,6 +798,7 @@ fn push_heading<'a>(
     listed: &mut Vec<&'a String>,
     heading: Option<&'a Heading>,
     line: Option<usize>,
+    calendars: &Calendars,
 ) {
     let path: Vec<&String> = heading
         .iter()
@@ -637,6 +809,9 @@ fn push_heading<'a>(
             name: None,
             depth: 0,
             line: None,
+            path: Vec::new(),
+            children: false,
+            collapsed: false,
         });
     }
     let same = path
@@ -646,13 +821,50 @@ fn push_heading<'a>(
         .count()
         .min(path.len().saturating_sub(1));
     for (depth, name) in path.iter().enumerate().skip(same) {
+        let own: Vec<String> = path[..=depth].iter().map(|name| (*name).clone()).collect();
+        // Inside a collapsed calendar: not listed
+        if calendars.hides(&own[..depth]) {
+            continue;
+        }
+        let children = calendars.filled.contains(&own);
         rows.push(TaskRow::Heading {
             name: Some((*name).clone()),
             depth,
             line: (depth + 1 == path.len()).then_some(line).flatten(),
+            collapsed: children && calendars.collapsed.contains(&own),
+            children,
+            path: own,
         });
     }
     *listed = path;
+}
+
+/// What `tasks_rows` needs to know about the calendars to list their headings: which ones have anything
+/// inside (`App::filled_calendars`) and which are collapsed (`App::collapsed`)
+struct Calendars<'a> {
+    filled: BTreeSet<Vec<String>>,
+    collapsed: &'a BTreeSet<Vec<String>>,
+}
+
+impl Calendars<'_> {
+    /// Whether what is in calendar `path` is hidden: it, or a calendar it is inside, is collapsed
+    fn hides(&self, path: &[String]) -> bool {
+        (1..=path.len()).any(|depth| self.collapsed.contains(&path[..depth]))
+    }
+}
+
+/// The path of the calendar a heading names, e.g. `["Work", "SFAP"]` (empty for no heading, 「未分組」)
+fn calendar_path(heading: Option<&Heading>) -> Vec<String> {
+    heading
+        .map(|heading| {
+            heading
+                .parents
+                .iter()
+                .chain([&heading.name])
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -329,6 +329,9 @@ pub struct App {
     pub tasks_line: Option<usize>,
     /// Items on the tasks page with their subtasks expanded (file line numbers)
     pub expanded: BTreeSet<usize>,
+    /// Calendars collapsed on the tasks page (their paths, e.g. `["Work", "SFAP"]`): the items and calendars
+    /// inside them are not listed. All open at start
+    pub collapsed: BTreeSet<Vec<String>>,
     /// Tasks page scroll: which line is at the top of the screen (counting every row's lines: a long title
     /// wraps onto more than one line)
     pub tasks_top: usize,
@@ -377,6 +380,7 @@ impl App {
             mode: Mode::Normal,
             tasks_line: None,
             expanded: BTreeSet::new(),
+            collapsed: BTreeSet::new(),
             tasks_top: 0,
             should_quit: false,
             open_editor: false,

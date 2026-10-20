@@ -182,13 +182,19 @@ fn brackets_skip_heading_rows_without_a_line_of_their_own() {
     }
 }
 
-/// What each row looks like: heading `#name`, item `title` (two spaces per level
+/// What each row looks like: heading `#name` (`+#name` when collapsed), item `title` (two spaces per level
 /// in front; an item with subtasks gets `+` when collapsed, `-` when expanded)
 fn shape(app: &App) -> Vec<String> {
     app.tasks_rows()
         .iter()
         .map(|row| match row {
-            TaskRow::Heading { name, .. } => format!("#{}", name.as_deref().unwrap_or("")),
+            TaskRow::Heading {
+                name, collapsed, ..
+            } => format!(
+                "{}#{}",
+                if *collapsed { "+" } else { "" },
+                name.as_deref().unwrap_or("")
+            ),
             TaskRow::Item {
                 index,
                 children,
@@ -308,8 +314,79 @@ fn shift_arrows_expand_and_collapse_the_whole_subtree() {
 }
 
 #[test]
+fn calendars_collapse_and_expand_like_items() {
+    // Lines: 1 # Work, 2 a, 3 a1 (a's subtask), 4 ## SFAP, 5 s, 6 # Life, 7 l, 8 # Empty
+    let mut app =
+        tasks_app_with_headings("# Work\n- a\n  - a1\n## SFAP\n- s\n# Life\n- l\n# Empty\n");
+    let shift = |app: &mut App, code| app.handle_key(KeyEvent::new(code, KeyModifiers::SHIFT));
+    let open = ["#Work", "+a", "#SFAP", "s", "#Life", "l", "#Empty"];
+    assert_eq!(shape(&app), open);
+    // The page opens on a; h (a top-level item, nothing open) goes to Work's heading; h there closes Work
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(app.tasks_line, Some(1));
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(shape(&app), ["+#Work", "#Life", "l", "#Empty"]);
+    // l opens it again; l once more goes to the first row inside it (a)
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(shape(&app), open);
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(app.tasks_line, Some(2));
+    // Shift+→ on Work's heading: everything inside opens, a's subtasks too
+    press(&mut app, KeyCode::Char('k'));
+    shift(&mut app, KeyCode::Right);
+    assert_eq!(
+        shape(&app),
+        ["#Work", "-a", "  a1", "#SFAP", "s", "#Life", "l", "#Empty"]
+    );
+    // Shift+←: Work and SFAP inside it close; l then opens only Work (SFAP and a stay closed)
+    shift(&mut app, KeyCode::Left);
+    assert_eq!(shape(&app), ["+#Work", "#Life", "l", "#Empty"]);
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        shape(&app),
+        ["#Work", "+a", "+#SFAP", "#Life", "l", "#Empty"]
+    );
+    // Empty has nothing inside: h there does not close it, and there is no calendar around it to go to
+    press(&mut app, KeyCode::Char('G'));
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(app.tasks_line, Some(8));
+    assert_eq!(
+        shape(&app),
+        ["#Work", "+a", "+#SFAP", "#Life", "l", "#Empty"]
+    );
+    // Mouse: a click on Work's ▾ (row 0) closes it, another opens it; a right click closes everything
+    // inside it (it is open), another opens everything (SFAP and a's subtasks too)
+    app.click_task(0, true, Instant::now());
+    assert_eq!(shape(&app)[0], "+#Work");
+    app.click_task(0, true, Instant::now());
+    assert_eq!(shape(&app)[0], "#Work");
+    app.right_click_task(0);
+    assert_eq!(shape(&app), ["+#Work", "#Life", "l", "#Empty"]);
+    app.right_click_task(0);
+    assert_eq!(
+        shape(&app),
+        ["#Work", "-a", "  a1", "#SFAP", "s", "#Life", "l", "#Empty"]
+    );
+    // After a write, the item it chose shows: with Work, SFAP and Life closed, s (in Work > SFAP) opens
+    // Work and SFAP; Life stays closed
+    app.right_click_task(0);
+    app.collapsed.insert(vec!["Life".to_string()]);
+    app.choose_task_line(5);
+    assert_eq!(
+        app.collapsed,
+        std::collections::BTreeSet::from([vec!["Life".to_string()]])
+    );
+    assert_eq!(
+        app.tasks_chosen().map(|item| item.title.as_str()),
+        Some("s")
+    );
+}
+
+#[test]
 fn equals_and_minus_expand_and_collapse_everything() {
-    let mut app = tasks_app(TREE);
+    // Lines: 1 Renew passport, 2 # Work, 3 Design doc, 4 Research, 5 Read RFCs, 6 Outline, 7 Triage bugs,
+    // 8 # Personal, 9 Go hiking
+    let mut app = tasks_app_with_headings(TREE);
     // =: every level expands, and the same item ("Renew passport") stays chosen
     press(&mut app, KeyCode::Char('='));
     assert_eq!(
@@ -331,9 +408,9 @@ fn equals_and_minus_expand_and_collapse_everything() {
         app.tasks_chosen().map(|item| item.title.as_str()),
         Some("Renew passport")
     );
-    // Move down to the deepest item, "Read RFCs"; -: everything
-    // collapses and its top-level item "Design doc" is chosen instead
-    for _ in 0..3 {
+    // Move down to the deepest item, "Read RFCs" (past Work's heading row); -: everything collapses, the
+    // calendars too, and the top-level calendar it was in (Work's heading) is chosen instead
+    for _ in 0..4 {
         press(&mut app, KeyCode::Char('j'));
     }
     assert_eq!(
@@ -341,19 +418,8 @@ fn equals_and_minus_expand_and_collapse_everything() {
         Some("Read RFCs")
     );
     press(&mut app, KeyCode::Char('-'));
-    assert_eq!(
-        shape(&app),
-        [
-            "#",
-            "Renew passport",
-            "#Work",
-            "+Design doc",
-            "Triage bugs",
-            "#Personal",
-            "Go hiking"
-        ]
-    );
-    assert_eq!(app.tasks_line, Some(3));
+    assert_eq!(shape(&app), ["#", "Renew passport", "+#Work", "+#Personal"]);
+    assert_eq!(app.tasks_line, Some(2));
     // + (= with Shift, on the same key) expands everything too
     press(&mut app, KeyCode::Char('+'));
     assert_eq!(shape(&app)[3], "-Design doc");
