@@ -85,7 +85,7 @@ fn capital_a_in_the_calendar_list_adds_a_calendar_inside_the_chosen_one() {
     let paths: Vec<Vec<String>> = app.groups.iter().map(crate::app::Group::path).collect();
     assert_eq!(app.group_index, 2);
     assert_eq!(paths[2], ["Work", "CAIS"]);
-    // On 「Hide done」 (below the calendars): A does nothing
+    // On 「Hide done」 (above the calendars): A does nothing
     app.group_index = app.groups.len();
     press(&mut app, KeyCode::Char('A'));
     assert!(app.editor().is_none());

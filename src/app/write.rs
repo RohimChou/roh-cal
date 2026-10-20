@@ -2,7 +2,7 @@
 //! writing; if the line was changed elsewhere, don't write and reload instead.
 //! Changes made elsewhere while nothing is being written are picked up too (`refresh_tasks`)
 
-use super::{App, Focus, Mode, View};
+use super::{App, Focus, Mode, SideSwitch, View};
 use crate::edit;
 use crate::files;
 use crate::tasks::{self, Item, Kind, Parsed};
@@ -468,8 +468,16 @@ impl App {
                 group.shown = old.shown;
             }
         }
+        // A switch row stays chosen (its `group_index` follows the new number of calendars); a calendar
+        // past the new last one becomes the last one. With no calendars before (the first load),
+        // `group_index` 0 reads as 「隱藏做完的」 but means the first calendar
+        let switch = self.side_switch().filter(|_| !self.groups.is_empty());
         self.groups = groups;
-        self.group_index = self.group_index.min(self.groups.len().saturating_sub(1));
+        self.group_index = match switch {
+            Some(SideSwitch::HideAll) => self.groups.len() + 1,
+            Some(SideSwitch::HideDone) => self.groups.len(),
+            None => self.group_index.min(self.groups.len().saturating_sub(1)),
+        };
         self.items = items;
         self.warnings = warnings;
         self.headings = headings;

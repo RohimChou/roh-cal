@@ -487,10 +487,15 @@ fn side_menu_keys_choose_and_check_calendars() {
     // Enter checks it again
     press(&mut app, KeyCode::Enter);
     assert!(app.groups[1].shown);
-    // Down past the last calendar: the 「隱藏做完的」 row below it (index 3), and it stays there; Space
-    // switches it; up past the first one: stays; arrow keys and the wheel do the same
+    // Down past the last calendar: stays there; up past the first one: the switch rows above the list,
+    // 「隱藏做完的」 (index 3 = after the 3 calendars) and then 「隱藏全部」 (index 4), where it stops; Space
+    // switches 「隱藏做完的」; arrow keys and the wheel do the same
     for _ in 0..3 {
         press(&mut app, KeyCode::Down);
+    }
+    assert_eq!(app.group_index, 2);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Up);
     }
     assert_eq!(app.group_index, 3);
     // Switching it writes that one line to the config file right away
@@ -513,10 +518,11 @@ fn side_menu_keys_choose_and_check_calendars() {
     app.config_path = None;
     let _ = std::fs::remove_dir_all(&dir);
     app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
-    assert_eq!(app.group_index, 2);
-    for _ in 0..3 {
-        press(&mut app, KeyCode::Char('k'));
-    }
+    assert_eq!(app.group_index, 4);
+    press(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.group_index, 4);
+    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    press(&mut app, KeyCode::Char('j'));
     assert_eq!(app.group_index, 0);
     // h / l do not move the selected day; Esc goes back to the calendar without quitting
     press(&mut app, KeyCode::Char('l'));
@@ -530,24 +536,54 @@ fn side_menu_keys_choose_and_check_calendars() {
 fn gg_and_capital_g_jump_to_the_first_and_last_row() {
     let mut app = wide_app_with(GROUPS);
     app.focus = Focus::Side;
-    // G: the last row, the 「隱藏做完的」 switch below the 3 calendars (index 3)
+    // G: the last row, the last of the 3 calendars (index 2)
     press(&mut app, KeyCode::Char('G'));
-    assert_eq!(app.group_index, 3);
-    // One g only waits; the second one jumps to the first calendar
+    assert_eq!(app.group_index, 2);
+    // One g only waits; the second one jumps to the first row, the 「隱藏全部」 switch above the
+    // calendars (index 4 = after the 3 calendars and 「隱藏做完的」)
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 3);
+    assert_eq!(app.group_index, 2);
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 0);
+    assert_eq!(app.group_index, 4);
     // g, another key, g: not gg (the other key works as usual)
     press(&mut app, KeyCode::Char('G'));
     press(&mut app, KeyCode::Char('g'));
     press(&mut app, KeyCode::Char('k'));
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.group_index, 1);
     // The wheel between the two g's: not gg either (the last g above is still waiting)
     app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 3);
+    assert_eq!(app.group_index, 2);
+}
+
+#[test]
+fn hide_all_unchecks_every_calendar_then_checks_them_all_again() {
+    let mut app = wide_app_with(GROUPS);
+    app.focus = Focus::Side;
+    // gg to 「隱藏全部」, Space: every calendar unchecked, nothing left in the agenda
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.groups.iter().all(|group| !group.shown));
+    assert!(app.all_hidden());
+    assert_eq!(app.agenda().len(), 0);
+    // Space again: they are all unchecked, so all checked again
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.groups.iter().all(|group| group.shown));
+    assert!(!app.all_hidden());
+    assert_eq!(app.agenda().len(), 3);
+    // Hide all, then check one by hand: 「隱藏全部」 is off again, so Space hides all again (not shows)
+    press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.groups[0].shown);
+    assert!(!app.all_hidden());
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.groups.iter().all(|group| !group.shown));
 }
 
 #[test]
@@ -569,31 +605,38 @@ fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
 
 #[test]
 fn clicking_a_calendar_selects_it_then_toggles_it() {
-    // 120 × 30: inside the side menu, one calendar per row from y 3 (screen in ui/tests.rs's
-    // `side_menu_lists_the_calendars_when_wide`)
+    // 120 × 30: inside the side menu, 「隱藏全部」 at y 3, 「隱藏做完的」 y 4, a rule, then one calendar per
+    // row from y 6 (screen in ui/tests.rs's `side_menu_lists_the_calendars_when_wide`)
     let mut app = wide_app_with(GROUPS);
     let click = |app: &mut App, row| {
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, row));
     };
     // First click: chooses "Personal", the keyboard moves to the side menu, not toggled yet
-    click(&mut app, 4);
+    click(&mut app, 7);
     assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
     assert!(app.groups[1].shown);
     // Click again: unchecks it; once more: checks it again
-    click(&mut app, 4);
+    click(&mut app, 7);
     assert!(!app.groups[1].shown);
-    click(&mut app, 4);
+    click(&mut app, 7);
     assert!(app.groups[1].shown);
     // Click another calendar: only chooses, does not toggle
-    click(&mut app, 5);
+    click(&mut app, 8);
     assert_eq!(app.group_index, 2);
     assert!(app.groups[2].shown);
     // When the keyboard is not in the side menu, clicking the chosen one also just chooses it
     // (back to the side menu)
     app.focus = Focus::Calendar;
-    click(&mut app, 5);
+    click(&mut app, 8);
     assert_eq!(app.focus, Focus::Side);
     assert!(app.groups[2].shown);
+    // 「隱藏全部」 switches on the first click (like 「隱藏做完的」) and gets chosen: all unchecked; again:
+    // all checked
+    click(&mut app, 3);
+    assert_eq!(app.group_index, 4);
+    assert!(app.all_hidden());
+    click(&mut app, 3);
+    assert!(app.groups.iter().all(|group| group.shown));
 }
 
 #[test]
@@ -660,8 +703,8 @@ fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
 
 #[test]
 fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
-    // 60 × 20: s calls it up over the left side (after the border, header, and line, one calendar per row:
-    // ungrouped y 3, Personal y 4)
+    // 60 × 20: s calls it up over the left side (after the border, header, line, the two switches and
+    // their rule, one calendar per row: ungrouped y 6, Personal y 7)
     let mut app = app_with(GROUPS);
     app.screen = Rect::new(0, 0, 60, 20);
     press(&mut app, KeyCode::Char('s'));
@@ -669,9 +712,9 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     assert_eq!(area, Rect::new(0, 0, 22, 19));
     // Click Personal: chooses it; click again: unchecks it
     let left = MouseEventKind::Down(MouseButton::Left);
-    app.handle_mouse(mouse(left, 3, 4));
+    app.handle_mouse(mouse(left, 3, 7));
     assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
-    app.handle_mouse(mouse(left, 3, 4));
+    app.handle_mouse(mouse(left, 3, 7));
     assert!(!app.groups[1].shown);
     // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 5):
     // only hides it, the selected day stays

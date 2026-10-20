@@ -267,7 +267,9 @@ pub enum Click {
     Item(usize),
     /// A calendar in the side menu: its index in `App::groups`
     Group(usize),
-    /// The 「隱藏做完的」 row at the bottom of the side menu
+    /// The 「隱藏全部」 row above the calendars in the side menu
+    HideAll,
+    /// The 「隱藏做完的」 row above the calendars in the side menu
     HideDone,
     /// A row of the tasks page: its index in `App::tasks_rows()`; `on_marker` = the click was
     /// on `▸` / `▾` (expand / collapse)

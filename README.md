@@ -147,9 +147,9 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | Key | Action |
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
-| `gg` / `G` | Choose the first calendar / the 「Hide done」 switch at the bottom of the list |
+| `gg` / `G` | Choose the 「Hide all」 switch at the top of the list / the last calendar |
 | `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden, and so are the calendars inside it (they turn gray) |
-| `j` past the last calendar | The 「Hide done」 switch at the bottom of the list: `Space`, `Enter` or a click switches hiding done tasks (and their subtasks) everywhere; saved to the config file right away |
+| `k` past the first calendar | The two switches at the top of the list; `Space`, `Enter` or a click switches them. 「Hide all」 unchecks every calendar (it is on while they all are unchecked; switching it off checks them all again); 「Hide done」 hides done tasks (and their subtasks) everywhere, saved to the config file right away |
 | `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved. To put it inside another calendar, type `#` and part of that calendar's name and pick it from the list (as for items; 「Top level」 is first) |
 | `A` | Add a calendar inside the chosen one: its heading gets one `#` more and goes at the end of the chosen calendar (after its items and the calendars inside it); the editor shows where it goes under the name (Inside). A name another calendar there already has cannot be saved |
 | `e` | Rename the chosen calendar in the same editor: it starts with the heading's text (`type:holiday` included, so a holiday calendar stays one unless you take it out); every heading of that calendar is rewritten, each keeping its `#` level. Ungrouped items have no heading to rename. Type `#` and part of another calendar's name to move it inside that one (「Top level」 to move it out): its headings, items and the calendars inside it go to the end of that calendar on save, the levels following along; `u` moves it back |

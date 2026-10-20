@@ -80,6 +80,15 @@ pub enum View {
     Tasks,
 }
 
+/// The two switches above the calendars in the side menu
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideSwitch {
+    /// 「隱藏全部」: unchecks every calendar, or checks them all again
+    HideAll,
+    /// 「隱藏做完的」: `[calendar_list] hide_done`
+    HideDone,
+}
+
 /// One calendar in the side menu (= one group in the task file)
 #[derive(Debug)]
 pub struct Group {
@@ -269,7 +278,9 @@ pub struct App {
     pub groups: Vec<Group>,
     /// The side menu was hidden with `s`
     pub side_hidden: bool,
-    /// Which calendar is chosen in the side menu (index in `groups`); used only when the keyboard is there
+    /// Which row is chosen in the side menu: a calendar (index in `groups`), or past them one of the two
+    /// switches above the list: `groups.len()` = 「隱藏做完的」, `groups.len() + 1` = 「隱藏全部」
+    /// (`side_switch`); used only when the keyboard is there
     pub group_index: usize,
     /// Side menu scroll: which calendar is at the top (index in `groups`); it scrolls only when the calendars
     /// do not fit
@@ -822,8 +833,8 @@ impl App {
         }
     }
 
-    /// Keyboard in the side menu: up / down choose a calendar, `gg` / `G` the first / last row (like vim; the
-    /// last row is the 「隱藏做完的」 switch),
+    /// Keyboard in the side menu: up / down choose a row, `gg` / `G` the first / last row (like vim; the
+    /// first row is the 「隱藏全部」 switch, the last one the last calendar),
     /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar
     /// (`A` inside the chosen one),
     /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
@@ -832,10 +843,11 @@ impl App {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
-            KeyCode::Char('g') if after_g => self.group_index = 0,
+            // The first row: the 「隱藏全部」 switch above the calendars
+            KeyCode::Char('g') if after_g => self.group_index = self.groups.len() + 1,
             KeyCode::Char('g') => self.pending_g = true,
-            // The last row: the 「隱藏做完的」 switch below the calendars
-            KeyCode::Char('G') => self.group_index = self.groups.len(),
+            // The last row: the last calendar (no calendars: the 「隱藏做完的」 switch)
+            KeyCode::Char('G') => self.group_index = self.groups.len().saturating_sub(1),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('A') => self.start_adding_subcalendar(),
@@ -847,12 +859,39 @@ impl App {
         }
     }
 
-    /// The calendar chosen in the side menu: checked ⇄ unchecked; on the 「隱藏做完的」 row below the
-    /// calendars, that switch
+    /// The calendar chosen in the side menu: checked ⇄ unchecked; on a switch row above the calendars,
+    /// that switch
     fn toggle_group(&mut self) {
-        match self.groups.get_mut(self.group_index) {
-            Some(group) => group.shown = !group.shown,
-            None => self.toggle_hide_done(),
+        match self.side_switch() {
+            Some(SideSwitch::HideAll) => self.toggle_hide_all(),
+            Some(SideSwitch::HideDone) => self.toggle_hide_done(),
+            None => {
+                if let Some(group) = self.groups.get_mut(self.group_index) {
+                    group.shown = !group.shown;
+                }
+            }
+        }
+    }
+
+    /// The switch row chosen in the side menu (`group_index` past the calendars); `None` on a calendar
+    pub fn side_switch(&self) -> Option<SideSwitch> {
+        match self.group_index.checked_sub(self.groups.len()) {
+            None => None,
+            Some(0) => Some(SideSwitch::HideDone),
+            Some(_) => Some(SideSwitch::HideAll),
+        }
+    }
+
+    /// Whether every calendar is unchecked (then 「隱藏全部」 shows as checked); `false` with no calendars
+    pub fn all_hidden(&self) -> bool {
+        !self.groups.is_empty() && self.groups.iter().all(|group| !group.shown)
+    }
+
+    /// 「隱藏全部」: unchecks every calendar; when they are all unchecked already, checks them all again
+    fn toggle_hide_all(&mut self) {
+        let show = self.all_hidden();
+        for group in &mut self.groups {
+            group.shown = show;
         }
     }
 
@@ -934,6 +973,11 @@ impl App {
                     Some(Click::Day(date)) => self.click_calendar_day(date, Instant::now()),
                     Some(Click::Item(index)) => self.click_item(index, Instant::now()),
                     Some(Click::Group(index)) => self.click_group(index),
+                    Some(Click::HideAll) => {
+                        self.focus = Focus::Side;
+                        self.group_index = self.groups.len() + 1;
+                        self.toggle_hide_all();
+                    }
                     Some(Click::HideDone) => {
                         self.focus = Focus::Side;
                         self.group_index = self.groups.len();
@@ -1076,11 +1120,21 @@ impl App {
         }
     }
 
-    /// Moves the side menu choice `step` rows down (negative = up); stops at the first calendar / the
-    /// 「隱藏做完的」 row below the last one
+    /// Moves the side menu choice `step` rows down (negative = up), in screen order: 「隱藏全部」, 「隱藏做完的」,
+    /// then the calendars; stops at the top and bottom rows
     fn choose_group(&mut self, step: isize) {
-        let last = self.groups.len();
-        self.group_index = self.group_index.saturating_add_signed(step).min(last);
+        let count = self.groups.len();
+        // `group_index` → row on screen (0 = the top), move, and back
+        let row = match self.side_switch() {
+            Some(SideSwitch::HideAll) => 0,
+            Some(SideSwitch::HideDone) => 1,
+            None => self.group_index + 2,
+        };
+        self.group_index = match row.saturating_add_signed(step).min(count + 1) {
+            0 => count + 1,
+            1 => count,
+            row => row - 2,
+        };
     }
 
     /// Moves the keyboard to the agenda: chooses the first item on or after the selected day (a multi-day item
