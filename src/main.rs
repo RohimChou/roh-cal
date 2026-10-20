@@ -187,7 +187,7 @@ struct Args {
         long,
         value_name = "NAME",
         value_parser = PossibleValuesParser::new(theme::names()),
-        help = "Color theme [default: the config file's, else nord]"
+        help = "Color theme [default: the config file's, else nord-bright]"
     )]
     theme: Option<String>,
     /// `--tasks`: path of the task file; if not given, use the default location

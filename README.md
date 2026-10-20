@@ -85,7 +85,7 @@ A terminal at least 120 columns wide also shows the calendar list on the left; n
 | Option | Meaning |
 | :- | :- |
 | `--lang en\|zh-TW` | Screen language. Default: the system language, else English |
-| `--theme <name>` | Color theme: `catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord` (default), `nord-bright`, `one-dark`, `rose-pine` or `terminal` (the terminal's own 16 colors, for any background). Default: the config file's `theme` |
+| `--theme <name>` | Color theme: `catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `nord-bright` (default), `one-dark`, `rose-pine` or `terminal` (the terminal's own 16 colors, for any background). Default: the config file's `theme` |
 | `--tasks <path>` | Task file to show. Default: `~/.local/share/roh-cal/tasks.md` (`$XDG_DATA_HOME` respected); a missing default file just means no tasks |
 | `--sample` | Show a fresh copy of the built-in sample task file, its dates moved to this week, written to `~/.cache/roh-cal/sample.md` (`$XDG_CACHE_HOME` respected) |
 | `-h`, `--help` | Print the options |
@@ -170,7 +170,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 | Name | Default | Meaning |
 | :- | :- | :- |
-| `theme` | `"nord"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
+| `theme` | `"nord-bright"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4), in the color of its most urgent open item |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |
@@ -181,7 +181,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 
 ## Themes
-Built in: `catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord` (default), `nord-bright` (Nord lighter and more colorful, for when it looks washed out), `one-dark`, `rose-pine`, and `terminal`, which only uses the terminal's own 16 colors so it follows your terminal's color scheme. Pick one with `--theme`, the `theme` setting or the settings page; override single colors with `[colors]`. Each theme is a small TOML file in [themes/](themes/): a `[palette]` of named colors and the `[roles]` that use them.
+Built in: `catppuccin-mocha`, `gruvbox-dark`, `tokyo-night`, `dracula`, `nord`, `nord-bright` (default: Nord lighter and more colorful), `one-dark`, `rose-pine`, and `terminal`, which only uses the terminal's own 16 colors so it follows your terminal's color scheme. Pick one with `--theme`, the `theme` setting or the settings page; override single colors with `[colors]`. Each theme is a small TOML file in [themes/](themes/): a `[palette]` of named colors and the `[roles]` that use them.
 
 <!-- Screenshots of each theme: add them here once recorded -->
 

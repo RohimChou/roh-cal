@@ -355,7 +355,7 @@ pub struct App {
 }
 
 impl App {
-    /// State at start: keyboard on the calendar, today selected, the default theme (nord)
+    /// State at start: keyboard on the calendar, today selected, the default theme (nord-bright)
     pub fn new(lang: Lang, today: Date, items: Vec<Item>) -> Self {
         Self {
             lang,

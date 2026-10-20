@@ -130,7 +130,7 @@ fn switching_the_theme_keeps_the_overridden_colors() {
 
 #[test]
 fn r_on_the_theme_row_keeps_the_overridden_colors_too() {
-    // The config file has a gruvbox palette name: r goes back to the default (nord), the overridden color
+    // The config file has a gruvbox palette name: r goes back to the default (nord-bright), the overridden color
     // is first written as the color itself, so the theme builds (and the saved file opens next time)
     let mut app = app_with_settings();
     app.settings.theme = "gruvbox-dark".to_string();
@@ -139,7 +139,7 @@ fn r_on_the_theme_row_keeps_the_overridden_colors_too() {
         .insert("today".to_string(), "light1".to_string());
     app.apply_theme();
     press(&mut app, KeyCode::Char('r'));
-    assert_eq!(app.settings.theme, "nord");
+    assert_eq!(app.settings.theme, "nord-bright");
     assert_eq!(
         app.settings.colors.get("today").map(String::as_str),
         Some("#ebdbb2")
@@ -419,7 +419,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     }
     press(&mut app, KeyCode::Char('h'));
     press(&mut app, KeyCode::Char('r'));
-    assert_eq!(app.settings.theme, "nord");
+    assert_eq!(app.settings.theme, "nord-bright");
     assert_eq!(app.theme, Theme::default());
 }
 

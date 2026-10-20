@@ -92,7 +92,7 @@ pub const BUILTIN: [(&str, &str); 9] = [
 ];
 
 /// The theme used when none is given
-pub const DEFAULT: &str = "nord";
+pub const DEFAULT: &str = "nord-bright";
 
 /// Names of the built-in themes, in `BUILTIN` order
 pub fn names() -> Vec<&'static str> {

@@ -208,8 +208,7 @@ fn stars_and_shooting_stars_stay_out_of_the_middle() {
 fn three_accent_stars_far_apart_drift_in_color() {
     // 3 s and 4.5 s in (no shooting star then): outside the middle block (columns 9 to 70, rows 6 to 16),
     // only stars are drawn; the plain ones are `text`, `muted` or `other_month`, so the others are the
-    // accents. nord: gold `notice` #ebcb8b → amber `priority_medium` #d08770, blue `weekend` #81a1c1 →
-    // violet `focus` #b48ead
+    // accents: gold `notice` → amber `priority_medium`, blue `weekend` → violet `focus` (the default theme's)
     let app = App::new(Lang::En, date(2026, 10, 20), Vec::new());
     let plain = [app.theme.text, app.theme.muted, app.theme.other_month];
     let accents_at = |seconds: f64| {
@@ -251,19 +250,22 @@ fn three_accent_stars_far_apart_drift_in_color() {
         "{first:?}"
     );
     // Gold toward amber at the top left and the bottom right, blue toward violet at the top right
-    let between = |color: Color, (r1, g1, b1): (u8, u8, u8), (r2, g2, b2): (u8, u8, u8)| {
-        let Color::Rgb(red, green, blue) = color else {
+    let between = |color: Color, from: Color, to: Color| {
+        let (Color::Rgb(red, green, blue), Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) =
+            (color, from, to)
+        else {
             return false;
         };
         let within =
             |value: u8, one: u8, other: u8| (one.min(other)..=one.max(other)).contains(&value);
         within(red, r1, r2) && within(green, g1, g2) && within(blue, b1, b2)
     };
+    let theme = &app.theme;
     for ((x, y), color) in first.iter().chain(&later) {
         let (from, to) = if corner((*x, *y)) != "top right" {
-            ((0xeb, 0xcb, 0x8b), (0xd0, 0x87, 0x70))
+            (theme.notice, theme.priority_medium)
         } else {
-            ((0x81, 0xa1, 0xc1), (0xb4, 0x8e, 0xad))
+            (theme.weekend, theme.focus)
         };
         assert!(between(*color, from, to), "({x}, {y}): {color:?}");
     }
