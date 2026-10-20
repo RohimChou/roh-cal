@@ -775,7 +775,12 @@ def tasks_screen(lang, w, h, text, groups):
     paths, heading_lines = calendar_paths(text)
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
     collapsed = {tuple(p.split(" > ")) for p in os.environ.get("COLLAPSED", "").split(",") if p}
-    counts = dict(groups)
+
+    def inside_count(own):
+        # After a collapsed calendar's name: its top-level items and those of every calendar inside it,
+        # dated or not, not in an unchecked calendar
+        return sum(1 for it in items if it["parent"] is None and paths[it["line"]]
+                   and paths[it["line"]][:len(own)] == own and not is_hidden(paths[it["line"]], hidden))
     # Calendars with anything inside: every calendar an item is in or inside, every calendar another one is
     # inside
     filled = set()
@@ -883,13 +888,13 @@ def tasks_screen(lang, w, h, text, groups):
     for row in rows:
         if row[0] == "heading":
             _, name, depth, own = row
-            # `▾` before a calendar's name, `▸` when collapsed (then the calendar list's number after it); a
-            # blank for 「未分組」 and for a calendar with nothing inside
+            # `▾` before a calendar's name, `▸` when collapsed (then how many items are inside); a blank for
+            # 「未分組」 and for a calendar with nothing inside
             shut = own in filled and own in collapsed
             marker = " " if own not in filled else ("▸" if shut else "▾")
             label = t["ungrouped"] if name is None else name
             if shut:
-                label += f"  {counts[own]}"
+                label += f"  {inside_count(own)}"
             row_lines.append([ljust(cut(" " + "  " * depth + marker + " " + label, iw), iw)])
         else:
             row_lines.append(item_lines(row[1]))

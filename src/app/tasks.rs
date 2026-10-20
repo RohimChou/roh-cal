@@ -110,6 +110,17 @@ impl App {
         rows
     }
 
+    /// The number after a collapsed calendar's name on the tasks page: how many top-level items (not
+    /// subtasks) would be listed in it and in every calendar inside it, dated or not (unchecked calendars
+    /// and done tasks hidden by 「隱藏做完的」 do not count)
+    pub fn calendar_item_count(&self, path: &[String]) -> usize {
+        self.items
+            .iter()
+            .filter(|item| item.parent.is_none() && self.is_shown(item))
+            .filter(|item| calendar_path(item.group.as_ref()).starts_with(path))
+            .count()
+    }
+
     /// The calendars with anything inside them, at any depth: every calendar an item is in or inside, and
     /// every calendar another one is inside
     fn filled_calendars(&self) -> BTreeSet<Vec<String>> {

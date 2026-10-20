@@ -260,9 +260,9 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
 
 /// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is `▾` / `▸` (open /
 /// collapsed; a blank when nothing is inside it, and for 「未分組」; muted) and its name (the label color,
-/// bold), indented 2 cells per calendar it is inside; a collapsed one ends with the calendar list's number
-/// (muted), e.g. 「▸ Recurring  14」. An item's line is that line of its left part, and on the first line its
-/// date and time columns on the right
+/// bold), indented 2 cells per calendar it is inside; a collapsed one ends with how many items are inside
+/// (`App::calendar_item_count`, muted), e.g. 「▸ Recurring  14」. An item's line is that line of its left
+/// part, and on the first line its date and time columns on the right
 fn render_line(
     frame: &mut Frame,
     area: Rect,
@@ -297,10 +297,9 @@ fn render_line(
                     Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
                 ),
             ];
-            if *collapsed && let Some(group) = app.groups.iter().find(|group| group.path() == *path)
-            {
+            if *collapsed {
                 spans.push(Span::styled(
-                    format!("  {}", super::side::count(app, group)),
+                    format!("  {}", app.calendar_item_count(path)),
                     Style::new().fg(theme.muted),
                 ));
             }

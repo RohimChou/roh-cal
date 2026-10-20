@@ -383,6 +383,22 @@ fn calendars_collapse_and_expand_like_items() {
 }
 
 #[test]
+fn a_collapsed_calendar_counts_the_items_inside_it() {
+    // Work: a (with subtask a1) and done d; SFAP inside Work: s; Life: l
+    let mut app = tasks_app_with_headings(
+        "# Work\n- [ ] a\n  - [ ] a1\n- [x] d\n## SFAP\n- [ ] s\n# Life\n- l\n",
+    );
+    let work = ["Work".to_string()];
+    // The top-level items in Work and in SFAP inside it: a, d, s (a1 is a subtask)
+    assert_eq!(app.calendar_item_count(&work), 3);
+    // Done tasks hidden: d no longer counts; SFAP unchecked: s neither
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(app.calendar_item_count(&work), 2);
+    app.groups[1].shown = false;
+    assert_eq!(app.calendar_item_count(&work), 1);
+}
+
+#[test]
 fn equals_and_minus_expand_and_collapse_everything() {
     // Lines: 1 Renew passport, 2 # Work, 3 Design doc, 4 Research, 5 Read RFCs, 6 Outline, 7 Triage bugs,
     // 8 # Personal, 9 Go hiking
