@@ -147,17 +147,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         let [name_area, count_area] =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(count.len() as u16)])
                 .areas(row);
-        // Checked: ☑ in the `checked` color and the name in normal text color;
-        // unchecked: ☐ and the name are both muted; checked but inside an unchecked calendar (hidden too):
-        // ☑ and the name muted
-        let hidden_above = app
-            .groups
-            .iter()
-            .any(|other| !other.shown && group.inside(other));
-        let (mark, mark_color, name_color) = match (group.shown, hidden_above) {
-            (true, false) => ("☑", theme.checked, theme.text),
-            (true, true) => ("☑", theme.muted, theme.muted),
-            (false, _) => ("☐", theme.muted, theme.muted),
+        // Checked: ☑ in the `checked` color and the name in normal text color; unchecked: ☐ and the name
+        // are both muted. Only its own check counts, not the calendars around it
+        let (mark, mark_color, name_color) = if group.shown {
+            ("☑", theme.checked, theme.text)
+        } else {
+            ("☐", theme.muted, theme.muted)
         };
         frame.render_widget(
             Line::from(vec![

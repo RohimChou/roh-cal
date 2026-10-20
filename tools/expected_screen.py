@@ -155,10 +155,8 @@ def calendar_paths(text):
 
 
 def is_hidden(path, hidden):
-    """Whether a calendar's items are hidden: it, or a calendar it is inside, is unchecked"""
-    if path is None:
-        return None in hidden
-    return any(path[:k] in hidden for k in range(1, len(path) + 1))
+    """Whether a calendar's items are hidden: it is unchecked (the calendars it is inside do not matter)"""
+    return path in hidden
 
 
 # In front of an in-progress (`[/]`) item's title on every screen

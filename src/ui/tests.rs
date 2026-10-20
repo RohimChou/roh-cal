@@ -623,8 +623,9 @@ fn unchecked_calendars_hide_their_items() {
 }
 
 #[test]
-fn a_calendar_inside_an_unchecked_one_is_gray() {
-    // Work unchecked: SFAP inside it keeps its ☑ but is gray like Work (it is hidden too); Personal is not
+fn a_checked_calendar_inside_an_unchecked_one_still_shows() {
+    // Work unchecked on its own: SFAP inside it keeps its ☑ in the usual colors and its item (a) is still
+    // listed; only Work's own items would be hidden
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
         "# Work\n## SFAP\n- a @2026-10-10\n# Personal\n- b @2026-10-11\n",
@@ -642,10 +643,16 @@ fn a_calendar_inside_an_unchecked_one_is_gray() {
     );
     let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(4, 7), ("☑", theme.muted));
-    assert_eq!(cell(6, 7), ("S", theme.muted));
+    assert_eq!(cell(2, 6), ("☐", theme.muted));
+    assert_eq!(cell(4, 7), ("☑", theme.checked));
+    assert_eq!(cell(6, 7), ("S", theme.text));
     assert_eq!(cell(2, 8), ("☑", theme.checked));
-    assert_eq!(cell(4, 8), ("P", theme.text));
+    let titles: Vec<&str> = app
+        .agenda()
+        .iter()
+        .map(|entry| entry.item.title.as_str())
+        .collect();
+    assert_eq!(titles, ["a", "b"]);
 }
 
 #[test]

@@ -84,17 +84,12 @@ impl App {
         rows
     }
 
-    /// Whether the calendar of this heading is shown: it and every calendar it is inside are checked
+    /// Whether the calendar of this heading is shown: it is checked (the calendars it is inside do not
+    /// matter, like `App::is_shown`)
     fn heading_shown(&self, heading: &Heading) -> bool {
-        let path: Vec<&String> = heading.parents.iter().chain([&heading.name]).collect();
         self.groups
             .iter()
-            .filter(|group| {
-                let outer = group.path();
-                group.name.is_some()
-                    && outer.len() <= path.len()
-                    && outer.iter().eq(path[..outer.len()].iter().copied())
-            })
+            .filter(|group| group.is(heading))
             .all(|group| group.shown)
     }
 

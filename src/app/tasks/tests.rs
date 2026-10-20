@@ -154,6 +154,15 @@ fn calendars_inside_calendars_list_their_outer_calendars_first() {
 }
 
 #[test]
+fn a_checked_calendar_inside_an_unchecked_one_is_listed() {
+    // Work unchecked on its own, SFAP (no items) inside it checked: Work's own item w is left out, SFAP's
+    // heading is listed, with a Work row above it for the tree
+    let mut app = tasks_app_with_headings("# Work\n- w\n## SFAP\n# Life\n- l\n");
+    app.groups[0].shown = false;
+    assert_eq!(shape(&app), ["#Work", "#SFAP", "#Life", "l"]);
+}
+
+#[test]
 fn brackets_skip_heading_rows_without_a_line_of_their_own() {
     // Lines: 1 a0 (「未分組」), 2 # Work, 3 ## SFAP, 4 s1, 5 # Life, 6 l1. 「未分組」 has no heading line, so
     // ] from a0 goes to the first real one (Work); Work's own heading counts even with nothing right

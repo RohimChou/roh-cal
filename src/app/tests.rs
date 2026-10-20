@@ -332,23 +332,22 @@ fn calendars_nest_by_heading_level_and_list_as_a_tree() {
             "Personal > X"
         ]
     );
-    // Unchecking Work hides the items of the calendars inside it too, not Personal's
+    // Only an item's own calendar counts: Work unchecked on its own (the calendars inside it stay checked)
+    // hides only Work's own items, none here; A unchecked hides a
+    let titles = |app: &App| -> Vec<String> {
+        app.agenda()
+            .iter()
+            .map(|entry| entry.item.title.clone())
+            .collect()
+    };
     app.groups[0].shown = false;
-    let titles: Vec<&str> = app
-        .agenda()
-        .iter()
-        .map(|entry| entry.item.title.as_str())
-        .collect();
-    assert_eq!(titles, ["p"]);
-    // Checking Work again brings them back; B unchecked on its own hides only b
-    app.groups[0].shown = true;
+    assert_eq!(titles(&app), ["a", "p", "b"]);
+    app.groups[1].shown = false;
+    assert_eq!(titles(&app), ["p", "b"]);
+    // A checked again; B unchecked on its own hides only b
+    app.groups[1].shown = true;
     app.groups[3].shown = false;
-    let titles: Vec<&str> = app
-        .agenda()
-        .iter()
-        .map(|entry| entry.item.title.as_str())
-        .collect();
-    assert_eq!(titles, ["a", "p"]);
+    assert_eq!(titles(&app), ["a", "p"]);
 }
 
 #[test]

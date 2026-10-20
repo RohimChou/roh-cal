@@ -186,23 +186,6 @@ impl Group {
             None => self.name.is_none(),
         }
     }
-
-    /// Whether this group is `item`'s calendar or one of the calendars that calendar is inside
-    pub fn holds(&self, item: &Item) -> bool {
-        let Some(heading) = &item.group else {
-            return self.name.is_none();
-        };
-        let Some(name) = &self.name else {
-            return false;
-        };
-        let path: Vec<&String> = heading.parents.iter().chain([&heading.name]).collect();
-        path.len() > self.parents.len()
-            && path[..self.parents.len()]
-                .iter()
-                .copied()
-                .eq(self.parents.iter())
-            && path[self.parents.len()] == name
-    }
 }
 
 /// One row in the agenda: which item, and on which day it is listed (the order from `App::agenda()` is the
@@ -504,17 +487,18 @@ impl App {
         }
     }
 
-    /// Whether this item is shown: only if its calendar (group) and every calendar that one is inside are
-    /// checked, and it is not a done task hidden by `[calendar_list] hide_done`
+    /// Whether this item is shown: only if its own calendar (group) is checked (the calendars around it do
+    /// not matter), and it is not a done task hidden by `[calendar_list] hide_done`
     pub fn is_shown(&self, item: &Item) -> bool {
         self.in_checked_calendar(item) && !self.hidden_as_done(item)
     }
 
-    /// Whether every calendar `item` is in (its own and the ones around it) is checked in the side menu
+    /// Whether `item`'s own calendar is checked in the side menu (not the ones it is inside: checking or
+    /// unchecking one of those already does the same to it, `toggle_calendar`)
     fn in_checked_calendar(&self, item: &Item) -> bool {
         self.groups
             .iter()
-            .filter(|group| group.holds(item))
+            .filter(|group| group.includes(item))
             .all(|group| group.shown)
     }
 
