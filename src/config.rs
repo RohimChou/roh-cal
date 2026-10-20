@@ -30,7 +30,7 @@ use toml_edit::{DocumentMut, Item, Table, TableLike};
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
-    /// Which built-in theme to use (a name in `theme::BUILTIN`), e.g. `nord`
+    /// Which built-in theme to use (a name in `theme::BUILTIN`), e.g. `nord-bright`
     pub theme: String,
     /// `[calendar]`: switches for the calendars of layouts 1 and 2
     pub calendar: CalendarSettings,

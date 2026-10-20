@@ -316,12 +316,11 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     press(&mut app, KeyCode::Char('l'));
     assert_eq!(app.settings.theme, "gruvbox-dark");
     assert_eq!(Some(&app.theme), Theme::builtin("gruvbox-dark").as_ref());
-    // In `theme::BUILTIN` order: gruvbox-dark → tokyo-night → dracula → nord → nord-bright → one-dark →
-    // rose-pine → terminal → back to mocha
+    // In `theme::BUILTIN` order: gruvbox-dark → tokyo-night → dracula → nord-bright → one-dark → rose-pine →
+    // terminal → back to mocha
     for expected in [
         "tokyo-night",
         "dracula",
-        "nord",
         "nord-bright",
         "one-dark",
         "rose-pine",

@@ -145,8 +145,8 @@ fn every_builtin_theme_reads() {
         Some(Color::Rgb(0x44, 0x47, 0x5a))
     );
     assert_eq!(
-        Theme::builtin("nord").map(|theme| theme.weekend),
-        Some(Color::Rgb(0x81, 0xa1, 0xc1))
+        Theme::builtin("nord-bright").map(|theme| theme.weekend),
+        Some(Color::Rgb(0x8c, 0xb0, 0xd4))
     );
     assert_eq!(
         Theme::builtin("one-dark").map(|theme| theme.focus),
@@ -160,17 +160,17 @@ fn every_builtin_theme_reads() {
         Theme::builtin("terminal").map(|theme| theme.text),
         Some(Color::Reset)
     );
-    // High priority (!!!) is a red bright enough to stand out: nord's own red (nord11) is too dim, so a
-    // lighter one
+    // High priority (!!!) is a red bright enough to stand out among the other colors: nord-bright's red
+    // with more light and color
     assert_eq!(
-        Theme::builtin("nord").map(|theme| theme.priority_high),
-        Some(Color::Rgb(0xe5, 0x78, 0x83))
+        Theme::builtin("nord-bright").map(|theme| theme.priority_high),
+        Some(Color::Rgb(0xed, 0x71, 0x7c))
     );
-    // Dimmed text (what does not work here): text and the background half and half, e.g. nord4 #d8dee9
-    // and nord0 #2e3440 → #838995; fainter than muted (secondary) text in every theme with RGB colors
+    // Dimmed text (what does not work here): text and the background half and half, e.g. nord6 #eceff4
+    // and nord0 #2e3440 → #8d929a; fainter than muted (secondary) text in every theme with RGB colors
     assert_eq!(
-        Theme::builtin("nord").map(|theme| theme.other_month),
-        Some(Color::Rgb(0x83, 0x89, 0x95))
+        Theme::builtin("nord-bright").map(|theme| theme.other_month),
+        Some(Color::Rgb(0x8d, 0x92, 0x9a))
     );
     let brightness = |color: Color| match color {
         Color::Rgb(r, g, b) => Some(u32::from(r) + u32::from(g) + u32::from(b)),
