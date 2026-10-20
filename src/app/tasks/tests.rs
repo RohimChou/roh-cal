@@ -15,6 +15,15 @@ fn tasks_app(text: &str) -> App {
     app
 }
 
+/// Same as `tasks_app`, but the heading lines are read too (as when reading the real file), so heading
+/// rows can be chosen
+fn tasks_app_with_headings(text: &str) -> App {
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(text));
+    app.handle_key(KeyEvent::from(KeyCode::Char('3')));
+    app
+}
+
 /// Presses one key
 fn press(app: &mut App, code: KeyCode) {
     app.handle_key(KeyEvent::from(code));
@@ -22,23 +31,31 @@ fn press(app: &mut App, code: KeyCode) {
 
 #[test]
 fn brackets_jump_to_the_previous_or_next_calendar() {
-    let mut app = tasks_app("# A\n- a1\n- a2\n# B\n- b1\n## C\n- c1\n");
-    let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-    // From a2 (A's second item): ] = B's first item, then C's (a `##` heading is a calendar too)
+    // Lines: 1 # A, 2 a1, 3 a2, 4 # B, 5 b1, 6 ## C, 7 c1, 8 # Empty
+    let mut app = tasks_app_with_headings("# A\n- a1\n- a2\n# B\n- b1\n## C\n- c1\n# Empty\n");
+    // From a2 (A's second item; the page opens on the first item, a1): ] = B's heading row, then C's (a
+    // `##` heading is a calendar too), then Empty's (no items, still a calendar)
     press(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.tasks_line, Some(3));
     press(&mut app, KeyCode::Char(']'));
-    assert_eq!(chosen(&app).as_deref(), Some("b1"));
+    assert_eq!(app.tasks_line, Some(4));
     press(&mut app, KeyCode::Char(']'));
-    assert_eq!(chosen(&app).as_deref(), Some("c1"));
-    // No calendar after C: stays
+    assert_eq!(app.tasks_line, Some(6));
     press(&mut app, KeyCode::Char(']'));
-    assert_eq!(chosen(&app).as_deref(), Some("c1"));
-    // [ goes back one calendar at a time, to its first item; stays at the first calendar
+    assert_eq!(app.tasks_line, Some(8));
+    // No calendar after Empty: stays
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.tasks_line, Some(8));
+    // [ goes back one calendar at a time, to its heading row; stays at the first calendar
     press(&mut app, KeyCode::Char('['));
-    assert_eq!(chosen(&app).as_deref(), Some("b1"));
+    assert_eq!(app.tasks_line, Some(6));
+    // From an item (c1), [ = the calendar before C (B), like [ on the calendar goes to the previous month
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.tasks_line, Some(4));
     press(&mut app, KeyCode::Char('['));
     press(&mut app, KeyCode::Char('['));
-    assert_eq!(chosen(&app).as_deref(), Some("a1"));
+    assert_eq!(app.tasks_line, Some(1));
     // The calendar's date did not move (on the tasks page [ ] are not months)
     assert_eq!(app.selected, date(2026, 10, 17));
 }
@@ -123,7 +140,7 @@ fn every_checked_calendar_is_listed_even_with_no_items() {
 #[test]
 fn calendars_inside_calendars_list_their_outer_calendars_first() {
     // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
-    let mut app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");
+    let app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");
     assert_eq!(shape(&app), ["#A", "a1", "#P", "#Q", "q1", "#P", "p1"]);
     let depths: Vec<usize> = app
         .tasks_rows()
@@ -134,15 +151,26 @@ fn calendars_inside_calendars_list_their_outer_calendars_first() {
         })
         .collect();
     assert_eq!(depths, [0, 0, 1, 0]);
-    // ] from a1 skips P's heading (nothing right under it) to Q's first item, then on to p1; [ back
+}
+
+#[test]
+fn brackets_skip_heading_rows_without_a_line_of_their_own() {
+    // Lines: 1 a0 (「未分組」), 2 # Work, 3 ## SFAP, 4 s1, 5 # Life, 6 l1. 「未分組」 has no heading line, so
+    // ] from a0 goes to the first real one (Work); Work's own heading counts even with nothing right
+    // under it
+    let mut app = tasks_app_with_headings("- a0\n# Work\n## SFAP\n- s1\n# Life\n- l1\n");
     let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
-    press(&mut app, KeyCode::Char(']'));
-    assert_eq!(chosen(&app).as_deref(), Some("q1"));
-    press(&mut app, KeyCode::Char(']'));
-    assert_eq!(chosen(&app).as_deref(), Some("p1"));
+    assert_eq!(chosen(&app).as_deref(), Some("a0"));
     press(&mut app, KeyCode::Char('['));
-    press(&mut app, KeyCode::Char('['));
-    assert_eq!(chosen(&app).as_deref(), Some("a1"));
+    assert_eq!(chosen(&app).as_deref(), Some("a0"));
+    for line in [2, 3, 5] {
+        press(&mut app, KeyCode::Char(']'));
+        assert_eq!(app.tasks_line, Some(line));
+    }
+    for line in [3, 2] {
+        press(&mut app, KeyCode::Char('['));
+        assert_eq!(app.tasks_line, Some(line));
+    }
 }
 
 /// What each row looks like: heading `#name`, item `title` (two spaces per level

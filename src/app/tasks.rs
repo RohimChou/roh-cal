@@ -201,7 +201,7 @@ impl App {
 
     /// Keyboard on the tasks page: `j` / `k` next / previous row (an item, or a calendar's heading: `a` there adds
     /// at the end of that calendar), `gg` / `G` the first / last row (like vim; `after_g`: the key before this
-    /// one was `g`), `[` / `]` the previous / next calendar's first item,
+    /// one was `g`), `[` / `]` the previous / next calendar's heading row,
     /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
@@ -236,43 +236,38 @@ impl App {
         }
     }
 
-    /// `[` / `]`: chooses the first item of the previous (`step` = -1) / next (1) calendar (heading) on the
-    /// tasks page, like `[` `]` on the calendar go to the 1st of the previous / next month; stays put when
-    /// there is no calendar that way. A heading with no items right under it (`Work` listed above
-    /// `Work > SFAP`) is skipped
+    /// `[` / `]`: chooses the heading row of the previous (`step` = -1) / next (1) calendar on the tasks
+    /// page, like `[` `]` on the calendar go to the previous / next month; stays put when there is no
+    /// calendar that way. Only heading rows with a line of their own count (the ones `j` / `k` can choose
+    /// too; not 「未分組」 or an outer calendar listed above one inside it)
     fn jump_calendar(&mut self, step: isize) {
         let rows = self.tasks_rows();
         let Some(cursor) = self.tasks_cursor(&rows) else {
             return;
         };
-        let headings: Vec<usize> = rows
+        // (position in `rows`, line in the file) of each heading row that can be chosen
+        let headings: Vec<(usize, usize)> = rows
             .iter()
             .enumerate()
-            .filter(|&(position, row)| {
-                matches!(row, TaskRow::Heading { .. })
-                    && matches!(rows.get(position + 1), Some(TaskRow::Item { .. }))
+            .filter_map(|(position, row)| match row {
+                TaskRow::Heading {
+                    line: Some(line), ..
+                } => Some((position, *line)),
+                _ => None,
             })
-            .map(|(position, _)| position)
             .collect();
-        // The calendar the chosen item is in: the last heading above it
-        let Some(current) = headings.iter().rposition(|&heading| heading < cursor) else {
-            return;
-        };
-        let Some(&heading) = current
-            .checked_add_signed(step)
-            .and_then(|target| headings.get(target))
-        else {
-            return;
-        };
-        let first = rows[heading + 1..]
+        // The calendar the chosen row is in: the last heading at or above it; above the first heading
+        // (e.g. in 「未分組」), `]` goes to the first one
+        let current = headings
             .iter()
-            .take_while(|row| matches!(row, TaskRow::Item { .. }))
-            .find_map(|row| match row {
-                TaskRow::Item { index, .. } => self.items.get(*index),
-                TaskRow::Heading { .. } => None,
-            });
-        if let Some(item) = first {
-            self.tasks_line = Some(item.line);
+            .rposition(|&(position, _)| position <= cursor);
+        let target = match current {
+            Some(current) => current.checked_add_signed(step),
+            None if step > 0 => Some(0),
+            None => None,
+        };
+        if let Some(&(_, line)) = target.and_then(|target| headings.get(target)) {
+            self.tasks_line = Some(line);
         }
     }
 
