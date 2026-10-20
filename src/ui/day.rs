@@ -1,11 +1,12 @@
-//! Layout 2's day popup: sits in the middle of the month grid, one item per row (same style as layout 1's
-//! agenda; a title too long for the box wraps onto the next lines), with the selected day on the top border
-//! and some blank space inside the border when there is room
+//! Layout 2's day popup: sits in the middle of the month grid, one item per row (same colors as layout 1's
+//! agenda, but only a multi-day item writes its dates: the top border already says which day; a title too
+//! long for the box wraps onto the next lines), with the selected day on the top border and some blank
+//! space inside the border when there is room
 
 use super::{
     calendar_path, calendar_tag, clear_with_ring,
     months::scrolled_to_range,
-    planner::{item_line, secondary_color},
+    planner::{date_text, item_color, secondary_color, time_and_title},
     render_scrollbar,
     tasks::wrap,
 };
@@ -87,12 +88,26 @@ fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
     })
 }
 
-/// One item's lines at `width` cells (one blank cell kept at the end): its date and time, then its title,
-/// and its calendar's short name at the right end of the first line; a title that does not fit wraps onto
-/// the next lines, which start under the title (and leave the calendar's cells free too)
-fn item_lines(item: &Item, app: &App, chosen: bool, width: u16) -> Vec<Line<'static>> {
-    let mut spans = item_line(item, app, chosen).spans;
-    // The last span is the title, the ones before it the date (and time)
+/// One item's line before wrapping: its dates only when it spans several days, its time, then its title,
+/// e.g. 「 17:30 Buy groceries」, 「 10/16~18 Parents in town」
+fn popup_line(item: &Item, app: &App) -> Line<'static> {
+    let mut spans = vec![Span::raw(" ")];
+    if item.end.is_some() {
+        spans.push(Span::styled(
+            format!("{} ", date_text(item)),
+            Style::new().fg(item_color(item, app)),
+        ));
+    }
+    spans.extend(time_and_title(item, app));
+    Line::from(spans)
+}
+
+/// One item's lines at `width` cells (one blank cell kept at the end): see `popup_line`, and its
+/// calendar's short name at the right end of the first line; a title that does not fit wraps onto the
+/// next lines, which start under the title (and leave the calendar's cells free too)
+fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
+    let mut spans = popup_line(item, app).spans;
+    // The last span is the title, the ones before it the dates (and time)
     let title = spans.pop().into_iter().collect::<Vec<_>>();
     let prefix_width = Line::from(spans.clone()).width();
     let tag = tag_span(item, app);
@@ -126,7 +141,7 @@ fn item_lines(item: &Item, app: &App, chosen: bool, width: u16) -> Vec<Line<'sta
 fn heights(app: &App, width: u16) -> Vec<usize> {
     app.items_on(app.selected)
         .iter()
-        .map(|item| item_lines(item, app, false, width).len())
+        .map(|item| item_lines(item, app, width).len())
         .collect()
 }
 
@@ -135,12 +150,11 @@ fn heights(app: &App, width: u16) -> Vec<usize> {
 /// padding, so as many lines as possible show)
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let items = app.items_on(app.selected);
-    // The widest line: date, time, title and the calendar at the right end
+    // The widest line: dates, time, title and the calendar at the right end
     let widest = items
         .iter()
         .map(|item| {
-            item_line(item, app, false).width()
-                + tag_span(item, app).as_ref().map_or(0, Span::width)
+            popup_line(item, app).width() + tag_span(item, app).as_ref().map_or(0, Span::width)
         })
         .max()
         .unwrap_or(0);
@@ -201,9 +215,8 @@ fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
 /// Draws the popup: first scroll so the chosen item's lines are all visible (only scroll when they fall
 /// outside the box, so clicking a visible item does not scroll it away; stored in `app.day_top`, counted in
 /// lines), clear the month grid underneath and one blank cell around the box (as far as the month grid goes),
-/// then the items line by line. The chosen item's date gets brackets `[10/17]` and its lines the selection
-/// background from border to border (same as layout 1's agenda). When the lines do not fit, the right border
-/// has a scrollbar
+/// then the items line by line. The chosen item's lines get the selection background from border to border
+/// (same as layout 1's agenda). When the lines do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
     let heights = heights(app, inner.width);
@@ -249,10 +262,7 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     frame.render_widget(block, area);
     for (index, (item, start)) in app.items_on(app.selected).iter().zip(&starts).enumerate() {
         let chosen = index == app.day_index;
-        for (part, line) in item_lines(item, app, chosen, inner.width)
-            .iter()
-            .enumerate()
-        {
+        for (part, line) in item_lines(item, app, inner.width).iter().enumerate() {
             // Above the top of the box: skip; below its bottom: done
             let Some(offset) = (start + part).checked_sub(app.day_top) else {
                 continue;

@@ -577,12 +577,7 @@ pub(super) fn secondary_color(item: &Item, app: &App) -> Color {
 /// `chosen` = the chosen item while the keyboard is on the agenda: date in brackets `[10/17]`, bold
 pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     let theme = &app.theme;
-    // The line follows the item itself, not its day; gray once over
-    let color = if item.is_open(app.today) {
-        open_item_color(item, theme).0
-    } else {
-        theme.muted
-    };
+    let color = item_color(item, app);
     let date = date_text(item);
     // The date part is at least 7 cells wide: 「 10/17 」; the chosen one is 「[10/17]」 (a shorter date
     // gets blanks before the bracket; a multi-day range is longer)
@@ -597,14 +592,31 @@ pub(super) fn item_line(item: &Item, app: &App, chosen: bool) -> Line<'static> {
     } else {
         vec![Span::styled(format!(" {date:>5} "), Style::new().fg(color))]
     };
-    if let Some(time) = item.time {
-        spans.push(Span::styled(
+    spans.extend(time_and_title(item, app));
+    Line::from(spans)
+}
+
+/// An item's line color: it follows the item itself, not its day (see `open_item_color`); gray once over
+pub(super) fn item_color(item: &Item, app: &App) -> Color {
+    if item.is_open(app.today) {
+        open_item_color(item, &app.theme).0
+    } else {
+        app.theme.muted
+    }
+}
+
+/// The part of an item's line after its date: its time (only if it has one, see `secondary_color`) and
+/// its title, e.g. 「17:30 交週報」; the title is always the last span
+pub(super) fn time_and_title(item: &Item, app: &App) -> Vec<Span<'static>> {
+    let time = item.time.map(|time| {
+        Span::styled(
             format!("{} ", time.strftime("%H:%M")),
             Style::new().fg(secondary_color(item, app)),
-        ));
-    }
-    spans.push(title_span(item, color));
-    Line::from(spans)
+        )
+    });
+    time.into_iter()
+        .chain([title_span(item, item_color(item, app))])
+        .collect()
 }
 
 /// The same horizontal line across both boxes (`thick` = the thick new-year line); in the calendar
