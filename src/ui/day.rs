@@ -21,6 +21,13 @@ use ratatui::{
     widgets::{Block, BorderType},
 };
 
+/// Cells kept free left and right of the box at its widest (like the editor), so it does not touch what is
+/// beside the month grid
+const SIDE_MARGIN: u16 = 2;
+
+/// Below this month-grid width the box may take the whole width (no `SIDE_MARGIN`)
+const NARROW: u16 = 30;
+
 /// Narrowest popup width (incl. border): enough room for the date on the top border
 const MIN_WIDTH: u16 = 30;
 
@@ -250,7 +257,13 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     // Left and right border + one blank cell at the end
     let bare_width = to_u16(widest + 3);
-    let horizontal = if bare_width + 2 * PADDING.horizontal <= main.width {
+    // The widest the box gets: `SIDE_MARGIN` cells free on each side, unless the month grid is narrow
+    let room = if main.width >= NARROW {
+        main.width - 2 * SIDE_MARGIN
+    } else {
+        main.width
+    };
+    let horizontal = if bare_width + 2 * PADDING.horizontal <= room {
         PADDING.horizontal
     } else {
         0
@@ -261,7 +274,7 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let width = (bare_width + 2 * horizontal)
         .max(MIN_WIDTH)
         .max(titles)
-        .min(main.width);
+        .min(room);
     // Lines: the items wrapped at the width inside the border and padding
     let lines: usize = heights(&pieces(app, width.saturating_sub(2 + 2 * horizontal)))
         .iter()

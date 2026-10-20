@@ -3129,35 +3129,39 @@ fn tasks_page_with_the_side_menu() {
 
 #[test]
 fn a_long_title_wraps_in_the_day_popup() {
-    // 60 × 20, layout 2: the long title makes the popup as wide as the month grid (60, x 0, too wide for
-    // blank cells left and right); inside the border 58 cells, a single-day item has no date, just one
-    // blank cell in front, and one blank stays at the end, so the title wraps at 56 cells (expected lines
-    // from the Python `wrap` in tools/expected_screen.py), the second line under the title; 3 lines +
-    // border + a blank row above and below = 7 tall → y 6, the lines at y 8-10
+    // 60 × 20, layout 2: the long title makes the popup as wide as it gets, the month grid less 2 cells on
+    // each side (56, x 2; too wide for blank cells left and right inside); inside the border 54 cells, a
+    // single-day item has no date, just one blank cell in front, and one blank stays at the end, so the
+    // title wraps at 52 cells (expected lines from the Python `wrap` in tools/expected_screen.py), the
+    // second line under the title; 3 lines + border + a blank row above and below = 7 tall → y 6, the
+    // lines at y 8-10
     let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.focus = Focus::Day;
     app.screen = Rect::new(0, 0, 60, 20);
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
-    assert_eq!(day_area(&app), Rect::new(0, 6, 60, 7));
-    let rows: Vec<String> = area_rows(buffer, Rect::new(1, 8, 58, 3))
+    assert_eq!(day_area(&app), Rect::new(2, 6, 56, 7));
+    let rows: Vec<String> = area_rows(buffer, Rect::new(3, 8, 54, 3))
         .iter()
         .map(|row| row.trim_end().to_string())
         .collect();
     assert_eq!(
         rows,
         [
-            " A really long title that just keeps going and going and",
-            " going past the edge of the box",
+            " A really long title that just keeps going and going",
+            " and going past the edge of the box",
             " Pack",
         ]
     );
     // The chosen (first) item: both lines have the selection background from border to border
     let theme = Theme::default();
-    assert_eq!(buffer[(1, 9)].bg, theme.selection);
-    assert_eq!(buffer[(58, 9)].bg, theme.selection);
-    assert_eq!(buffer[(1, 10)].bg, Color::Reset);
+    assert_eq!(buffer[(3, 9)].bg, theme.selection);
+    assert_eq!(buffer[(56, 9)].bg, theme.selection);
+    assert_eq!(buffer[(3, 10)].bg, Color::Reset);
+    // The 2 cells left of the box: a blank ring cell, then the month grid's own left border
+    assert_eq!(buffer[(1, 9)].symbol(), " ");
+    assert_eq!(buffer[(0, 9)].symbol(), "│");
     // A click on the wrapped line is the first item; on the next line, the second
     assert_eq!(day_item_at(&app, 20, 9), Some(0));
     assert_eq!(day_item_at(&app, 20, 10), Some(1));
@@ -3170,10 +3174,10 @@ fn a_long_title_wraps_in_the_day_popup() {
     let terminal = draw_app(&mut app, 60, 8);
     let rows = text_rows(terminal.backend().buffer());
     assert!(
-        rows[5].starts_with("│ going past the edge of the box "),
+        rows[5].contains("│ and going past the edge of the box "),
         "{rows:#?}"
     );
-    assert!(rows[1].starts_with("│ b "), "{rows:#?}");
+    assert!(rows[1].contains("│ b "), "{rows:#?}");
 }
 
 #[test]
