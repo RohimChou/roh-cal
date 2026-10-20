@@ -1,7 +1,7 @@
 //! Side menu: the calendar list on the far left (calendar = a group in the task file). It is drawn on the
 //! far left when the terminal is wide enough; otherwise `s` brings it up over the left side
 
-use super::{Click, months::scrolled_top, planner::inner_areas, render_scrollbar};
+use super::{Click, check_box, months::scrolled_top, planner::inner_areas, render_scrollbar};
 use crate::{
     app::{App, Focus, Group, SideSwitch},
     config::CalendarListSettings,
@@ -149,15 +149,18 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 .areas(row);
         // Checked: ☑ in the `checked` color and the name in normal text color; unchecked: ☐ and the name
         // are both muted. Only its own check counts, not the calendars around it
-        let (mark, mark_color, name_color) = if group.shown {
-            ("☑", theme.checked, theme.text)
+        let (mark_color, name_color) = if group.shown {
+            (theme.checked, theme.text)
         } else {
-            ("☐", theme.muted, theme.muted)
+            (theme.muted, theme.muted)
         };
         frame.render_widget(
             Line::from(vec![
                 Span::raw(indent(group)),
-                Span::styled(format!(" {mark} "), Style::new().fg(mark_color)),
+                Span::styled(
+                    format!(" {}", check_box(group.shown)),
+                    Style::new().fg(mark_color),
+                ),
                 Span::styled(name(group, texts), Style::new().fg(name_color)),
             ]),
             name_area,
@@ -191,14 +194,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             ),
         ];
         for (row, switch, on, name) in rows {
-            let (mark, mark_color) = if on {
-                ("☑", theme.checked)
-            } else {
-                ("☐", theme.muted)
-            };
+            let mark_color = if on { theme.checked } else { theme.muted };
             frame.render_widget(
                 Line::from(vec![
-                    Span::styled(format!(" {mark} "), Style::new().fg(mark_color)),
+                    Span::styled(format!(" {}", check_box(on)), Style::new().fg(mark_color)),
                     Span::styled(name, Style::new().fg(theme.text)),
                 ]),
                 row,

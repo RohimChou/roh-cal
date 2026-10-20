@@ -69,6 +69,11 @@ SIDE_MIN, SIDE_MAX = 22, 38  # side menu min / max width (borders included; the 
                              # [calendar_list] max_width); width follows the longest calendar
 
 
+# A check box and the no-break space after it (see `check_box` in src/ui.rs: a plain space would let the
+# terminal draw a borrowed `☐` two cells wide)
+BOX_ON, BOX_OFF = "☑\u00a0", "☐\u00a0"
+
+
 def width(s):
     return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in s)
 
@@ -272,12 +277,12 @@ def side_lines(t, h, groups):
     # Below the header (when at least 4 rows are left under it): the two switches and a rule; 「隱藏全部」 is
     # checked only when every calendar is unchecked
     if h - 3 - 2 >= 4:
-        hide_all = " ☑ " if groups and len(HIDDEN) == len(groups) else " ☐ "
-        rows += [ljust(hide_all + t["hide_all"], iw), ljust(" ☐ " + t["hide_done"], iw), "─" * iw]
+        hide_all = " " + (BOX_ON if groups and len(HIDDEN) == len(groups) else BOX_OFF)
+        rows += [ljust(hide_all + t["hide_all"], iw), ljust(" " + BOX_OFF + t["hide_done"], iw), "─" * iw]
     for i, (path, count) in enumerate(groups):
         count = f" {count} "
         indent, name = group_label(t, path)
-        left = indent + (" ☐ " if i in HIDDEN else " ☑ ") + name
+        left = indent + " " + (BOX_OFF if i in HIDDEN else BOX_ON) + name
         rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
     rows = (rows + [" " * iw] * h)[: h - 3]
     return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
@@ -967,4 +972,5 @@ else:
     out = screen(lang, w, h, selected, first, skip, items, groups)
 for line in out:
     assert width(line) == w, (width(line), line)
-    print(f'            "{line.rstrip()}",')
+    # The no-break space after a check box is written as `\u{a0}`, so the Rust test shows where it is
+    print(f'            "{line.rstrip()}",'.replace("\u00a0", "\\u{a0}"))

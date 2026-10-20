@@ -124,6 +124,14 @@ fn calendar_path(item: &Item) -> Option<String> {
     Some(names.join(" > "))
 }
 
+/// A check box and the space after it: `☑ ` when `checked`, else `☐ `. The space is a no-break space
+/// (U+00A0), which looks the same as a plain one: many fonts have no `☐`, so the terminal borrows it from
+/// another font, often a wide CJK one, and Ghostty draws such a borrowed symbol two cells wide when a plain
+/// space follows it, covering the space (any other character after it keeps it one cell)
+fn check_box(checked: bool) -> &'static str {
+    if checked { "☑\u{a0}" } else { "☐\u{a0}" }
+}
+
 /// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
 /// and a space
 const IN_PROGRESS_ICON: &str = "🚧 ";

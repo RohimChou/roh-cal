@@ -4,7 +4,7 @@
 //! space inside the border when there is room
 
 use super::{
-    calendar_path, calendar_tag, clear_with_ring,
+    calendar_path, calendar_tag, check_box, clear_with_ring,
     months::scrolled_to_range,
     planner::{date_text, item_color, secondary_color, time_and_title},
     render_scrollbar,
@@ -78,13 +78,17 @@ fn open_color(open: usize, total: usize, theme: &Theme) -> Color {
 /// switches); `c` or a click flips it
 fn switch_line(app: &App) -> Line<'static> {
     let theme = &app.theme;
-    let (mark, color) = if app.settings.day_popup.by_calendar {
-        ("☑", theme.checked)
+    let by_calendar = app.settings.day_popup.by_calendar;
+    let color = if by_calendar {
+        theme.checked
     } else {
-        ("☐", theme.muted)
+        theme.muted
     };
     Line::from(vec![
-        Span::styled(format!(" {mark} "), Style::new().fg(color)),
+        Span::styled(
+            format!(" {}", check_box(by_calendar)),
+            Style::new().fg(color),
+        ),
         Span::styled(
             format!("{} ", app.lang.texts().by_calendar),
             Style::new().fg(theme.text),

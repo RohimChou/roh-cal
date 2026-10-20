@@ -119,6 +119,7 @@ App::run 的迴圈
 | TestBackend 裡，寬字元（中文）後半那格永遠是預設樣式 | 量顏色時跳過那格；`text_rows` 也是這樣把字接起來 |
 | 跳窗蓋在月曆上時，左邊那格的中文字（佔 2 格）後半格會蓋到跳窗的左框線（ratatui 假設中文字後面那格是空的，不會送框線給 terminal） | 畫跳窗之前先呼叫 `ui::clear_wide_left_of` 把那格換成空白（編輯框、版型 2 的跳窗走 `ui::clear_with_ring`，它會清外面那一圈的左邊） |
 | `cargo add ... \| head` | 管線一關，cargo 在寫 `Cargo.toml` 之前就被中斷；不要接 `head` |
+| 很多字型沒有 `☐`：terminal 去別的字型借（常借到中日韓的寬字型），Ghostty 看到後面接一般空格，就把借來的符號畫成 2 格，蓋掉空格，框變得又大又擠 | 勾選框一律用 `ui::check_box`：框後面接不斷行空格（U+00A0），看起來一樣，但 Ghostty 不會撐大；test 的預期畫面寫成 `\u{a0}`（`tools/expected_screen.py` 的 `BOX_ON` / `BOX_OFF` 也一樣） |
 
 ## 跨多天的事（規則 3b，`@2026-10-20..2026-10-25`）
 `Item::date` 是第一天、`Item::end` 是最後一天（只有一天是 `None`）；`Item::covers(day)` = 頭尾和中間每一天。
