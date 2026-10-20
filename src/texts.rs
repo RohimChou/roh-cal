@@ -115,8 +115,6 @@ pub struct EditorWords {
     pub can_type: &'static str,
     /// An item's title
     pub title: &'static str,
-    /// The title field while nothing is typed after `- [ ] ` yet
-    pub title_placeholder: &'static str,
     /// An item's date (`@2026-10-19`)
     pub date: &'static str,
     /// Its time (`@10:00`)
@@ -203,7 +201,6 @@ const EN: Texts = Texts {
     editor_words: EditorWords {
         can_type: "Add",
         title: "Title",
-        title_placeholder: "(type it after - [ ])",
         date: "Date",
         time: "Time",
         priority: "Priority",
@@ -438,7 +435,6 @@ const ZH_TW: Texts = Texts {
     editor_words: EditorWords {
         can_type: "可以打",
         title: "標題",
-        title_placeholder: "（打在 - [ ] 後面）",
         date: "日期",
         time: "時間",
         priority: "優先度",

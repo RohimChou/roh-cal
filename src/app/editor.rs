@@ -44,7 +44,7 @@ pub struct Editor {
     /// The `#` list of calendars to pick from
     pub hash_list: HashList,
     /// `Enter` was pressed but it could not be saved: an empty title (or name) shows as a mistake from then
-    /// on, until the text changes (before that, a gray hint where the title goes)
+    /// on, until the text changes (before that, an empty title is just left blank)
     pub tried: bool,
 }
 

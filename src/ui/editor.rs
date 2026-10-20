@@ -238,9 +238,9 @@ fn body(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
 /// What the typed text reads as, one field per line with its label in front (only the fields it has), e.g.
 /// `標題  Pay rent`, `日期  2026/10/21（三） 10:00`, `優先度  高` (in its color), `日曆  Work > SFAP`; then what
 /// is wrong, in red on its own line. An item is read leniently (a wrong date stays in the title as text), so
-/// the fields show while it is being fixed; an empty title (or name) is a gray hint until `Enter` could not
-/// save it (`Editor::tried`). A calendar: its name, `類型  假日日曆` for a holiday calendar, the calendar it is
-/// inside (`上層日曆  最外層` at the top level)
+/// the fields show while it is being fixed; an empty title is left blank, an empty name is a gray hint, and
+/// neither is called wrong until `Enter` could not save it (`Editor::tried`). A calendar: its name,
+/// `類型  假日日曆` for a holiday calendar, the calendar it is inside (`上層日曆  最外層` at the top level)
 fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -251,10 +251,7 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
     match &editor.target {
         Target::Edit { .. } | Target::Add(_) => {
             if let Some(item) = crate::tasks::parse(&editor.line()).items.into_iter().next() {
-                fields.push(match item.title.is_empty() {
-                    true => (words.title, Span::styled(words.title_placeholder, muted)),
-                    false => (words.title, Span::styled(item.title.clone(), text)),
-                });
+                fields.push((words.title, Span::styled(item.title.clone(), text)));
                 if item.date.is_some() {
                     fields.push((words.date, Span::styled(texts.when(&item), text)));
                 }

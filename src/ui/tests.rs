@@ -1250,7 +1250,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     assert_eq!(trimmed(&rows[4]), "│  標題  Pick up the cake 🎂 17:99");
     assert_eq!(trimmed(&rows[6]), "│  17:99：沒有這個時間");
     assert_eq!(terminal.backend().buffer()[(5, 6)].fg, theme.error);
-    // Adding: the calendar it goes into (日曆), a gray hint where the title goes; the hint row wraps (it
+    // Adding: the calendar it goes into (日曆), the title field blank; the hint row wraps (it
     // does not fit 62 cells), the next line under the first thing; too tall for the blank rows above and
     // below: 10 tall at y 0
     let mut app = App::new(
@@ -1271,7 +1271,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
         [
             "│  - [ ]",
             "",
-            "│  標題  （打在 - [ ] 後面）",
+            "│  標題",
             "│  日期  2026/10/17（六）",
             "│  日曆  Work > SFAP",
             "",
@@ -1279,7 +1279,6 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
             "│          日曆 #名字",
         ]
     );
-    assert_eq!(terminal.backend().buffer()[(11, 3)].fg, theme.muted);
 }
 
 #[test]
@@ -1360,12 +1359,11 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
 }
 
 #[test]
-fn an_empty_title_is_a_gray_hint_until_enter_cannot_save_it() {
+fn an_empty_title_is_blank_until_enter_cannot_save_it() {
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.screen = Rect::new(0, 0, 80, 24);
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
-    let theme = Theme::default();
     let rows = |app: &mut App| -> Vec<String> {
         let terminal = draw_app(app, 80, 24);
         area_rows(terminal.backend().buffer(), editor_area(app))
@@ -1373,12 +1371,10 @@ fn an_empty_title_is_a_gray_hint_until_enter_cannot_save_it() {
             .map(|row| row.trim_end_matches([' ', '│']).to_string())
             .collect()
     };
-    // Just opened: the title field is a gray hint, nothing red
+    // Just opened: the title field is blank, nothing red
     let opened = rows(&mut app);
-    assert!(opened.contains(&"│  標題  （打在 - [ ] 後面）".to_string()));
+    assert!(opened.contains(&"│  標題".to_string()));
     assert!(!opened.iter().any(|row| row.contains("標題是空的")));
-    let terminal = draw_app(&mut app, 80, 24);
-    assert_eq!(terminal.backend().buffer()[(11, 10)].fg, theme.muted);
     // Enter cannot save it: it stays open, and a red row says why
     app.handle_key(KeyEvent::from(KeyCode::Enter));
     assert!(app.editor().is_some());
