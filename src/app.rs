@@ -13,7 +13,7 @@ pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
 pub use picker::Picker;
-pub use settings::{Row, SettingsPage, rows};
+pub use settings::{Place, Row, SettingsPage, rows};
 pub use tasks::TaskRow;
 pub use write::Notice;
 

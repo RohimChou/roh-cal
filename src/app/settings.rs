@@ -6,7 +6,7 @@
 //! value, `e` on a color row opens the color picker (`picker.rs`), `r` resets that row, `R` resets
 //! everything (press `y` to confirm), `q` / `Esc` / `,` or a click outside the box closes it
 
-use super::{App, Mode, Notice, View};
+use super::{App, Focus, Mode, Notice, View};
 use crate::config::{self, CalendarListSettings, Settings};
 use crate::theme::{self, Theme};
 use crate::ui;
@@ -29,6 +29,18 @@ pub struct SettingsPage {
     pub colors_top: usize,
     /// `R` was pressed and it is asking whether to reset everything (the bottom border becomes the question)
     pub confirm_reset: bool,
+}
+
+/// A part of the screen a setting changes something on (the settings page dims a setting while none of its
+/// places is on screen)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// One of the views (`1` `2` `3`)
+    View(View),
+    /// The calendar list on the left, while it is on screen
+    CalendarList,
+    /// The day popup (layouts 1 and 2), while it is open
+    DayPopup,
 }
 
 /// One row of the settings page = one setting in the config file
@@ -85,31 +97,36 @@ impl Row {
         }
     }
 
-    /// The views this setting changes something on (the settings page dims it on the others);
-    /// `None` = every view
-    pub fn views(self) -> Option<&'static [View]> {
+    /// The places this setting changes something on (the settings page dims it while none of them is on
+    /// screen, see `applies_here`); `None` = everywhere
+    pub fn places(self) -> Option<&'static [Place]> {
+        const CALENDARS: &[Place] = &[Place::View(View::Planner), Place::View(View::Month)];
+        const PLANNER: &[Place] = &[Place::View(View::Planner)];
+        const MONTH: &[Place] = &[Place::View(View::Month)];
         match self {
-            // The day popup opens in layouts 1 and 2 too
-            Self::RelativeWeeks | Self::ByCalendar => Some(&[View::Planner, View::Month]),
+            Self::RelativeWeeks => Some(CALENDARS),
             // Only layout 1's calendar has dots
-            Self::Dots => Some(&[View::Planner]),
-            Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
+            Self::Dots => Some(PLANNER),
+            Self::GridLines | Self::CenterCursor => Some(MONTH),
+            Self::ListWidth => Some(&[Place::CalendarList]),
+            Self::ByCalendar => Some(&[Place::DayPopup]),
             // Colors only the calendars draw: the year line, week numbers; the month grid's own: its grid
             // lines and multi-day bars
-            Self::Color("year_line" | "week_number" | "week_number_dim") => {
-                Some(&[View::Planner, View::Month])
-            }
-            Self::Color("grid" | "range") => Some(&[View::Month]),
+            Self::Color("year_line" | "week_number" | "week_number_dim") => Some(CALENDARS),
+            Self::Color("grid" | "range") => Some(MONTH),
             // Only layout 1 has brackets around the selected day and the chosen item (the month grid gives
             // the selected day a background), and underlines overlapping multi-day items
-            Self::Color("selected" | "range_overlap") => Some(&[View::Planner]),
-            Self::Theme | Self::ListWidth | Self::HideDone | Self::Color(_) => None,
+            Self::Color("selected" | "range_overlap") => Some(PLANNER),
+            // The calendar list's ☑ and the day popup's switch
+            Self::Color("checked") => Some(&[Place::CalendarList, Place::DayPopup]),
+            Self::Theme | Self::HideDone | Self::Color(_) => None,
         }
     }
 
-    /// Whether this setting changes something on `view`
-    pub fn applies_to(self, view: View) -> bool {
-        self.views().is_none_or(|views| views.contains(&view))
+    /// Whether this setting changes something on screen now: one of its places is (see `App::on_screen`)
+    pub fn applies_here(self, app: &App) -> bool {
+        self.places()
+            .is_none_or(|places| places.iter().any(|&place| app.on_screen(place)))
     }
 
     /// The name shown on the left = the name in the config file (pinned by a test)
@@ -268,6 +285,16 @@ fn wrap(index: usize, step: isize, len: usize) -> usize {
 }
 
 impl App {
+    /// Whether `place` is on screen now: the current view; the calendar list when it takes up the left
+    /// side or is called up over it (`s`); the day popup while it is open
+    pub fn on_screen(&self, place: Place) -> bool {
+        match place {
+            Place::View(view) => self.view == view,
+            Place::CalendarList => self.side_shown() || ui::side_overlay(self).is_some(),
+            Place::DayPopup => self.focus == Focus::Day,
+        }
+    }
+
     /// `,`: opens the settings page with the first row chosen
     pub(super) fn open_settings(&mut self) {
         self.mode = Mode::Settings {

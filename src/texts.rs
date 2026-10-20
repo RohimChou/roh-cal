@@ -1,6 +1,6 @@
 //! On-screen text: one set in English, one in Traditional Chinese; switching language = switching `Texts`
 
-use crate::app::{Focus, Notice, Row, View};
+use crate::app::{Focus, Notice, Place, Row, View};
 use crate::edit::Problem;
 use crate::tasks::{Item, WarningKind};
 use jiff::civil::Date;
@@ -935,18 +935,22 @@ impl Texts {
         }
     }
 
-    /// Below the description on the settings page, when the chosen setting does nothing on the current view:
-    /// which views it is for, e.g. `這個畫面用不到：2 大月曆`
-    pub fn setting_elsewhere(&self, views: &[View]) -> String {
-        let name = |view: &View| match (self.lang, view) {
-            (Lang::En, View::Planner) => "1 calendar",
-            (Lang::En, View::Month) => "2 month grid",
-            (Lang::En, View::Tasks) => "3 tasks page",
-            (Lang::ZhTw, View::Planner) => "1 月曆",
-            (Lang::ZhTw, View::Month) => "2 大月曆",
-            (Lang::ZhTw, View::Tasks) => "3 任務頁",
+    /// Below the description on the settings page, when the chosen setting changes nothing on screen now:
+    /// where it is used, e.g. `這個畫面用不到：2 大月曆`, `這個畫面用不到：日曆清單`
+    pub fn setting_elsewhere(&self, places: &[Place]) -> String {
+        let name = |place: &Place| match (self.lang, place) {
+            (Lang::En, Place::View(View::Planner)) => "1 calendar",
+            (Lang::En, Place::View(View::Month)) => "2 month grid",
+            (Lang::En, Place::View(View::Tasks)) => "3 tasks page",
+            (Lang::En, Place::CalendarList) => "calendar list",
+            (Lang::En, Place::DayPopup) => "day popup",
+            (Lang::ZhTw, Place::View(View::Planner)) => "1 月曆",
+            (Lang::ZhTw, Place::View(View::Month)) => "2 大月曆",
+            (Lang::ZhTw, Place::View(View::Tasks)) => "3 任務頁",
+            (Lang::ZhTw, Place::CalendarList) => "日曆清單",
+            (Lang::ZhTw, Place::DayPopup) => "那天的事",
         };
-        let names: Vec<&str> = views.iter().map(name).collect();
+        let names: Vec<&str> = places.iter().map(name).collect();
         match self.lang {
             Lang::En => format!("Only in {}", names.join(", ")),
             Lang::ZhTw => format!("這個畫面用不到：{}", names.join("、")),

@@ -167,38 +167,69 @@ fn a_terminal_color_stays_itself_in_a_theme_with_the_same_palette_name() {
 
 #[test]
 fn colors_a_view_does_not_draw_are_for_the_other_views() {
+    // Lit on `view`: it is used everywhere, or on that view
+    let on_view = |row: Row, view: View| {
+        row.places()
+            .is_none_or(|places| places.contains(&Place::View(view)))
+    };
     // The tasks page draws no week numbers, year line, selected brackets, grid lines or bars; layout 1
     // draws no grid lines or bars, and only layout 1 the selected brackets (the month grid gives the
     // selected day a background) and the overlap underline; the rest (text, today and day-off colors in
     // the date column…) are everywhere
     for role in ["year_line", "week_number", "week_number_dim"] {
         let row = Row::Color(role);
-        assert!(!row.applies_to(View::Tasks), "{role}");
+        assert!(!on_view(row, View::Tasks), "{role}");
         assert!(
-            row.applies_to(View::Planner) && row.applies_to(View::Month),
+            on_view(row, View::Planner) && on_view(row, View::Month),
             "{role}"
         );
     }
     for role in ["grid", "range"] {
         let row = Row::Color(role);
         assert!(
-            !row.applies_to(View::Tasks) && !row.applies_to(View::Planner),
+            !on_view(row, View::Tasks) && !on_view(row, View::Planner),
             "{role}"
         );
-        assert!(row.applies_to(View::Month), "{role}");
+        assert!(on_view(row, View::Month), "{role}");
     }
     // Only layout 1 has the selected brackets and underlines overlapping multi-day items
     for role in ["selected", "range_overlap"] {
         let row = Row::Color(role);
-        assert!(row.applies_to(View::Planner), "{role}");
+        assert!(on_view(row, View::Planner), "{role}");
         assert!(
-            !row.applies_to(View::Month) && !row.applies_to(View::Tasks),
+            !on_view(row, View::Month) && !on_view(row, View::Tasks),
             "{role}"
         );
     }
     for role in ["text", "today", "weekend", "selection", "priority_high"] {
-        assert_eq!(Row::Color(role).views(), None, "{role}");
+        assert_eq!(Row::Color(role).places(), None, "{role}");
     }
+}
+
+#[test]
+fn rows_about_the_calendar_list_or_the_day_popup_are_lit_only_while_it_is_on_screen() {
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    let lit = |app: &App| {
+        [Row::ListWidth, Row::ByCalendar, Row::Color("checked")].map(|row| row.applies_here(app))
+    };
+    // 130 wide: the calendar list is on the left; the day popup is closed
+    app.screen = Rect::new(0, 0, 130, 30);
+    assert_eq!(lit(&app), [true, false, true]);
+    // Hidden with `s`: neither is on screen
+    app.side_hidden = true;
+    assert_eq!(lit(&app), [false, false, false]);
+    // The day popup open
+    app.view = View::Month;
+    app.focus = super::super::Focus::Day;
+    assert_eq!(lit(&app), [false, true, true]);
+    // 100 wide (no room for the list) with it called up over the left by `s`
+    app.screen = Rect::new(0, 0, 100, 30);
+    app.focus = super::super::Focus::Side;
+    assert_eq!(lit(&app), [true, false, true]);
+    // A row for a view: only on that view
+    assert!(Row::GridLines.applies_here(&app));
+    app.view = View::Tasks;
+    assert!(!Row::GridLines.applies_here(&app));
 }
 
 #[test]

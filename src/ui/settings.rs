@@ -123,7 +123,7 @@ pub fn area(app: &App, screen: Rect) -> Rect {
     let description_width = rows()
         .iter()
         .flat_map(|&row| {
-            let elsewhere = row.views().map(|views| texts.setting_elsewhere(views));
+            let elsewhere = row.places().map(|places| texts.setting_elsewhere(places));
             [texts.setting_description(row).to_string()]
                 .into_iter()
                 .chain(elsewhere)
@@ -252,7 +252,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
             ),
             Entry::Row(index) => {
                 let row = rows[index];
-                let applies = row.applies_to(app.view);
+                let applies = row.applies_here(app);
                 let (name_style, mut value_style) = if applies {
                     (Style::new().fg(theme.help_key), Style::new().fg(theme.text))
                 } else {
@@ -305,10 +305,10 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
             ..list
         },
     );
-    if let Some(views) = chosen.views().filter(|_| !chosen.applies_to(app.view)) {
+    if let Some(places) = chosen.places().filter(|_| !chosen.applies_here(app)) {
         frame.render_widget(
             Line::styled(
-                format!("  {}", texts.setting_elsewhere(views)),
+                format!("  {}", texts.setting_elsewhere(places)),
                 Style::new().fg(theme.notice),
             ),
             Rect {
