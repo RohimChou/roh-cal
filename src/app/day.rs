@@ -37,8 +37,8 @@ impl App {
         self.focus = Focus::Day;
     }
 
-    /// Keyboard in the popup: `j` / `k` next / previous item. Keys that write match the agenda:
-    /// `Space` / `x` check, `r` reschedule, `e` / `Enter` edit,
+    /// Keyboard in the popup: `j` / `k` next / previous item, `c` grouped by calendar or not. Keys that
+    /// write match the agenda: `Space` / `x` check, `r` reschedule, `e` / `Enter` edit,
     /// `a` add, `A` add a subtask, `d` delete (closing with `Esc` / `q` is in `handle_normal_key`)
     pub(super) fn handle_day_key(&mut self, code: KeyCode) {
         match code {
@@ -51,7 +51,20 @@ impl App {
             KeyCode::Char('a') => self.start_adding(),
             KeyCode::Char('A') => self.start_adding_subtask(),
             KeyCode::Char('d') => self.ask_delete(),
+            KeyCode::Char('c') => self.toggle_by_calendar(),
             _ => {}
+        }
+    }
+
+    /// `c` or a click on the switch on the bottom border: `[day_popup] by_calendar` on ⇄ off, saved to the
+    /// config file right away (like 「隱藏做完的」); the same item stays chosen
+    fn toggle_by_calendar(&mut self) {
+        let line = self.chosen_item().map(|item| item.line);
+        let before = self.settings.clone();
+        self.settings.day_popup.by_calendar = !before.day_popup.by_calendar;
+        self.save_switch(&before);
+        if let Some(line) = line {
+            self.choose_day_line(line);
         }
     }
 
@@ -62,11 +75,15 @@ impl App {
     }
 
     /// Left click at time `now` while the popup is open: clicking an item chooses it; a double click checks
-    /// it (like the agenda).
+    /// it (like the agenda); clicking the switch on the bottom border flips it (like `c`).
     /// A click outside the box closes the popup (like `Esc`); clicks on the border or empty space are ignored
     pub(super) fn click_day(&mut self, column: u16, row: u16, now: Instant) {
         if !ui::day_area(self).contains(Position::new(column, row)) {
             self.focus = Focus::Calendar;
+            return;
+        }
+        if ui::day_switch_area(self).contains(Position::new(column, row)) {
+            self.toggle_by_calendar();
             return;
         }
         let Some(index) = ui::day_item_at(self, column, row) else {

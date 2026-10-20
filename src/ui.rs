@@ -59,6 +59,11 @@ pub fn day_area(app: &App) -> Rect {
     day::area(app, areas(app.screen, app).main)
 }
 
+/// Where the switch on the day popup's bottom border is (so a click can flip it)
+pub fn day_switch_area(app: &App) -> Rect {
+    day::switch_area(app, areas(app.screen, app).main)
+}
+
 /// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::day_items`)
 pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
     day::item_at(app, areas(app.screen, app).main, column, row)

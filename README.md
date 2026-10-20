@@ -114,7 +114,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `[` / `]` | First day of the previous / next month |
 | `t` | Jump to today |
-| `Enter` | Open the selected day's items in a popup over the calendar (both layouts): all of that day's items (long titles wrap), the ones hidden behind `+N` too, where the item keys below work (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day. `Tab` goes into layout 1's agenda instead |
+| `Enter` | Open the selected day's items in a popup over the calendar (both layouts): all of that day's items (long titles wrap), the ones hidden behind `+N` too, where the item keys below work, and `c` (or clicking the switch at the right end of the bottom border) lists them under their calendars or in one list, saved to the config file right away (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day. `Tab` goes into layout 1's agenda instead |
 | `a` | Add an item on the selected day, in the calendar of that day's first item (or the first calendar that is not a holiday calendar when the day has none); the editor shows the calendar under the line (Calendar); to pick another one, type `#` and part of its name (see `a` / `A` below). With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
 
 **On an item** (the agenda, layout 2's day popup, the tasks page)
@@ -176,7 +176,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[calendar_list]` `max_width` | `38` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |
 | `[calendar_list]` `hide_done` | `false` | Hide done tasks (and their subtasks) everywhere |
-| `[day_popup]` `by_calendar` | `true` | The day popup lists the items under their outermost calendar's name; when off, one list with each item's outermost calendar at its right end |
+| `[day_popup]` `by_calendar` | `true` | The day popup lists the items under their outermost calendar's name; when off, one list with each item's outermost calendar at its right end; `c` in the popup switches it too |
 | `[colors]` *role* | the theme's | Override one role's color, e.g. `today = "#a6e3a1"`: a color (`#rrggbb`, a terminal color name such as `light-blue` or `LightBlue`, or a 256-color number) or a name from the theme's palette. The roles are the names under `[roles]` in [themes/](themes/) |
 
 ## Themes

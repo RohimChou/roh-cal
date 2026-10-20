@@ -3201,13 +3201,14 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
             "│  10:00 Farmers market                  │",
             "│  17:30 Buy groceries                   │",
             "│                                        │",
-            "╰────────────────────────────────────────╯",
+            "╰────────────────────────── ☑ 照日曆分組 ╯",
         ]
     );
-    // The key hints are 61 cells, so at 60 cells wide the last character is cut
+    // The bottom border's right end: the switch for grouping by calendar (on by default). The key hints
+    // are 69 cells, so at 60 cells wide 「Esc 關閉」 is cut
     assert_eq!(
         text_rows(buffer)[19],
-        " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  Esc 關"
+        " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  c 分組"
     );
     // The border has the color of where the keyboard is; the chosen row (y 7) has the selection
     // background from border to border (x 10-49, the padding cells too), the others none; its dates are
@@ -3866,8 +3867,8 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
-    // Not grouped by calendar: the outermost calendar ends one blank cell before the padding; none
-    // outside a calendar or for a holiday
+    // Not grouped by calendar (☐ on the bottom border): the outermost calendar ends one blank cell before
+    // the padding; none outside a calendar or for a holiday
     assert_eq!(
         area_rows(buffer, area),
         [
@@ -3878,7 +3879,7 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
             "│  Pay the fine                Life  │",
             "│  Day off                           │",
             "│                                    │",
-            "╰────────────────────────────────────╯",
+            "╰───────────────────── ☐ By calendar ╯",
         ]
     );
     // Colored like the time: muted, or the whole line's color with a priority
@@ -3934,7 +3935,7 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
             "│  Holidays                          │",
             "│    Day off                         │",
             "│                                    │",
-            "╰────────────────────────────────────╯",
+            "╰───────────────────── ☑ By calendar ╯",
         ]
     );
     // A calendar's name is in the color of the tasks page's calendar headings
@@ -3967,18 +3968,41 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
         (rows.last().cloned().unwrap_or_default(), color)
     };
     // The chosen item is in CAIS > Reports: its whole path on the left of the bottom border, in the color
-    // of the tasks page's calendar headings
+    // of the tasks page's calendar headings; the switch stays at the right end
     app.day_index = 1;
     assert_eq!(
         bottom(&mut app),
         (
-            "╰ CAIS > Reports ────────────────────╯".to_string(),
+            "╰ CAIS > Reports ───── ☑ By calendar ╯".to_string(),
             Theme::default().label
         )
     );
-    // The chosen item is outside any calendar: a plain border
+    // The chosen item is outside any calendar: only the switch
     app.day_index = 0;
-    assert_eq!(bottom(&mut app).0, "╰────────────────────────────────────╯");
+    assert_eq!(bottom(&mut app).0, "╰───────────────────── ☑ By calendar ╯");
+    // ☑ in the `checked` color, its name in the text color; the border before the path keeps its own
+    // color (the path is 16 cells, the switch 15: 「─」 at x 17 is the border)
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    let y = area.bottom() - 1;
+    let theme = Theme::default();
+    assert_eq!(buffer[(area.right() - 15, y)].symbol(), "☑");
+    assert_eq!(buffer[(area.right() - 15, y)].fg, theme.checked);
+    assert_eq!(buffer[(area.right() - 13, y)].fg, theme.text);
+    assert_eq!(buffer[(area.x + 17, y)].fg, theme.focus);
+    // A click there flips it: the switch's 15 cells end next to the corner
+    assert_eq!(
+        day_switch_area(&app),
+        Rect::new(area.right() - 16, y, 15, 1)
+    );
+    // A path too long for the room left of the switch is cut, one line cell before the switch
+    let text =
+        "# CAIS\n## 2603_Monthly_report_handover_to_CAIS\n- [ ] Send the report @2026-10-17\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    assert_eq!(bottom(&mut app).0, "╰ CAIS > 2603_Monthly─ ☑ By calendar ╯");
 }
 
 #[test]

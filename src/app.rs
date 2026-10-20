@@ -902,13 +902,18 @@ impl App {
         }
     }
 
-    /// `[calendar_list] hide_done` on ⇄ off, saved to the config file right away (only that line); if it
-    /// cannot save, the bottom row says so
+    /// `[calendar_list] hide_done` on ⇄ off, saved to the config file right away (see `save_switch`)
     fn toggle_hide_done(&mut self) {
         let before = self.settings.clone();
         self.settings.calendar_list.hide_done = !before.calendar_list.hide_done;
+        self.save_switch(&before);
+    }
+
+    /// A switch flipped outside the settings page (`before` = the settings before it): saved to the config
+    /// file right away (only that line); if it cannot save, the bottom row says so
+    fn save_switch(&mut self, before: &Settings) {
         if let Some(path) = &self.config_path
-            && let Err(error) = config::save(path, &before, &self.settings)
+            && let Err(error) = config::save(path, before, &self.settings)
         {
             self.notice = Some(Notice::SettingsFailed(error.kind()));
         }

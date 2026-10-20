@@ -330,3 +330,58 @@ fn deleting_moving_and_adding_from_the_popup() {
     assert_eq!((app.view, app.focus), (View::Month, Focus::Calendar));
     clean_up(&path);
 }
+
+#[test]
+fn c_and_a_click_on_the_bottom_border_switch_grouping_by_calendar() {
+    // By time the calendars take turns (Work 09:00, Life 12:00, Work 17:00); grouped, Work's two come first
+    let text = "# Work\n- [ ] Standup @2026-10-17 09:00\n- [ ] Deploy @2026-10-17 17:00\n\
+                # Life\n- [ ] Gym @2026-10-17 12:00\n";
+    let mut app = App::new(
+        Lang::ZhTw,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 60, 20);
+    let dir = crate::files::test_dir("day-popup-by-calendar");
+    let path = dir.join("config.toml");
+    app.config_path = Some(path.clone());
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(
+        (app.day_index, chosen(&app).as_deref()),
+        (1, Some("Deploy"))
+    );
+    // c: one list by time (Standup, Gym, Deploy), Deploy stays chosen; written to the config file right
+    // away
+    press(&mut app, KeyCode::Char('c'));
+    assert!(!app.settings.day_popup.by_calendar);
+    assert_eq!(
+        (app.day_index, chosen(&app).as_deref()),
+        (2, Some("Deploy"))
+    );
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "[day_popup]\nby_calendar = false\n"
+    );
+    // A click on the switch flips it back; the popup stays open
+    let switch = ui::day_switch_area(&app);
+    mouse(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        switch.x + 1,
+        switch.y,
+    );
+    assert!(app.settings.day_popup.by_calendar);
+    assert_eq!(
+        (app.focus, app.day_index, chosen(&app).as_deref()),
+        (Focus::Day, 1, Some("Deploy"))
+    );
+    assert!(
+        std::fs::read_to_string(&path)
+            .expect("read")
+            .contains("by_calendar = true")
+    );
+    app.config_path = None;
+    let _ = std::fs::remove_dir_all(&dir);
+}

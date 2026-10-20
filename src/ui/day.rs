@@ -66,6 +66,40 @@ fn open_color(open: usize, total: usize, theme: &Theme) -> Color {
     }
 }
 
+/// The switch at the right end of the bottom border, e.g. 「 ☑ By calendar 」: ☑ in the `checked` color
+/// while grouped by calendar (`[day_popup] by_calendar`), ☐ muted when not (like the calendar list's
+/// switches); `c` or a click flips it
+fn switch_line(app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let (mark, color) = if app.settings.day_popup.by_calendar {
+        ("☑", theme.checked)
+    } else {
+        ("☐", theme.muted)
+    };
+    Line::from(vec![
+        Span::styled(format!(" {mark} "), Style::new().fg(color)),
+        Span::styled(
+            format!("{} ", app.lang.texts().by_calendar),
+            Style::new().fg(theme.text),
+        ),
+    ])
+    .right_aligned()
+}
+
+/// Where the switch is (see `switch_line`): the right end of the bottom border, next to the corner
+pub fn switch_area(app: &App, main: Rect) -> Rect {
+    let area = area(app, main);
+    let width = u16::try_from(switch_line(app).width())
+        .unwrap_or(u16::MAX)
+        .min(area.width.saturating_sub(2));
+    Rect::new(
+        area.right().saturating_sub(1 + width),
+        area.bottom().saturating_sub(1),
+        width,
+        1,
+    )
+}
+
 /// Blank space between the border and the items when the month grid has room for it: one row above and
 /// below, one cell left and right
 const PADDING: Margin = Margin::new(1, 1);
@@ -309,20 +343,30 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     if let Some(counts) = counts {
         block = block.title_top(counts);
     }
-    // Bottom border: the chosen item's whole calendar path, in the calendar headings' color (as on the tasks
-    // page); cut off at the right if the box is narrower
+    let switch = switch_line(app);
+    let switch_width = u16::try_from(switch.width()).unwrap_or(u16::MAX);
+    block = block.title_bottom(switch);
+    clear_with_ring(frame, area, main);
+    frame.render_widget(block, area);
+    // Bottom border, left: the chosen item's whole calendar path, in the calendar headings' color (as on
+    // the tasks page); cut off at the right so a line cell stays before the switch
     if let Some(path) = app
         .day_items()
         .get(app.day_index)
         .and_then(|item| calendar_path(item))
     {
-        block = block.title_bottom(Line::styled(
+        // Colored by its span, not the line: a line's style would also color the border cells it covers
+        let path = Line::from(Span::styled(
             format!(" {path} "),
             Style::new().fg(theme.label),
         ));
+        let room = area.width.saturating_sub(2 + switch_width + 1);
+        let width = u16::try_from(path.width()).unwrap_or(u16::MAX).min(room);
+        frame.render_widget(
+            path,
+            Rect::new(area.x + 1, area.bottom().saturating_sub(1), width, 1),
+        );
     }
-    clear_with_ring(frame, area, main);
-    frame.render_widget(block, area);
     for (piece, start) in pieces.iter().zip(&starts) {
         let chosen = piece.item == Some(app.day_index);
         for (part, line) in piece.lines.iter().enumerate() {
