@@ -258,9 +258,10 @@ fn date_columns(app: &App, rows: &[TaskRow]) -> (usize, usize) {
         })
 }
 
-/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is its name (indented 2 cells
-/// per calendar it is inside, the label color, bold); an item's line is that line of its left part, and on the
-/// first line its date and time columns on the right
+/// Draws line `part` of one row (`row` laid out as `layout`) in `area`: a heading is `▾` (muted) and its name
+/// (the label color, bold), indented 2 cells per calendar it is inside; 「未分組」 has a blank instead of `▾`.
+/// An item's line is that line of its left part, and on the first line its date and time columns on the
+/// right
 fn render_line(
     frame: &mut Frame,
     area: Rect,
@@ -271,13 +272,17 @@ fn render_line(
     let theme = &app.theme;
     match (row, layout) {
         (TaskRow::Heading { name, depth, .. }, _) => {
+            let marker = if name.is_some() { "▾" } else { " " };
             let name = name.as_deref().unwrap_or(app.lang.texts().ungrouped);
             let indent = "  ".repeat(*depth);
             frame.render_widget(
-                Line::styled(
-                    format!(" {indent}{name}"),
-                    Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
-                ),
+                Line::from(vec![
+                    Span::styled(format!(" {indent}{marker} "), Style::new().fg(theme.muted)),
+                    Span::styled(
+                        name.to_string(),
+                        Style::new().fg(theme.label).add_modifier(Modifier::BOLD),
+                    ),
+                ]),
                 area,
             );
         }
@@ -377,10 +382,12 @@ pub(super) fn wrap(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'stati
         .collect()
 }
 
-/// How many levels an item's line is indented (2 cells each): the calendars its calendar is inside (an item
-/// in `Work > SFAP` 1 more, under its heading), plus its own subtask depth
+/// How many levels an item's line is indented (2 cells each): one under its calendar's heading (so its `▸`
+/// lines up with the heading's name), the calendars its calendar is inside (an item in `Work > SFAP` 1 more),
+/// plus its own subtask depth
 fn levels(item: &Item) -> usize {
-    item.group
+    1 + item
+        .group
         .as_ref()
         .map_or(0, |heading| heading.parents.len())
         + item.depth

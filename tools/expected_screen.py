@@ -845,7 +845,8 @@ def tasks_screen(lang, w, h, text, groups):
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
         check = ("[x]" if it["done"] else "[/]" if it["in_progress"] else "[ ]") if it["task"] else " ∙ "
-        levels = (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]
+        # One level under the calendar's heading, plus the calendars it is inside, plus its subtask depth
+        levels = 1 + (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]
         prefix = " " + "  " * levels + marker + " " + check + " "
         text = it["title"]
         subtasks = [c for c in children if c["task"]]
@@ -867,7 +868,9 @@ def tasks_screen(lang, w, h, text, groups):
     for row in rows:
         if row[0] == "heading":
             _, name, depth = row
-            row_lines.append([ljust(cut(" " + "  " * depth + (t["ungrouped"] if name is None else name), iw), iw)])
+            # `▾` before a calendar's name (「未分組」 has a blank there)
+            marker = " " if name is None else "▾"
+            row_lines.append([ljust(cut(" " + "  " * depth + marker + " " + (t["ungrouped"] if name is None else name), iw), iw)])
         else:
             row_lines.append(item_lines(row[1]))
     all_lines = [line for lines in row_lines for line in lines]
