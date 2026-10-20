@@ -6,11 +6,13 @@
 # (only the terminal's 16 colors)
 theme = "gruvbox-dark"
 
-# Shared by the calendars (layouts 1 and 2)
+# The calendars (layouts 1 and 2)
 [calendar]
 # Week-number column: the selected week shows its week number, other weeks show how many weeks away
 # they are (default false)
 relative_weeks = true
+# Layout 1's calendar: a dot right of each date for each of that day's items (default true)
+dots = false
 
 # The month grid (layout 2)
 [month]

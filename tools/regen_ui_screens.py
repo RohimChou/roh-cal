@@ -25,6 +25,7 @@ PLAN = {
     "calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom": [(["en", "42", "11", "2026-11-07", "2026-10", "4"], False, {}), (["en", "42", "11", "2026-10-31", "2026-10", "2"], False, {})],
     "calendar_scrolls_up_into_earlier_months": [(["zh", "42", "11", "2026-10-10", "2026-09", "5"], False, {})],
     "agenda_lists_each_months_items_next_to_it": [(["zh", "77", "23", "2026-10-17"], True, {})],
+    "the_calendar_without_dots": [(["zh", "77", "23", "2026-10-17"], True, {"NO_DOTS": "1"})],
     "the_agenda_stays_one_column_when_wide": [(["en", "102", "15", "2026-10-17"], True, {"WINDOW": "1"})],
     "agenda_focus_brackets_the_chosen_item": [(["zh", "77", "23", "2026-10-17"], True, {"CHOSEN": "5"})],
     "a_capped_month_scrolls_inside_while_choosing_items": [(["zh", "77", "11", "2026-10-20"], True, {"CHOSEN": "7", "WINDOW": "3"})],

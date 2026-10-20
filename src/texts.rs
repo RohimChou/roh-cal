@@ -941,6 +941,8 @@ impl Texts {
             (Lang::ZhTw, Row::Theme) => "顏色：l 換下一套 theme，h 換上一套",
             (Lang::En, Row::RelativeWeeks) => "Weeks: count from the selected week",
             (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：其他週寫跟選取那週差幾週",
+            (Lang::En, Row::Dots) => "Calendar: a dot per item that day",
+            (Lang::ZhTw, Row::Dots) => "月曆：日期右邊一件事一個點點",
             (Lang::En, Row::GridLines) => "Month grid: lines between the cells",
             (Lang::ZhTw, Row::GridLines) => "大月曆：格子之間畫淡淡的格線",
             (Lang::En, Row::CenterCursor) => "Month grid: centers the selected week",

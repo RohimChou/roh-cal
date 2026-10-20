@@ -40,8 +40,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
     assert_eq!(app.notice, None);
     // Ctrl+C saves before quitting too
     press(&mut app, KeyCode::Char(','));
-    press(&mut app, KeyCode::Char('j'));
-    press(&mut app, KeyCode::Char('j'));
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('j'));
+    }
     press(&mut app, KeyCode::Char('l'));
     app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
     assert!(app.should_quit);
@@ -71,9 +72,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
 #[test]
 fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     let mut app = app_with_settings();
-    // Row 7 is text's color: l switches to the palette's next color
+    // Row 8 is text's color: l switches to the palette's next color
     // (subtext0), records it in [colors], and the screen changes right away
-    for _ in 0..6 {
+    for _ in 0..7 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -201,7 +202,10 @@ fn every_switch_has_a_row() {
     let Settings {
         theme: _,
         colors: _,
-        calendar: CalendarSettings { relative_weeks: _ },
+        calendar: CalendarSettings {
+            relative_weeks: _,
+            dots: _,
+        },
         month: MonthSettings {
             grid_lines: _,
             center_cursor: _,
@@ -212,7 +216,7 @@ fn every_switch_has_a_row() {
                 hide_done: _,
             },
     } = Settings::default();
-    assert_eq!(rows().len(), 6 + theme::ROLES.len());
+    assert_eq!(rows().len(), 7 + theme::ROLES.len());
 }
 
 #[test]
@@ -297,11 +301,15 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     assert!(app.settings.calendar.relative_weeks);
     press(&mut app, KeyCode::Char('h'));
     assert!(!app.settings.calendar.relative_weeks);
+    // j to dots: l turns it off (on by default)
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('l'));
+    assert!(!app.settings.calendar.dots);
     // j to grid_lines, Space turns it off; k back to the first row; it does not go above the top
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char(' '));
     assert!(!app.settings.month.grid_lines);
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Char('k'));
     }
     assert_eq!(app.settings_page().map(|page| page.row), Some(0));
@@ -323,6 +331,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
     // r: resets only grid_lines, the rest stays
     press(&mut app, KeyCode::Char('r'));
@@ -340,7 +349,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         app.settings_page().map(|page| page.confirm_reset),
         Some(false)
     );
-    assert_eq!(app.settings_page().map(|page| page.row), Some(2));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(3));
     assert!(app.settings.calendar.relative_weeks);
     // R then y: resets everything, and the screen colors go back to the default theme
     press(&mut app, KeyCode::Char('R'));
@@ -349,7 +358,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     assert_eq!(app.theme, Theme::default());
     assert!(app.settings_page().is_some());
     // The theme row can also be reset alone with r
-    for _ in 0..2 {
+    for _ in 0..3 {
         press(&mut app, KeyCode::Char('k'));
     }
     press(&mut app, KeyCode::Char('h'));
@@ -360,8 +369,8 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
 
 #[test]
 fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-    // 100 × 30: the box (46 × 38) is taller than the screen, so it shrinks to 30 high,
-    // at (27, 0); grid_lines is line 6 of the list: 0 + border 1 + padding 1 + 6 = 8
+    // 100 × 30: the box (26 tall) starts at row 2; grid_lines is list line 5 (theme, [calendar],
+    // relative_weeks, dots, [month], grid_lines): 2 + border 1 + 5 = 8
     let mut app = app_with_settings();
     let click = |app: &mut App, column, row| {
         app.handle_mouse(MouseEvent {
@@ -372,7 +381,7 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
         });
     };
     click(&mut app, 50, 8);
-    assert_eq!(app.settings_page().map(|page| page.row), Some(2));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(3));
     assert!(app.settings.month.grid_lines);
     // Click the chosen row again: change the value
     click(&mut app, 50, 8);
@@ -384,7 +393,7 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
         row: 8,
         modifiers: KeyModifiers::NONE,
     });
-    assert_eq!(app.settings_page().map(|page| page.row), Some(3));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(4));
     // Click outside the box: closes it, and the calendar underneath is not clicked
     click(&mut app, 0, 0);
     assert_eq!(app.settings_page(), None);

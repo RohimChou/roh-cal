@@ -396,8 +396,8 @@ fn render_week(
 }
 
 /// The dates of the 7 days, `DAY_WIDTH` cells per day: a blank, the date right-aligned in 2 cells, and its
-/// dots after it (one per item that day, `dots`); the selected day gets brackets: `[17]`, or `[17⠒]` around
-/// its dots
+/// dots after it (one per item that day, `dots`; a blank when `[calendar] dots` is off); the selected day
+/// gets brackets: `[17]`, or `[17⠒]` around its dots
 ///
 /// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
 /// date; `]` takes the cell after the date when it has no dots, else the next day's first blank (for
@@ -448,7 +448,10 @@ fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
         // The cell after the date (between it and the next day's): its dots; when it has none, the
         // selected day's `]`
         let after = between(*day, days.get(i + 1).copied().flatten());
-        let count = day.map_or(0, |day| app.items_on(day).len());
+        let count = match day {
+            Some(day) if app.settings.calendar.dots => app.items_on(*day).len(),
+            _ => 0,
+        };
         close = selected && count > 0;
         if selected && count == 0 {
             spans.push(Span::styled("]", bracket.patch(after)));

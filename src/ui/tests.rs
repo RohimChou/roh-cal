@@ -712,6 +712,42 @@ fn agenda_lists_each_months_items_next_to_it() {
 }
 
 #[test]
+fn the_calendar_without_dots() {
+    // Config `[calendar] dots = false`: no dots right of the dates, the selected day reads `[17]`; the
+    // calendar keeps its width (the cell after each date stays blank), the agenda is unchanged
+    let mut app = agenda_app(Lang::ZhTw);
+    app.settings.calendar.dots = false;
+    assert_eq!(
+        text_rows(draw_app(&mut app, 77, 23).backend().buffer()),
+        [
+            "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
+            "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
+            "│──────────┼─────────────────────────────││─────────────────────────────────│",
+            "│  10月 40 │              1   2   3   4  ││  10/5 Pay the phone bill        │",
+            "│       41 │  5   6   7   8   9  10  11  ││ 10/10 Farmers market            │",
+            "│       42 │ 12  13  14  15  16 [17] 18  ││ 10/15 Fix the login bug         │",
+            "│       43 │ 19  20  21  22  23  24  25  ││ 10/16 17:30 Send the weekly upda│",
+            "│       44 │ 26  27  28  29  30  31      ││ 10/17 Dinner with friends       │",
+            "│          │                             ││ 10/17 08:00 Coffee chat         │",
+            "│          │                             ││ 10/18 07:00 Go hiking           │",
+            "│          │                             ││ 10/20 A really long title that j│",
+            "│──────────┼─────────────────────────────││─────────────────────────────────│",
+            "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3        │",
+            "│       45 │  2   3   4   5   6   7   8  ││                                 │",
+            "│       46 │  9  10  11  12  13  14  15  ││                                 │",
+            "│       47 │ 16  17  18  19  20  21  22  ││                                 │",
+            "│       48 │ 23  24  25  26  27  28  29  ││                                 │",
+            "│       49 │ 30                          ││                                 │",
+            "│──────────┼─────────────────────────────││─────────────────────────────────│",
+            "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
+            "│       50 │  7   8   9  10  11  12  13  ││                                 │",
+            "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
+            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+        ]
+    );
+}
+
+#[test]
 fn the_agenda_stays_one_column_when_wide() {
     // Agenda 58 cells wide: still one column. October's 8 items need more than its 6 rows (2/3 of the
     // calendar's 9), so its agenda scrolls to keep 10/17's two items in view with one row after them:

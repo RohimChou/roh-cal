@@ -112,7 +112,8 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
         Settings {
             theme: "gruvbox-dark".to_string(),
             calendar: CalendarSettings {
-                relative_weeks: true
+                relative_weeks: true,
+                dots: false,
             },
             month: MonthSettings {
                 grid_lines: false,
@@ -149,6 +150,7 @@ fn updated_changes_only_what_differs_and_keeps_comments() {
     let settings = Settings {
         calendar: CalendarSettings {
             relative_weeks: true,
+            ..CalendarSettings::default()
         },
         ..with_month(|month| {
             month.grid_lines = false;

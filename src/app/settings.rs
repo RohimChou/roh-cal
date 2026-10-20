@@ -38,6 +38,8 @@ pub enum Row {
     Theme,
     /// `[calendar] relative_weeks`
     RelativeWeeks,
+    /// `[calendar] dots`
+    Dots,
     /// `[month] grid_lines`
     GridLines,
     /// `[month] center_cursor`
@@ -56,6 +58,7 @@ pub fn rows() -> Vec<Row> {
     let mut rows = vec![
         Row::Theme,
         Row::RelativeWeeks,
+        Row::Dots,
         Row::GridLines,
         Row::CenterCursor,
         Row::ListWidth,
@@ -71,7 +74,7 @@ impl Row {
     pub fn section(self) -> Option<&'static str> {
         match self {
             Self::Theme => None,
-            Self::RelativeWeeks => Some("calendar"),
+            Self::RelativeWeeks | Self::Dots => Some("calendar"),
             Self::GridLines | Self::CenterCursor => Some("month"),
             Self::ListWidth | Self::HideDone => Some("calendar_list"),
             Self::Color(_) => Some("colors"),
@@ -83,6 +86,8 @@ impl Row {
     pub fn views(self) -> Option<&'static [View]> {
         match self {
             Self::RelativeWeeks => Some(&[View::Planner, View::Month]),
+            // Only layout 1's calendar has dots
+            Self::Dots => Some(&[View::Planner]),
             Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
             // Colors only the calendars draw: the year line, week numbers, the selected brackets; the month
             // grid's own: its grid lines and multi-day bars
@@ -106,6 +111,7 @@ impl Row {
         match self {
             Self::Theme => "theme",
             Self::RelativeWeeks => "relative_weeks",
+            Self::Dots => "dots",
             Self::GridLines => "grid_lines",
             Self::CenterCursor => "center_cursor",
             Self::ListWidth => "max_width",
@@ -120,6 +126,7 @@ impl Row {
         match self {
             Self::Theme | Self::ListWidth | Self::Color(_) => None,
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
+            Self::Dots => Some(&mut settings.calendar.dots),
             Self::GridLines => Some(&mut settings.month.grid_lines),
             Self::CenterCursor => Some(&mut settings.month.center_cursor),
             Self::HideDone => Some(&mut settings.calendar_list.hide_done),
@@ -144,6 +151,7 @@ impl Row {
                     .map_or_else(|| theme::color_text(color), |(name, _)| name.clone())
             }
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
+            Self::Dots => on_off(settings.calendar.dots),
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::CenterCursor => on_off(settings.month.center_cursor),
             Self::HideDone => on_off(settings.calendar_list.hide_done),

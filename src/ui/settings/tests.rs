@@ -85,9 +85,9 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     // the inside is as wide as a row (indent 4 + name column 18 + the longest value, catppuccin-mocha,
     // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells: the descriptions
     // and the key hints on the bottom border fit in it;
-    // no blank lines; `[colors]` shows its first 10 colors (13 more below): 25 rows tall
+    // no blank lines; `[colors]` shows its first 10 colors (13 more below): 26 rows tall
     let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-    assert_eq!(area, Rect::new(14, 10, 43, 25));
+    assert_eq!(area, Rect::new(14, 9, 43, 26));
     assert_eq!(
         rows,
         [
@@ -95,6 +95,7 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
             "│  theme               catppuccin-mocha   │",
             "│  [calendar]                             │",
             "│    relative_weeks    off                │",
+            "│    dots              on                 │",
             "│  [month]                                │",
             "│    grid_lines        on                 │",
             "│    center_cursor     off                │",
@@ -268,13 +269,13 @@ fn colors_scroll_inside_their_section() {
         app.settings_page().map(|page| (page.top, page.colors_top)),
         Some((0, 3))
     );
-    assert_eq!(rows[11], "│    year_line            lavender        │");
-    assert_eq!(rows[20], "│    checked              mauve           │");
-    // The scrollbar beside the colors (x 42, rows 11-20): its thumb moved down from the top, and the
+    assert_eq!(rows[12], "│    year_line            lavender        │");
+    assert_eq!(rows[21], "│    checked              mauve           │");
+    // The scrollbar beside the colors (x 42, rows 12-21): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border
     let border = |dy: u16| cell(&buffer, area, 42, dy).symbol().to_string();
-    assert_eq!(border(11), "│");
-    assert!((12..=20).any(|dy| border(dy) == "┃"));
+    assert_eq!(border(12), "│");
+    assert!((13..=21).any(|dy| border(dy) == "┃"));
     assert_eq!(border(5), "│");
     // Back up to text: `[colors]` scrolls back to its first color; a row above `[colors]` keeps it
     let page = SettingsPage {
@@ -319,7 +320,8 @@ fn clicks_map_to_the_rows() {
     let last = rows()[colors().0 + COLOR_ROWS - 1];
     assert_eq!(click(8, y_of(Row::Theme)), Some(0));
     assert_eq!(click(8, y_of(Row::RelativeWeeks)), Some(1));
-    assert_eq!(click(1, y_of(Row::GridLines)), Some(2));
+    assert_eq!(click(8, y_of(Row::Dots)), Some(2));
+    assert_eq!(click(1, y_of(Row::GridLines)), Some(3));
     assert_eq!(
         click(8, y_of(Row::ListWidth)),
         Some(index_of(Row::ListWidth))
@@ -376,6 +378,19 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
         theme.help_key
     );
     assert_eq!(rows[rows.len() - 2].trim_end_matches([' ', '│']), "");
+    // ...and dots is dimmed there: only layout 1's calendar has dots
+    let mut app =
+        App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
+    app.view = crate::app::View::Month;
+    let (_, area, rows, buffer) = draw_app(app, choosing(index_of(Row::Dots)), 44);
+    assert_eq!(
+        cell(&buffer, area, NAME, y_of(Row::Dots)).fg,
+        theme.other_month
+    );
+    assert_eq!(
+        rows[rows.len() - 2].trim_end_matches([' ', '│']),
+        "│  這個畫面用不到：1 月曆"
+    );
     // Tasks page: relative_weeks is for layouts 1 and 2; theme is for every view
     let mut app =
         App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");

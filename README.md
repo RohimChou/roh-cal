@@ -170,6 +170,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- | :- |
 | `theme` | `"nord"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
+| `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4) |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
 | `[calendar_list]` `max_width` | `43` | The widest the calendar list on the left gets, in cells (22 to 60): it follows the longest calendar name up to this, longer names are cut |

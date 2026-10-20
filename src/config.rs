@@ -32,7 +32,7 @@ use toml_edit::{DocumentMut, Item, Table, TableLike};
 pub struct Settings {
     /// Which built-in theme to use (a name in `theme::BUILTIN`), e.g. `nord`
     pub theme: String,
-    /// `[calendar]`: switches shared by the calendars of layouts 1 and 2
+    /// `[calendar]`: switches for the calendars of layouts 1 and 2
     pub calendar: CalendarSettings,
     /// `[month]`: switches for the big month calendar (layout 2)
     pub month: MonthSettings,
@@ -73,14 +73,26 @@ impl Default for Settings {
     }
 }
 
-/// Switches shared by the calendars (the config file's
-/// `[calendar]`); all off by default (`bool` defaults to `false`)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+/// Switches for the calendars of layouts 1 and 2 (the config file's `[calendar]`); defaults are in
+/// `Default`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CalendarSettings {
     /// Week-number column: the selected week shows its week number, other
     /// weeks show how many weeks they are from it (like vim's relativenumber)
     pub relative_weeks: bool,
+    /// Layout 1's calendar: a dot right of each date for each of that day's items; when off, that cell is
+    /// blank (the calendar keeps its width)
+    pub dots: bool,
+}
+
+impl Default for CalendarSettings {
+    fn default() -> Self {
+        Self {
+            relative_weeks: false,
+            dots: true,
+        }
+    }
 }
 
 /// Switches for the big month calendar (the config file's `[month]`); defaults are in `Default`

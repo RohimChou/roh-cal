@@ -26,6 +26,7 @@ NO_GRID = layout 2 draws no grid lines (config `[month] grid_lines = false`);
 CENTER = layout 2 keeps the selected row on row 3 (`center_cursor = true`; the top-row argument is not needed);
 RELATIVE = week-number column in layouts 1 and 2: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
+NO_DOTS = layout 1's calendar draws no dots right of the dates (`[calendar] dots = false`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
 are not shown; LAYOUT = 2 is layout 2, 3 is the tasks page
 Today is always 2026-10-17.
@@ -61,6 +62,7 @@ SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
 CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
+NO_DOTS = "NO_DOTS" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 SIDE_MIN, SIDE_MAX = 22, 43  # side menu min / max width (borders included; the max is the config's default
                              # [calendar_list] max_width); width follows the longest calendar
@@ -350,16 +352,18 @@ def screen(lang, w, h, selected, first, skip, items, groups):
                 label = t["month"](m)
             if i < len(weeks):
                 week = weeks[i]
-                # 4 cells a day: blanks, the date right-aligned in cells 2-3, then its dots; one more blank
-                # after Sunday
-                days = list("".join(f"{d:>3}" + DOTS[min(on_day(datetime.date(y, m, d)), 4)] if d else "    "
+                # 4 cells a day: blanks, the date right-aligned in cells 2-3, then its dots (a blank with
+                # NO_DOTS); one more blank after Sunday
+                def dot_count(d):
+                    return 0 if NO_DOTS else on_day(datetime.date(y, m, d))
+                days = list("".join(f"{d:>3}" + DOTS[min(dot_count(d), 4)] if d else "    "
                                     for d in week) + " ")
                 for k, d in enumerate(week):
                     if d and datetime.date(y, m, d) == selected:
                         start = 4 * k + 3 - len(str(d))
                         days[start - 1] = "["
                         # `]` right after the date when it has no dots, else after its dots
-                        days[4 * k + 3 + (1 if on_day(datetime.date(y, m, d)) else 0)] = "]"
+                        days[4 * k + 3 + (1 if dot_count(d) else 0)] = "]"
                 day = next(d for d in week if d)
                 left = rjust(label, 6) + f"{week_number(datetime.date(y, m, day), selected):>3} " + "│" + "".join(days)
                 year = y
