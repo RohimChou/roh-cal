@@ -160,7 +160,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 | Action | Effect |
 | :- | :- |
-| Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar) |
+| Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar); on the month grid (`2`) it only scrolls the weeks and the selected day stays, until a key moves it back into view |
 | Click | Select a day, an item or a calendar; double-click a day to go into its items, a task to check it off (a single click never checks one off); click a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
 
 ## Config file

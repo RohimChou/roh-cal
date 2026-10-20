@@ -2500,6 +2500,44 @@ fn month_view_without_grid_lines_gives_the_cells_more_room() {
 }
 
 #[test]
+fn the_month_grid_wheel_scrolls_and_keeps_the_selected_day() {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+    // Layout 2 at 80 × 30 with 10/17 selected: it opens with the week of 10/1 (Monday 9/28) on top
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 30);
+    draw_app(&mut app, 80, 30);
+    assert_eq!(app.month_top, Some(date(2026, 9, 28)));
+    let wheel = |app: &mut App, kind| {
+        app.handle_mouse(MouseEvent {
+            kind,
+            column: 40,
+            row: 10,
+            modifiers: KeyModifiers::NONE,
+        });
+    };
+    // Wheel down 3: 10/19 on top (the 6 weeks are 10/19-11/29), so 10/17's week is off screen; it stays
+    // selected, and drawing does not scroll back to it
+    for _ in 0..3 {
+        wheel(&mut app, MouseEventKind::ScrollDown);
+    }
+    draw_app(&mut app, 80, 30);
+    assert_eq!(app.selected, date(2026, 10, 17));
+    assert_eq!(app.month_top, Some(date(2026, 10, 19)));
+    // Wheel up: 10/12 on top
+    wheel(&mut app, MouseEventKind::ScrollUp);
+    draw_app(&mut app, 80, 30);
+    assert_eq!(app.month_top, Some(date(2026, 10, 12)));
+    // Down again (10/19 on top), then a key that moves the selection (l: 10/18): the view comes back just
+    // enough to show its week, 10/12, on the top row
+    wheel(&mut app, MouseEventKind::ScrollDown);
+    app.handle_key(KeyEvent::from(KeyCode::Char('l')));
+    draw_app(&mut app, 80, 30);
+    assert_eq!(app.selected, date(2026, 10, 18));
+    assert_eq!(app.month_top, Some(date(2026, 10, 12)));
+}
+
+#[test]
 fn month_view_keeps_the_selected_week_in_the_middle() {
     // Config `[month] center_cursor = true`: the selected week stays on row 3 (also right after opening,
     // instead of the week with the 1st on top)

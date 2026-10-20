@@ -313,6 +313,9 @@ pub struct App {
     /// Layout 2 scroll: the Monday of the top week (`None` = on the next draw, put the week with the 1st of
     /// the selected month at the top)
     pub month_top: Option<Date>,
+    /// Layout 2 was scrolled with the wheel while this day was selected: the 6 weeks stay where the wheel
+    /// left them (the selected day may be off screen) until the selection changes
+    pub month_free: Option<Date>,
     /// Screen colors
     pub theme: Theme,
     /// Settings from the config file (theme, colors, grid lines, relative week numbers…);
@@ -378,6 +381,7 @@ impl App {
             calendar_top: None,
             agenda_window: None,
             month_top: None,
+            month_free: None,
             theme: Theme::default(),
             settings: Settings::default(),
             config_path: None,
@@ -1029,10 +1033,12 @@ impl App {
         double
     }
 
-    /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on the calendar, one item in the
-    /// agenda, the tasks page, or the popup, and one calendar in the side menu
+    /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on layout 1's calendar (layout 2's
+    /// only scrolls, `scroll_month`), one item in the agenda, the tasks page, or the popup, and one calendar
+    /// in the side menu
     fn scroll(&mut self, step: i8) {
         match self.focus {
+            Focus::Calendar if self.view == View::Month => self.scroll_month(step),
             Focus::Calendar => self.move_by(7 * i64::from(step)),
             Focus::Agenda => self.choose_next(isize::from(step)),
             Focus::Side => self.choose_group(isize::from(step)),
@@ -1060,6 +1066,16 @@ impl App {
     fn go_today(&mut self) {
         self.selected = self.today;
         self.scroll_to_month();
+    }
+
+    /// Layout 2's wheel: the 6 weeks move a week down (`step` = 1) / up (-1) and the selected day stays, even
+    /// off screen; the next key that moves the selection brings it back into view (`ui::month::render`)
+    fn scroll_month(&mut self, step: i8) {
+        let top = self
+            .month_top
+            .unwrap_or_else(|| calendar::monday_of(self.selected.first_of_month()));
+        self.month_top = Some(top.saturating_add((7 * i64::from(step)).days()));
+        self.month_free = Some(self.selected);
     }
 
     /// On the next draw, scroll the selected day's month to the top (in both layouts)

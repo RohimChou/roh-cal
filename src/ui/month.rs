@@ -169,13 +169,16 @@ fn month_top(date: Date) -> Date {
 /// Draws the month grid: a rounded box (the border lights up when the keyboard is on the calendar) with
 /// the selected day in the middle of the top border; inside are the header (weekday names) + 6 weeks of cells
 ///
-/// First scroll so the selected week is visible (stored in `app.month_top`), then draw
+/// First scroll so the selected week is visible (stored in `app.month_top`), then draw; after the wheel
+/// (`app.month_free`) the 6 weeks stay put until the selection changes
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
-    let top = scrolled(
-        app.month_top.unwrap_or_else(|| month_top(app.selected)),
-        app.selected,
-        app.settings.month.center_cursor,
-    );
+    let top = app.month_top.unwrap_or_else(|| month_top(app.selected));
+    let top = if app.month_free == Some(app.selected) {
+        top
+    } else {
+        app.month_free = None;
+        scrolled(top, app.selected, app.settings.month.center_cursor)
+    };
     app.month_top = Some(top);
     // Read-only from here on
     let app = &*app;

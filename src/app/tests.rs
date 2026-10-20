@@ -929,9 +929,10 @@ fn the_mouse_works_in_the_month_view() {
     // Click the Tuesday cell of week 2 (not necessarily on the date): selects that day
     app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 20, 9));
     assert_eq!(app.selected, date(2026, 9, 29));
-    // The wheel moves a week
+    // The wheel scrolls the 6 weeks a week (9/28 on top); the selected day stays
     app.handle_mouse(mouse(MouseEventKind::ScrollDown, 20, 9));
-    assert_eq!(app.selected, date(2026, 10, 6));
+    assert_eq!(app.selected, date(2026, 9, 29));
+    assert_eq!(app.month_top, Some(date(2026, 9, 28)));
 }
 
 #[test]
