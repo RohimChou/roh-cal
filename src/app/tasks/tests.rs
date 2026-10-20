@@ -380,6 +380,11 @@ fn calendars_collapse_and_expand_like_items() {
         app.tasks_chosen().map(|item| item.title.as_str()),
         Some("s")
     );
+    // -: down to the calendars: Work has SFAP inside it, so it stays open (its own item a shows, closed),
+    // SFAP and Life close; s was chosen, so SFAP's heading is
+    press(&mut app, KeyCode::Char('-'));
+    assert_eq!(shape(&app), ["#Work", "+a", "+#SFAP", "+#Life", "#Empty"]);
+    assert_eq!(app.tasks_line, Some(4));
 }
 
 #[test]

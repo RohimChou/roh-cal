@@ -585,12 +585,12 @@ impl App {
         self.expanded.extend(parents);
     }
 
-    /// `-`: collapses everything, calendars too, so only the top-level calendars (and 「未分組」's items) are
-    /// left; the chosen row becomes the top-level calendar it was in (for an item in 「未分組」, its top-level
-    /// item)
+    /// `-`: collapses down to the calendars: every calendar is listed and the items are not (a calendar with
+    /// calendars inside it stays open to show them, the others close; no item has its subtasks open); the
+    /// chosen row becomes the calendar it was in (for an item in 「未分組」, its top-level item)
     fn collapse_all(&mut self) {
         let chosen = self.tasks_chosen().cloned();
-        let top_calendar = match &chosen {
+        let calendar = match &chosen {
             Some(item) => calendar_path(item.group.as_ref()),
             None => self.tasks_chosen_calendar().unwrap_or_default(),
         };
@@ -605,8 +605,19 @@ impl App {
             self.tasks_line = Some(item.line);
         }
         self.expanded.clear();
-        self.collapsed = self.filled_calendars();
-        self.choose_calendar_heading(&top_calendar[..top_calendar.len().min(1)]);
+        // The calendars with other calendars inside them
+        let outer: BTreeSet<Vec<String>> = self
+            .groups
+            .iter()
+            .map(|group| group.path())
+            .flat_map(|path| (1..path.len()).map(move |depth| path[..depth].to_vec()))
+            .collect();
+        self.collapsed = self
+            .filled_calendars()
+            .into_iter()
+            .filter(|path| !outer.contains(path))
+            .collect();
+        self.choose_calendar_heading(&calendar);
     }
 
     /// `L`: indents the chosen item (with its subtasks) one level, making it a subtask of the
