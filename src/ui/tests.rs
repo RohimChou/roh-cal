@@ -511,7 +511,7 @@ fn the_shown_layouts_key_lights_up_on_the_bottom_row_and_clicks_switch() {
 fn side_menu_lists_the_calendars_when_wide() {
     // 121 cells wide: the calendars are listed on the far left (the task file's groups, in order of
     // appearance; items before any heading are 「未分組」), the number is how many items have a date
-    // (Work has one item without a date); the last name is too long even at the 43-cell max width
+    // (Work has one item without a date); the last name is too long even at the 38-cell max width
     // (`[calendar_list] max_width`'s default), so it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
     // do not fit: it scrolls 1 row, leaving one row after the selected day's (10/17) items
     let mut app = agenda_app(Lang::ZhTw);
@@ -519,19 +519,19 @@ fn side_menu_lists_the_calendars_when_wide() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "╭─────────────────────────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────╮",
-            "│ 日曆                                    ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項               2026/10/17（六） │",
-            "│─────────────────────────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────│",
-            "│ ☑ 未分組                              2 ││  10月 40 │              1   2   3   4  ││ 10/10 Farmers market                    │",
-            "│ ☑ Personal                            5 ││       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/15 Fix the login bug                 ┃",
-            "│ ☑ Work                                1 ││       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/16 17:30 Send the weekly update      ┃",
-            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 Dinner with friends               ┃",
-            "│                                         ││       44 │ 26  27  28  29  30  31      ││ 10/17 08:00 Coffee chat                 ┃",
-            "│                                         ││          │                             ││ 10/18 07:00 Go hiking                   │",
-            "│                                         ││──────────┼─────────────────────────────││───────────────────────────── 還有 1 件 ─│",
-            "│─────────────────────────────────────────││  11月 44 │                          1  ││  11/3 09:30 Release v2.3                │",
-            "│ ☐ 隱藏做完的                            ││       45 │  2   3⠂  4   5   6   7   8  ││                                         │",
-            "╰─────────────────────────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────╯",
+            "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
+            "│ 日曆                               ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                    2026/10/17（六） │",
+            "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
+            "│ ☑ 未分組                         2 ││  10月 40 │              1   2   3   4  ││ 10/10 Farmers market                         │",
+            "│ ☑ Personal                       5 ││       41 │  5⠂  6   7   8   9  10⠂ 11  ││ 10/15 Fix the login bug                      ┃",
+            "│ ☑ Work                           1 ││       42 │ 12  13  14  15⠂ 16⠂[17⠒]18⠂ ││ 10/16 17:30 Send the weekly update           ┃",
+            "│   ☑ Year-end odds and ends and p 2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││ 10/17 Dinner with friends                    ┃",
+            "│                                    ││       44 │ 26  27  28  29  30  31      ││ 10/17 08:00 Coffee chat                      ┃",
+            "│                                    ││          │                             ││ 10/18 07:00 Go hiking                        │",
+            "│                                    ││──────────┼─────────────────────────────││────────────────────────────────── 還有 1 件 ─│",
+            "│────────────────────────────────────││  11月 44 │                          1  ││  11/3 09:30 Release v2.3                     │",
+            "│ ☐ 隱藏做完的                       ││       45 │  2   3⠂  4   5   6   7   8  ││                                              │",
+            "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
         ]
     );
@@ -542,7 +542,7 @@ fn side_menu_lists_the_calendars_when_wide() {
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(2, 3), ("☑", theme.checked));
     assert_eq!(cell(4, 4), ("P", theme.text));
-    assert_eq!(cell(40, 4), ("5", theme.muted));
+    assert_eq!(cell(35, 4), ("5", theme.muted));
     assert_eq!(cell(2, 1), ("日", theme.muted));
     assert_eq!(cell(0, 0), ("╭", theme.line));
     // `s` hides it: the calendar moves back to the far left,
@@ -578,19 +578,19 @@ fn unchecked_calendars_hide_their_items() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "╭─────────────────────────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────╮",
-            "│ Calendars                               ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                 Sat Oct 17, 2026 │",
-            "│─────────────────────────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────│",
-            "│ ☑ Ungrouped                           2 ││   Oct 40 │              1   2   3   4  ││ 10/15 Fix the login bug                 │",
-            "│ ☐ Personal                            5 ││       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly update      │",
-            "│ ☑ Work                                1 ││       42 │ 12  13  14  15⠂ 16⠂[17] 18  ││ 10/20 A really long title that just keep│",
-            "│   ☑ Year-end odds and ends and plans  2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││                                         │",
-            "│                                         ││       44 │ 26  27  28  29  30  31      ││                                         │",
-            "│                                         ││──────────┼─────────────────────────────││─────────────────────────────────────────│",
-            "│                                         ││   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                │",
-            "│─────────────────────────────────────────││       45 │  2   3⠂  4   5   6   7   8  ││                                         │",
-            "│ ☐ Hide done                             ││       46 │  9  10  11  12  13  14  15  ││                                         │",
-            "╰─────────────────────────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────╯",
+            "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
+            "│ Calendars                          ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                      Sat Oct 17, 2026 │",
+            "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
+            "│ ☑ Ungrouped                      2 ││   Oct 40 │              1   2   3   4  ││ 10/15 Fix the login bug                      │",
+            "│ ☐ Personal                       5 ││       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly update           │",
+            "│ ☑ Work                           1 ││       42 │ 12  13  14  15⠂ 16⠂[17] 18  ││ 10/20 A really long title that just keeps goi│",
+            "│   ☑ Year-end odds and ends and p 2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││                                              │",
+            "│                                    ││       44 │ 26  27  28  29  30  31      ││                                              │",
+            "│                                    ││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
+            "│                                    ││   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                     │",
+            "│────────────────────────────────────││       45 │  2   3⠂  4   5   6   7   8  ││                                              │",
+            "│ ☐ Hide done                        ││       46 │  9  10  11  12  13  14  15  ││                                              │",
+            "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
             " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
         ]
     );
@@ -602,9 +602,9 @@ fn unchecked_calendars_hide_their_items() {
     assert_eq!(cell(2, 3), ("☑", theme.checked));
     // Dates keep their usual colors whatever items they have: 10/5 (Monday), 10/16 (Friday, an
     // ungrouped item) normal, 10/10 (Saturday) weekend blue
-    assert_eq!(cell(57, 4), ("5", theme.text));
-    assert_eq!(cell(77, 4), ("0", theme.weekend));
-    assert_eq!(cell(73, 5), ("6", theme.text));
+    assert_eq!(cell(52, 4), ("5", theme.text));
+    assert_eq!(cell(72, 4), ("0", theme.weekend));
+    assert_eq!(cell(68, 5), ("6", theme.text));
 }
 
 #[test]
@@ -644,8 +644,8 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     assert_eq!(buffer[(0, 0)].fg, theme.focus);
-    assert_eq!(buffer[(43, 0)].fg, theme.line);
-    for x in 1..42 {
+    assert_eq!(buffer[(38, 0)].fg, theme.line);
+    for x in 1..37 {
         assert_eq!(buffer[(x, 4)].bg, theme.selection, "x = {x}");
         assert_ne!(buffer[(x, 3)].bg, theme.selection, "x = {x}");
     }
@@ -667,12 +667,12 @@ fn click_positions_in_the_side_menu() {
     assert_eq!(click_at(&app, 20, 4), Some(Click::Group(1)));
     // No calendar: the blank space below, the header, the
     // header line, the left and right borders, the key hints
-    for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (42, 3), (5, 13)] {
+    for (x, y) in [(5, 7), (5, 1), (5, 2), (0, 3), (37, 3), (5, 13)] {
         assert_eq!(click_at(&app, x, y), None, "({x}, {y})");
     }
-    // The calendar moved 43 cells right: the 16th is at x 71-74
-    assert_eq!(date_at(&app, 71, 5), Some(date(2026, 10, 16)));
-    assert_eq!(date_at(&app, 75, 5), Some(date(2026, 10, 17)));
+    // The calendar moved 38 cells right: the 16th is at x 66-69
+    assert_eq!(date_at(&app, 66, 5), Some(date(2026, 10, 16)));
+    assert_eq!(date_at(&app, 70, 5), Some(date(2026, 10, 17)));
 }
 
 #[test]

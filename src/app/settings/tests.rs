@@ -222,12 +222,12 @@ fn every_switch_has_a_row() {
 #[test]
 fn the_list_width_steps_by_one_cell_and_stops_at_the_ends() {
     let mut settings = Settings::default();
-    // Default 43: l = 44, h twice = 42
+    // Default 38: l = 39, h twice = 37
     Row::ListWidth.change(&mut settings, 1);
-    assert_eq!(settings.calendar_list.max_width, 44);
+    assert_eq!(settings.calendar_list.max_width, 39);
     Row::ListWidth.change(&mut settings, -1);
     Row::ListWidth.change(&mut settings, -1);
-    assert_eq!(settings.calendar_list.max_width, 42);
+    assert_eq!(settings.calendar_list.max_width, 37);
     // Stops at 22 and 60 instead of wrapping around
     settings.calendar_list.max_width = 22;
     Row::ListWidth.change(&mut settings, -1);
@@ -241,9 +241,9 @@ fn the_list_width_steps_by_one_cell_and_stops_at_the_ends() {
     assert_eq!(Row::ListWidth.value(&settings, &theme), "60");
     Row::ListWidth.change(&mut settings, -1);
     assert_eq!(settings.calendar_list.max_width, 59);
-    // r: back to 43
+    // r: back to 38
     Row::ListWidth.reset(&mut settings);
-    assert_eq!(settings.calendar_list.max_width, 43);
+    assert_eq!(settings.calendar_list.max_width, 38);
 }
 
 #[test]

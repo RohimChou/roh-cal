@@ -19,7 +19,7 @@ use ratatui::{
 /// Side menu width (incl. left and right border): just enough for the longest calendar,
 /// e.g. 「 ☑ Payments API v2 12 」,
 /// but at least `CalendarListSettings::MIN_WIDTH` (22) and at most the config file's
-/// `[calendar_list] max_width` (43 by default); longer names get cut off
+/// `[calendar_list] max_width` (38 by default); longer names get cut off
 pub fn width(app: &App) -> u16 {
     let max = app.settings.calendar_list.max_width();
     let texts = app.lang.texts();
@@ -259,9 +259,9 @@ mod tests {
         let ten = "- x @2026-10-10\n".repeat(10);
         assert_eq!(width(&app_with(&format!("# Tokyo trip 🗼🍣\n{ten}"))), 24);
         // Longer still (「 ☑ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): the
-        // config file's `[calendar_list] max_width`, 43 by default
+        // config file's `[calendar_list] max_width`, 38 by default
         let mut app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
-        assert_eq!(width(&app), 43);
+        assert_eq!(width(&app), 38);
         app.settings.calendar_list.max_width = 30;
         assert_eq!(width(&app), 30);
         // Wide enough for the whole name: just what it needs

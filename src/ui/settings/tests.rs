@@ -100,7 +100,7 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
             "│    grid_lines        on                 │",
             "│    center_cursor     off                │",
             "│  [calendar_list]                        │",
-            "│    max_width         43                 │",
+            "│    max_width         38                 │",
             "│    hide_done         off                │",
             "│  [colors]                               │",
             "│    text                 text            │",
@@ -139,7 +139,7 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
         theme.help_section
     );
     // The width row's value is in the same column
-    assert_eq!(at(VALUE, y_of(Row::ListWidth)).symbol(), "4");
+    assert_eq!(at(VALUE, y_of(Row::ListWidth)).symbol(), "3");
     // Swatch: on the today row, the 2 cells of the value column have today's color, followed by the
     // name
     let today = y_of(Row::Color("today"));
