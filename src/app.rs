@@ -751,6 +751,8 @@ impl App {
             }
             // Undo the last write (check, edit, …)
             KeyCode::Char('u') => self.undo(),
+            // Hide / show done tasks everywhere (the calendar list's 「隱藏做完的」)
+            KeyCode::Char('.') => self.toggle_hide_done(),
             KeyCode::Char('?') => self.mode = Mode::Help(Help::default()),
             KeyCode::Char(',') => self.open_settings(),
             KeyCode::Char('1') => self.set_view(View::Planner),
@@ -902,11 +904,32 @@ impl App {
         }
     }
 
-    /// `[calendar_list] hide_done` on ⇄ off, saved to the config file right away (see `save_switch`)
+    /// `[calendar_list] hide_done` on ⇄ off (the calendar list's switch, or `.` anywhere), saved to the
+    /// config file right away (see `save_switch`). The chosen item stays chosen; hidden now, the choice stays
+    /// at the same position (see `keep_chosen_line`, `keep_choice_in_range`)
     fn toggle_hide_done(&mut self) {
+        let line = self.chosen_item().map(|item| item.line);
         let before = self.settings.clone();
         self.settings.calendar_list.hide_done = !before.calendar_list.hide_done;
         self.save_switch(&before);
+        if let Some(line) = line {
+            self.keep_chosen_line(line);
+        }
+        self.keep_choice_in_range();
+    }
+
+    /// Fewer items may be listed now (a reload, hiding done tasks): a choice past the end of the agenda or
+    /// layout 2's popup moves to the last item; with none left, back to the calendar
+    fn keep_choice_in_range(&mut self) {
+        if self.focus == Focus::Day {
+            self.keep_day_choice();
+        }
+        if self.focus == Focus::Agenda && self.agenda_index >= self.agenda().len() {
+            match self.agenda().len().checked_sub(1) {
+                Some(last) => self.choose(last),
+                None => self.focus = Focus::Calendar,
+            }
+        }
     }
 
     /// A switch flipped outside the settings page (`before` = the settings before it): saved to the config

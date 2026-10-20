@@ -39,8 +39,8 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
     // column starts at the left column's widest line + 1; the top border says where the keyboard is
     let (area, rows, buffer) = draw(Lang::ZhTw, 70, 23, Help::default());
     // When centering does not divide evenly, the extra cell goes on the left (ratatui's `Flex::Center`):
-    // (70 − 56) / 2 = 7, (23 − 15) / 2 = 4
-    assert_eq!(area, Rect::new(7, 4, 56, 15));
+    // (70 − 56) / 2 = 7, (23 − 16) / 2: the extra row goes on top
+    assert_eq!(area, Rect::new(7, 4, 56, 16));
     assert_eq!(
         rows,
         [
@@ -51,7 +51,8 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
             "│    [ / ]   上個月 / 下個月     2       大月曆        │",
             "│    t       今天                3       任務頁        │",
             "│    Enter   那天的事            s       日曆清單      │",
-            "│    a       在那天新增          Tab     換框          │",
+            "│    a       在那天新增          .       隱藏做完的    │",
+            "│                                Tab     換框          │",
             "│                                                      │",
             "│                              系統                    │",
             "│                                ?       說明          │",
@@ -89,13 +90,13 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    gg / G   第一件 / 最後一件     2        大月曆        │",
             "│    l / h    展開 / 收起           3        任務頁        │",
             "│    Space    打勾                  s        日曆清單      │",
-            "│    /        進行中                Tab      換框          │",
-            "│    e        編輯                                         │",
-            "│    a / A    新增 / 新增子任務   系統                     │",
-            "│    r        改期                  ?        說明          │",
-            "│    d        刪除                  ,        設定          │",
-            "│    u        復原                  q        離開          │",
-            "│    o        編輯器                                       │",
+            "│    /        進行中                .        隱藏做完的    │",
+            "│    e        編輯                  Tab      換框          │",
+            "│    a / A    新增 / 新增子任務                            │",
+            "│    r        改期                系統                     │",
+            "│    d        刪除                  ?        說明          │",
+            "│    u        復原                  ,        設定          │",
+            "│    o        編輯器                q        離開          │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
         ]
@@ -111,9 +112,10 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    gg / G   第一個 / 最後一個     2        大月曆        │",
             "│    Space    勾選                  3        任務頁        │",
             "│    a / A    新增 / 新增子日曆     s        日曆清單      │",
-            "│    e        改名                  Tab      換框          │",
-            "│    d        刪除                                         │",
-            "│    L / H    往內 / 往外一層     系統                     │",
+            "│    e        改名                  .        隱藏做完的    │",
+            "│    d        刪除                  Tab      換框          │",
+            "│    L / H    往內 / 往外一層                              │",
+            "│                                 系統                     │",
             "│                                   ?        說明          │",
             "│                                   ,        設定          │",
             "│                                   q        離開          │",
@@ -132,10 +134,11 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    Space   打勾                  2       大月曆        │",
             "│    /       進行中                3       任務頁        │",
             "│    e       編輯                  s       日曆清單      │",
-            "│    a / A   新增 / 新增子任務     Tab     換框          │",
-            "│    r       改期                                        │",
-            "│    d       刪除                系統                    │",
-            "│    u       復原                  ?       說明          │",
+            "│    a / A   新增 / 新增子任務     .       隱藏做完的    │",
+            "│    r       改期                  Tab     換框          │",
+            "│    d       刪除                                        │",
+            "│    u       復原                系統                    │",
+            "│                                  ?       說明          │",
             "│                                  ,       設定          │",
             "│                                  q       離開          │",
             "│                                                        │",
@@ -156,7 +159,7 @@ fn a_narrow_screen_stacks_the_columns() {
     // 44 cells cannot fit two columns (left 27 + 1 + right 23 + border 2 = 53): the right column goes below
     // the left one, with a blank line between
     let (area, rows, _) = draw(Lang::ZhTw, 44, 30, Help::default());
-    assert_eq!(area, Rect::new(6, 4, 32, 22));
+    assert_eq!(area, Rect::new(6, 4, 32, 23));
     assert_eq!(
         rows,
         [
@@ -174,6 +177,7 @@ fn a_narrow_screen_stacks_the_columns() {
             "│    2       大月曆            │",
             "│    3       任務頁            │",
             "│    s       日曆清單          │",
+            "│    .       隱藏做完的        │",
             "│    Tab     換框              │",
             "│                              │",
             "│  系統                        │",

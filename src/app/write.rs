@@ -481,15 +481,7 @@ impl App {
         self.items = items;
         self.warnings = warnings;
         self.headings = headings;
-        if self.focus == Focus::Day {
-            self.keep_day_choice();
-        }
-        if self.focus == Focus::Agenda && self.agenda_index >= self.agenda().len() {
-            match self.agenda().len().checked_sub(1) {
-                Some(last) => self.choose(last),
-                None => self.focus = Focus::Calendar,
-            }
-        }
+        self.keep_choice_in_range();
     }
 }
 

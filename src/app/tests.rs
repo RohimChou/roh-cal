@@ -443,6 +443,52 @@ fn hide_done_hides_done_tasks_and_their_subtasks() {
     assert_eq!(titles(&app).len(), 4);
 }
 
+#[test]
+fn dot_hides_done_tasks_from_anywhere_and_keeps_the_choice() {
+    let chosen = |app: &App| app.chosen_item().map(|item| item.title.clone());
+    // Agenda on 10/17: Ship v1 (done), Pack, then Call mom on 10/18; Ship v1 chosen
+    let mut app =
+        app_with("- [x] Ship v1 @2026-10-17\n- [ ] Pack @2026-10-17\n- [ ] Call mom @2026-10-18\n");
+    let dir = crate::files::test_dir("dot-hide-done");
+    let path = dir.join("config.toml");
+    app.config_path = Some(path.clone());
+    app.focus = Focus::Agenda;
+    app.agenda_index = 0;
+    // `.`: Ship v1 is hidden, the choice stays at the same position (Pack); written to the config file
+    // right away
+    press(&mut app, KeyCode::Char('.'));
+    assert!(app.settings.calendar_list.hide_done);
+    assert_eq!(chosen(&app).as_deref(), Some("Pack"));
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "[calendar_list]\nhide_done = true\n"
+    );
+    // Again: shown, Pack stays chosen (now second)
+    press(&mut app, KeyCode::Char('.'));
+    assert!(!app.settings.calendar_list.hide_done);
+    assert_eq!(
+        (app.agenda_index, chosen(&app).as_deref()),
+        (1, Some("Pack"))
+    );
+    app.config_path = None;
+    let _ = std::fs::remove_dir_all(&dir);
+    // The last item hidden: the new last one is chosen
+    let mut app = app_with("- [ ] Pack @2026-10-17\n- [x] Ship v1 @2026-10-18\n");
+    app.focus = Focus::Agenda;
+    app.agenda_index = 1;
+    press(&mut app, KeyCode::Char('.'));
+    assert_eq!(
+        (app.agenda_index, chosen(&app).as_deref()),
+        (0, Some("Pack"))
+    );
+    // Layout 2's popup with only done tasks: nothing left, it closes
+    let mut app = app_with("- [x] Ship v1 @2026-10-17\n");
+    app.view = View::Month;
+    app.focus = Focus::Day;
+    press(&mut app, KeyCode::Char('.'));
+    assert_eq!(app.focus, Focus::Calendar);
+}
+
 /// An app 120 cells wide (with a side menu) and `text` as the task file
 fn wide_app_with(text: &str) -> App {
     let mut app = app_with(text);
