@@ -148,7 +148,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
 | `gg` / `G` | Choose the 「Hide all」 switch at the top of the list / the last calendar |
-| `Space` / `Enter` | Check / uncheck the chosen calendar; an unchecked calendar's items are hidden, and so are the calendars inside it (they turn gray) |
+| `Space` / `Enter` | Check / uncheck the chosen calendar together with the calendars inside it; an unchecked calendar's items are hidden (a calendar checked on its own inside an unchecked one stays hidden too, in gray) |
 | `k` past the first calendar | The two switches at the top of the list; `Space`, `Enter` or a click switches them. 「Hide all」 unchecks every calendar (it is on while they all are unchecked; switching it off checks them all again); 「Hide done」 hides done tasks (and their subtasks) everywhere, saved to the config file right away |
 | `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved. To put it inside another calendar, type `#` and part of that calendar's name and pick it from the list (as for items; 「Top level」 is first) |
 | `A` | Add a calendar inside the chosen one: its heading gets one `#` more and goes at the end of the chosen calendar (after its items and the calendars inside it); the editor shows where it goes under the name (Inside). A name another calendar there already has cannot be saved |

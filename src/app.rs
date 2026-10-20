@@ -863,17 +863,32 @@ impl App {
         }
     }
 
-    /// The calendar chosen in the side menu: checked ⇄ unchecked; on a switch row above the calendars,
-    /// that switch
+    /// The calendar chosen in the side menu: checked ⇄ unchecked (`toggle_calendar`); on a switch row above
+    /// the calendars, that switch
     fn toggle_group(&mut self) {
         match self.side_switch() {
             Some(SideSwitch::HideAll) => self.toggle_hide_all(),
             Some(SideSwitch::HideDone) => self.toggle_hide_done(),
-            None => {
-                if let Some(group) = self.groups.get_mut(self.group_index) {
-                    group.shown = !group.shown;
-                }
-            }
+            None => self.toggle_calendar(),
+        }
+    }
+
+    /// The chosen calendar: checked ⇄ unchecked, and every calendar inside it (any number of levels down)
+    /// gets the same, e.g. checking `Work` checks `Work > SFAP` too
+    fn toggle_calendar(&mut self) {
+        let Some(chosen) = self.groups.get(self.group_index) else {
+            return;
+        };
+        let shown = !chosen.shown;
+        let affected: Vec<usize> = self
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, group)| group.same(chosen) || group.inside(chosen))
+            .map(|(index, _)| index)
+            .collect();
+        for index in affected {
+            self.groups[index].shown = shown;
         }
     }
 

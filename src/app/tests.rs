@@ -587,6 +587,42 @@ fn hide_all_unchecks_every_calendar_then_checks_them_all_again() {
 }
 
 #[test]
+fn checking_a_calendar_checks_the_calendars_inside_it_too() {
+    // The list: Work, Work > SFAP, Work > SFAP > Bugs, Personal
+    let mut app = wide_app_with(
+        "# Work\n- a @2026-10-10\n## SFAP\n- b @2026-10-11\n### Bugs\n- c @2026-10-12\n# Personal\n- d @2026-10-13\n",
+    );
+    app.focus = Focus::Side;
+    let shown = |app: &App| {
+        app.groups
+            .iter()
+            .map(|group| group.shown)
+            .collect::<Vec<_>>()
+    };
+    // Space on Work: it and everything inside it unchecked; Personal untouched
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [false, false, false, true]);
+    // SFAP checked by itself: it and Bugs inside it; Work (around it) stays unchecked
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [false, true, true, true]);
+    // Space on Work again: checked, and so is everything inside it
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [true, true, true, true]);
+    // Hide all, then check Work (the first calendar, below the two switches): Work's calendars come back,
+    // Personal stays hidden
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [false, false, false, false]);
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [true, true, true, false]);
+}
+
+#[test]
 fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
     // Hide it with `s`
     let mut app = wide_app_with(GROUPS);
