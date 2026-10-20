@@ -774,7 +774,7 @@ impl App {
                 Focus::Calendar => self.handle_calendar_key(key.code),
                 Focus::Agenda => self.handle_agenda_key(key.code),
                 Focus::Side => self.handle_side_key(key.code, after_g),
-                Focus::Tasks => self.handle_tasks_key(key.code, after_g),
+                Focus::Tasks => self.handle_tasks_key(key, after_g),
                 Focus::Day => self.handle_day_key(key.code),
             },
         }
@@ -952,8 +952,8 @@ impl App {
     /// or on the tasks page, one calendar in the side menu);
     /// a left click on a calendar date selects it (a double click = go into that day's items), on an agenda item
     /// chooses it (a double click = check it),
-    /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse), on a side menu
-    /// calendar chooses it (again = check / uncheck)
+    /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse, a right click
+    /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck)
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
@@ -993,7 +993,17 @@ impl App {
                     None => {}
                 }
             }
-            // Anything else (right click, drag, move) is ignored
+            // Right click on a tasks page item's `▸` / `▾`: its whole subtree; anywhere else it is ignored
+            MouseEventKind::Down(MouseButton::Right) => {
+                if let Some(Click::TaskRow {
+                    row,
+                    on_marker: true,
+                }) = ui::click_at(self, mouse.column, mouse.row)
+                {
+                    self.right_click_task(row);
+                }
+            }
+            // Anything else (drag, move) is ignored
             _ => {}
         }
     }

@@ -224,14 +224,14 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
         let (area, rows, _) = draw(
             lang,
             100,
-            39,
+            41,
             Help {
                 full: true,
                 scroll: 0,
             },
         );
-        // The longer column (right) is 35 lines + padding 2 + border 2: it just fits, no scrolling
-        assert_eq!(area.height, 39, "{lang:?}");
+        // The longer column (left) is 37 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 41, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);
@@ -288,11 +288,11 @@ fn full_page_grays_out_the_sections_that_do_not_work_here() {
     assert_eq!(color_of(calendar, "  編輯框"), theme.help_section);
     assert_eq!(color_of(calendar, "  任務頁"), theme.other_month);
     assert_eq!(color_of(calendar, "  日曆清單"), theme.other_month);
-    assert_eq!(color_of(calendar, "+ / -"), theme.other_month);
+    assert_eq!(color_of(calendar, "= / -"), theme.other_month);
     assert_eq!(color_of(calendar, "全部展開 / 全部收起"), theme.other_month);
     // On the tasks page: the other way round for the calendar and the tasks page
     assert_eq!(color_of(Focus::Tasks, "  任務頁"), theme.help_section);
-    assert_eq!(color_of(Focus::Tasks, "+ / -"), theme.help_key);
+    assert_eq!(color_of(Focus::Tasks, "= / -"), theme.help_key);
     assert_eq!(color_of(Focus::Tasks, "  月曆"), theme.other_month);
     assert_eq!(
         color_of(Focus::Tasks, "  事項、跳窗、任務頁"),

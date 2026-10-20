@@ -9,7 +9,10 @@ use crate::{
     tasks::{Heading, Item},
 };
 use color_eyre::Result;
-use ratatui::{DefaultTerminal, crossterm::event::KeyCode};
+use ratatui::{
+    DefaultTerminal,
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+};
 use std::time::Instant;
 
 /// One row of the tasks page
@@ -196,22 +199,28 @@ impl App {
 
     /// Keyboard on the tasks page: `j` / `k` next / previous row (an item, or a calendar's heading: `a` there adds
     /// at the end of that calendar), `gg` / `G` the first / last row (like vim; `after_g`: the key before this
-    /// one was `g`), `[` / `]` the previous / next calendar's heading row,
-    /// `l` / `h` expand / collapse subtasks, `+` / `-` expand all / collapse all,
+    /// one was `g`), `[` / `]` the previous / next calendar's heading row, `l` / `h` (`→` / `←`) expand /
+    /// collapse subtasks one level, `Shift+→` / `Shift+←` the whole subtree, `=` (`+`) / `-` expand all /
+    /// collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
     /// the keys that write the file are the same as in the agenda: `Space` / `x` check
     /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule;
     /// `o` opens the task file in the user's editor on the chosen row's line
-    pub(super) fn handle_tasks_key(&mut self, code: KeyCode, after_g: bool) {
-        match code {
+    pub(super) fn handle_tasks_key(&mut self, key: KeyEvent, after_g: bool) {
+        let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+        match key.code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_task(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_task(-1),
             KeyCode::Char('g') if after_g => self.choose_task(isize::MIN),
             KeyCode::Char('g') => self.pending_g = true,
             KeyCode::Char('G') => self.choose_task(isize::MAX),
+            // With Shift, the arrows open / close the whole subtree
+            KeyCode::Right if shift => self.expand_subtree(),
+            KeyCode::Left if shift => self.collapse_subtree(),
             KeyCode::Char('l') | KeyCode::Right => self.expand_task(),
             KeyCode::Char('h') | KeyCode::Left => self.collapse_task(),
-            KeyCode::Char('+') => self.expand_all(),
+            // `+` is `=` with Shift, on the same key
+            KeyCode::Char('=' | '+') => self.expand_all(),
             KeyCode::Char('-') => self.collapse_all(),
             KeyCode::Char('L') => self.indent_task(),
             KeyCode::Char('H') => self.outdent_task(),
@@ -322,7 +331,82 @@ impl App {
         }
     }
 
-    /// `+`: expands every item that has subtasks
+    /// `Shift+→`: expands the chosen item and every subtask under it that has subtasks of its own, any number of
+    /// levels down
+    fn expand_subtree(&mut self) {
+        let Some(index) = self.tasks_chosen_index() else {
+            return;
+        };
+        let lines: Vec<usize> = self
+            .subtree(index)
+            .into_iter()
+            .filter(|&other| self.items.iter().any(|item| item.parent == Some(other)))
+            .map(|other| self.items[other].line)
+            .collect();
+        self.expanded.extend(lines);
+    }
+
+    /// `Shift+←`: collapses the chosen item and everything under it, so the next `l` opens one level again; on an
+    /// item without subtasks, the item it is under (which then gets chosen, like `h`)
+    fn collapse_subtree(&mut self) {
+        let Some(mut index) = self.tasks_chosen_index() else {
+            return;
+        };
+        if !self.items.iter().any(|item| item.parent == Some(index)) {
+            let Some(parent) = self.items[index].parent else {
+                return;
+            };
+            index = parent;
+            self.tasks_line = Some(self.items[index].line);
+        }
+        for other in self.subtree(index) {
+            self.expanded.remove(&self.items[other].line);
+        }
+    }
+
+    /// Right click on an item's `▸` / `▾` (row `row` of the tasks page): chooses it, then expands its whole
+    /// subtree (`Shift+→`), or collapses it if it is expanded (`Shift+←`)
+    pub(super) fn right_click_task(&mut self, row: usize) {
+        let Some(TaskRow::Item {
+            index,
+            children: true,
+            expanded,
+        }) = self.tasks_rows().get(row).cloned()
+        else {
+            return;
+        };
+        self.tasks_line = Some(self.items[index].line);
+        self.focus = super::Focus::Tasks;
+        if expanded {
+            self.collapse_subtree();
+        } else {
+            self.expand_subtree();
+        }
+    }
+
+    /// Where the chosen item of the tasks page is in `items`
+    fn tasks_chosen_index(&self) -> Option<usize> {
+        let line = self.tasks_chosen()?.line;
+        self.items.iter().position(|item| item.line == line)
+    }
+
+    /// The item at `index` and every subtask under it, any number of levels down (indexes into `items`)
+    fn subtree(&self, index: usize) -> Vec<usize> {
+        (0..self.items.len())
+            .filter(|&other| {
+                let mut current = Some(other);
+                while let Some(at) = current {
+                    if at == index {
+                        return true;
+                    }
+                    current = self.items[at].parent;
+                }
+                false
+            })
+            .collect()
+    }
+
+    /// `=` (`+`): expands every item that has subtasks
     fn expand_all(&mut self) {
         let parents: Vec<usize> = self
             .items

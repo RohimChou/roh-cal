@@ -2,7 +2,7 @@ use super::super::{Focus, View};
 use super::*;
 use crate::texts::Lang;
 use jiff::civil::date;
-use ratatui::crossterm::event::KeyEvent;
+use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
 
 /// An app on the tasks page (today 2026/10/17) whose task file is `text`
 fn tasks_app(text: &str) -> App {
@@ -284,10 +284,34 @@ fn l_and_h_expand_and_collapse_like_a_file_tree() {
 }
 
 #[test]
-fn plus_and_minus_expand_and_collapse_everything() {
+fn shift_arrows_expand_and_collapse_the_whole_subtree() {
+    // a has a1 (with a11) and a2; b has b1. The page opens on a, everything collapsed
+    let mut app = tasks_app("# W\n- a\n  - a1\n    - a11\n  - a2\n- b\n  - b1\n");
+    let chosen = |app: &App| app.tasks_chosen().map(|item| item.title.clone());
+    let shift = |app: &mut App, code| app.handle_key(KeyEvent::new(code, KeyModifiers::SHIFT));
+    assert_eq!(shape(&app), ["#W", "+a", "+b"]);
+    // Shift+→: a and every level under it open; b stays closed
+    shift(&mut app, KeyCode::Right);
+    assert_eq!(shape(&app), ["#W", "-a", "  -a1", "    a11", "  a2", "+b"]);
+    // Shift+←: all of it closes, so → (one level, like l) opens just a again (a1 closed)
+    shift(&mut app, KeyCode::Left);
+    assert_eq!(shape(&app), ["#W", "+a", "+b"]);
+    press(&mut app, KeyCode::Right);
+    assert_eq!(shape(&app), ["#W", "-a", "  +a1", "  a2", "+b"]);
+    // Shift+← on an item without subtasks (a2): the item it is under closes, and gets chosen
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app).as_deref(), Some("a2"));
+    shift(&mut app, KeyCode::Left);
+    assert_eq!(shape(&app), ["#W", "+a", "+b"]);
+    assert_eq!(chosen(&app).as_deref(), Some("a"));
+}
+
+#[test]
+fn equals_and_minus_expand_and_collapse_everything() {
     let mut app = tasks_app(TREE);
-    // +: every level expands, and the same item ("Renew passport") stays chosen
-    press(&mut app, KeyCode::Char('+'));
+    // =: every level expands, and the same item ("Renew passport") stays chosen
+    press(&mut app, KeyCode::Char('='));
     assert_eq!(
         shape(&app),
         [
@@ -330,6 +354,9 @@ fn plus_and_minus_expand_and_collapse_everything() {
         ]
     );
     assert_eq!(app.tasks_line, Some(3));
+    // + (= with Shift, on the same key) expands everything too
+    press(&mut app, KeyCode::Char('+'));
+    assert_eq!(shape(&app)[3], "-Design doc");
 }
 
 #[test]

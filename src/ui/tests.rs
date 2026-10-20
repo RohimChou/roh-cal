@@ -2786,6 +2786,26 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             on_marker: false
         })
     );
+    // A right click on `▸` expands that item's whole subtree; another one collapses it
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let right_click = |app: &mut App| {
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: 4,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        });
+    };
+    let expanded = |app: &App| {
+        matches!(
+            app.tasks_rows()[2],
+            crate::app::TaskRow::Item { expanded: true, .. }
+        )
+    };
+    right_click(&mut app);
+    assert!(expanded(&app));
+    right_click(&mut app);
+    assert!(!expanded(&app));
 }
 
 #[test]
