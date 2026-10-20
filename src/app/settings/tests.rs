@@ -168,9 +168,10 @@ fn a_terminal_color_stays_itself_in_a_theme_with_the_same_palette_name() {
 #[test]
 fn colors_a_view_does_not_draw_are_for_the_other_views() {
     // The tasks page draws no week numbers, year line, selected brackets, grid lines or bars; layout 1
-    // draws no grid lines or bars, and only layout 1 the overlap underline; the rest (text, today and
-    // day-off colors in the date column…) are everywhere
-    for role in ["year_line", "week_number", "week_number_dim", "selected"] {
+    // draws no grid lines or bars, and only layout 1 the selected brackets (the month grid gives the
+    // selected day a background) and the overlap underline; the rest (text, today and day-off colors in
+    // the date column…) are everywhere
+    for role in ["year_line", "week_number", "week_number_dim"] {
         let row = Row::Color(role);
         assert!(!row.applies_to(View::Tasks), "{role}");
         assert!(
@@ -186,10 +187,15 @@ fn colors_a_view_does_not_draw_are_for_the_other_views() {
         );
         assert!(row.applies_to(View::Month), "{role}");
     }
-    // Only layout 1's calendar underlines overlapping multi-day items
-    let overlap = Row::Color("range_overlap");
-    assert!(overlap.applies_to(View::Planner));
-    assert!(!overlap.applies_to(View::Month) && !overlap.applies_to(View::Tasks));
+    // Only layout 1 has the selected brackets and underlines overlapping multi-day items
+    for role in ["selected", "range_overlap"] {
+        let row = Row::Color(role);
+        assert!(row.applies_to(View::Planner), "{role}");
+        assert!(
+            !row.applies_to(View::Month) && !row.applies_to(View::Tasks),
+            "{role}"
+        );
+    }
     for role in ["text", "today", "weekend", "selection", "priority_high"] {
         assert_eq!(Row::Color(role).views(), None, "{role}");
     }

@@ -94,14 +94,15 @@ impl Row {
             // Only layout 1's calendar has dots
             Self::Dots => Some(&[View::Planner]),
             Self::GridLines | Self::CenterCursor => Some(&[View::Month]),
-            // Colors only the calendars draw: the year line, week numbers, the selected brackets; the month
-            // grid's own: its grid lines and multi-day bars
-            Self::Color("year_line" | "week_number" | "week_number_dim" | "selected") => {
+            // Colors only the calendars draw: the year line, week numbers; the month grid's own: its grid
+            // lines and multi-day bars
+            Self::Color("year_line" | "week_number" | "week_number_dim") => {
                 Some(&[View::Planner, View::Month])
             }
             Self::Color("grid" | "range") => Some(&[View::Month]),
-            // Only layout 1's calendar underlines overlapping multi-day items
-            Self::Color("range_overlap") => Some(&[View::Planner]),
+            // Only layout 1 has brackets around the selected day and the chosen item (the month grid gives
+            // the selected day a background), and underlines overlapping multi-day items
+            Self::Color("selected" | "range_overlap") => Some(&[View::Planner]),
             Self::Theme | Self::ListWidth | Self::HideDone | Self::Color(_) => None,
         }
     }
