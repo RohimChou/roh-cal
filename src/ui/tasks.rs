@@ -3,7 +3,7 @@
 //! chosen line's original text
 
 use super::{
-    Click,
+    Click, item_marker,
     months::scrolled_to_range,
     planner::{date_text, day_color},
     title_span,
@@ -409,9 +409,9 @@ fn levels(item: &Item) -> usize {
         + item.depth
 }
 
-/// One item laid out at `width` cells: 「 ▸ [ ] 實作退款 API  1/4            10/14       」. On the left: the indent
-/// (2 cells per level, see `levels`), `▸` / `▾` (has subtasks: collapsed / expanded), `[ ]` / `[x]` (task) or ` ∙ ` (event),
-/// the title, and how many subtasks are done; when that does not fit, the title (with the count) wraps onto
+/// One item laid out at `width` cells: 「 ▸ ☐ 實作退款 API  1/4            10/14       」. On the left: the indent
+/// (2 cells per level, see `levels`), `▸` / `▾` (has subtasks: collapsed / expanded), `☐` / `☑` (task) or `∙`
+/// (event, see `item_marker`), the title, and how many subtasks are done; when that does not fit, the title (with the count) wraps onto
 /// the next lines, which start under the title. On the right of the first line: a date column
 /// (right-aligned) and a time column, sized by `date_columns`; an item without a time leaves that cell blank
 /// (without a date, both are empty)
@@ -435,12 +435,6 @@ fn item_lines(
         (false, _) => " ",
         (true, false) => "▸",
         (true, true) => "▾",
-    };
-    let check = match (item.kind, item.done, item.in_progress) {
-        (Kind::Task, true, _) => "[x]",
-        (Kind::Task, false, true) => "[/]",
-        (Kind::Task, false, false) => "[ ]",
-        (Kind::Event, ..) => " ∙ ",
     };
     // That line has a mistake: red, underlined title
     let mistake = app.warnings.iter().any(|warning| warning.line == item.line);
@@ -466,7 +460,7 @@ fn item_lines(
             format!(" {}{marker} ", "  ".repeat(levels(item))),
             Style::new().fg(theme.muted),
         ),
-        Span::styled(format!("{check} "), Style::new().fg(color)),
+        Span::styled(item_marker(item), Style::new().fg(color)),
     ];
     let mut text = vec![title];
     if total > 0 {

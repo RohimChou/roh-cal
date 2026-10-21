@@ -5,14 +5,14 @@
 //! when there is room
 
 use super::{
-    calendar_path, calendar_tag, check_box, clear_with_ring,
+    calendar_path, calendar_tag, check_box, clear_with_ring, item_marker,
     months::scrolled_to_range,
     planner::{date_text, item_color, secondary_color, time_and_title},
     render_scrollbar,
     tasks::wrap,
 };
 use crate::app::App;
-use crate::tasks::{Heading, Item, Kind};
+use crate::tasks::{Heading, Item};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
@@ -134,21 +134,15 @@ fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
     })
 }
 
-/// What an item's line starts with, so a wrapped title cannot pass for the next item: a task's check box
-/// (`☑` once done, see `check_box`), an event's `∙` (as on the tasks page)
-fn marker(item: &Item) -> &'static str {
-    match item.kind {
-        Kind::Task => check_box(item.done),
-        Kind::Event => "∙ ",
-    }
-}
-
-/// One item's line before wrapping: its `marker` (colored like the time), its dates only when it spans
+/// One item's line before wrapping: its `item_marker` (colored like the time), its dates only when it spans
 /// several days, its time, then its title, e.g. 「 ☐ 17:30 Buy groceries」, 「 ∙ 10/16~18 Parents in town」
 fn popup_line(item: &Item, app: &App) -> Line<'static> {
     let mut spans = vec![
         Span::raw(" "),
-        Span::styled(marker(item), Style::new().fg(secondary_color(item, app))),
+        Span::styled(
+            item_marker(item),
+            Style::new().fg(secondary_color(item, app)),
+        ),
     ];
     if item.end.is_some() {
         spans.push(Span::styled(

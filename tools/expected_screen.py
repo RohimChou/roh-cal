@@ -867,10 +867,11 @@ def tasks_screen(lang, w, h, text, groups):
         it = items[k]
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
-        check = ("[x]" if it["done"] else "[/]" if it["in_progress"] else "[ ]") if it["task"] else " ∙ "
+        # A task's check box (☑ once done; in progress stays ☐, its title has 🚧), an event's dot
+        check = (BOX_ON if it["done"] else BOX_OFF) if it["task"] else "∙ "
         # One level under the calendar's heading, plus the calendars it is inside, plus its subtask depth
         levels = 1 + (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]
-        prefix = " " + "  " * levels + marker + " " + check + " "
+        prefix = " " + "  " * levels + marker + " " + check
         text = it["title"]
         subtasks = [c for c in children if c["task"]]
         if subtasks:

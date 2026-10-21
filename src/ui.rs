@@ -16,7 +16,7 @@ mod splash;
 mod tasks;
 
 use crate::app::{App, Editor, Focus, Mode, View};
-use crate::tasks::Item;
+use crate::tasks::{Item, Kind};
 use crate::theme::Theme;
 use jiff::civil::Date;
 use ratatui::{
@@ -130,6 +130,16 @@ fn calendar_path(item: &Item) -> Option<String> {
 /// space follows it, covering the space (any other character after it keeps it one cell)
 fn check_box(checked: bool) -> &'static str {
     if checked { "☑\u{a0}" } else { "☐\u{a0}" }
+}
+
+/// What an item's line starts with in the day popup and on the tasks page, so a wrapped title cannot pass
+/// for the next item: a task's check box (`☑` once done, see `check_box`; in progress is `☐`, its title
+/// has 🚧), an event's `∙` and a space
+fn item_marker(item: &Item) -> &'static str {
+    match item.kind {
+        Kind::Task => check_box(item.done),
+        Kind::Event => "∙ ",
+    }
 }
 
 /// Put in front of an in-progress (`[/]`) item's title: 🚧 (an emoji: always 2 cells wide, its own colors)
