@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_utils::press;
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::crossterm::event::{
@@ -22,11 +23,6 @@ pub(crate) fn app_with_task_file(name: &str, text: &str) -> (App, PathBuf) {
     // to the agenda, and the calendar selects that item's day
     app.choose(0);
     (app, path)
-}
-
-/// Presses one key
-pub(crate) fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
 }
 
 /// Deletes the test's temp folder

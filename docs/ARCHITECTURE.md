@@ -15,6 +15,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/sample.rs` | 內建的範例任務檔：`include_str!` 編譯時把 `src/sample.md` 放進程式，`cargo install` 裝的也有；故意寫得短，每一種寫法各一個（test 用的是另一個、大很多的 `testdata/tasks.md`）。`text(today)` 把每個 `YYYY-MM-DD` 整週整週地挪（`WEEK` = 範例當作「這週」的那個週一 → 今天這週的週一），星期幾不變；不存在的日期（`@2026-13-01`）照留。範例檔改寫時，「這週」要維持在 `WEEK` 那週 | |
 | `src/app.rs` | 程式的狀態 `App`、主迴圈、按鍵和滑鼠（double click = 同一天或同一件事 0.5 秒內點兩下，`App::is_double_click`；事項要 double click 才打勾，點一下不會誤打勾）；對選到的那件事的鍵（`Space` `x` `/` `r` `e` `a` `A` `d`）事項欄、跳窗、任務頁共用 `handle_item_key`，各自只寫自己特有的鍵；版型（`View`：`1` 版型 1、`2` 版型 2、`3` 任務頁）；開著的跳窗、正在做的事（`Mode`，同時只有一種） | |
 | `src/tasks.rs` | 任務檔 parser：純文字 → `Item`（框是 `Mark`：`[ ]` / `[/]` 進行中 / `[x]`，存成 `Item::done`、`Item::in_progress`），和每一個標題（`HeadingLine`：第幾行、原本的字；日曆改名、刪除用） | |
+| `src/test_utils.rs` | test 共用的小工具（只在跑 test 時編譯）：`press` 按一個鍵、`type_text` 在編輯框打字、`mouse` 送一個滑鼠動作、`mouse_event` 只做出滑鼠事件（交給 `App::handle_mouse`） | |
 | `src/paths.rs` | 任務檔、設定檔、`--sample` 範例檔（cache，每次重寫）、開場動畫播過的記號檔（state：`splash-seen`，空的檔）的預設位置（XDG） | |
 | `src/config.rs` | 設定檔 `config.toml` → `Settings`（`theme`、`[calendar]`、`[month]` 的開關、`[calendar_list] max_width`、`[day_popup] by_calendar`、`[colors]`，`App::settings`）；沒寫的用預設值，名字打錯算錯誤；換 theme 走 `Settings::set_theme`。設定頁關掉時存回去（`save`：toml_edit，只寫在頁面上改過的那幾行，註解、在別處改的都留著；寫出來讀不進來就不寫） | |
 | `src/edit.rs` | 改任務檔的純 function：檔案現在的內容 + 要改的那件 → 改好的內容；只動要改的地方（一行、刪除或改縮排或搬到別的日曆的那一塊、上下搬的兩塊、新增的那一行），那一行在別處改過就回傳 `Changed` | |
@@ -108,7 +109,7 @@ App::run 的迴圈
 - 程式的註解用英文（直白、精簡；2026-10-18 起，給國外的人也看得懂）；function 上面用 `///` 寫用途。這份文件和其他給自己看的筆記照樣用中文
 - 畫面的字放 `texts.rs`、顏色放 `theme.rs`（畫面只講角色，例：`theme.today`），`ui/` 裡不寫死
 - 錯誤處理用 `color_eyre::Result` + `?`，不用 `unwrap()`（test 例外）
-- test 放哪：test 超過 100 行就搬到自己的檔 `<模組>/tests.rs`（例：`src/edit.rs` 的 test 在 `src/edit/tests.rs`，原本的檔只留 `#[cfg(test)] mod tests;`），程式和 test 分開讀；短的照樣寫在檔案最後的 `mod tests { ... }`。模組的路徑沒變（還是 `edit::tests`），`use super::*;` 照樣拿得到私有的東西；`include_str!` 的路徑從 test 檔自己的位置算
+- test 放哪：test 超過 100 行就搬到自己的檔 `<模組>/tests.rs`（例：`src/edit.rs` 的 test 在 `src/edit/tests.rs`，原本的檔只留 `#[cfg(test)] mod tests;`），程式和 test 分開讀；按鍵、打字、滑鼠這種每個 test 都要的小工具放 `src/test_utils.rs`，不要每個 test 檔自己抄一份；短的照樣寫在檔案最後的 `mod tests { ... }`。模組的路徑沒變（還是 `edit::tests`），`use super::*;` 照樣拿得到私有的東西；`include_str!` 的路徑從 test 檔自己的位置算
 - commit 前 `cargo fmt`、`cargo clippy --all-targets -- -D warnings`、`cargo test` 都要乾淨；改到邏輯就補 test，寫完故意改壞一兩處，確認 test 抓得到
 - 點點、符號只用 East Asian Width 是 N 或 Na 的字（都是 1 格；`•`、`●` 是 A，開了 CJK 寬字元的 terminal 會變 2 格）；查法：`python3 -c "import unicodedata as u; print(u.east_asian_width('•'))"`
 - commit 訊息：`<type>: <scope> | <summary>`，type 是 `feat` / `fix` / `refac` / `doc` / `style` / `test` / `chore` / `perf` / `ci`；改到按鍵、參數時同一個 commit 更新 README
@@ -137,7 +138,7 @@ App::run 的迴圈
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
 - `day_color`、`in_multi_day`、`date_text`、`open_item_color` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
-- test 的小工具抄了好幾份（`press` 4 份、`mouse` 3 份、`type_text` 3 份）：可以放一個共用的 test module
+- test 裡還有 17 處就地寫 `MouseEvent { ... }`（`ui/tests.rs` 8 處、`app/write/tests.rs` 5 處等）：可以改用 `test_utils::mouse` / `mouse_event`
 - 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，第二下就點到別件，所以那幾列 double click 打不了勾（版型 2 的跳窗、side menu 已經改成跑出框外才捲）
 - 操作說明比 80 格寬的：任務頁英文 96 格、中文 87 格，月曆的英文 82 格（加了 `123 view`），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
 - `L`、`A` 縮排一律加 2 格空白：用 tab 縮排的檔（Obsidian 預設）會變成 tab、空白混著；可以改成照上面那件現有子任務的寫法

@@ -1,5 +1,6 @@
 use super::super::{Focus, View};
 use super::*;
+use crate::test_utils::{press, type_text};
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
@@ -22,11 +23,6 @@ fn tasks_app_with_headings(text: &str) -> App {
     app.set_items(crate::tasks::parse(text));
     app.handle_key(KeyEvent::from(KeyCode::Char('3')));
     app
-}
-
-/// Presses one key
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
 }
 
 #[test]
@@ -532,13 +528,6 @@ fn tasks_app_with_file(name: &str, text: &str) -> (App, std::path::PathBuf) {
     let (mut app, path) = super::super::write::tests::app_with_task_file(name, text);
     press(&mut app, KeyCode::Char('3'));
     (app, path)
-}
-
-/// Types text into the editor one character at a time
-fn type_text(app: &mut App, text: &str) {
-    for c in text.chars() {
-        press(app, KeyCode::Char(c));
-    }
 }
 
 #[test]

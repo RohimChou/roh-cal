@@ -11,6 +11,8 @@ mod paths;
 mod sample;
 mod search;
 mod tasks;
+#[cfg(test)]
+mod test_utils;
 mod texts;
 mod theme;
 mod ui;

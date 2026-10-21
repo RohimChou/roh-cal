@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::{CalendarSettings, DayPopupSettings, MonthSettings};
+use crate::test_utils::press;
 use crate::texts::Lang;
 use crate::theme::Theme;
 use jiff::civil::date;
@@ -12,11 +13,6 @@ fn app_with_settings() -> App {
     app.screen = Rect::new(0, 0, 100, 30);
     press(&mut app, KeyCode::Char(','));
     app
-}
-
-/// Presses one key
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
 }
 
 #[test]

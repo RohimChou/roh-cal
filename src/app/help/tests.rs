@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_utils::{mouse_event, press};
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::layout::Rect;
@@ -9,21 +10,6 @@ fn app_with_help(width: u16, height: u16) -> App {
     app.screen = Rect::new(0, 0, width, height);
     app.handle_key(KeyEvent::from(KeyCode::Char('?')));
     app
-}
-
-/// Presses one key
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
-}
-
-/// One mouse event at (`column`, `row`)
-fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
-    MouseEvent {
-        kind,
-        column,
-        row,
-        modifiers: KeyModifiers::NONE,
-    }
 }
 
 #[test]
@@ -118,8 +104,8 @@ fn j_and_k_scroll_only_when_it_does_not_fit() {
     press(&mut app, KeyCode::Char('k'));
     assert_eq!(app.help().map(|help| help.scroll), Some(22));
     // The wheel does the same; the calendar below does not move
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 50, 10));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 50, 10));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 50, 10));
     assert_eq!(app.help().map(|help| help.scroll), Some(20));
     assert_eq!(app.selected, date(2026, 10, 17));
     // Tab switches back to the short version: back to the top
@@ -131,11 +117,11 @@ fn j_and_k_scroll_only_when_it_does_not_fit() {
 fn clicking_outside_closes_it() {
     let mut app = app_with_help(100, 40);
     // A click inside the box (in the middle) is ignored, and nothing on the calendar below gets selected
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 50, 20));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 50, 20));
     assert!(app.help().is_some());
     assert_eq!(app.selected, date(2026, 10, 17));
     // A click in the top-left corner (outside the box): closes it, and that click selects nothing below
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 0, 0));
     assert_eq!(app.help(), None);
     assert_eq!(app.selected, date(2026, 10, 17));
 }

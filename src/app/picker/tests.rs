@@ -1,13 +1,9 @@
 use super::*;
 use crate::app::Row;
+use crate::test_utils::press;
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::layout::Rect;
-
-/// Presses `code` (no modifier)
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
-}
 
 /// An app with the settings page open on the `role` color row (theme catppuccin-mocha)
 fn on_color_row(role: &'static str) -> App {

@@ -1,9 +1,10 @@
-use super::super::write::tests::{app_with_task_file, clean_up, press};
+use super::super::write::tests::{app_with_task_file, clean_up};
 use super::super::{Toast, View};
 use super::*;
+use crate::test_utils::{mouse, press, type_text};
 use crate::texts::Lang;
 use jiff::civil::date;
-use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 
@@ -28,16 +29,6 @@ fn month_app() -> App {
 /// Title of the item chosen in the popup
 fn chosen(app: &App) -> Option<String> {
     app.chosen_item().map(|item| item.title.clone())
-}
-
-/// One left click / one wheel step at (`column`, `row`)
-fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
-    app.handle_mouse(MouseEvent {
-        kind,
-        column,
-        row,
-        modifiers: KeyModifiers::NONE,
-    });
 }
 
 #[test]
@@ -266,13 +257,6 @@ fn popup_with_file(name: &str) -> (App, std::path::PathBuf) {
     app.screen = Rect::new(0, 0, 60, 20);
     press(&mut app, KeyCode::Enter);
     (app, path)
-}
-
-/// Types text into the editor box one character at a time
-fn type_text(app: &mut App, text: &str) {
-    for c in text.chars() {
-        press(app, KeyCode::Char(c));
-    }
 }
 
 #[test]

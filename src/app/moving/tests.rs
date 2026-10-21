@@ -1,6 +1,7 @@
 use super::super::write::Notice;
-use super::super::write::tests::{app_with_task_file, clean_up, press};
+use super::super::write::tests::{app_with_task_file, clean_up};
 use super::*;
+use crate::test_utils::press;
 use jiff::civil::date;
 use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 

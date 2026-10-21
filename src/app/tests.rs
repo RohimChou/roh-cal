@@ -1,10 +1,6 @@
 use super::*;
+use crate::test_utils::{mouse_event, press};
 use jiff::civil::date;
-
-/// Presses one key (no modifier such as Ctrl)
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::from(code));
-}
 
 #[test]
 fn hjkl_and_arrows_move_by_a_day_or_a_week() {
@@ -31,23 +27,13 @@ fn hjkl_and_arrows_move_by_a_day_or_a_week() {
     assert_eq!(app.selected, date(2027, 1, 5));
 }
 
-/// One mouse action at (`column`, `row`)
-fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
-    MouseEvent {
-        kind,
-        column,
-        row,
-        modifiers: KeyModifiers::NONE,
-    }
-}
-
 #[test]
 fn wheel_moves_a_week() {
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     assert_eq!(app.selected, date(2026, 10, 24));
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
     assert_eq!(app.selected, date(2026, 10, 10));
 }
 
@@ -58,11 +44,11 @@ fn left_click_on_a_date_selects_it() {
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.screen = Rect::new(0, 0, 47, 26);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 29, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 5));
     assert_eq!(app.selected, date(2026, 10, 16));
     // Right click, click on the header: ignored
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Right), 33, 5));
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 1));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Right), 33, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 1));
     assert_eq!(app.selected, date(2026, 10, 16));
 }
 
@@ -242,13 +228,13 @@ fn t_and_brackets_go_back_to_the_calendar() {
 fn wheel_in_the_agenda_moves_an_item() {
     let mut app = app_with(ITEMS);
     press(&mut app, KeyCode::Tab);
-    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     assert_eq!(
         app.chosen().map(|entry| entry.item.title.as_str()),
         Some("c")
     );
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
     assert_eq!(
         app.chosen().map(|entry| entry.item.title.as_str()),
         Some("a")
@@ -262,7 +248,7 @@ fn clicking_an_item_moves_the_keyboard_there() {
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 77, 23);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 47, 3));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 47, 3));
     assert_eq!(app.focus, Focus::Agenda);
     assert_eq!(
         app.chosen().map(|entry| entry.item.title.as_str()),
@@ -270,7 +256,7 @@ fn clicking_an_item_moves_the_keyboard_there() {
     );
     assert_eq!(app.selected, date(2026, 10, 10));
     // Then click a date on the calendar: the keyboard goes back to the calendar
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 29, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 5));
     assert_eq!(app.focus, Focus::Calendar);
     assert_eq!(app.selected, date(2026, 10, 16));
 }
@@ -567,11 +553,11 @@ fn side_menu_keys_choose_and_check_calendars() {
     );
     app.config_path = None;
     let _ = std::fs::remove_dir_all(&dir);
-    app.handle_mouse(mouse(MouseEventKind::ScrollUp, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
     assert_eq!(app.group_index, 4);
     press(&mut app, KeyCode::Char('k'));
     assert_eq!(app.group_index, 4);
-    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     press(&mut app, KeyCode::Char('j'));
     assert_eq!(app.group_index, 0);
     // h / l do not move the selected day; Esc goes back to the calendar without quitting
@@ -602,7 +588,7 @@ fn gg_and_capital_g_jump_to_the_first_and_last_row() {
     press(&mut app, KeyCode::Char('g'));
     assert_eq!(app.group_index, 1);
     // The wheel between the two g's: not gg either (the last g above is still waiting)
-    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     press(&mut app, KeyCode::Char('g'));
     assert_eq!(app.group_index, 2);
 }
@@ -695,7 +681,7 @@ fn clicking_a_calendar_selects_it_then_toggles_it() {
     // row from y 6 (screen in ui/tests.rs's `side_menu_lists_the_calendars_when_wide`)
     let mut app = wide_app_with(GROUPS);
     let click = |app: &mut App, row| {
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, row));
+        app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 5, row));
     };
     // First click: chooses "Personal", the keyboard moves to the side menu, not toggled yet
     click(&mut app, 7);
@@ -765,7 +751,7 @@ fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
         match close {
             0 => press(&mut app, KeyCode::Char('s')),
             1 => press(&mut app, KeyCode::Esc),
-            2 => app.handle_mouse(mouse(left, 50, 10)),
+            2 => app.handle_mouse(mouse_event(left, 50, 10)),
             _ => press(&mut app, KeyCode::Char('q')),
         }
         assert_eq!((app.focus, app.agenda_index), (Focus::Agenda, 2), "{close}");
@@ -798,9 +784,9 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     assert_eq!(area, Rect::new(0, 0, 22, 19));
     // Click Personal: chooses it; click again: unchecks it
     let left = MouseEventKind::Down(MouseButton::Left);
-    app.handle_mouse(mouse(left, 3, 7));
+    app.handle_mouse(mouse_event(left, 3, 7));
     assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
-    app.handle_mouse(mouse(left, 3, 7));
+    app.handle_mouse(mouse_event(left, 3, 7));
     assert!(!app.groups[1].shown);
     // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 5):
     // only hides it, the selected day stays
@@ -810,7 +796,7 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
         ui::click_at(&app, 29, 5),
         Some(Click::Day(date(2026, 10, 16)))
     );
-    app.handle_mouse(mouse(left, 29, 5));
+    app.handle_mouse(mouse_event(left, 29, 5));
     assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
     assert_eq!(ui::side_overlay(&app), None);
 }
@@ -922,9 +908,9 @@ fn enter_on_the_calendar_goes_into_that_days_items() {
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 70, 23);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 5));
     assert_eq!(app.focus, Focus::Calendar);
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 33, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 5));
     assert_eq!(app.focus, Focus::Day);
 }
 
@@ -979,7 +965,11 @@ fn clicking_123_on_the_bottom_row_switches_layouts() {
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 80, 24);
     let click = |app: &mut App, column| {
-        app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), column, 23));
+        app.handle_mouse(mouse_event(
+            MouseEventKind::Down(MouseButton::Left),
+            column,
+            23,
+        ));
     };
     click(&mut app, 3);
     assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
@@ -1013,10 +1003,10 @@ fn the_mouse_works_in_the_month_view() {
     app.screen = Rect::new(0, 0, 80, 30);
     app.month_top = Some(date(2026, 9, 21));
     // Click the Tuesday cell of week 2 (not necessarily on the date): selects that day
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 20, 9));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 20, 9));
     assert_eq!(app.selected, date(2026, 9, 29));
     // The wheel scrolls the 6 weeks a week (9/28 on top); the selected day stays
-    app.handle_mouse(mouse(MouseEventKind::ScrollDown, 20, 9));
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 20, 9));
     assert_eq!(app.selected, date(2026, 9, 29));
     assert_eq!(app.month_top, Some(date(2026, 9, 28)));
 }
@@ -1154,14 +1144,14 @@ fn any_key_click_or_wheel_skips_the_intro_and_does_nothing_else() {
         MouseEventKind::ScrollUp,
     ] {
         app.play_splash();
-        app.handle_mouse(mouse(kind, 30, 5));
+        app.handle_mouse(mouse_event(kind, 30, 5));
         assert!(matches!(app.mode, Mode::Normal), "{kind:?}");
         assert_eq!(app.selected, date(2026, 10, 17), "{kind:?}");
     }
     assert!(app.notice.is_some());
     // Moving the mouse does not skip it
     app.play_splash();
-    app.handle_mouse(mouse(MouseEventKind::Moved, 30, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Moved, 30, 5));
     assert!(matches!(app.mode, Mode::Splash { .. }));
 }
 

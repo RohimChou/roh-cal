@@ -1,14 +1,8 @@
 use super::super::write::Notice;
-use super::super::write::tests::{app_with_task_file, clean_up, press};
+use super::super::write::tests::{app_with_task_file, clean_up};
 use super::*;
+use crate::test_utils::{press, type_text};
 use jiff::civil::date;
-
-/// Types text into the editor one character at a time
-fn type_text(app: &mut App, text: &str) {
-    for c in text.chars() {
-        press(app, KeyCode::Char(c));
-    }
-}
 
 #[test]
 fn a_in_the_calendar_list_adds_a_calendar_at_the_end() {
