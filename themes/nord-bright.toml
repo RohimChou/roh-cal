@@ -14,13 +14,16 @@ faint = "#8d929a"
 nord8 = "#94d1e3"
 nord9 = "#8cb0d4"
 nord11 = "#d66973"
-# High priority (!!!): nord11 with more light and color (same hue), so it stands out among the other colors
-nord11_bright = "#ed717c"
-nord12 = "#e69379"
-nord13 = "#fddb98"
+# High priority (!!!): nord11, vivid (same hue, much more color), so it stands out among the other colors,
+# the yellow too
+nord11_bright = "#f65e6c"
+# Orange (!!): between the !!! red and the yellow, in both color and light
+nord12 = "#f59678"
+# Yellow: a touch softer than the others (a little less color and light), so it does not outshine the !!! red
+nord13 = "#f4d392"
 # Dim yellow: nord13 (yellow) and the background mixed 7:3. Still reads as yellow,
 # but darker than the selected week's number
-nord13_dim = "#bfa97e"
+nord13_dim = "#b9a379"
 nord14 = "#b2d098"
 nord15 = "#c69bbe"
 # Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
