@@ -3132,10 +3132,11 @@ fn tasks_page_with_the_side_menu() {
 fn a_long_title_wraps_in_the_day_popup() {
     // 60 × 20, layout 2: the long title makes the popup as wide as it gets, the month grid less 2 cells on
     // each side (56, x 2; too wide for blank cells left and right inside); inside the border 54 cells, a
-    // single-day item has no date, just one blank cell in front, and one blank stays at the end, so the
-    // title wraps at 52 cells (expected lines from the Python `wrap` in tools/expected_screen.py), the
-    // second line under the title; 3 lines + border + a blank row above and below = 7 tall → y 6, the
-    // lines at y 8-10
+    // single-day item has no date, just one blank cell and its check box in front, and one blank stays at
+    // the end, so the title wraps at 50 cells (expected lines from the Python `wrap` in
+    // tools/expected_screen.py), the second line under the title (not under the box, so it does not look
+    // like the next item); 3 lines + border + a blank row above and below = 7 tall → y 6, the lines at
+    // y 8-10
     let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.focus = Focus::Day;
@@ -3150,9 +3151,9 @@ fn a_long_title_wraps_in_the_day_popup() {
     assert_eq!(
         rows,
         [
-            " A really long title that just keeps going and going",
-            " and going past the edge of the box",
-            " Pack",
+            " ☐\u{a0}A really long title that just keeps going and",
+            "   going and going past the edge of the box",
+            " ☐\u{a0}Pack",
         ]
     );
     // The chosen (first) item: both lines have the selection background from border to border
@@ -3175,10 +3176,10 @@ fn a_long_title_wraps_in_the_day_popup() {
     let terminal = draw_app(&mut app, 60, 8);
     let rows = text_rows(terminal.backend().buffer());
     assert!(
-        rows[5].contains("│ and going past the edge of the box "),
+        rows[5].contains("│   going and going past the edge of the box "),
         "{rows:#?}"
     );
-    assert!(rows[1].contains("│ b "), "{rows:#?}");
+    assert!(rows[1].contains("│ ☐\u{a0}b "), "{rows:#?}");
 }
 
 #[test]
@@ -3187,9 +3188,9 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // there is room, so a blank row above and below the items and a blank cell left and right:
     // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32, but the top border needs more: the
     // date 18 + 「 未完成 1 / 已完成 1 」 21 + one line cell + 2 corners = 42 wide, 4 + 2 + 2 = 8 rows tall
-    // → x 9, y 5; the top border shows the date, one item per row (like layout 1's agenda, but only the
-    // multi-day item writes its dates), the first item is chosen; the bottom row switches to the popup's
-    // keys
+    // → x 9, y 5; the top border shows the date, one item per row (like layout 1's agenda, but each item
+    // starts with its check box, ☑ once done, or `∙` for an event, and only the multi-day item writes its
+    // dates), the first item is chosen; the bottom row switches to the popup's keys
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
@@ -3201,10 +3202,10 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         [
             "╭ 2026/10/17（六） ─ 未完成 1 / 已完成 1 ╮",
             "│                                        │",
-            "│  10/16~18 Parents in town              │",
-            "│  Clean the garage                      │",
-            "│  10:00 Farmers market                  │",
-            "│  17:30 Buy groceries                   │",
+            "│  ∙ 10/16~18 Parents in town            │",
+            "│  ☑\u{a0}Clean the garage                    │",
+            "│  ∙ 10:00 Farmers market                │",
+            "│  ☐\u{a0}17:30 Buy groceries                 │",
             "│                                        │",
             "╰────────────────────────── ☑\u{a0}照日曆分組 ╯",
         ]
@@ -3217,10 +3218,12 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     );
     // The border has the color of where the keyboard is; the chosen row (y 7) has the selection
     // background from border to border (x 10-49, the padding cells too), the others none; its dates are
-    // in the line's color, like the title
+    // in the line's color, like the title; its `∙` (x 12) is colored like a time: muted
     let theme = Theme::default();
     assert_eq!(buffer[(9, 5)].fg, theme.focus);
-    assert_eq!(buffer[(12, 7)].fg, theme.text);
+    assert_eq!(buffer[(12, 7)].symbol(), "∙");
+    assert_eq!(buffer[(12, 7)].fg, theme.muted);
+    assert_eq!(buffer[(14, 7)].fg, theme.text);
     assert_eq!(buffer[(10, 7)].bg, theme.selection);
     assert_eq!(buffer[(49, 7)].bg, theme.selection);
     assert_eq!(buffer[(50, 7)].bg, Color::Reset);
@@ -3234,9 +3237,9 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     assert_eq!(
         area_rows(buffer, Rect::new(9, 1, 41, 3)),
         [
-            "│  Clean the garage                      ",
-            "│  10:00 Farmers market                  ",
-            "│  17:30 Buy groceries                   ",
+            "│  ☑\u{a0}Clean the garage                    ",
+            "│  ∙ 10:00 Farmers market                ",
+            "│  ☐\u{a0}17:30 Buy groceries                 ",
         ]
     );
     assert!((1..4).any(|y| buffer[(50, y)].symbol() == "┃"));
@@ -3257,7 +3260,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     let terminal = draw_app(&mut app, 60, 6);
     assert_eq!(
         area_rows(terminal.backend().buffer(), Rect::new(9, 1, 41, 1)),
-        ["│  Clean the garage                      "]
+        ["│  ☑\u{a0}Clean the garage                    "]
     );
     assert_eq!(
         terminal.backend().buffer()[(10, 1)].bg,
@@ -3897,7 +3900,7 @@ fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popu
 #[test]
 fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     // 10/17: one item outside any calendar, one in CAIS > Reports, one `!!!` in Life, a holiday.
-    // Widest line: 「 Send the report」 16 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 26;
+    // Widest line: 「 ☐ Send the report」 18 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 28;
     // the top border needs more: the date 18 + 「 3 open / 0 done 」 17 + one line cell + 2 corners = 38
     let text = "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n\
                 # Life\n- [ ] Pay the fine !!! @2026-10-17\n# Holidays type:holiday\n- Day off @2026-10-17\n";
@@ -3915,20 +3918,26 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
         [
             "╭ Sat Oct 17, 2026 ─ 3 open / 0 done ╮",
             "│                                    │",
-            "│  Loose end                         │",
-            "│  Send the report             CAIS  │",
-            "│  Pay the fine                Life  │",
-            "│  Day off                           │",
+            "│  ☐\u{a0}Loose end                       │",
+            "│  ☐\u{a0}Send the report           CAIS  │",
+            "│  ☐\u{a0}Pay the fine              Life  │",
+            "│  ∙ Day off                         │",
             "│                                    │",
             "╰───────────────────── ☐\u{a0}By calendar ╯",
         ]
     );
-    // Colored like the time: muted, or the whole line's color with a priority
+    // The calendar and the check box are colored like the time: muted, or the whole line's color with a
+    // priority (or a holiday's)
     let theme = Theme::default();
     assert_eq!(buffer[(area.x + 31, area.y + 3)].symbol(), "C");
     assert_eq!(buffer[(area.x + 31, area.y + 3)].fg, theme.muted);
     assert_eq!(buffer[(area.x + 31, area.y + 4)].symbol(), "L");
     assert_eq!(buffer[(area.x + 31, area.y + 4)].fg, theme.priority_high);
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].symbol(), "☐");
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].fg, theme.muted);
+    assert_eq!(buffer[(area.x + 3, area.y + 4)].fg, theme.priority_high);
+    assert_eq!(buffer[(area.x + 3, area.y + 5)].symbol(), "∙");
+    assert_eq!(buffer[(area.x + 3, area.y + 5)].fg, theme.weekend);
 }
 
 #[test]
@@ -3936,7 +3945,7 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
     // By time the calendars take turns (Day off, CAIS 08:00, Life 09:00, CAIS 17:00, no calendar 20:00);
     // grouped (the default): the item outside any calendar first, then each outermost calendar in the
     // calendar list's order, its name on its own line and its items 2 cells in, by time inside it.
-    // Widest line: 「   08:00 Send the report」 24 + border 2 + a blank cell 1 + padding 2 = 29; the top
+    // Widest line: 「   ☐ 08:00 Send the report」 26 + border 2 + a blank cell 1 + padding 2 = 31; the top
     // border needs more: the date 18 + 「 4 open / 0 done 」 17 + one line cell + 2 corners = 38
     let text = "- [ ] Loose end @2026-10-17 20:00\n# CAIS\n- [ ] Ship the fix @2026-10-17 17:00\n\
                 ## Reports\n- [ ] Send the report @2026-10-17 08:00\n\
@@ -3967,14 +3976,14 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
         [
             "╭ Sat Oct 17, 2026 ─ 4 open / 0 done ╮",
             "│                                    │",
-            "│  20:00 Loose end                   │",
+            "│  ☐\u{a0}20:00 Loose end                 │",
             "│  CAIS                              │",
-            "│    08:00 Send the report           │",
-            "│    17:00 Ship the fix              │",
+            "│    ☐\u{a0}08:00 Send the report         │",
+            "│    ☐\u{a0}17:00 Ship the fix            │",
             "│  Life                              │",
-            "│    09:00 Pay the fine              │",
+            "│    ☐\u{a0}09:00 Pay the fine            │",
             "│  Holidays                          │",
-            "│    Day off                         │",
+            "│    ∙ Day off                       │",
             "│                                    │",
             "╰───────────────────── ☑\u{a0}By calendar ╯",
         ]

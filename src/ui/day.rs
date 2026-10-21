@@ -1,7 +1,8 @@
 //! Layout 2's day popup: sits in the middle of the month grid, one item per row (same colors as layout 1's
-//! agenda, but only a multi-day item writes its dates: the top border already says which day; a title too
-//! long for the box wraps onto the next lines), with the selected day on the top border and some blank
-//! space inside the border when there is room
+//! agenda, but each item starts with a check box, or a dot for an event, and only a multi-day item writes
+//! its dates: the top border already says which day; a title too long for the box wraps onto the next
+//! lines, under the title), with the selected day on the top border and some blank space inside the border
+//! when there is room
 
 use super::{
     calendar_path, calendar_tag, check_box, clear_with_ring,
@@ -11,7 +12,7 @@ use super::{
     tasks::wrap,
 };
 use crate::app::App;
-use crate::tasks::{Heading, Item};
+use crate::tasks::{Heading, Item, Kind};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
@@ -133,10 +134,22 @@ fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
     })
 }
 
-/// One item's line before wrapping: its dates only when it spans several days, its time, then its title,
-/// e.g. 「 17:30 Buy groceries」, 「 10/16~18 Parents in town」
+/// What an item's line starts with, so a wrapped title cannot pass for the next item: a task's check box
+/// (`☑` once done, see `check_box`), an event's `∙` (as on the tasks page)
+fn marker(item: &Item) -> &'static str {
+    match item.kind {
+        Kind::Task => check_box(item.done),
+        Kind::Event => "∙ ",
+    }
+}
+
+/// One item's line before wrapping: its `marker` (colored like the time), its dates only when it spans
+/// several days, its time, then its title, e.g. 「 ☐ 17:30 Buy groceries」, 「 ∙ 10/16~18 Parents in town」
 fn popup_line(item: &Item, app: &App) -> Line<'static> {
-    let mut spans = vec![Span::raw(" ")];
+    let mut spans = vec![
+        Span::raw(" "),
+        Span::styled(marker(item), Style::new().fg(secondary_color(item, app))),
+    ];
     if item.end.is_some() {
         spans.push(Span::styled(
             format!("{} ", date_text(item)),
