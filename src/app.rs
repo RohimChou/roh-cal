@@ -896,13 +896,21 @@ impl App {
         self.open_day_popup();
     }
 
-    /// Keyboard in the agenda: up / down one item, and the calendar's selected day follows the item;
-    /// `Space` / `x` check, `r` reschedule, `e` / `Enter` edit,
-    /// `a` add, `A` add a subtask, `d` delete (all write back to the task file)
+    /// Keyboard in the agenda: up / down one item, and the calendar's selected day follows the item; the
+    /// rest are the keys on the chosen item (`handle_item_key`)
     fn handle_agenda_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
+            _ => self.handle_item_key(code),
+        }
+    }
+
+    /// Keys on the chosen item, the same in the agenda, the day popup and on the tasks page (all write back
+    /// to the task file): `Space` / `x` check, `/` in progress, `r` reschedule, `e` / `Enter` edit, `a`
+    /// add, `A` add a subtask, `d` delete; other keys do nothing
+    fn handle_item_key(&mut self, code: KeyCode) {
+        match code {
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('r') => self.start_moving(),

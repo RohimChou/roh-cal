@@ -307,9 +307,8 @@ impl App {
     /// collapse subtasks one level, `Shift+→` / `Shift+←` the whole subtree, `=` (`+`) / `-` expand all /
     /// collapse all,
     /// `L` / `H` indent / outdent, `J` / `K` move down / up;
-    /// the keys that write the file are the same as in the agenda: `Space` / `x` check
-    /// off, `e` / `Enter` edit, `a` add, `A` add a subtask, `d` delete, `r` reschedule;
-    /// `o` opens the task file in the user's editor on the chosen row's line
+    /// `o` opens the task file in the user's editor on the chosen row's line; the rest are the keys on the
+    /// chosen item, as in the agenda (`App::handle_item_key`)
     pub(super) fn handle_tasks_key(&mut self, key: KeyEvent, after_g: bool) {
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
         match key.code {
@@ -330,17 +329,10 @@ impl App {
             KeyCode::Char('H') => self.outdent_task(),
             KeyCode::Char('J') => self.move_task(true),
             KeyCode::Char('K') => self.move_task(false),
-            KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
-            KeyCode::Char('/') => self.toggle_chosen_progress(),
-            KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
-            KeyCode::Char('a') => self.start_adding(),
-            KeyCode::Char('A') => self.start_adding_subtask(),
-            KeyCode::Char('d') => self.ask_delete(),
-            KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('[') => self.jump_calendar(-1),
             KeyCode::Char(']') => self.jump_calendar(1),
             KeyCode::Char('o') => self.open_editor = true,
-            _ => {}
+            _ => self.handle_item_key(key.code),
         }
     }
 

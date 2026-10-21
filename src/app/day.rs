@@ -102,22 +102,15 @@ impl App {
         }
     }
 
-    /// Keyboard in the popup: `j` / `k` next / previous item, `c` grouped by calendar or not. Keys that
-    /// write match the agenda: `Space` / `x` check, `r` reschedule, `e` / `Enter` edit,
-    /// `a` add, `A` add a subtask, `d` delete (closing with `Esc` / `q` is in `handle_normal_key`)
+    /// Keyboard in the popup: `j` / `k` next / previous item, `c` grouped by calendar or not; the rest are
+    /// the keys on the chosen item, as in the agenda (`App::handle_item_key`; closing with `Esc` / `q` is in
+    /// `handle_normal_key`)
     pub(super) fn handle_day_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_day(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_day(-1),
-            KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
-            KeyCode::Char('/') => self.toggle_chosen_progress(),
-            KeyCode::Char('r') => self.start_moving(),
-            KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
-            KeyCode::Char('a') => self.start_adding(),
-            KeyCode::Char('A') => self.start_adding_subtask(),
-            KeyCode::Char('d') => self.ask_delete(),
             KeyCode::Char('c') => self.toggle_by_calendar(),
-            _ => {}
+            _ => self.handle_item_key(code),
         }
     }
 
