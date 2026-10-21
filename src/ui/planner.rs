@@ -24,7 +24,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType},
 };
-use std::rc::Rc;
 
 /// Cells per day: a blank, the date (right-aligned in 2 cells), and one cell after it
 const DAY_WIDTH: u16 = 4;
@@ -42,34 +41,6 @@ pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + DAYS_WIDTH + 2;
 /// How many rows to keep between the selected row and the screen's top and bottom edges; scroll only when
 /// there are fewer (like vim's scrolloff)
 const SCROLLOFF: i64 = 2;
-/// When the agenda is split into columns, the minimum width of each column
-const AGENDA_COLUMN_WIDTH: u16 = 28;
-/// The most columns the agenda can split into: 1, so it reads top to bottom however wide the terminal is
-const MAX_AGENDA_COLUMNS: u16 = 1;
-/// Gap between agenda columns
-const AGENDA_GAP: u16 = 2;
-
-/// How many columns an agenda `width` cells wide gets: each at least `AGENDA_COLUMN_WIDTH` cells (with
-/// `AGENDA_GAP` cells between columns), at most `MAX_AGENDA_COLUMNS` columns
-fn agenda_columns(width: u16) -> usize {
-    usize::from(
-        ((width + AGENDA_GAP) / (AGENDA_COLUMN_WIDTH + AGENDA_GAP)).clamp(1, MAX_AGENDA_COLUMNS),
-    )
-}
-
-/// How many columns the agenda box (`agenda`, with its border) is split into
-pub(super) fn columns(agenda: Rect) -> usize {
-    let [_, _, body] = inner_areas(agenda);
-    agenda_columns(body.width)
-}
-
-/// Splits one agenda row into `count` columns, like a newspaper
-fn split_columns(area: Rect, count: usize) -> Rc<[Rect]> {
-    Layout::horizontal(vec![Constraint::Fill(1); count])
-        .spacing(AGENDA_GAP)
-        .split(area)
-}
-
 /// This week's first day that belongs to this month; the week number and year / month come from it
 fn first_day(days: &WeekRow) -> Option<Date> {
     days.iter().flatten().next().copied()
@@ -96,12 +67,11 @@ fn max_month_height(body: Rect) -> usize {
 pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     let [calendar_header, calendar_rule, calendar_body] = inner_areas(calendar);
     let [agenda_header, agenda_rule, agenda_body] = inner_areas(agenda);
-    let columns = agenda_columns(agenda_body.width);
     let max_height = max_month_height(calendar_body);
     // `app` gets changed, so compute these first (`Months` borrows `app.items`, and Rust does not allow
     // changing something while it is borrowed for reading)
     let (top, window) = {
-        let mut months = Months::new(app, columns, max_height);
+        let mut months = Months::new(app, max_height);
         let month = app.selected.first_of_month();
         // Agenda items that must be visible: keyboard on the agenda = the chosen item; on the calendar =
         // the selected day's items
@@ -134,7 +104,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
     app.agenda_window = Some(window);
     // Read-only from here on
     let app = &*app;
-    let mut months = Months::new(app, columns, max_height);
+    let mut months = Months::new(app, max_height);
     months.window = app.agenda_window;
     let texts = app.lang.texts();
     let theme = &app.theme;
@@ -208,27 +178,21 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
             Row::Week {
                 label,
                 days,
-                items,
+                item,
                 thumb,
             } => {
                 render_week(frame, calendar_row, *label, days.as_ref(), app);
-                for (entry, area) in items
-                    .iter()
-                    .zip(split_columns(agenda_row, items.len()).iter())
-                {
-                    if let Some(entry) = entry {
-                        // Chosen line (keyboard on the agenda): background color
-                        let is_chosen = chosen == Some(*entry);
-                        // Keyboard on the calendar: the selected day's items get a background color (same as
-                        // that week on the calendar; a multi-day item counts if it covers that day)
-                        let on_selected_day =
-                            app.focus == Focus::Calendar && entry.is_on(app.selected);
-                        frame.render_widget(item_line(entry.item, app), *area);
-                        if is_chosen || on_selected_day {
-                            frame
-                                .buffer_mut()
-                                .set_style(*area, Style::new().bg(theme.selection));
-                        }
+                if let Some(entry) = item {
+                    // Chosen line (keyboard on the agenda): background color
+                    let is_chosen = chosen == Some(*entry);
+                    // Keyboard on the calendar: the selected day's items get a background color (same as
+                    // that week on the calendar; a multi-day item counts if it covers that day)
+                    let on_selected_day = app.focus == Focus::Calendar && entry.is_on(app.selected);
+                    frame.render_widget(item_line(entry.item, app), agenda_row);
+                    if is_chosen || on_selected_day {
+                        frame
+                            .buffer_mut()
+                            .set_style(agenda_row, Style::new().bg(theme.selection));
                     }
                 }
                 // This month's items do not fit: draw the scrollbar thumb on the right border (that
@@ -269,11 +233,7 @@ pub(super) fn inner_areas(area: Rect) -> [Rect; 3] {
 pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let [_, _, calendar_body] = inner_areas(calendar);
     let [_, _, agenda_body] = inner_areas(agenda);
-    let mut months = Months::new(
-        app,
-        agenda_columns(agenda_body.width),
-        max_month_height(calendar_body),
-    );
+    let mut months = Months::new(app, max_month_height(calendar_body));
     months.window = app.agenda_window;
     let position = Position::new(column, row);
     // Every row on screen, same as when drawing (including the agenda's scroll); both boxes' rows line up
@@ -292,15 +252,10 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
         let weekday = usize::from(column.checked_sub(days_area.x)? / DAY_WIDTH);
         days.get(weekday).copied().flatten().map(Click::Day)
     } else if agenda_body.contains(position) {
-        let Row::Week { items, .. } = rows.get(usize::from(row - agenda_body.y))? else {
+        let Row::Week { item, .. } = rows.get(usize::from(row - agenda_body.y))? else {
             return None;
         };
-        // Which column was clicked (the gap between columns does not count)
-        let agenda_row = Rect::new(agenda_body.x, row, agenda_body.width, 1);
-        let index = split_columns(agenda_row, items.len())
-            .iter()
-            .position(|area| area.contains(position))?;
-        let entry = items.get(index).copied().flatten()?;
+        let entry = (*item)?;
         // That line's index in `App::agenda()`
         app.agenda()
             .iter()
@@ -683,13 +638,6 @@ fn render_cells(frame: &mut Frame, area: Rect, cells: [Line; 4]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_agenda_is_one_column_however_wide() {
-        for width in [0, 57, 58, 88, 118, 500] {
-            assert_eq!(agenda_columns(width), 1, "{width}");
-        }
-    }
 
     #[test]
     fn a_month_takes_two_thirds_of_the_height_but_at_most_16_rows() {

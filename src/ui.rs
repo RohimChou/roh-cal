@@ -37,11 +37,6 @@ const VIEW_KEYS_X: u16 = 1;
 /// Which layout each of the keys `1` `2` `3` switches to
 const VIEW_KEYS: [View; 3] = [View::Planner, View::Month, View::Tasks];
 
-/// How many columns layout 1's agenda is split into on the current screen (1 when it is narrow)
-pub fn agenda_columns(app: &App) -> usize {
-    planner::columns(areas(app.screen, app).agenda)
-}
-
 /// Where the edit box is (so a mouse click outside it can cancel); nothing while it is closed
 pub fn editor_area(app: &App) -> Rect {
     app.editor().map_or(Rect::default(), |editor| {

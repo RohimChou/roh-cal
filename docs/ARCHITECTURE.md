@@ -84,7 +84,7 @@ App::run 的迴圈
 | :- | :- |
 | 列號 | 今天那個月的第一列是第 0 列，往下是正、往上是負；`block_start`、`block_at` 從第 0 列一個月一個月數過去 |
 | 一塊 | 一個月 = `month_height` 列 + 1 條線；`month_height` = 排成幾列（`layout_height`）和上限取小的 |
-| 分欄 | 永遠只有 1 欄（`planner::MAX_AGENDA_COLUMNS = 1`，再寬也一樣）；分欄的程式（`Months::columns`、`App::choose_column`、`h` `l`）還在，只是用不到 |
+| 分欄 | 只有 1 欄，再寬也一樣：一個月的第 i 列就是那個月的第 i 件（捲過的話加上捲了幾列，`Row::Week::item`） |
 | 月份裡捲（`window`） | 只有選取的那個月會捲，其他月顯示前面幾件；記在 `App::agenda_window` |
 | 整個畫面捲（`scrolled_to`） | 選取那週離上下邊緣至少留 2 列（像 vim 的 scrolloff），再讓要看的事也看得到 |
 | 一行（`Entry`） | 右邊的一行 = 哪件事 + 列在哪天；`App::agenda()` 排好的順序就是右邊由上到下的順序（同一天：進行中 `[/]` 最前面，再來是從上個月接過來的、沒時間的、照時間；一樣的照檔案順序。版型 2 的格子用 `App::items_on`：進行中最前面，再來是比較早開始的、照時間；跳窗用 `App::day_items`，再照日曆分組），`agenda_index`、滑鼠點到的 `Click::Item` 都是這裡面的位置 |
@@ -134,7 +134,6 @@ App::run 的迴圈
 | 字元 | `~` 是 East Asian Width Na（1 格）；`–`（en dash）是 A，不要用 |
 
 ## 可以改進的地方
-- 右邊只剩 1 欄之後，分欄的程式（`Months` 的 `columns`、`split_columns`、`App::choose_column`、事項框的 `h` `l`）都用不到了：要嘛整個拿掉（`months.rs` 會簡單很多），要嘛做成設定
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
 - `day_color`、`in_multi_day`、`date_text`、`open_item_color` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個

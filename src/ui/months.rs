@@ -1,8 +1,8 @@
 //! Layout 1's layout math: how many rows each month takes, each row's number, and the scroll position
 //! (numbers only, no drawing)
 //!
-//! A month's block = the larger of its week count and the rows its items need (after splitting into
-//! columns), but at most `max_height` rows (never fewer than its weeks),
+//! A month's block = the larger of its week count and its item count (one item per row), but at most
+//! `max_height` rows (never fewer than its weeks),
 //! plus the line after it; items that do not fit scroll on their own in that month's agenda (`window`).
 //! Every row has a number: the first row of today's month is row 0, going down 1, 2, 3…, going up -1, -2…
 
@@ -33,8 +33,7 @@ pub enum Row<'a> {
         hidden: usize,
     },
     /// One row inside a month: the year / month on the left (may be absent), this week's days that belong
-    /// to this month, one line for each agenda column (may be absent),
-    /// and the scrollbar on the right border
+    /// to this month, one agenda item (may be absent), and the scrollbar on the right border
     ///
     /// When a month has more items than weeks, the extra rows only have agenda items, and `days` is `None`;
     /// there is a scrollbar only when the month's items do not fit (the agenda has to scroll): `thumb` is
@@ -44,23 +43,21 @@ pub enum Row<'a> {
         label: Option<Label>,
         /// This week's days that belong to this month; `None` on rows with only agenda items
         days: Option<WeekRow>,
-        /// One line per agenda column (`None` when that column has no item on this row)
-        items: Vec<Option<Entry<'a>>>,
+        /// The agenda item on this row (`None` when there is none)
+        item: Option<Entry<'a>>,
         /// Scrollbar on the right border: `None` = this month needs no scrolling, `Some(true)` = this row
         /// is part of the thumb
         thumb: Option<bool>,
     },
 }
 
-/// Data for the layout: which month holds row 0, the dated items (sorted by date and time), how many
-/// agenda columns, the most rows per month, and where the agenda is scrolled to
+/// Data for the layout: which month holds row 0, the dated items (sorted by date and time), the most rows
+/// per month, and where the agenda is scrolled to
 pub struct Months<'a> {
     /// The month that holds row 0 (today's month)
     origin: Date,
     /// Every agenda line (`App::agenda()`), sorted by the day it is listed on, then time
     items: Vec<Entry<'a>>,
-    /// How many columns the agenda items are split into
-    columns: usize,
     /// The most rows a month can take (if fewer than the month's weeks, the week count wins)
     max_height: usize,
     /// Where the agenda is scrolled: (the 1st of which month, which laid-out row is at the top of that
@@ -69,13 +66,12 @@ pub struct Months<'a> {
 }
 
 impl<'a> Months<'a> {
-    /// Lays out from `app`: today's month is row 0; the agenda has `columns` columns, a month takes at most
-    /// `max_height` rows; the agenda's scroll position follows `app.agenda_window`
-    pub fn new(app: &'a App, columns: usize, max_height: usize) -> Self {
+    /// Lays out from `app`: today's month is row 0, a month takes at most `max_height` rows; the agenda's
+    /// scroll position follows `app.agenda_window`
+    pub fn new(app: &'a App, max_height: usize) -> Self {
         Self {
             origin: app.today,
             items: app.agenda(),
-            columns,
             max_height,
             window: None,
         }
@@ -100,11 +96,10 @@ impl<'a> Months<'a> {
             .collect()
     }
 
-    /// How many rows this month's layout needs (no cap; with columns, the height of each column): the
-    /// larger of the week count and the rows the items need
+    /// How many rows this month's layout needs (no cap): the larger of the week count and the item count
     fn layout_height(&self, month: Date) -> usize {
         let weeks = calendar::month_rows(month).len();
-        weeks.max(self.month_items(month).len().div_ceil(self.columns))
+        weeks.max(self.month_items(month).len())
     }
 
     /// Rows in a month's block (not counting the line after it): the layout rows, but at most `max_height`
@@ -188,9 +183,8 @@ impl<'a> Months<'a> {
             hidden = self.hidden_below(month);
             let weeks = calendar::month_rows(month);
             let items = self.month_items(month);
-            let layout_height = self.layout_height(month);
             let offset = self.offset(month);
-            let thumb = thumb_rows(layout_height, self.month_height(month), offset);
+            let thumb = thumb_rows(self.layout_height(month), self.month_height(month), offset);
             // January: the year on the first row and the month on the second;
             // other months only have the month on the first row
             let january = month.month() == 1;
@@ -203,12 +197,8 @@ impl<'a> Months<'a> {
                 rows.push(Row::Week {
                     label,
                     days: weeks.get(i).copied(),
-                    // Fill the first column before the second (`layout_height` rows each); the agenda is
-                    // scrolled by `offset` rows:
-                    // row i of column c = the month's item at c × rows per column + offset + i
-                    items: (0..self.columns)
-                        .map(|c| items.get(c * layout_height + offset + i).copied())
-                        .collect(),
+                    // The agenda is scrolled by `offset` rows: row i = the month's item at offset + i
+                    item: items.get(offset + i).copied(),
                     thumb: thumb.as_ref().map(|thumb| thumb.contains(&i)),
                 });
             }
@@ -217,30 +207,22 @@ impl<'a> Months<'a> {
         rows
     }
 
-    /// How many of `month`'s agenda items are still hidden below after scrolling (counting every column)
+    /// How many of `month`'s agenda items are still hidden below after scrolling
     fn hidden_below(&self, month: Date) -> usize {
-        let count = self.month_items(month).len();
-        let layout_height = self.layout_height(month);
         // The row after the last visible row
         let end = self.offset(month) + self.month_height(month);
-        (0..self.columns)
-            .map(|c| {
-                // How many items column c has (at most `layout_height` per column)
-                let in_column = count.saturating_sub(c * layout_height).min(layout_height);
-                in_column.saturating_sub(end)
-            })
-            .sum()
+        self.month_items(month).len().saturating_sub(end)
     }
 
-    /// Which row of its month `entry` is laid out on (before scrolling; with columns, the row within
-    /// its column): returns that month (its 1st) and the row
+    /// Which row of its month `entry` is laid out on (before scrolling): returns that month (its 1st) and
+    /// the row
     fn layout_row(&self, entry: Entry) -> Option<(Date, usize)> {
         let month = entry.date.first_of_month();
         let index = self
             .month_items(month)
             .iter()
             .position(|other| *other == entry)?;
-        Some((month, index % self.layout_height(month)))
+        Some((month, index))
     }
 
     /// Which row `month`'s agenda must scroll to so the `targets` items are visible: starting from

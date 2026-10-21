@@ -903,8 +903,6 @@ impl App {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_next(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_next(-1),
-            KeyCode::Char('l') | KeyCode::Right => self.choose_column(1),
-            KeyCode::Char('h') | KeyCode::Left => self.choose_column(-1),
             KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
             KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('r') => self.start_moving(),
@@ -1389,35 +1387,6 @@ impl App {
     fn choose_next(&mut self, step: isize) {
         let last = self.agenda().len().saturating_sub(1);
         self.choose(self.agenda_index.saturating_add_signed(step).min(last));
-    }
-
-    /// `l` (`step` = 1) / `h` (−1) in the agenda when it is split into columns: the item on the same row of
-    /// the next / previous column of that month (a month's items fill its first column, then the next:
-    /// `rows` each, the larger of its week count and its items ÷ columns); a shorter last column = its last
-    /// item; no column there, or nothing in it: stays
-    fn choose_column(&mut self, step: isize) {
-        let columns = ui::agenda_columns(self);
-        let agenda = self.agenda();
-        let Some(chosen) = agenda.get(self.agenda_index) else {
-            return;
-        };
-        // The chosen item's month: its items are one stretch of the agenda
-        let month = chosen.date.first_of_month();
-        let start = agenda.partition_point(|entry| entry.date < month);
-        let end = agenda.partition_point(|entry| entry.date <= month.last_of_month());
-        let count = end - start;
-        let rows = calendar::month_rows(month)
-            .len()
-            .max(count.div_ceil(columns));
-        let position = self.agenda_index - start;
-        let Some(column) = (position / rows)
-            .checked_add_signed(step)
-            .filter(|&column| column < columns && column * rows < count)
-        else {
-            return;
-        };
-        let target = (column * rows + position % rows).min(count - 1);
-        self.choose(start + target);
     }
 
     /// Jumps to the 1st of the month `months` months later (negative = earlier), scrolled to the top;

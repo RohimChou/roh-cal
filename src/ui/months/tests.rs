@@ -16,7 +16,7 @@ fn row_numbers_count_from_this_month() {
     // Today is in 2026/10: October's first row is row 0;
     // with no items, each month's block = its weeks + 1 line
     let app = app_with("");
-    let months = Months::new(&app, 1, 100);
+    let months = Months::new(&app, 100);
     assert_eq!(months.block_start(date(2026, 10, 1)), 0);
     assert_eq!(months.block_start(date(2026, 11, 20)), 6);
     assert_eq!(months.block_start(date(2027, 1, 1)), 19);
@@ -37,19 +37,17 @@ fn row_numbers_count_from_this_month() {
 
 #[test]
 fn months_grow_with_their_items() {
-    // October has 5 weeks and 7 items: one column needs 7 rows, two columns need 4 (fewer than 5 weeks,
-    // so still 5 rows); September's item and the one with no date do not count toward October
+    // October has 5 weeks and 7 items: 7 rows; September's item and the one with no date do not count
+    // toward October
     let text = (1..=7)
         .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
         .collect::<String>()
         + "- [ ] Pay September rent @2026-09-30\n- [ ] Organize the bookshelf\n";
     let app = app_with(&text);
-    let one = Months::new(&app, 1, 100);
+    let one = Months::new(&app, 100);
     assert_eq!(one.month_items(date(2026, 10, 1)).len(), 7);
     assert_eq!(one.block_height(date(2026, 10, 1)), 8);
     assert_eq!(one.block_start(date(2026, 11, 1)), 8);
-    let two = Months::new(&app, 2, 100);
-    assert_eq!(two.block_height(date(2026, 10, 1)), 6);
     // The selected week is still among the month's top rows
     assert_eq!(one.row_of(date(2026, 11, 7)), 9);
 }
@@ -61,7 +59,7 @@ fn items_are_sorted_by_date_then_time_untimed_first() {
         "- b @2026-10-16 17:30\n- a @2026-10-16 09:00\n- c @2026-10-16\n- d @2026-10-15\n\
              - e @2026-10-16 09:00\n",
     );
-    let months = Months::new(&app, 1, 100);
+    let months = Months::new(&app, 100);
     let titles: Vec<&str> = months
         .month_items(date(2026, 10, 1))
         .iter()
@@ -71,27 +69,22 @@ fn items_are_sorted_by_date_then_time_untimed_first() {
 }
 
 #[test]
-fn rows_fill_the_first_column_before_the_second() {
-    // October, 7 items, two columns: height 5 (weeks win), 5 items in the first column, 2 in the second
-    let text = (1..=7)
+fn each_row_holds_the_next_item() {
+    // October, 3 items: one per row from the top, the other weeks' rows have none, then the line
+    let text = (1..=3)
         .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
         .collect::<String>();
     let app = app_with(&text);
-    let months = Months::new(&app, 2, 100);
+    let months = Months::new(&app, 100);
     let rows = months.rows(date(2026, 10, 1), 6);
-    let titles: Vec<[&str; 2]> = rows[..5]
+    let titles: Vec<&str> = rows[..5]
         .iter()
         .map(|row| match row {
-            Row::Week { items, .. } => {
-                [0, 1].map(|c| items[c].map_or("", |entry| &entry.item.title))
-            }
+            Row::Week { item, .. } => item.map_or("", |entry| entry.item.title.as_str()),
             Row::Separator { .. } => panic!("October's 5 week rows should have no line"),
         })
         .collect();
-    assert_eq!(
-        titles,
-        [["1", "6"], ["2", "7"], ["3", ""], ["4", ""], ["5", ""]]
-    );
+    assert_eq!(titles, ["1", "2", "3", "", ""]);
     assert_eq!(
         rows[5],
         Row::Separator {
@@ -116,14 +109,14 @@ fn shape(rows: &[Row]) -> String {
 
 #[test]
 fn months_with_more_items_than_weeks_get_rows_without_dates() {
-    // One column: October has 7 items → 5 weeks + 2 item-only rows; November has none → 6 weeks;
+    // October has 7 items → 5 weeks + 2 item-only rows; November has none → 6 weeks;
     // December → 5 weeks; thick line at the new year;
     // asking for 22 rows still lays out all of the last month, January (5 weeks)
     let text = (1..=7)
         .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
         .collect::<String>();
     let app = app_with(&text);
-    let months = Months::new(&app, 1, 100);
+    let months = Months::new(&app, 100);
     assert_eq!(
         shape(&months.rows(date(2026, 10, 1), 22)),
         "wwwww..-wwwwww-wwwww=wwwww"
@@ -132,17 +125,17 @@ fn months_with_more_items_than_weeks_get_rows_without_dates() {
 
 #[test]
 fn months_are_capped_and_scroll_inside() {
-    // October with 20 items (one column): 20 laid-out rows; at most 8 → the block has 8 rows,
+    // October with 20 items: 20 laid-out rows; at most 8 → the block has 8 rows,
     // November starts at row 9
     let text = (1..=20)
         .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
         .collect::<String>();
     let app = app_with(&text);
-    let mut months = Months::new(&app, 1, 8);
+    let mut months = Months::new(&app, 8);
     assert_eq!(months.month_height(date(2026, 10, 1)), 8);
     assert_eq!(months.block_start(date(2026, 11, 1)), 9);
     // A cap below the week count: still at least the weeks (October has 5)
-    assert_eq!(Months::new(&app, 1, 3).month_height(date(2026, 10, 1)), 5);
+    assert_eq!(Months::new(&app, 3).month_height(date(2026, 10, 1)), 5);
     let agenda = app.agenda();
     let october = date(2026, 10, 1);
     // To see the 15th item (laid out on row 14): the agenda scrolls to row 8, leaving 1 row below
@@ -155,10 +148,10 @@ fn months_are_capped_and_scroll_inside() {
     // Scrolled 8 rows: October's first row shows the 9th item in the agenda; other months are not affected
     months.window = Some((october, 8));
     let rows = months.rows(october, 9);
-    let Row::Week { items, .. } = &rows[0] else {
+    let Row::Week { item, .. } = &rows[0] else {
         panic!("the first row should be October");
     };
-    assert_eq!(items[0].map(|entry| entry.item.title.as_str()), Some("9"));
+    assert_eq!(item.map(|entry| entry.item.title.as_str()), Some("9"));
     // The line below October: 20 - 8 - 8 = 4 items are still hidden
     assert_eq!(
         rows[8],
@@ -186,7 +179,7 @@ fn the_scrollbar_thumb_shows_how_much_and_where() {
         .map(|day| format!("- [ ] {day} @2026-10-{day:02}\n"))
         .collect::<String>();
     let app = app_with(&text);
-    let months = Months::new(&app, 1, 8);
+    let months = Months::new(&app, 8);
     let thumbs: Vec<Option<bool>> = months
         .rows(date(2026, 10, 1), 10)
         .iter()
@@ -208,7 +201,7 @@ fn block_at_finds_the_month_of_every_row() {
     // (one day every 3 days, so every weekday comes up)
     // Uses the sample task file, where some months are taller than their weeks
     let app = app_with(include_str!("../../../testdata/tasks.md"));
-    let months = Months::new(&app, 1, 100);
+    let months = Months::new(&app, 100);
     let mut day = date(2021, 1, 1);
     while day < date(2032, 1, 1) {
         let (month, start) = months.block_at(months.row_of(day));
