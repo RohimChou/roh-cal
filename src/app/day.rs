@@ -62,6 +62,32 @@ impl App {
         Some((drag.anchor.min(head), drag.anchor.max(head)))
     }
 
+    /// The dragged-over text (`day_selection`): each item's part of its title, one item per line (a title
+    /// wrapped in the popup is still one line), e.g. 「Send the weekly update\nPack」
+    pub fn day_selected_text(&self) -> Option<String> {
+        let (first, last) = self.day_selection()?;
+        let items = self.day_items();
+        let lines: Vec<String> = (first.item..=last.item)
+            .filter_map(|index| {
+                let title = &items.get(index)?.title;
+                let from = if index == first.item { first.char } else { 0 };
+                let to = if index == last.item {
+                    last.char + 1
+                } else {
+                    usize::MAX
+                };
+                Some(title.chars().take(to).skip(from).collect())
+            })
+            .collect();
+        Some(lines.join("\n"))
+    }
+
+    /// The left button let go in the popup: the text dragged over (if any) goes to the clipboard (the main
+    /// loop copies it, `App::copy_out`); it stays marked until a key or the next press
+    pub(super) fn release_day(&mut self) {
+        self.to_copy = self.day_selected_text();
+    }
+
     /// The mouse moved with the left button held, now at (`column`, `row`): after a press on a title in the
     /// popup, the dragged-over text now ends at the character under it (past the box's edge: the nearest row
     /// inside; on a calendar's name or a blank row it stays where it was). A click right after a drag is not

@@ -1,6 +1,6 @@
 //! On-screen text: one set in English, one in Traditional Chinese; switching language = switching `Texts`
 
-use crate::app::{Focus, Notice, Place, Row, View};
+use crate::app::{Focus, Notice, Place, Row, Toast, View};
 use crate::edit::Problem;
 use crate::tasks::{Item, WarningKind};
 use jiff::civil::Date;
@@ -360,6 +360,7 @@ const EN: Texts = Texts {
                     ("wheel", "a week / an item"),
                     ("click", "select"),
                     ("double-click", "open a day / check"),
+                    ("drag", "copy text (day popup)"),
                     ("right-click ▸", "whole subtree"),
                     ("click outside", "close the box"),
                 ],
@@ -613,6 +614,7 @@ const ZH_TW: Texts = Texts {
                     ("wheel", "移一週 / 一件"),
                     ("click", "選"),
                     ("double-click", "打開那天的事 / 打勾"),
+                    ("drag", "複製字（那天的事）"),
                     ("right-click ▸", "整棵展開 / 收起"),
                     ("click outside", "關掉跳窗"),
                 ],
@@ -768,6 +770,17 @@ impl Texts {
         match self.lang {
             Lang::En => format!("{count} more"),
             Lang::ZhTw => format!("還有 {count} 件"),
+        }
+    }
+
+    /// The note at the bottom right (`Toast`), e.g. `已複製 11 個字`
+    pub fn toast(&self, toast: Toast) -> String {
+        match (self.lang, toast) {
+            (Lang::En, Toast::Copied(1)) => "Copied 1 char".into(),
+            (Lang::En, Toast::Copied(count)) => format!("Copied {count} chars"),
+            (Lang::ZhTw, Toast::Copied(count)) => format!("已複製 {count} 個字"),
+            (Lang::En, Toast::CopyFailed) => "Could not copy to the clipboard".into(),
+            (Lang::ZhTw, Toast::CopyFailed) => "沒辦法複製到剪貼簿".into(),
         }
     }
 

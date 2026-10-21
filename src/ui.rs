@@ -388,6 +388,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         };
         frame.render_widget(line, hints);
     }
+    // A note at the bottom right (`App::toast`, e.g. 「已複製 11 個字」): over the end of the bottom row, a
+    // blank cell on each side
+    if let Some((toast, _)) = app.toast {
+        frame.render_widget(
+            Line::styled(
+                format!(" {} ", texts.toast(toast)),
+                Style::new().fg(theme.notice),
+            )
+            .right_aligned(),
+            hints,
+        );
+    }
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }

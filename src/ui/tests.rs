@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::Focus;
+use crate::app::{Focus, Toast};
 use crate::texts::Lang;
 use crate::theme::Theme;
 use jiff::{
@@ -3212,6 +3212,11 @@ fn dragging_over_a_wrapped_title_in_the_day_popup_reverses_its_characters() {
     mouse(&mut app, Down(Left), 20, 8);
     mouse(&mut app, Drag(Left), 14, 9);
     assert_eq!(app.day_selection(), Some((spot(0, 14), spot(0, 54))));
+    // As text: one line, with the space the break left out
+    assert_eq!(
+        app.day_selected_text().as_deref(),
+        Some("title that just keeps going and going and")
+    );
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
     let reversed = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::REVERSED);
@@ -4107,6 +4112,37 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
     assert_eq!(
         bottom(&mut app).0,
         "╰ CAIS > 2603_Monthly─ ☑\u{a0}By calendar ╯"
+    );
+}
+
+#[test]
+fn a_toast_covers_the_right_end_of_the_bottom_row() {
+    // 60 × 20, the popup open: its keys on the bottom row (80 cells, cut at 60), the note over their end
+    // with a blank cell on each side, in the notice color (expected row from a separate Python count)
+    let mut app = month_app(Lang::En, date(2026, 10, 17), "- [ ] Pack @2026-10-17\n");
+    app.focus = Focus::Day;
+    app.toast = Some((Toast::Copied(11), std::time::Instant::now()));
+    let terminal = draw_app(&mut app, 60, 20);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        text_rows(buffer)[19],
+        " jk move  Space check  e edit  a add  r res Copied 11 chars"
+    );
+    // (`text_rows` drops blanks at the end: the last cell is the note's blank)
+    assert_eq!(buffer[(58, 19)].symbol(), "s");
+    assert_eq!(buffer[(59, 19)].symbol(), " ");
+    assert_eq!(buffer[(44, 19)].fg, Theme::default().notice);
+    // One character, and in Chinese; failing to copy
+    let texts = |lang: Lang, toast| lang.texts().toast(toast);
+    assert_eq!(texts(Lang::En, Toast::Copied(1)), "Copied 1 char");
+    assert_eq!(texts(Lang::ZhTw, Toast::Copied(11)), "已複製 11 個字");
+    assert_eq!(texts(Lang::ZhTw, Toast::CopyFailed), "沒辦法複製到剪貼簿");
+    // Gone: the keys come back whole
+    app.toast = None;
+    let terminal = draw_app(&mut app, 60, 20);
+    assert_eq!(
+        text_rows(terminal.backend().buffer())[19],
+        " jk move  Space check  e edit  a add  r reschedule  d delete"
     );
 }
 

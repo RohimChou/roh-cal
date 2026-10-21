@@ -1,5 +1,5 @@
-use super::super::View;
 use super::super::write::tests::{app_with_task_file, clean_up, press};
+use super::super::{Toast, View};
 use super::*;
 use crate::texts::Lang;
 use jiff::civil::date;
@@ -203,6 +203,58 @@ fn a_drag_over_titles_marks_text_until_a_key_or_the_next_press() {
     assert!(app.day_selection().is_some());
     press(&mut app, KeyCode::Char('j'));
     assert_eq!(app.day_drag, None);
+}
+
+#[test]
+fn letting_go_of_a_drag_copies_its_text_and_says_so_for_two_seconds() {
+    // Same popup as above: from Triage bugs' 「i」 to Team sync's 「m」
+    let mut app = month_app();
+    press(&mut app, KeyCode::Enter);
+    let area = ui::day_area(&app);
+    let (x, y) = (area.x, area.y);
+    let up = MouseEventKind::Up(MouseButton::Left);
+    // A press and a let-go without moving: nothing to copy
+    mouse(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        x + 9,
+        y + 4,
+    );
+    mouse(&mut app, up, x + 9, y + 4);
+    assert_eq!(app.to_copy, None);
+    // Dragged, then let go: the rest of Triage bugs and the start of Team sync, one item per line
+    mouse(
+        &mut app,
+        MouseEventKind::Drag(MouseButton::Left),
+        x + 16,
+        y + 5,
+    );
+    mouse(&mut app, up, x + 16, y + 5);
+    assert_eq!(app.to_copy.as_deref(), Some("iage bugs\nTeam"));
+    // The main loop copies it: 14 characters (the line break counts), said at the bottom right; the text
+    // stays marked
+    let start = Instant::now();
+    let mut copied = None;
+    app.copy_out(
+        |text| {
+            copied = Some(text.to_string());
+            Ok(())
+        },
+        start,
+    );
+    assert_eq!(copied.as_deref(), Some("iage bugs\nTeam"));
+    assert_eq!(app.toast, Some((Toast::Copied(14), start)));
+    assert_eq!(app.to_copy, None);
+    assert!(app.day_selection().is_some());
+    // Still up after 1.9 s, gone at 2 s
+    app.end_finished_toast(start + Duration::from_millis(1900));
+    assert!(app.toast.is_some());
+    app.end_finished_toast(start + Duration::from_secs(2));
+    assert_eq!(app.toast, None);
+    // Copying fails (e.g. no clipboard command): says so instead
+    mouse(&mut app, up, x + 16, y + 5);
+    app.copy_out(|_| Err(color_eyre::eyre::eyre!("no pbcopy")), start);
+    assert_eq!(app.toast, Some((Toast::CopyFailed, start)));
 }
 
 /// An app with a task file, in layout 2, 10/17 selected, the popup open

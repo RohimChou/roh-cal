@@ -2,6 +2,7 @@
 
 mod app;
 mod calendar;
+mod clipboard;
 mod config;
 mod edit;
 mod external_editor;

@@ -19,7 +19,7 @@ pub use tasks::TaskRow;
 pub use write::Notice;
 
 use crate::{
-    calendar,
+    calendar, clipboard,
     config::{self, Settings},
     tasks::{Heading, HeadingLine, Item, Kind, Warning},
     texts::Lang,
@@ -50,6 +50,18 @@ const SPLASH_FOR: Duration = Duration::from_millis(5_500);
 
 /// How often the intro redraws while it plays (about 30 frames a second)
 const FRAME_EVERY: Duration = Duration::from_millis(33);
+
+/// How long a note stays at the bottom right (`App::toast`)
+const TOAST_FOR: Duration = Duration::from_secs(2);
+
+/// A short note at the bottom right, over the end of the bottom row; it goes by itself after `TOAST_FOR`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toast {
+    /// Text dragged over in the day popup is on the clipboard: how many characters
+    Copied(usize),
+    /// Putting it on the clipboard failed (e.g. no clipboard command on this computer)
+    CopyFailed,
+}
 
 /// Which pane has the keyboard
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -356,6 +368,11 @@ pub struct App {
     /// `true` = open the task file in the user's editor after this key (`o` on the tasks page); the main loop
     /// does it, since only it has the terminal
     open_editor: bool,
+    /// Text to put on the clipboard after this event (letting go of a drag in the day popup); the main loop
+    /// does it (`App::copy_out`)
+    to_copy: Option<String>,
+    /// The note at the bottom right and when it went up (`Toast`); `None` = none
+    pub toast: Option<(Toast, Instant)>,
 }
 
 impl App {
@@ -402,6 +419,8 @@ impl App {
             tasks_top: 0,
             should_quit: false,
             open_editor: false,
+            to_copy: None,
+            toast: None,
         }
     }
 
@@ -686,13 +705,17 @@ impl App {
             let size = terminal.size()?;
             self.resize(Rect::new(0, 0, size.width, size.height));
             self.end_finished_splash(Instant::now());
+            self.end_finished_toast(Instant::now());
             terminal.draw(|frame| ui::render(frame, &mut self))?;
             // No input for a while: go round again to check the task file (while the intro plays, soon: it
-            // moves)
+            // moves; with a note at the bottom right, when it is due to go)
             let wait = match self.mode {
                 Mode::Splash { .. } => FRAME_EVERY,
                 _ => REFRESH_EVERY,
             };
+            let wait = self.toast.map_or(wait, |(_, shown)| {
+                wait.min(TOAST_FOR.saturating_sub(shown.elapsed()))
+            });
             if !event::poll(wait)? {
                 continue;
             }
@@ -703,6 +726,8 @@ impl App {
             } else if let Some(mouse) = event.as_mouse_event() {
                 self.handle_mouse(mouse);
             }
+            // Let go of a drag in the day popup: its text goes to the clipboard
+            self.copy_out(clipboard::copy, Instant::now());
             // `o` on the tasks page: the editor has the terminal until it quits
             if std::mem::take(&mut self.open_editor) {
                 self.open_in_editor(terminal)?;
@@ -747,6 +772,29 @@ impl App {
         self.mode = Mode::Splash {
             opened: Instant::now(),
         };
+    }
+
+    /// Takes the note at the bottom right down once it has been up for `TOAST_FOR` by `now`
+    fn end_finished_toast(&mut self, now: Instant) {
+        if self
+            .toast
+            .is_some_and(|(_, shown)| now.saturating_duration_since(shown) >= TOAST_FOR)
+        {
+            self.toast = None;
+        }
+    }
+
+    /// Puts the text waiting in `to_copy` on the clipboard with `copy`, and says at the bottom right (from
+    /// `now`) how many characters it was, or that it failed
+    pub(crate) fn copy_out(&mut self, copy: impl FnOnce(&str) -> Result<()>, now: Instant) {
+        let Some(text) = self.to_copy.take() else {
+            return;
+        };
+        let toast = match copy(&text) {
+            Ok(()) => Toast::Copied(text.chars().count()),
+            Err(_) => Toast::CopyFailed,
+        };
+        self.toast = Some((toast, now));
     }
 
     /// Closes the intro once it has played for `SPLASH_FOR` by `now`
@@ -1038,7 +1086,7 @@ impl App {
     /// chooses it (a double click = check it),
     /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse, a right click
     /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck); dragging in
-    /// the day popup goes over its text
+    /// the day popup goes over its text, and letting go copies it
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
@@ -1055,10 +1103,11 @@ impl App {
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
                 self.click_day(mouse.column, mouse.row, Instant::now());
             }
-            // Dragging with the left button held in the popup: over its text
+            // Dragging with the left button held in the popup: over its text; letting go copies it
             MouseEventKind::Drag(MouseButton::Left) if self.focus == Focus::Day => {
                 self.drag_day(mouse.column, mouse.row);
             }
+            MouseEventKind::Up(MouseButton::Left) if self.focus == Focus::Day => self.release_day(),
             // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
                 match ui::click_at(self, mouse.column, mouse.row) {
