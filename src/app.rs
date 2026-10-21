@@ -9,6 +9,7 @@ mod settings;
 mod tasks;
 mod write;
 
+pub use day::{TextDrag, TextSpot};
 pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
@@ -294,6 +295,9 @@ pub struct App {
     /// Popup scroll: which line is at the top (a long title wraps onto more than one line; it scrolls only
     /// when the chosen item leaves the box)
     pub day_top: usize,
+    /// Text being dragged over with the mouse in the popup (`App::day_selection`); `None` = none. A key, the
+    /// next click, or reading the task file again clears it
+    pub day_drag: Option<TextDrag>,
     /// What the last click on a day or an item hit and when, to tell a double click
     last_click: Option<(ClickTarget, Instant)>,
     /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
@@ -375,6 +379,7 @@ impl App {
             agenda_index: 0,
             day_index: 0,
             day_top: 0,
+            day_drag: None,
             last_click: None,
             calendar_top: None,
             agenda_window: None,
@@ -714,8 +719,9 @@ impl App {
             self.mode = Mode::Normal;
             return;
         }
-        // The last notice has been seen: any key clears it
+        // The last notice has been seen: any key clears it; so is text dragged over in the popup
         self.notice = None;
+        self.day_drag = None;
         // A `g` waits for the very next key only (`gg`)
         let after_g = std::mem::take(&mut self.pending_g);
         match self.mode {
@@ -1031,7 +1037,8 @@ impl App {
     /// a left click on a calendar date selects it (a double click = go into that day's items), on an agenda item
     /// chooses it (a double click = check it),
     /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse, a right click
-    /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck)
+    /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck); dragging in
+    /// the day popup goes over its text
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
@@ -1047,6 +1054,10 @@ impl App {
             // Layout 2's popup is open: click items in it, a click outside closes it
             MouseEventKind::Down(MouseButton::Left) if self.focus == Focus::Day => {
                 self.click_day(mouse.column, mouse.row, Instant::now());
+            }
+            // Dragging with the left button held in the popup: over its text
+            MouseEventKind::Drag(MouseButton::Left) if self.focus == Focus::Day => {
+                self.drag_day(mouse.column, mouse.row);
             }
             // Only a click on a date or an item selects; clicks on headers, lines, or blank cells are ignored
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1081,7 +1092,7 @@ impl App {
                     self.right_click_task(row);
                 }
             }
-            // Anything else (drag, move) is ignored
+            // Anything else (other drags, move) is ignored
             _ => {}
         }
     }

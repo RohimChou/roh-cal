@@ -8,6 +8,22 @@ use crate::ui;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
 use std::time::Instant;
 
+/// A spot in the popup's text: the `char`-th character of the title of the `item`-th item (`App::day_items`).
+/// Sorting goes in reading order: by item, then by character
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TextSpot {
+    pub item: usize,
+    pub char: usize,
+}
+
+/// Text being dragged over with the mouse in the popup: the character where the left button went down, and
+/// once the mouse has moved with it held, the character it is over now
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextDrag {
+    pub anchor: TextSpot,
+    pub head: Option<TextSpot>,
+}
+
 impl App {
     /// The popup's items in display order (`day_index` counts in it): `items_on(selected)`, and with
     /// `[day_popup] by_calendar` grouped by their outermost calendar, the calendars in the calendar list's
@@ -34,7 +50,30 @@ impl App {
         }
         self.day_index = 0;
         self.day_top = 0;
+        self.day_drag = None;
         self.focus = Focus::Day;
+    }
+
+    /// The text dragged over in the popup, from its first to its last character (both included, in reading
+    /// order); `None` until the mouse moves with the button held
+    pub fn day_selection(&self) -> Option<(TextSpot, TextSpot)> {
+        let drag = self.day_drag?;
+        let head = drag.head?;
+        Some((drag.anchor.min(head), drag.anchor.max(head)))
+    }
+
+    /// The mouse moved with the left button held, now at (`column`, `row`): after a press on a title in the
+    /// popup, the dragged-over text now ends at the character under it (past the box's edge: the nearest row
+    /// inside; on a calendar's name or a blank row it stays where it was). A click right after a drag is not
+    /// a double click
+    pub(super) fn drag_day(&mut self, column: u16, row: u16) {
+        let spot = ui::day_text_at(self, column, row, true);
+        if let Some(drag) = &mut self.day_drag
+            && let Some(spot) = spot
+        {
+            drag.head = Some(spot);
+            self.last_click = None;
+        }
     }
 
     /// Keyboard in the popup: `j` / `k` next / previous item, `c` grouped by calendar or not. Keys that
@@ -74,10 +113,14 @@ impl App {
         self.day_index = self.day_index.saturating_add_signed(step).min(last);
     }
 
-    /// Left click at time `now` while the popup is open: clicking an item chooses it; a double click checks
-    /// it (like the agenda); clicking the switch on the bottom border flips it (like `c`).
+    /// Left click at time `now` while the popup is open: clicking an item chooses it (and a drag may start
+    /// there, `drag_day`); a double click checks it (like the agenda); clicking the switch on the bottom
+    /// border flips it (like `c`).
     /// A click outside the box closes the popup (like `Esc`); clicks on the border or empty space are ignored
     pub(super) fn click_day(&mut self, column: u16, row: u16, now: Instant) {
+        // A press on a title starts dragging over text from the character under it; anywhere else, no text
+        self.day_drag =
+            ui::day_text_at(self, column, row, false).map(|anchor| TextDrag { anchor, head: None });
         if !ui::day_area(self).contains(Position::new(column, row)) {
             self.focus = Focus::Calendar;
             return;

@@ -15,7 +15,7 @@ mod side;
 mod splash;
 mod tasks;
 
-use crate::app::{App, Editor, Focus, Mode, View};
+use crate::app::{App, Editor, Focus, Mode, TextSpot, View};
 use crate::tasks::{Item, Kind};
 use crate::theme::Theme;
 use jiff::civil::Date;
@@ -68,6 +68,11 @@ pub fn day_switch_area(app: &App) -> Rect {
 /// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::day_items`)
 pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
     day::item_at(app, areas(app.screen, app).main, column, row)
+}
+
+/// Which title character in the popup is at (`column`, `row`) (see `day::text_at`)
+pub fn day_text_at(app: &App, column: u16, row: u16, clamp: bool) -> Option<TextSpot> {
+    day::text_at(app, areas(app.screen, app).main, column, row, clamp)
 }
 
 /// Where the help page box is on screen (so a mouse click outside it can close it)

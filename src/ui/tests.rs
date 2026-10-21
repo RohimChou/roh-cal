@@ -3187,6 +3187,51 @@ fn a_long_title_wraps_in_the_day_popup() {
 }
 
 #[test]
+fn dragging_over_a_wrapped_title_in_the_day_popup_reverses_its_characters() {
+    // The long title of `a_long_title_wraps_in_the_day_popup` (60 × 20): on both of its lines (y 8, 9) the
+    // characters start at x 6; the break left out the space after the first line's 「and」 (char 45).
+    // Positions from a separate Python count
+    let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.focus = Focus::Day;
+    app.screen = Rect::new(0, 0, 60, 20);
+    let mouse = |app: &mut App, kind, column, row| {
+        use ratatui::crossterm::event::{KeyModifiers, MouseEvent};
+        app.handle_mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        });
+    };
+    use ratatui::crossterm::event::{
+        MouseButton::Left, MouseEventKind::Down, MouseEventKind::Drag,
+    };
+    let spot = |item, char| TextSpot { item, char };
+    // Press on 「title」 (char 14, x 20), drag to the 「d」 of the next line's second 「and」 (char 54, x 14)
+    mouse(&mut app, Down(Left), 20, 8);
+    mouse(&mut app, Drag(Left), 14, 9);
+    assert_eq!(app.day_selection(), Some((spot(0, 14), spot(0, 54))));
+    let terminal = draw_app(&mut app, 60, 20);
+    let buffer = terminal.backend().buffer();
+    let reversed = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::REVERSED);
+    // First line: from 「t」 to the end of 「and」 (x 50), not the blank after it; second line: from its start
+    // to 「d」; Pack (y 10) not at all
+    assert!(!reversed(19, 8) && reversed(20, 8) && reversed(50, 8) && !reversed(51, 8));
+    assert!(!reversed(5, 9) && reversed(6, 9) && reversed(14, 9) && !reversed(15, 9));
+    assert!(!reversed(8, 10));
+    // Past the box's right edge on the second line: up to its last character 「x」 (char 85, x 45)
+    mouse(&mut app, Drag(Left), 59, 9);
+    assert_eq!(app.day_selection(), Some((spot(0, 14), spot(0, 85))));
+    let terminal = draw_app(&mut app, 60, 20);
+    let buffer = terminal.backend().buffer();
+    assert!(buffer[(45, 9)].modifier.contains(Modifier::REVERSED));
+    // Down onto Pack (item 1): to the 「c」 under the mouse (x 8)
+    mouse(&mut app, Drag(Left), 8, 10);
+    assert_eq!(app.day_selection(), Some((spot(0, 14), spot(1, 2))));
+}
+
+#[test]
 fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19);
     // there is room, so a blank row above and below the items and a blank cell left and right:

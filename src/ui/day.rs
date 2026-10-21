@@ -11,13 +11,13 @@ use super::{
     render_scrollbar,
     tasks::wrap,
 };
-use crate::app::App;
+use crate::app::{App, TextSpot};
 use crate::tasks::{Heading, Item};
 use crate::theme::Theme;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType},
 };
@@ -156,8 +156,9 @@ fn popup_line(item: &Item, app: &App) -> Line<'static> {
 
 /// One item's lines at `width` cells (one blank cell kept at the end): see `popup_line`, moved in and with
 /// its calendar at the right end of the first line as `indent_and_tag` says; a title that does not fit wraps
-/// onto the next lines, which start under the title (and leave the calendar's cells free too)
-fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
+/// onto the next lines, which start under the title (and leave the calendar's cells free too). Also where
+/// each line shows which title characters (`title_cells`)
+fn item_lines(item: &Item, app: &App, width: u16) -> (Vec<Line<'static>>, Vec<Vec<TitleCell>>) {
     let (indent, tag) = indent_and_tag(item, app);
     let mut spans = popup_line(item, app).spans;
     spans.insert(0, Span::raw(" ".repeat(indent)));
@@ -166,7 +167,9 @@ fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
     let prefix_width = Line::from(spans.clone()).width();
     let tag_width = tag.as_ref().map_or(0, Span::width);
     let room = usize::from(width).saturating_sub(prefix_width + 1 + tag_width);
-    let mut wrapped = wrap(&title, room).into_iter();
+    let wrapped = wrap(&title, room);
+    let cells = title_cells(item, &title, &wrapped, prefix_width);
+    let mut wrapped = wrapped.into_iter();
     let mut first = Line::from(
         spans
             .into_iter()
@@ -187,7 +190,52 @@ fn item_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
                 .collect::<Vec<_>>(),
         )
     }));
-    lines
+    (lines, cells)
+}
+
+/// One title character on a popup line (for dragging over text): where it starts (cells from the start of
+/// the line), how many cells wide it is, and which character of the item's title it is (`TextSpot::char`)
+#[derive(Debug, Clone, Copy)]
+struct TitleCell {
+    x: usize,
+    width: usize,
+    char: usize,
+}
+
+/// Which title characters each of an item's lines shows, and where: `wrapped` = `title` (the title as drawn,
+/// see `title_span`) cut into lines by `wrap`, each starting `x` cells into its line. 🚧 in front of an
+/// in-progress title is not a title character
+fn title_cells(
+    item: &Item,
+    title: &[Span<'static>],
+    wrapped: &[Vec<Span<'static>>],
+    x: usize,
+) -> Vec<Vec<TitleCell>> {
+    let shown: Vec<char> = title.iter().flat_map(|span| span.content.chars()).collect();
+    // How many characters come before the title itself (🚧 and a space)
+    let icon = shown.len().saturating_sub(item.title.chars().count());
+    // Which character of `shown` comes next
+    let mut next = 0;
+    wrapped
+        .iter()
+        .map(|line| {
+            let mut at = x;
+            let mut cells = Vec::new();
+            for c in line.iter().flat_map(|span| span.content.chars()) {
+                // `wrap` only leaves out spaces (where it breaks a line): skip those
+                while shown.get(next).is_some_and(|&each| each != c) {
+                    next += 1;
+                }
+                let width = Span::raw(c.to_string()).width();
+                if let Some(char) = next.checked_sub(icon) {
+                    cells.push(TitleCell { x: at, width, char });
+                }
+                at += width;
+                next += 1;
+            }
+            cells
+        })
+        .collect()
 }
 
 /// Grouped by calendar (`[day_popup] by_calendar`): an item in a calendar starts 2 cells in, under its
@@ -206,11 +254,12 @@ fn heading_line(name: &str, app: &App) -> Line<'static> {
     Line::styled(format!(" {name}"), Style::new().fg(app.theme.label))
 }
 
-/// One piece of the popup's lines: one item's (`item` = its index in `App::day_items`), or a calendar's
-/// heading (`item` = `None`)
+/// One piece of the popup's lines: one item's (`item` = its index in `App::day_items`; `cells` = where each
+/// line shows which title characters), or a calendar's heading (`item` = `None`, no `cells`)
 struct Piece {
     item: Option<usize>,
     lines: Vec<Line<'static>>,
+    cells: Vec<Vec<TitleCell>>,
 }
 
 /// The popup's lines at `width` cells, top to bottom: the day's items in `App::day_items` order; grouped by
@@ -228,12 +277,15 @@ fn pieces(app: &App, width: u16) -> Vec<Piece> {
             pieces.push(Piece {
                 item: None,
                 lines: vec![heading_line(name, app)],
+                cells: Vec::new(),
             });
         }
         calendar = outermost;
+        let (lines, cells) = item_lines(item, app, width);
         pieces.push(Piece {
             item: Some(index),
-            lines: item_lines(item, app, width),
+            lines,
+            cells,
         });
     }
     pieces
@@ -329,7 +381,8 @@ fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
 /// outside the box, so clicking a visible item does not scroll it away; stored in `app.day_top`, counted in
 /// lines), clear the month grid underneath and one blank cell around the box (as far as the month grid goes),
 /// then the items line by line. The chosen item's lines get the selection background from border to border
-/// (same as layout 1's agenda). When the lines do not fit, the right border has a scrollbar
+/// (same as layout 1's agenda), and title characters dragged over with the mouse (`App::day_selection`)
+/// reversed colors. When the lines do not fit, the right border has a scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
     let pieces = pieces(app, inner.width);
@@ -359,6 +412,8 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     // Read-only from here on
     let app = &*app;
     let theme = &app.theme;
+    let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
+    let selection = app.day_selection();
     let (date, counts) = top_titles(app);
     let mut block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -422,10 +477,26 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
                     .buffer_mut()
                     .set_style(bar, Style::new().bg(theme.selection));
             }
+            // Title characters dragged over with the mouse: reversed colors
+            if let Some((first, last)) = selection
+                && let Some(item) = piece.item
+            {
+                for cell in piece.cells.get(part).into_iter().flatten() {
+                    if (first..=last).contains(&TextSpot {
+                        item,
+                        char: cell.char,
+                    }) {
+                        let x = inner.x.saturating_add(to_u16(cell.x));
+                        let area = Rect::new(x, y, to_u16(cell.width), 1).intersection(inner);
+                        frame
+                            .buffer_mut()
+                            .set_style(area, Style::new().add_modifier(Modifier::REVERSED));
+                    }
+                }
+            }
         }
     }
     if total > usize::from(inner.height) {
-        let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
         render_scrollbar(
             frame,
             area,
@@ -445,16 +516,52 @@ pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     if !inner.contains(Position::new(column, row)) {
         return None;
     }
-    let line = app.day_top + usize::from(row - inner.y);
     let pieces = pieces(app, inner.width);
-    let heights = heights(&pieces);
-    let (starts, _) = starts(&heights);
-    starts
+    piece_at(&pieces, app.day_top + usize::from(row - inner.y)).and_then(|(piece, _)| piece.item)
+}
+
+/// Which title character is at (`column`, `row`), as a `TextSpot`: the one under it; left or right of the
+/// title on that line (e.g. on the check box, past the end), that line's first or last one. `None` on a
+/// calendar's name, a blank row, the border, or outside the box; with `clamp`, a spot outside the lines
+/// counts as the nearest cell inside them (dragging past the box's edge)
+pub fn text_at(app: &App, main: Rect, column: u16, row: u16, clamp: bool) -> Option<TextSpot> {
+    let (_, inner) = layout(app, main);
+    if inner.is_empty() {
+        return None;
+    }
+    let (column, row) = if clamp {
+        (
+            column.clamp(inner.x, inner.right() - 1),
+            row.clamp(inner.y, inner.bottom() - 1),
+        )
+    } else {
+        (column, row)
+    };
+    if !inner.contains(Position::new(column, row)) {
+        return None;
+    }
+    let pieces = pieces(app, inner.width);
+    let (piece, part) = piece_at(&pieces, app.day_top + usize::from(row - inner.y))?;
+    let cells = piece.cells.get(part)?;
+    let x = usize::from(column - inner.x);
+    let cell = cells
         .iter()
-        .zip(&heights)
-        .zip(&pieces)
-        .find(|&((&start, &height), _)| (start..start + height).contains(&line))
-        .and_then(|(_, piece)| piece.item)
+        .find(|cell| x < cell.x + cell.width)
+        .or(cells.last())?;
+    Some(TextSpot {
+        item: piece.item?,
+        char: cell.char,
+    })
+}
+
+/// The piece that shows popup line `line` (counting from the first piece's first line), and which of its
+/// lines that is; `None` below the last piece
+fn piece_at(pieces: &[Piece], line: usize) -> Option<(&Piece, usize)> {
+    let (starts, _) = starts(&heights(pieces));
+    pieces.iter().zip(starts).find_map(|(piece, start)| {
+        let part = line.checked_sub(start)?;
+        (part < piece.lines.len()).then_some((piece, part))
+    })
 }
 
 #[cfg(test)]

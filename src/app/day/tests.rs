@@ -164,6 +164,47 @@ fn clicks_and_the_wheel_choose_in_the_popup() {
     assert_eq!(app.focus, Focus::Calendar);
 }
 
+#[test]
+fn a_drag_over_titles_marks_text_until_a_key_or_the_next_press() {
+    // 10/17's popup (60 × 20): a blank row, `Work` (y + 2), then one item per row, 2 cells in after a blank
+    // cell of padding: Trip to NYC 「∙ 10/16~18 」 (title from x + 16), Triage bugs 「☑ 」 (x + 7), Team sync
+    // 「∙ 10:00 」 (x + 13)
+    let mut app = month_app();
+    press(&mut app, KeyCode::Enter);
+    let area = ui::day_area(&app);
+    let (x, y) = (area.x, area.y);
+    let spot = |item, char| TextSpot { item, char };
+    let down = MouseEventKind::Down(MouseButton::Left);
+    let drag = MouseEventKind::Drag(MouseButton::Left);
+    // A press on Triage bugs' 「i」: the drag starts there, but nothing is marked before the mouse moves
+    mouse(&mut app, down, x + 9, y + 4);
+    assert_eq!(app.day_drag.map(|drag| drag.anchor), Some(spot(1, 2)));
+    assert_eq!(app.day_selection(), None);
+    // Dragged to Team sync's 「m」: both ends included
+    mouse(&mut app, drag, x + 16, y + 5);
+    assert_eq!(app.day_selection(), Some((spot(1, 2), spot(2, 3))));
+    // Over the calendar's name `Work`: stays as it was
+    mouse(&mut app, drag, x + 5, y + 2);
+    assert_eq!(app.day_selection(), Some((spot(1, 2), spot(2, 3))));
+    // Left of the box on Team sync's row: its first character; on Trip to NYC's dates: its first character,
+    // now before where the drag started (that character stays in)
+    mouse(&mut app, drag, 0, y + 5);
+    assert_eq!(app.day_selection(), Some((spot(1, 2), spot(2, 0))));
+    mouse(&mut app, drag, x + 7, y + 3);
+    assert_eq!(app.day_selection(), Some((spot(0, 0), spot(1, 2))));
+    // After a drag, the next press on the same item is not a double click (which would check it)
+    assert_eq!(app.last_click, None);
+    // The next press starts over: on the calendar's name, no text
+    mouse(&mut app, down, x + 5, y + 2);
+    assert_eq!(app.day_drag, None);
+    // A key clears it too
+    mouse(&mut app, down, x + 9, y + 4);
+    mouse(&mut app, drag, x + 16, y + 5);
+    assert!(app.day_selection().is_some());
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.day_drag, None);
+}
+
 /// An app with a task file, in layout 2, 10/17 selected, the popup open
 fn popup_with_file(name: &str) -> (App, std::path::PathBuf) {
     let (mut app, path) = app_with_task_file(name, DAY);

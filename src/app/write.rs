@@ -462,6 +462,8 @@ impl App {
             headings,
         }: Parsed,
     ) {
+        // The popup's items may have changed: text dragged over no longer points at the same characters
+        self.day_drag = None;
         let mut groups = super::Group::list(&items, &headings);
         for group in &mut groups {
             if let Some(old) = self.groups.iter().find(|old| old.same(group)) {
