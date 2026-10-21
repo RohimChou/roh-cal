@@ -171,6 +171,11 @@ fn every_builtin_theme_reads() {
         Theme::builtin("nord-bright").map(|theme| theme.priority_medium),
         Some(Color::Rgb(0xf5, 0x96, 0x78))
     );
+    // Its green (today) leans toward a leaf green
+    assert_eq!(
+        Theme::builtin("nord-bright").map(|theme| theme.today),
+        Some(Color::Rgb(0xa2, 0xd3, 0x86))
+    );
     assert_eq!(
         Theme::builtin("nord-bright").map(|theme| theme.priority_low),
         Some(Color::Rgb(0xf4, 0xd3, 0x92))

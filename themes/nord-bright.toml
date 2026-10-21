@@ -24,7 +24,8 @@ nord13 = "#f4d392"
 # Dim yellow: nord13 (yellow) and the background mixed 7:3. Still reads as yellow,
 # but darker than the selected week's number
 nord13_dim = "#b9a379"
-nord14 = "#b2d098"
+# Green: nudged toward a leaf green (a little greener, more color, a touch darker)
+nord14 = "#a2d386"
 nord15 = "#c69bbe"
 # Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
 nord8_dim = "#4d6371"
