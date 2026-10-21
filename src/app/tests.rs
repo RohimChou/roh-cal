@@ -412,9 +412,10 @@ fn the_agenda_is_one_column_so_h_and_l_keep_the_choice() {
 }
 
 #[test]
-fn hide_done_hides_done_tasks_and_their_subtasks() {
-    // A done task and its subtasks (even an open one) are hidden everywhere: the agenda, the day's
-    // items, the tasks page; open tasks and events stay, past events too
+fn hide_done_hides_done_tasks_but_not_their_open_subtasks() {
+    // Only the done task itself is hidden from the agenda and the day's items: its open subtask stays, and
+    // the day's open count matches what is listed; the tasks page keeps the done task too, for the tree
+    // (collapsed: the subtask is not a row); open tasks and events stay, past events too
     let mut app = app_with(
         "- [x] Ship v1 @2026-10-16\n  - [ ] Write the blog post @2026-10-17\n- [ ] Pack @2026-10-17\n- Farmers market @2026-10-10\n",
     );
@@ -426,8 +427,12 @@ fn hide_done_hides_done_tasks_and_their_subtasks() {
     };
     assert_eq!(titles(&app).len(), 4);
     app.settings.calendar_list.hide_done = true;
-    assert_eq!(titles(&app), ["Farmers market", "Pack"]);
-    assert_eq!(app.items_on(date(2026, 10, 17)).len(), 1);
+    assert_eq!(
+        titles(&app),
+        ["Farmers market", "Write the blog post", "Pack"]
+    );
+    assert_eq!(app.items_on(date(2026, 10, 17)).len(), 2);
+    assert_eq!(app.day_counts(date(2026, 10, 17)), (2, 0));
     app.view = View::Tasks;
     let items: Vec<usize> = app
         .tasks_rows()
@@ -437,7 +442,7 @@ fn hide_done_hides_done_tasks_and_their_subtasks() {
             TaskRow::Heading { .. } => None,
         })
         .collect();
-    assert_eq!(items, [2, 3]);
+    assert_eq!(items, [0, 2, 3]);
     // Off again: back
     app.settings.calendar_list.hide_done = false;
     assert_eq!(titles(&app).len(), 4);

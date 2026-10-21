@@ -6,7 +6,7 @@
 use super::{App, Notice};
 use crate::{
     edit, external_editor,
-    tasks::{Heading, Item},
+    tasks::{Heading, Item, Kind},
 };
 use color_eyre::Result;
 use ratatui::{
@@ -74,7 +74,7 @@ impl App {
                     last = Some(Some(&line.heading));
                 }
             }
-            if !self.is_shown(item) || !self.ancestors_expanded(item) {
+            if !self.listed(index) || !self.ancestors_expanded(item) {
                 continue;
             }
             // No heading row for its calendar yet (e.g. no heading lines known, or before any heading); its
@@ -116,9 +116,58 @@ impl App {
     pub fn calendar_item_count(&self, path: &[String]) -> usize {
         self.items
             .iter()
-            .filter(|item| item.parent.is_none() && self.is_shown(item))
-            .filter(|item| calendar_path(item.group.as_ref()).starts_with(path))
+            .enumerate()
+            .filter(|&(index, item)| item.parent.is_none() && self.listed(index))
+            .filter(|(_, item)| calendar_path(item.group.as_ref()).starts_with(path))
             .count()
+    }
+
+    /// Whether the tasks page lists the item at `index` in `App::items`: its own calendar is checked, and
+    /// 「隱藏做完的」 does not hide it. Here a done task with an open task anywhere under it stays (gray,
+    /// struck through), so that open task keeps its place in the tree; anything under a hidden done task
+    /// goes with it (e.g. an event)
+    fn listed(&self, index: usize) -> bool {
+        let Some(item) = self.items.get(index) else {
+            return false;
+        };
+        if !self.in_checked_calendar(item) {
+            return false;
+        }
+        if !self.settings.calendar_list.hide_done {
+            return true;
+        }
+        // It and each task it is inside: a done one with nothing open under it hides the whole branch
+        let mut current = Some(index);
+        while let Some(each) = current {
+            let Some(above) = self.items.get(each) else {
+                break;
+            };
+            if above.kind == Kind::Task && above.done && !self.open_under(each) {
+                return false;
+            }
+            current = above.parent;
+        }
+        true
+    }
+
+    /// Whether a task not done yet is somewhere under the item at `index` (a subtask, a subtask's subtask…)
+    fn open_under(&self, index: usize) -> bool {
+        self.items
+            .iter()
+            .filter(|item| item.kind == Kind::Task && !item.done)
+            .any(|item| self.is_under(item, index))
+    }
+
+    /// Whether `item` is somewhere under the item at `index`: that is its parent, its parent's parent, …
+    fn is_under(&self, item: &Item, index: usize) -> bool {
+        let mut parent = item.parent;
+        while let Some(each) = parent {
+            if each == index {
+                return true;
+            }
+            parent = self.items.get(each).and_then(|above| above.parent);
+        }
+        false
     }
 
     /// The calendars with anything inside them, at any depth: every calendar an item is in or inside, and

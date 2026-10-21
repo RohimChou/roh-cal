@@ -504,8 +504,9 @@ impl App {
         }
     }
 
-    /// Whether this item is shown: only if its own calendar (group) is checked (the calendars around it do
-    /// not matter), and it is not a done task hidden by `[calendar_list] hide_done`
+    /// Whether this item is shown on the calendar, the agenda and the day popup (the tasks page uses
+    /// `App::listed`): only if its own calendar (group) is checked (the calendars around it do not matter),
+    /// and it is not a done task hidden by `[calendar_list] hide_done`
     pub fn is_shown(&self, item: &Item) -> bool {
         self.in_checked_calendar(item) && !self.hidden_as_done(item)
     }
@@ -537,20 +538,11 @@ impl App {
             })
     }
 
-    /// Hiding done tasks (`[calendar_list] hide_done`) and `item` is a done task, or inside one (its subtasks
-    /// go with it)
+    /// Hiding done tasks (`[calendar_list] hide_done`) and `item` is a done task: only the done task itself,
+    /// what is under it stays (an open subtask is still to do). The tasks page has its own rule
+    /// (`App::listed`)
     fn hidden_as_done(&self, item: &Item) -> bool {
-        if !self.settings.calendar_list.hide_done {
-            return false;
-        }
-        let mut current = Some(item);
-        while let Some(each) = current {
-            if each.kind == Kind::Task && each.done {
-                return true;
-            }
-            current = each.parent.and_then(|parent| self.items.get(parent));
-        }
-        false
+        self.settings.calendar_list.hide_done && item.kind == Kind::Task && item.done
     }
 
     /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)

@@ -138,6 +138,50 @@ fn every_checked_calendar_is_listed_even_with_no_items() {
 }
 
 #[test]
+fn a_done_task_with_an_open_task_under_it_stays_when_done_tasks_are_hidden() {
+    // Ship v1 is done but Write the blog post under it is not: Ship v1 stays, so the open one has its place
+    // in the tree; its done subtask Tag the release goes. Pay rent (done, nothing open under it) goes, and
+    // the event under it with it. Two levels down: Plan the trip and Book flights (both done) stay above
+    // the open Pick seats
+    let mut app = tasks_app(
+        "- [x] Ship v1\n  - [ ] Write the blog post\n  - [x] Tag the release\n\
+         - [x] Pay rent\n  - Rent receipt\n\
+         - [x] Plan the trip\n  - [x] Book flights\n    - [ ] Pick seats\n- [ ] Pack\n",
+    );
+    press(&mut app, KeyCode::Char('='));
+    assert_eq!(
+        shape(&app),
+        [
+            "#",
+            "-Ship v1",
+            "  Write the blog post",
+            "  Tag the release",
+            "-Pay rent",
+            "  Rent receipt",
+            "-Plan the trip",
+            "  -Book flights",
+            "    Pick seats",
+            "Pack"
+        ]
+    );
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(
+        shape(&app),
+        [
+            "#",
+            "-Ship v1",
+            "  Write the blog post",
+            "-Plan the trip",
+            "  -Book flights",
+            "    Pick seats",
+            "Pack"
+        ]
+    );
+    // A collapsed calendar counts the top-level items listed: Ship v1, Plan the trip, Pack
+    assert_eq!(app.calendar_item_count(&[]), 3);
+}
+
+#[test]
 fn calendars_inside_calendars_list_their_outer_calendars_first() {
     // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
     let app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");
