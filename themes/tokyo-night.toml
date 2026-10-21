@@ -24,6 +24,9 @@ dim_cyan = "#385167"
 # Selection background: magenta and the background (bg #1a1b26) mixed 3:7. A light purple that stands out
 # from the background (also a translucent one), dark enough for text on it
 dim_magenta = "#4a4165"
+# Dragged-over text in the day popup: blue (#7aa2f7) and the background (bg #1a1b26) mixed 4:6. Lighter than
+# the selection background, so it shows on the chosen row too
+mid_blue = "#40517a"
 
 [roles]
 text = "fg"
@@ -37,6 +40,7 @@ weekend = "cyan"
 today = "green"
 selected = "red"
 selection = "dim_magenta"
+text_selection = "mid_blue"
 focus = "magenta"
 checked = "magenta"
 notice = "yellow"

@@ -17,7 +17,7 @@ use crate::theme::Theme;
 use ratatui::{
     Frame,
     layout::{Margin, Position, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, BorderType},
 };
@@ -381,8 +381,9 @@ fn starts(heights: &[usize]) -> (Vec<usize>, usize) {
 /// outside the box, so clicking a visible item does not scroll it away; stored in `app.day_top`, counted in
 /// lines), clear the month grid underneath and one blank cell around the box (as far as the month grid goes),
 /// then the items line by line. The chosen item's lines get the selection background from border to border
-/// (same as layout 1's agenda), and title characters dragged over with the mouse (`App::day_selection`)
-/// reversed colors. When the lines do not fit, the right border has a scrollbar
+/// (same as layout 1's agenda), and title characters dragged over with the mouse (`App::day_selection`) the
+/// `text_selection` background, in the normal text color. When the lines do not fit, the right border has a
+/// scrollbar
 pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     let (area, inner) = layout(app, main);
     let pieces = pieces(app, inner.width);
@@ -477,7 +478,8 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
                     .buffer_mut()
                     .set_style(bar, Style::new().bg(theme.selection));
             }
-            // Title characters dragged over with the mouse: reversed colors
+            // Title characters dragged over with the mouse: their own background, in the normal text color (a
+            // priority's red would be hard to read on it)
             if let Some((first, last)) = selection
                 && let Some(item) = piece.item
             {
@@ -490,7 +492,7 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
                         let area = Rect::new(x, y, to_u16(cell.width), 1).intersection(inner);
                         frame
                             .buffer_mut()
-                            .set_style(area, Style::new().add_modifier(Modifier::REVERSED));
+                            .set_style(area, Style::new().fg(theme.text).bg(theme.text_selection));
                     }
                 }
             }

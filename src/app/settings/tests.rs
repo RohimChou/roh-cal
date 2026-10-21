@@ -90,11 +90,11 @@ fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     // h goes back to the theme's own color: not recorded (the config file only records changes)
     press(&mut app, KeyCode::Char('h'));
     assert!(app.settings.colors.is_empty());
-    // h again: wraps around to the palette's last color (dim_mauve); r resets
+    // h again: wraps around to the palette's last color (mid_blue); r resets
     press(&mut app, KeyCode::Char('h'));
     assert_eq!(
         app.settings.colors.get("text").map(String::as_str),
-        Some("#52476a")
+        Some("#495a80")
     );
     press(&mut app, KeyCode::Char('r'));
     assert!(app.settings.colors.is_empty());
@@ -204,6 +204,11 @@ fn colors_a_view_does_not_draw_are_for_the_other_views() {
     for role in ["text", "today", "weekend", "selection", "priority_high"] {
         assert_eq!(Row::Color(role).places(), None, "{role}");
     }
+    // Only the day popup's text can be dragged over
+    assert_eq!(
+        Row::Color("text_selection").places(),
+        Some(&[Place::DayPopup][..])
+    );
 }
 
 #[test]

@@ -26,6 +26,9 @@ dim_blue = "#434e4a"
 # Selection background: purple and the background (dark0 #282828) mixed 3:7. A light purple that stands out
 # from the background (also a translucent one), dark enough for text on it
 dim_purple = "#5b444b"
+# Dragged-over text in the day popup: blue (#83a598) and the background (dark0 #282828) mixed 4:6. Lighter
+# than the selection background, so it shows on the chosen row too
+mid_blue = "#4c5a55"
 
 [roles]
 text = "light1"
@@ -39,6 +42,7 @@ weekend = "blue"
 today = "green"
 selected = "red"
 selection = "dim_purple"
+text_selection = "mid_blue"
 focus = "purple"
 checked = "purple"
 notice = "yellow"

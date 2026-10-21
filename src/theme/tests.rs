@@ -67,9 +67,9 @@ fn colors_override_roles_and_must_be_real_roles_and_colors() {
 fn choices_are_the_palette_in_file_order_or_the_16_colors() {
     assert!(choices("no-such-theme").is_empty());
     let mocha = choices("catppuccin-mocha");
-    assert_eq!(mocha.len(), 15);
+    assert_eq!(mocha.len(), 16);
     assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
-    assert_eq!(mocha[14].0, "dim_mauve");
+    assert_eq!(mocha[15].0, "mid_blue");
     let terminal = choices("terminal");
     assert_eq!(terminal.len(), 16);
     assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
@@ -225,5 +225,15 @@ fn mistakes_in_a_theme_file_are_errors() {
         format!("{mocha}\n[colours]\n"),
     ] {
         assert!(Theme::parse(&text, &BTreeMap::new()).is_err(), "{text}");
+    }
+}
+
+#[test]
+fn marked_text_shows_on_the_chosen_row_in_every_theme() {
+    // Text dragged over in the day popup is mostly on the chosen item's row: its background must differ
+    // from that row's
+    for name in names() {
+        let theme = Theme::builtin(name).expect("built-in");
+        assert_ne!(theme.text_selection, theme.selection, "{name}");
     }
 }

@@ -263,15 +263,15 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
 #[test]
 fn colors_scroll_inside_their_section() {
     // Expected rows computed by the same Python script as above. 70 × 44 holds the whole box, so the
-    // list itself does not scroll; choosing the 12th color (focus) moves `[colors]` down so it shows one
-    // more color below it: the 4th to the 13th color (year_line … focus, then checked)
+    // list itself does not scroll; choosing the 13th color (focus) moves `[colors]` down so it shows one
+    // more color below it: the 5th to the 14th color (label … focus, then checked)
     let focus = index_of(Row::Color("focus"));
     let (app, area, rows, buffer) = draw(choosing(focus), 44);
     assert_eq!(
         app.settings_page().map(|page| (page.top, page.colors_top)),
-        Some((0, 3))
+        Some((0, 4))
     );
-    assert_eq!(rows[14], "│    year_line            lavender        │");
+    assert_eq!(rows[14], "│    label                lavender        │");
     assert_eq!(rows[23], "│    checked              mauve           │");
     // The scrollbar beside the colors (x 42, rows 14-23): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border

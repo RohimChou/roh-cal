@@ -3187,11 +3187,11 @@ fn a_long_title_wraps_in_the_day_popup() {
 }
 
 #[test]
-fn dragging_over_a_wrapped_title_in_the_day_popup_reverses_its_characters() {
+fn dragging_over_a_wrapped_title_in_the_day_popup_marks_its_characters() {
     // The long title of `a_long_title_wraps_in_the_day_popup` (60 × 20): on both of its lines (y 8, 9) the
     // characters start at x 6; the break left out the space after the first line's 「and」 (char 45).
     // Positions from a separate Python count
-    let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
+    let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack !!! @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.focus = Focus::Day;
     app.screen = Rect::new(0, 0, 60, 20);
@@ -3219,21 +3219,34 @@ fn dragging_over_a_wrapped_title_in_the_day_popup_reverses_its_characters() {
     );
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
-    let reversed = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::REVERSED);
+    let theme = Theme::default();
+    let marked = |x: u16, y: u16| buffer[(x, y)].bg == theme.text_selection;
     // First line: from 「t」 to the end of 「and」 (x 50), not the blank after it; second line: from its start
     // to 「d」; Pack (y 10) not at all
-    assert!(!reversed(19, 8) && reversed(20, 8) && reversed(50, 8) && !reversed(51, 8));
-    assert!(!reversed(5, 9) && reversed(6, 9) && reversed(14, 9) && !reversed(15, 9));
-    assert!(!reversed(8, 10));
+    assert!(!marked(19, 8) && marked(20, 8) && marked(50, 8) && !marked(51, 8));
+    assert!(!marked(5, 9) && marked(6, 9) && marked(14, 9) && !marked(15, 9));
+    assert!(!marked(8, 10));
+    // The rest of the chosen item's lines keep the selection background; marked characters are in the
+    // normal text color
+    assert_eq!(buffer[(19, 8)].bg, theme.selection);
+    assert_eq!(buffer[(20, 8)].fg, theme.text);
     // Past the box's right edge on the second line: up to its last character 「x」 (char 85, x 45)
     mouse(&mut app, Drag(Left), 59, 9);
     assert_eq!(app.day_selection(), Some((spot(0, 14), spot(0, 85))));
     let terminal = draw_app(&mut app, 60, 20);
     let buffer = terminal.backend().buffer();
-    assert!(buffer[(45, 9)].modifier.contains(Modifier::REVERSED));
-    // Down onto Pack (item 1): to the 「c」 under the mouse (x 8)
+    assert_eq!(buffer[(45, 9)].bg, theme.text_selection);
+    // Down onto Pack (item 1): to the 「c」 under the mouse (x 8). Its `!!!` red turns the normal text color
+    // where marked (red is hard to read on the marking), 「k」 stays red
     mouse(&mut app, Drag(Left), 8, 10);
     assert_eq!(app.day_selection(), Some((spot(0, 14), spot(1, 2))));
+    let terminal = draw_app(&mut app, 60, 20);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        (buffer[(6, 10)].fg, buffer[(6, 10)].bg),
+        (theme.text, theme.text_selection)
+    );
+    assert_eq!(buffer[(9, 10)].fg, theme.priority_high);
 }
 
 #[test]

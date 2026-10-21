@@ -44,6 +44,10 @@ pub struct Theme {
     /// selected day's cell in the month grid, the chosen row in the agenda, the tasks page, the calendar list
     /// and the settings page
     pub selection: Color,
+    /// Background of text dragged over with the mouse in the day popup (its characters turn the normal text
+    /// color): the theme's blue mixed with the background, lighter than `selection`, so it shows on the chosen
+    /// row too
+    pub text_selection: Color,
     /// The border of the pane that has keyboard focus; the matching characters in the editor's `#` list
     pub focus: Color,
     /// The `☑` of checked calendars in the side menu
@@ -100,7 +104,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 24] = [
+pub const ROLES: [&str; 25] = [
     "text",
     "muted",
     "line",
@@ -112,6 +116,7 @@ pub const ROLES: [&str; 24] = [
     "today",
     "selected",
     "selection",
+    "text_selection",
     "focus",
     "checked",
     "notice",
@@ -289,6 +294,7 @@ impl Theme {
             "today" => self.today,
             "selected" => self.selected,
             "selection" => self.selection,
+            "text_selection" => self.text_selection,
             "focus" => self.focus,
             "checked" => self.checked,
             "notice" => self.notice,

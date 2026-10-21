@@ -31,6 +31,9 @@ nord8_faint = "#668a9a"
 # Selection background: nord15 and the background (nord0 #2e3440) mixed 3:7. A light purple that stands out
 # from the background (also a translucent one), dark enough for text on it
 nord15_dim = "#5c5366"
+# Dragged-over text in the day popup: nord9 (#8cb0d4) and the background (nord0 #2e3440) mixed 4:6. Lighter
+# than the selection background, so it shows on the chosen row too
+nord9_mid = "#54667b"
 
 [roles]
 text = "nord4"
@@ -44,6 +47,7 @@ weekend = "nord9"
 today = "nord14"
 selected = "nord11"
 selection = "nord15_dim"
+text_selection = "nord9_mid"
 focus = "nord15"
 checked = "nord15"
 notice = "nord13"
