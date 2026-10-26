@@ -3456,6 +3456,32 @@ fn a_long_title_does_not_borrow_into_the_next_month() {
 }
 
 #[test]
+fn the_selected_days_background_follows_its_long_title() {
+    // 80 × 30: 10/20 (Tue) is x 18-27, y 15-17; its long title (37 cells, x 18-54) borrows the empty
+    // days up to Sunday. Selected, the background follows the title into them, up to one cell past it
+    // (x 55), over the grid line it covers (x 28); the rest of those cells stays plain
+    let mut app = month_app(Lang::En, date(2026, 10, 20), MONTH_TASKS);
+    let terminal = draw_app(&mut app, 80, 30);
+    let buffer = terminal.backend().buffer();
+    let theme = &app.theme;
+    let bg = |x: u16, y: u16| buffer[(x, y)].bg;
+    for (x, y) in [(18, 15), (27, 17), (28, 16), (40, 16), (54, 16), (55, 16)] {
+        assert_eq!(bg(x, y), theme.selection, "({x}, {y})");
+    }
+    for (x, y) in [(56, 16), (59, 16), (78, 16), (28, 15), (29, 15), (29, 17)] {
+        assert_ne!(bg(x, y), theme.selection, "({x}, {y})");
+    }
+    // Another day selected (10/19): the same title has no background
+    let mut app = month_app(Lang::En, date(2026, 10, 19), MONTH_TASKS);
+    let terminal = draw_app(&mut app, 80, 30);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(7, 16)].bg, app.theme.selection);
+    for x in [28, 40, 55] {
+        assert_ne!(buffer[(x, 16)].bg, app.theme.selection, "x {x}");
+    }
+}
+
+#[test]
 fn the_cut_off_week_at_the_bottom_stays_inside_the_box() {
     // 80 × 30: the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27). The bar
     // of 11/10-12 would go on the next row, the bottom border (y 28): it is left out, the border stays

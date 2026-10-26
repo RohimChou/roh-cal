@@ -278,10 +278,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
         // The selected day's cell gets a background, top-left to bottom-right (like v1)
         let selected = days.iter().position(|&day| day == app.selected);
+        let selection = Style::new().bg(theme.selection);
         if let Some(column) = selected {
-            frame
-                .buffer_mut()
-                .set_style(cells[column], Style::new().bg(theme.selection));
+            frame.buffer_mut().set_style(cells[column], selection);
         }
         let (bars, slots) = layout_row(&days, app);
         // Laid out as a whole week even when cut off at the bottom (the cut-off part just does not show)
@@ -290,7 +289,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             .zip(&slots)
             .map(|(&day, slots)| cell_lines(day, month, slots, grid.week_height, app))
             .collect();
-        render_week(frame, &cells, &lines, &days, selected);
+        render_week(frame, &cells, &lines, &days, selected, selection);
         let shown: Vec<usize> = slots
             .iter()
             .map(|slots| shown_lines(slots.len(), grid.week_height))
@@ -470,19 +469,22 @@ fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
 }
 
 /// Draws the 7 cells of one week (`days`, Monday to Sunday), line by line; `selected` = the column
-/// (0 = Monday) of the selected day's cell, if it is in this row
+/// (0 = Monday) of the selected day's cell, if it is in this row, and `selection` its background
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
 /// (like a spreadsheet): if the neighbor's whole cell is empty (nothing that day, only its date), its
 /// width is borrowed (drawing over the grid line between), and so on until a day with something (even on
 /// another line: text under that day's own items would read as one of them), the selected day's cell
-/// (its background stays clean), a new month, or Sunday; anything longer is cut off
+/// (its background stays clean), a new month, or Sunday; anything longer is cut off.
+/// The selected day's text takes its background along into the borrowed cells, up to one cell past the
+/// text (like the blank before it), so it reads as the selected day's; the rest of those cells stays plain
 fn render_week(
     frame: &mut Frame,
     cells: &[Rect],
     lines: &[Vec<Line>],
     days: &[Date],
     selected: Option<usize>,
+    selection: Style,
 ) {
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
@@ -502,6 +504,16 @@ fn render_week(
                 }
             }
             frame.render_widget(line, Rect::new(cell.x, y, right - cell.x, 1));
+            if selected == Some(column) {
+                let text_end = cell
+                    .x
+                    .saturating_add(u16::try_from(line.width()).unwrap_or(u16::MAX));
+                let end = text_end.saturating_add(1).min(right);
+                if end > cell.right() {
+                    let spilled = Rect::new(cell.right(), y, end - cell.right(), 1);
+                    frame.buffer_mut().set_style(spilled, selection);
+                }
+            }
         }
     }
 }
