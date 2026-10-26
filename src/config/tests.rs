@@ -251,6 +251,12 @@ fn updated_writes_a_fixed_width_and_removes_it_for_auto() {
     // Back to auto: the line goes (TOML has no null)
     settings.calendar_list.width = None;
     assert_eq!(updated_file(&fixed, &settings).expect("valid"), text);
+    // The only line of [calendar_list]: its header goes too
+    let fixed = "[calendar_list]\nwidth = 30\n";
+    assert_eq!(
+        updated_file(fixed, &Settings::default()).expect("valid"),
+        ""
+    );
 }
 
 #[test]

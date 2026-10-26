@@ -248,8 +248,13 @@ fn merge(doc: &mut dyn TableLike, current: &dyn TableLike, wanted: &dyn TableLik
             ) {
                 merge(doc_table, current_table, wanted_table);
             }
-            // The whole table is empty now (e.g. every color reset) → also remove the `[colors]` line
-            if wanted_table.is_empty() {
+            // The file's table is empty now (e.g. every color reset, the width back to auto) → also remove its
+            // header line (e.g. `[colors]`)
+            if doc
+                .get(key)
+                .and_then(Item::as_table_like)
+                .is_some_and(TableLike::is_empty)
+            {
                 doc.remove(key);
             }
             continue;
