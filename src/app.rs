@@ -20,7 +20,7 @@ pub use write::Notice;
 
 use crate::{
     calendar, clipboard,
-    config::{self, Settings},
+    config::{self, CalendarListSettings, Settings},
     tasks::{Heading, HeadingLine, Item, Kind, Warning},
     texts::Lang,
     theme::Theme,
@@ -86,6 +86,17 @@ enum ClickTarget {
     Day(Date),
     /// An item in the agenda, the day popup or on the tasks page: its line in the task file
     Item(usize),
+}
+
+/// The side menu's right border is held down with the mouse (see `App::drag_side_border`)
+#[derive(Debug)]
+struct SideDrag {
+    /// The settings when it was pressed: letting go saves only what changed since (the width)
+    before: Settings,
+    /// Where it was pressed (terminal column)
+    column: u16,
+    /// The side menu's width then
+    width: u16,
 }
 
 /// Which layout is shown (number keys switch)
@@ -310,6 +321,8 @@ pub struct App {
     /// Text being dragged over with the mouse in the popup (`App::day_selection`); `None` = none. A key, the
     /// next click, or reading the task file again clears it
     pub day_drag: Option<TextDrag>,
+    /// The side menu's right border being dragged with the mouse; `None` = not dragging
+    side_drag: Option<SideDrag>,
     /// What the last click on a day or an item hit and when, to tell a double click
     last_click: Option<(ClickTarget, Instant)>,
     /// Calendar scroll: which row is at the top of the screen (`None` = on the next draw, put the selected
@@ -397,6 +410,7 @@ impl App {
             day_index: 0,
             day_top: 0,
             day_drag: None,
+            side_drag: None,
             last_click: None,
             calendar_top: None,
             agenda_window: None,
@@ -1027,8 +1041,9 @@ impl App {
         }
     }
 
-    /// A switch flipped outside the settings page (`before` = the settings before it): saved to the config
-    /// file right away (only that line); if it cannot save, the bottom row says so
+    /// A switch flipped or the side menu's width dragged outside the settings page (`before` = the settings
+    /// before it): saved to the config file right away (only that line); if it cannot save, the bottom row
+    /// says so
     fn save_switch(&mut self, before: &Settings) {
         if let Some(path) = &self.config_path
             && let Err(error) = config::save(path, before, &self.settings)
@@ -1092,12 +1107,33 @@ impl App {
     /// chooses it (a double click = check it),
     /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse, a right click
     /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck); dragging in
-    /// the day popup goes over its text, and letting go copies it
+    /// the day popup goes over its text, and letting go copies it; dragging the side menu's right border
+    /// changes its width
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
+            // The side menu's right border: hold it down to drag it (not while the day popup is open: a
+            // click outside the popup closes it)
+            MouseEventKind::Down(MouseButton::Left)
+                if self.focus != Focus::Day
+                    && ui::on_side_border(self, mouse.column, mouse.row) =>
+            {
+                self.side_drag = Some(SideDrag {
+                    before: self.settings.clone(),
+                    column: mouse.column,
+                    width: ui::side_width(self),
+                });
+            }
+            MouseEventKind::Drag(MouseButton::Left) if self.side_drag.is_some() => {
+                self.drag_side_border(mouse.column);
+            }
+            MouseEventKind::Up(MouseButton::Left) if self.side_drag.is_some() => {
+                if let Some(drag) = self.side_drag.take() {
+                    self.save_switch(&drag.before);
+                }
+            }
             // Narrow, side menu over the left side: a click outside hides it (like Esc) and does nothing else
             MouseEventKind::Down(MouseButton::Left)
                 if ui::side_overlay(self)
@@ -1150,6 +1186,21 @@ impl App {
             // Anything else (other drags, move) is ignored
             _ => {}
         }
+    }
+
+    /// Dragging the side menu's right border to terminal column `column`: the width follows the mouse
+    /// (moved 3 cells right = 3 cells wider) and is fixed from now on (`[calendar_list] width`), kept between
+    /// `MIN_WIDTH` and `MAX_WIDTH`; letting go saves it to the config file
+    fn drag_side_border(&mut self, column: u16) {
+        let Some(drag) = &self.side_drag else {
+            return;
+        };
+        let moved = i32::from(column) - i32::from(drag.column);
+        let width = (i32::from(drag.width) + moved).clamp(
+            i32::from(CalendarListSettings::MIN_WIDTH),
+            i32::from(CalendarListSettings::MAX_WIDTH),
+        );
+        self.settings.calendar_list.width = u16::try_from(width).ok();
     }
 
     /// A click on a calendar day at time `now` (both layouts): selects the day; a second click on the same

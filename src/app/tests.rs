@@ -821,6 +821,55 @@ fn widening_keeps_the_side_menu_unless_it_was_hidden() {
 }
 
 #[test]
+fn dragging_the_side_menus_right_border_fixes_its_width_and_letting_go_saves_it() {
+    // 130 × 20: the side menu is 22 wide (auto: the names are short), its right border at x 21, the
+    // calendar box's left border right next to it at x 22
+    let mut app = app_with(GROUPS);
+    app.screen = Rect::new(0, 0, 130, 20);
+    let dir = crate::files::test_dir("drag-side-border");
+    let path = dir.join("config.toml");
+    app.config_path = Some(path.clone());
+    let left = MouseButton::Left;
+    let read = |path: &std::path::Path| std::fs::read_to_string(path).expect("read");
+    // Grab the calendar box's border, drag 5 cells right: 27 wide; nothing saved while dragging
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 22, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 27, 5));
+    assert_eq!(app.settings.calendar_list.width, Some(27));
+    assert!(!path.exists());
+    // 2 cells back (on another row): 25; letting go saves it
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 25, 9));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 25, 9));
+    assert_eq!(app.settings.calendar_list.width, Some(25));
+    assert_eq!(read(&path), "[calendar_list]\nwidth = 25\n");
+    // Its own border is at x 24 now: dragged far left / right, it stops at 22 / 60
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 24, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 0, 5));
+    assert_eq!(app.settings.calendar_list.width, Some(22));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 125, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 125, 5));
+    assert_eq!(read(&path), "[calendar_list]\nwidth = 60\n");
+    // Dragging anywhere else leaves the width alone
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 90, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 100, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 100, 5));
+    assert_eq!(app.settings.calendar_list.width, Some(60));
+    let _ = std::fs::remove_dir_all(&dir);
+    // Narrow (60 × 20), called up with s over the left side: its own border (x 21) can be grabbed; right
+    // next to it (x 22) is outside it, and a click there puts it away
+    let mut app = app_with(GROUPS);
+    app.screen = Rect::new(0, 0, 60, 20);
+    press(&mut app, KeyCode::Char('s'));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 21, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 30, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 30, 5));
+    assert_eq!(app.settings.calendar_list.width, Some(31));
+    assert_eq!(ui::side_overlay(&app).map(|area| area.width), Some(31));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 31, 5));
+    assert_eq!(ui::side_overlay(&app), None);
+    assert_eq!(app.settings.calendar_list.width, Some(31));
+}
+
+#[test]
 fn a_multi_day_item_is_listed_in_each_month_and_chosen_from_any_of_its_days() {
     // Manager OOO 10/28-11/3: one row in October and one in November; the November row is listed on
     // 11/1, before 11/1's "Write the monthly report"

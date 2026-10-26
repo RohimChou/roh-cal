@@ -242,6 +242,21 @@ fn side_overlay_in(screen: Rect, app: &App) -> Option<Rect> {
     })
 }
 
+/// Whether terminal cell (`column`, `row`) is on the side menu's right border, which the mouse drags to change
+/// its width. Wide: the main view's left border right next to it counts too (two lines side by side, either
+/// one can be grabbed). Narrow: only the border of the side menu called up over the screen (right of it is
+/// the main view, where a click hides the side menu)
+pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
+    let (side, beside) = match side_overlay(app) {
+        Some(overlay) => (overlay, 0),
+        None => (areas(app.screen, app).side, 1),
+    };
+    let border = side.right().saturating_sub(1);
+    side.width > 0
+        && (side.top()..side.bottom()).contains(&row)
+        && (border..=border + beside).contains(&column)
+}
+
 /// Where each part of the screen is
 struct Areas {
     /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
