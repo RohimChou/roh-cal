@@ -3015,7 +3015,7 @@ fn tasks_page_with_collapsed_calendars() {
             "│──────────────────────────────────────────────────────────│",
             "│ Line 8  - [ ] Ship the monthly report @2026-10-22        │",
             "╰──────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  s c",
+            " 123 view  jk move  hl fold  Space check  e edit  a add  o e",
         ]
     );
 }
@@ -3056,7 +3056,7 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             "│──────────────────────────────────────────────────────────│",
             "│ Line 3  - [ ] Fix the login bug @2026-10-20              │",
             "╰──────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  s c",
+            " 123 view  jk move  hl fold  Space check  e edit  a add  o e",
         ]
     );
     // `▸` of the first item (under SFAP's heading, which is 1 level in): x = 1 + 1 + 2 × 2 = 6 on the
@@ -3159,7 +3159,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  ? 說",
+            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s",
         ]
     );
     // Expand a few items (▾) and choose line 61 (three levels deep):
@@ -3185,7 +3185,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ Line 61  - [ ] Test that `@Rukis` is not a date                    │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  s calendars",
+            " 123 view  jk move  hl fold  Space check  e edit  a add  o editor  s c",
         ]
     );
 }
@@ -3331,7 +3331,7 @@ fn tasks_page_points_at_format_mistakes() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  ? 說",
+            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s",
         ]
     );
     let buffer = terminal.backend().buffer();
@@ -3373,7 +3373,7 @@ fn tasks_page_with_the_side_menu() {
             "│ ☑\u{a0}Learning Rust 🦀 4 ││───────────────────────────────────────────────────────────────────────────────────────────────│",
             "│ ☑\u{a0}Tokyo trip       5 ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
             "╰──────────────────────╯╰───────────────────────────────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s 日曆  ? 說明  , 設定  q 離開",
         ]
     );
 }
