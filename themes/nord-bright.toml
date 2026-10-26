@@ -3,7 +3,9 @@
 # saturated; text is nord6 #eceff4, the brightest of Nord's whites (background: nord0 #2e3440)
 
 [palette]
-nord1 = "#434c5e"
+# Nord's own nord1, not made lighter like the others: the month grid's lines between days stay close to
+# the background, so the line where a month ends (nord3) stands out from them
+nord1 = "#3b4252"
 nord3 = "#55637f"
 nord4 = "#eceff4"
 # Light gray: nord4 and the background mixed 7:3. Fainter than normal text, for secondary text
@@ -59,6 +61,7 @@ focus = "nord15"
 checked = "nord15"
 notice = "nord13"
 error = "nord11"
+# Month grid lines between days: faint, well below the month's edge (line)
 grid = "nord1"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band

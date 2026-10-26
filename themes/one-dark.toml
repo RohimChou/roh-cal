@@ -9,7 +9,9 @@ fg_dim = "#848a95"
 # does not work here (settings rows, help sections)
 faint = "#6a6f7a"
 gutter_fg_grey = "#4b5263"
-special_grey = "#3b4048"
+# Month grid lines between days: One Dark's special_grey (#3b4048) and the background mixed 6:4, close to the
+# background, so the line where a month ends (gutter_fg_grey) stands out from them
+grid_grey = "#333840"
 red = "#e06c75"
 # High priority (!!!): red with more light (same hue), so it stands out on the background
 bright_red = "#e5858d"
@@ -53,7 +55,8 @@ focus = "purple"
 checked = "purple"
 notice = "yellow"
 error = "red"
-grid = "special_grey"
+# Month grid lines between days: faint, well below the month's edge (line)
+grid = "grid_grey"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
