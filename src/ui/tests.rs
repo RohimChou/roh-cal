@@ -1424,7 +1424,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
         ]
     );
     assert!(
-        rows[9].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+        rows[9].starts_with("╰ Enter 存檔 | Esc 取消 ─"),
         "{}",
         rows[9]
     );
@@ -1623,7 +1623,7 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
         ]
     );
     assert!(
-        rows[9].starts_with("╰ Enter 存檔  Esc 取消 ─"),
+        rows[9].starts_with("╰ Enter 存檔 | Esc 取消 ─"),
         "{}",
         rows[9]
     );
@@ -1767,13 +1767,13 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     };
     let click = MouseEventKind::Down(MouseButton::Left);
     // 80 × 24: the typed text starts at x 5 (box 2 + border + padding + a blank), so the `#` after
-    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 9). 25 wide: the keys
-    // on its bottom border (23) and the borders; 4 calendars + borders = 6 tall
+    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 9). 26 wide: the keys
+    // on its bottom border (24, with a `|` between them) and the borders; 4 calendars + borders = 6 tall
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     type_text(&mut app, "#");
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 9, 25, 6);
+    let list = Rect::new(10, 9, 26, 6);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 0))
@@ -1781,16 +1781,16 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     assert_eq!(
         area_rows(buffer, list),
         [
-            "╭───────────────────────╮",
-            "│ Holidays              │",
-            "│ Work                  │",
-            "│ Work > SFAP           │",
-            "│ Personal              │",
-            "╰ Enter pick  Esc close ╯",
+            "╭────────────────────────╮",
+            "│ Holidays               │",
+            "│ Work                   │",
+            "│ Work > SFAP            │",
+            "│ Personal               │",
+            "╰ Enter pick | Esc close ╯",
         ]
     );
     // The chosen row (the first) on the selection background, across the box
-    for x in 11..34 {
+    for x in 11..35 {
         assert_eq!(buffer[(x, 10)].bg, theme.selection, "x {x}");
     }
     assert_ne!(buffer[(11, 11)].bg, theme.selection);
@@ -1799,8 +1799,8 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     type_text(&mut app, "sf");
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 9, 25, 3);
-    assert_eq!(area_rows(buffer, list)[1], "│ Work > SFAP           │");
+    let list = Rect::new(10, 9, 26, 3);
+    assert_eq!(area_rows(buffer, list)[1], "│ Work > SFAP            │");
     for x in [19, 20] {
         assert_eq!(buffer[(x, 10)].fg, theme.focus, "x {x}");
         assert!(buffer[(x, 10)].modifier.contains(Modifier::BOLD));
@@ -1857,14 +1857,14 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         app.handle_key(KeyEvent::from(KeyCode::Down));
     }
     let terminal = draw_app(&mut app, 80, 24);
-    let list = Rect::new(10, 9, 25, 10);
+    let list = Rect::new(10, 9, 26, 10);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 2))
     );
     let rows = area_rows(terminal.backend().buffer(), list);
-    assert_eq!(rows[1], "│ C2                    │");
-    assert_eq!(rows[8], "│ C9                    │");
+    assert_eq!(rows[1], "│ C2                     │");
+    assert_eq!(rows[8], "│ C9                     │");
     assert_eq!(terminal.backend().buffer()[(11, 17)].bg, theme.selection);
 }
 

@@ -132,11 +132,9 @@ pub fn area(app: &App, screen: Rect) -> Rect {
         .max()
         .unwrap_or(0);
     // The bottom border fits the key hints and also the question shown after `R`
-    let hint_width = [texts.settings_hint, texts.settings_reset_all]
-        .map(|hint| Span::raw(hint).width() + 2)
-        .into_iter()
-        .max()
-        .unwrap_or(0);
+    let hint_width = super::border_hints(app, texts.settings_hint)
+        .width()
+        .max(Span::raw(texts.settings_reset_all).width() + 2);
     let inside = (row_width.max(description_width) + RIGHT_MARGIN)
         .max(title(app).width())
         .max(hint_width);
@@ -205,14 +203,17 @@ fn title(app: &App) -> Line<'static> {
     ])
 }
 
-/// Text on the bottom border: normally the key hints; while asking whether to reset everything
-/// (`page.confirm_reset`), the question instead
-fn hint_text(app: &App, page: SettingsPage) -> &'static str {
+/// The bottom border: normally the key hints; while asking whether to reset everything
+/// (`page.confirm_reset`), the question instead, in the notice color
+fn bottom_line(app: &App, page: SettingsPage) -> Line<'static> {
     let texts = app.lang.texts();
     if page.confirm_reset {
-        texts.settings_reset_all
+        Line::styled(
+            format!(" {} ", texts.settings_reset_all),
+            Style::new().fg(app.theme.notice),
+        )
     } else {
-        texts.settings_hint
+        super::border_hints(app, texts.settings_hint)
     }
 }
 
@@ -225,20 +226,12 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
     let theme = &app.theme;
     let texts = app.lang.texts();
     let area = area(app, frame.area());
-    let hint_style = if page.confirm_reset {
-        Style::new().fg(theme.notice)
-    } else {
-        Style::new().fg(theme.muted)
-    };
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
         .padding(PADDING)
         .title_top(title(app))
-        .title_bottom(Line::styled(
-            format!(" {} ", hint_text(app, page)),
-            hint_style,
-        ));
+        .title_bottom(bottom_line(app, page));
     let rows = rows();
     let chosen = rows[page.row.min(rows.len() - 1)];
     let lines: Vec<Line> = entries(page.colors_top)

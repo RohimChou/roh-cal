@@ -152,8 +152,7 @@ fn border_lines(app: &App, full: bool) -> (Line<'static>, Line<'static>) {
         ),
         Span::styled(format!(" ∙ {title} "), Style::new().fg(theme.muted)),
     ]);
-    let hint = Line::styled(format!(" {hint} "), Style::new().fg(theme.muted));
-    (title, hint)
+    (title, super::border_hints(app, hint))
 }
 
 /// How wide the key column is, equally wide in both columns: the longest key in either column + `KEY_GAP`

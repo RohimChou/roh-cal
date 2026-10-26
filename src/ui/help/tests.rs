@@ -65,7 +65,7 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
             "│                                ,       設定          │",
             "│                                q       離開          │",
             "│                                                      │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────╯",
         ]
     );
     // Colors: the border is lit (keyboard focus is here); section names, keys and descriptions each have
@@ -104,7 +104,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    u        復原                  ,        設定          │",
             "│    o        編輯器                q        離開          │",
             "│                                                          │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Side, Lang::ZhTw, 70, 23, Help::default());
@@ -126,7 +126,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    z        封存 / 取消封存       ,        設定          │",
             "│                                   q        離開          │",
             "│                                                          │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Agenda, Lang::ZhTw, 70, 23, Help::default());
@@ -148,7 +148,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│                                  ,       設定          │",
             "│                                  q       離開          │",
             "│                                                        │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ────────────────────────────╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ───────────────────────────╯",
         ]
     );
     let (_, rows, _) = draw_in(Focus::Day, Lang::ZhTw, 70, 23, Help::default());
@@ -191,7 +191,7 @@ fn a_narrow_screen_stacks_the_columns() {
             "│    ,       設定              │",
             "│    q       離開              │",
             "│                              │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─╯",
         ]
     );
 }
@@ -242,7 +242,7 @@ fn files_are_listed_on_top_of_the_keys() {
             "│                                ,       設定          │",
             "│                                q       離開          │",
             "│                                                      │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────╯",
+            "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────╯",
         ]
     );
     // Colors like a section: block name, labels like keys, the path in text color (its next line too), the

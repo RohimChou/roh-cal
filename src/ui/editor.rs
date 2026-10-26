@@ -85,7 +85,12 @@ fn input_scroll(editor: &Editor, input_area: Rect) -> usize {
 /// (moved left when it would go past the right edge), as wide as the longest calendar or the keys on its
 /// bottom border, at most `LIST_ROWS` calendars tall (it may cover the key hints at the bottom); it
 /// scrolls so the chosen calendar shows
-pub fn list_area(app: &App, screen: Rect, editor: &Editor, keys: &str) -> Option<(Rect, usize)> {
+pub fn list_area(
+    app: &App,
+    screen: Rect,
+    editor: &Editor,
+    keys: &'static str,
+) -> Option<(Rect, usize)> {
     let found = editor.suggestions()?;
     let (start, _) = editor.hash_word()?;
     let input_area = input_area(layout(app, super::areas(screen, app).main, editor).1);
@@ -99,7 +104,7 @@ pub fn list_area(app: &App, screen: Rect, editor: &Editor, keys: &str) -> Option
     let widest = found
         .iter()
         .map(|found| Span::raw(&names[found.index]).width() + 4)
-        .chain([Span::raw(keys).width() + 2])
+        .chain([super::border_hints(app, keys).width() + 2])
         .max()
         .unwrap_or(0);
     let width = u16::try_from(widest).unwrap_or(u16::MAX).min(screen.width);
@@ -136,10 +141,7 @@ pub fn render(frame: &mut Frame, editor: &Editor, app: &App) {
             },
             Style::new().fg(theme.label),
         ))
-        .title_bottom(Line::styled(
-            texts.editor_keys(),
-            Style::new().fg(theme.muted),
-        ));
+        .title_bottom(super::border_hints(app, texts.editor_keys()));
     // Clear the screen underneath and one blank cell around the box first (not the key-hint row at the
     // bottom), then draw the box
     let screen = frame.area();
@@ -425,7 +427,7 @@ fn render_list(frame: &mut Frame, editor: &Editor, app: &App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
-        .title_bottom(Line::styled(keys, Style::new().fg(theme.muted)));
+        .title_bottom(super::border_hints(app, keys));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     for (row, (at, found)) in found

@@ -42,7 +42,7 @@ pub fn area(app: &App, screen: Rect, picker: &Picker) -> Rect {
     // the bottom border 1 on each side)
     let width = [
         usize::from(BAR_X - 1 + BAR) + 2,
-        Span::raw(texts.picker_hint).width() + 2,
+        super::border_hints(app, texts.picker_hint).width(),
         Span::raw(texts.picker_typing).width() + 4,
         title(app, picker).width(),
     ]
@@ -85,10 +85,7 @@ pub fn render(frame: &mut Frame, app: &App, picker: &Picker) {
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(theme.focus))
         .title_top(title(app, picker))
-        .title_bottom(Line::styled(
-            format!(" {} ", texts.picker_hint),
-            Style::new().fg(theme.muted),
-        ));
+        .title_bottom(super::border_hints(app, texts.picker_hint));
     super::clear_with_ring(frame, area, frame.area());
     frame.render_widget(block, area);
     let [red, green, blue] = picker.rgb;
@@ -226,25 +223,26 @@ mod tests {
 
     #[test]
     fn the_picker_shows_the_color_its_code_and_a_bar_per_channel() {
-        // Width: indent 2 + `> R  166  ` 10 + bar 24 + 2 = 38 inside, 40 with the border; in the middle of
-        // 70 × 24 → x 15, y 7. Expected rows computed by a separate Python script (knob = the bar cell
-        // nearest the value: round(value × 23 / 255))
+        // Width: the key hints on the bottom border, 4 groups (29) + 3 ` | ` + a blank at each end = 40
+        // inside (wider than indent 2 + `> R  166  ` 10 + bar 24 + 2 = 38), 42 with the border; in the
+        // middle of 70 × 24 → x 14, y 7. Expected rows computed by a separate Python script (knob = the bar
+        // cell nearest the value: round(value × 23 / 255))
         let (app, area, buffer) = picker_on_today();
-        assert_eq!(area, Rect::new(15, 7, 40, 10));
+        assert_eq!(area, Rect::new(14, 7, 42, 10));
         let rows = crate::ui::tests::area_rows(&buffer, area);
         assert_eq!(
             rows,
             [
-                "╭ 自訂顏色 ∙ today ────────────────────╮",
-                "│                                      │",
-                "│            #a6e3a1                   │",
-                "│                                      │",
-                "│  > R  166                 |          │",
-                "│    G  227                      |     │",
-                "│    B  161                 |          │",
-                "│                                      │",
-                "│  也可以直接打色碼：a6e3a1            │",
-                "╰ jk 選  hl HL 調  Enter 存  Esc 取消 ─╯",
+                "╭ 自訂顏色 ∙ today ──────────────────────╮",
+                "│                                        │",
+                "│            #a6e3a1                     │",
+                "│                                        │",
+                "│  > R  166                 |            │",
+                "│    G  227                      |       │",
+                "│    B  161                 |            │",
+                "│                                        │",
+                "│  也可以直接打色碼：a6e3a1              │",
+                "╰ jk 選 | hl HL 調 | Enter 存 | Esc 取消 ╯",
             ]
         );
         // The color: 8 cells with today's green as background

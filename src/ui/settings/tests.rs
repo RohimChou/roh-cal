@@ -83,43 +83,44 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     // name column = longest name (week_number_dim, 15 cells) + 3; the top-level theme has 2 less
     // indent and a name column 2 wider, so all values share one column;
     // the inside is as wide as a row (indent 4 + name column 18 + the longest value, catppuccin-mocha,
-    // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells: the descriptions
-    // and the key hints on the bottom border fit in it;
+    // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells, where the
+    // descriptions fit; the key hints on the bottom border are wider (5 groups, 30 cells, + 4 ` | ` + a
+    // blank at each end = 44), so the inside is 44 cells;
     // no blank lines; `[colors]` shows its first 10 colors (13 more below): 29 rows tall
     let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-    assert_eq!(area, Rect::new(14, 8, 43, 29));
+    assert_eq!(area, Rect::new(12, 8, 46, 29));
     assert_eq!(
         rows,
         [
-            "╭ roh-cal ∙ 設定 ─────────────────────────╮",
-            "│  theme               catppuccin-mocha   │",
-            "│  [calendar]                             │",
-            "│    relative_weeks    off                │",
-            "│    dots              on                 │",
-            "│  [month]                                │",
-            "│    grid_lines        on                 │",
-            "│    center_cursor     off                │",
-            "│    overflow          on                 │",
-            "│  [calendar_list]                        │",
-            "│    width             auto               │",
-            "│    hide_done         off                │",
-            "│  [day_popup]                            │",
-            "│    by_calendar       on                 │",
-            "│  [colors]                               │",
-            "│    text                 text            │",
-            "│    muted                subtext0        │",
-            "│    line                 surface2        │",
-            "│    year_line            lavender        │",
-            "│    label                lavender        │",
-            "│    week_number          yellow          │",
-            "│    week_number_dim      dim_yellow      │",
-            "│    weekend              blue            │",
-            "│    today                green           │",
-            "│    selected             red             │",
-            "│                                         │",
-            "│  顏色：l 換下一套 theme，h 換上一套     │",
-            "│                                         │",
-            "╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ─╯",
+            "╭ roh-cal ∙ 設定 ────────────────────────────╮",
+            "│  theme               catppuccin-mocha      │",
+            "│  [calendar]                                │",
+            "│    relative_weeks    off                   │",
+            "│    dots              on                    │",
+            "│  [month]                                   │",
+            "│    grid_lines        on                    │",
+            "│    center_cursor     off                   │",
+            "│    overflow          on                    │",
+            "│  [calendar_list]                           │",
+            "│    width             auto                  │",
+            "│    hide_done         off                   │",
+            "│  [day_popup]                               │",
+            "│    by_calendar       on                    │",
+            "│  [colors]                                  │",
+            "│    text                 text               │",
+            "│    muted                subtext0           │",
+            "│    line                 surface2           │",
+            "│    year_line            lavender           │",
+            "│    label                lavender           │",
+            "│    week_number          yellow             │",
+            "│    week_number_dim      dim_yellow         │",
+            "│    weekend              blue               │",
+            "│    today                green              │",
+            "│    selected             red                │",
+            "│                                            │",
+            "│  顏色：l 換下一套 theme，h 換上一套        │",
+            "│                                            │",
+            "╰ jk 選 | hl 改 | r 還原 | R 全部 | Esc 關閉 ╯",
         ]
     );
     // The chosen row (the first row, theme) has a background from the left to the right inside edge
@@ -136,6 +137,17 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     );
     assert_eq!(at(VALUE, y_of(Row::RelativeWeeks)).symbol(), "o");
     assert_eq!(at(1, y_of(Row::RelativeWeeks)).bg, Color::Reset);
+    // The key hints on the bottom border: muted, with each `|` between them in the dimmer line color
+    // (「╰ jk 選 | …」: the first `|` is at 8)
+    let bottom = area.height - 1;
+    assert_eq!(
+        (at(2, bottom).symbol(), at(2, bottom).fg),
+        ("j", theme.muted)
+    );
+    assert_eq!(
+        (at(8, bottom).symbol(), at(8, bottom).fg),
+        ("|", theme.line)
+    );
     assert_eq!(at(TOP_NAME, y_of(Row::Theme)).fg, theme.help_key);
     assert_eq!(
         at(TOP_NAME, y_of(Row::RelativeWeeks) - 1).fg,
@@ -163,7 +175,7 @@ fn the_chosen_color_row_keeps_its_swatch() {
     assert_eq!(at(VALUE + 3, y_of(text)).bg, theme.selection);
     assert_eq!(
         rows[rows.len() - 3],
-        "│  顏色：l 換下一個，e 自訂，r 還原       │"
+        "│  顏色：l 換下一個，e 自訂，r 還原          │"
     );
 }
 
@@ -180,7 +192,7 @@ fn a_reset_color_gets_no_swatch() {
     let text = y_of(Row::Color("text"));
     assert_eq!(
         rows[usize::from(text)],
-        "│    text                 Reset           │"
+        "│    text                 Reset              │"
     );
     assert_eq!(at(VALUE, text).bg, Color::Reset);
     assert_eq!(at(VALUE + 1, text).bg, Color::Reset);
@@ -226,31 +238,31 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
         app.settings_page().map(|page| (page.top, page.colors_top)),
         Some((entries(0).len() - 11, theme::ROLES.len() - COLOR_ROWS))
     );
-    assert_eq!(area, Rect::new(14, 0, 43, 16));
+    assert_eq!(area, Rect::new(12, 0, 46, 16));
     assert_eq!(
         rows,
         [
-            "╭ roh-cal ∙ 設定 ─────────────────────────╮",
-            "│  [colors]                               │",
-            "│    grid                 surface0        │",
-            "│    other_month          faint           │",
-            "│    range                dim_sapphire    │",
-            "│    range_alt            mid_sapphire    │",
-            "│    range_overlap        peach           │",
-            "│    priority_high        red             │",
-            "│    priority_medium      peach           │",
-            "│    priority_low         yellow          │",
-            "│    help_section         blue            │",
-            "│    help_key             peach           │",
-            "│                                         │",
-            "│  顏色：l 換下一個，e 自訂，r 還原       │",
-            "│                                         │",
-            "╰ jk 選  hl 改  r 還原  R 全部  Esc 關閉 ─╯",
+            "╭ roh-cal ∙ 設定 ────────────────────────────╮",
+            "│  [colors]                                  │",
+            "│    grid                 surface0           │",
+            "│    other_month          faint              │",
+            "│    range                dim_sapphire       │",
+            "│    range_alt            mid_sapphire       │",
+            "│    range_overlap        peach              │",
+            "│    priority_high        red                │",
+            "│    priority_medium      peach              │",
+            "│    priority_low         yellow             │",
+            "│    help_section         blue               │",
+            "│    help_key             peach              │",
+            "│                                            │",
+            "│  顏色：l 換下一個，e 自訂，r 還原          │",
+            "│                                            │",
+            "╰ jk 選 | hl 改 | r 還原 | R 全部 | Esc 關閉 ╯",
         ]
     );
     // The scrollbar is on the bottom part of the right border
-    assert_eq!(cell(&buffer, area, 42, 14).symbol(), "┃");
-    assert_eq!(cell(&buffer, area, 42, 1).symbol(), "│");
+    assert_eq!(cell(&buffer, area, 45, 14).symbol(), "┃");
+    assert_eq!(cell(&buffer, area, 45, 1).symbol(), "│");
     // Clicking the bottom list row: still help_key; the top one is `[colors]` (not a row), the one
     // below it grid, the first color shown: mapped using both scroll positions
     assert_eq!(row_at(&app, app.screen, 20, 11), Some(last));
@@ -272,11 +284,11 @@ fn colors_scroll_inside_their_section() {
         app.settings_page().map(|page| (page.top, page.colors_top)),
         Some((0, 4))
     );
-    assert_eq!(rows[15], "│    label                lavender        │");
-    assert_eq!(rows[24], "│    checked              mauve           │");
-    // The scrollbar beside the colors (x 42, rows 15-24): its thumb moved down from the top, and the
+    assert_eq!(rows[15], "│    label                lavender           │");
+    assert_eq!(rows[24], "│    checked              mauve              │");
+    // The scrollbar beside the colors (x 45, rows 15-24): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border
-    let border = |dy: u16| cell(&buffer, area, 42, dy).symbol().to_string();
+    let border = |dy: u16| cell(&buffer, area, 45, dy).symbol().to_string();
     assert_eq!(border(15), "│");
     assert!((16..=24).any(|dy| border(dy) == "┃"));
     assert_eq!(border(5), "│");
@@ -306,11 +318,11 @@ fn r_asks_on_the_bottom_border() {
     );
     assert_eq!(
         rows[rows.len() - 3],
-        "│  大月曆：選取的那週固定在正中間         │"
+        "│  大月曆：選取的那週固定在正中間            │"
     );
     assert_eq!(
         rows[rows.len() - 1],
-        "╰ 全部還原成預設？y 還原，其他鍵取消 ─────╯"
+        "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯"
     );
 }
 

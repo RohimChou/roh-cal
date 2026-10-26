@@ -462,8 +462,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
 }
 
-/// Key hints on the bottom row: `hints` is groups two spaces apart (` jk move  Space check`); each group in
-/// `muted`, with a `|` in the dimmer `line` color between two groups (` jk move | Space check`)
+/// Key hints on the bottom row and on boxes' bottom borders: `hints` is groups two spaces apart
+/// (` jk move  Space check`); each group in `muted`, with a `|` in the dimmer `line` color between two
+/// groups (` jk move | Space check`)
 fn hint_spans(app: &App, hints: &'static str) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     for (index, group) in hints.trim().split("  ").enumerate() {
@@ -484,6 +485,15 @@ fn hint_separator(app: &App) -> Span<'static> {
 fn hints_line(app: &App, hints: &'static str) -> Line<'static> {
     let mut spans = vec![Span::raw(" ")];
     spans.extend(hint_spans(app, hints));
+    Line::from(spans)
+}
+
+/// Key hints on a box's bottom border (help page, editor, settings page, color picker), split by `|` like
+/// the bottom row's, with a blank at each end; a box sized for its hints makes room for this line's width
+fn border_hints(app: &App, hints: &'static str) -> Line<'static> {
+    let mut spans = vec![Span::raw(" ")];
+    spans.extend(hint_spans(app, hints));
+    spans.push(Span::raw(" "));
     Line::from(spans)
 }
 
