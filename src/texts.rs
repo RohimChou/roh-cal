@@ -119,11 +119,11 @@ pub struct Texts {
 }
 
 /// The editor's words: the labels of the fields under the typed line (what it reads as), and the hint row
-/// (what can be typed: each with the same label, then what to type)
+/// (what can be typed: each written as typed, then the same label)
 #[derive(Debug, Clone, Copy)]
 pub struct EditorWords {
-    /// In front of the hint row: 「可以打」
-    pub can_type: &'static str,
+    /// In front of the hint row, with what comes after it: `Syntax: ` / 「語法：」
+    pub syntax: &'static str,
     /// An item's title
     pub title: &'static str,
     /// An item's date (`@2026-10-19`)
@@ -224,7 +224,7 @@ const EN: Texts = Texts {
     hints_side: " jk move  Space show / hide  Enter only this  a/A add calendar  e rename  d delete  Esc back",
     hash_list_keys: " Enter pick  Esc close ",
     editor_words: EditorWords {
-        can_type: "Add",
+        syntax: "Syntax: ",
         title: "Title",
         date: "Date",
         time: "Time",
@@ -491,7 +491,7 @@ const ZH_TW: Texts = Texts {
     hints_side: " jk 移動  Space 勾選  Enter 只看這個  a/A 新增日曆  e 改名  d 刪除  Esc 回去",
     hash_list_keys: " Enter 選定  Esc 收起 ",
     editor_words: EditorWords {
-        can_type: "可以打",
+        syntax: "語法：",
         title: "標題",
         date: "日期",
         time: "時間",

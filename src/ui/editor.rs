@@ -336,33 +336,34 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
     lines
 }
 
-/// What can be typed, after 「可以打」: each thing with its label (as in the fields) then what to type, in
-/// the help page's section color (blue; the key color is orange in some themes, like a `!!` priority), e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  日曆 #名字`
+/// What can be typed, after `Syntax:` / 「語法：」: each thing as typed, in the help page's section color
+/// (blue; the key color is orange in some themes, like a `!!` priority), then its label (as in the fields,
+/// lower case), a `|` in the dimmer line color between two (like the bottom row), e.g.
+/// `語法：@2026-10-19 日期 | @10:00 時間 | ! !! !!! 優先度 | #名字 日曆`
 /// (today's date; `!` `!!` `!!!` each in its priority's color; `#` only when it can pick a calendar, not
-/// for a subtask). A calendar: `可以打  假日日曆 type:holiday  封存 archived:2026-10-19  上層日曆 #名字`
-/// (today's date). Wrapped to `width` cells
-/// between the things, the next lines lined up under the first one
+/// for a subtask). A calendar: `語法：type:holiday 假日日曆 | archived:2026-10-19 封存 | #名字 上層日曆`
+/// (today's date). Wrapped to `width` cells between the things, the next lines lined up under the first one
 fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let words = &app.lang.texts().editor_words;
     let muted = Style::new().fg(theme.muted);
     let key = Style::new().fg(theme.help_section);
-    // Each thing that can be typed: its spans (label, a blank, what to type)
-    let thing = |label: &str, typed: String| {
+    // Each thing that can be typed: its spans (what to type, a blank, its label)
+    let thing = |typed: String, label: &str| {
         vec![
-            Span::styled(format!("{label} "), muted),
             Span::styled(typed, key),
+            Span::styled(format!(" {}", label.to_lowercase()), muted),
         ]
     };
     let mut things = match editor.target {
         Target::AddCalendar { .. } | Target::RenameCalendar { .. } => {
             vec![
-                thing(words.holiday, "type:holiday".to_string()),
-                thing(words.archived, format!("archived:{}", app.today)),
+                thing("type:holiday".to_string(), words.holiday),
+                thing(format!("archived:{}", app.today), words.archived),
             ]
         }
         Target::Edit { .. } | Target::Add(_) => {
-            let mut priority = vec![Span::styled(format!("{} ", words.priority), muted)];
+            let mut priority = Vec::new();
             for (marks, level) in [
                 ("!", Priority::Low),
                 (" !!", Priority::Medium),
@@ -370,9 +371,13 @@ fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
             ] {
                 priority.push(Span::styled(marks, Style::new().fg(theme.priority(level))));
             }
+            priority.push(Span::styled(
+                format!(" {}", words.priority.to_lowercase()),
+                muted,
+            ));
             vec![
-                thing(words.date, format!("@{}", app.today)),
-                thing(words.time, "@10:00".to_string()),
+                thing(format!("@{}", app.today), words.date),
+                thing("@10:00".to_string(), words.time),
                 priority,
             ]
         }
@@ -382,23 +387,25 @@ fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
             Target::AddCalendar { .. } | Target::RenameCalendar { .. } => words.inside,
             Target::Edit { .. } | Target::Add(_) => words.calendar,
         };
-        things.push(thing(label, words.name_key.to_string()));
+        things.push(thing(words.name_key.to_string(), label));
     }
-    let prefix = format!(" {}  ", words.can_type);
+    let prefix = format!(" {}", words.syntax);
     let indent = Span::raw(prefix.clone()).width();
+    let separator = super::hint_separator(app);
+    let gap = separator.width();
     let mut lines = vec![vec![Span::styled(prefix, muted)]];
     let mut used = indent;
     for (index, spans) in things.into_iter().enumerate() {
         let size = Line::from(spans.clone()).width();
-        // Two blank cells between things; a thing that does not fit goes on a new line under the first one
-        if index > 0 && used + 2 + size > usize::from(width) {
+        // A `|` between things; a thing that does not fit goes on a new line under the first one
+        if index > 0 && used + gap + size > usize::from(width) {
             lines.push(vec![Span::raw(" ".repeat(indent))]);
             used = indent;
         } else if index > 0 {
             if let Some(line) = lines.last_mut() {
-                line.push(Span::raw("  "));
+                line.push(separator.clone());
             }
-            used += 2;
+            used += gap;
         }
         if let Some(line) = lines.last_mut() {
             line.extend(spans);

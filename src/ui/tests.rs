@@ -1419,7 +1419,7 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
             "│  日期  2026/10/16（五） 17:30",
             "",
             // What can be typed: today's date, a time, the priorities (no `#`: the file has no calendar)
-            "│  可以打  日期 @2026-10-17  時間 @10:00  優先度 ! !! !!!",
+            "│  語法：@2026-10-17 日期 | @10:00 時間 | ! !! !!! 優先度",
             "",
         ]
     );
@@ -1481,8 +1481,8 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
             "│  日期  2026/10/17（六）",
             "│  日曆  Work > SFAP",
             "",
-            "│  可以打  日期 @2026-10-17  時間 @10:00  優先度 ! !! !!!",
-            "│          日曆 #名字",
+            "│  語法：@2026-10-17 日期 | @10:00 時間 | ! !! !!! 優先度",
+            "│        #名字 日曆",
         ]
     );
 }
@@ -1530,7 +1530,7 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     assert_eq!(italic_on_8("!"), Some(true));
     assert_eq!(italic_on_8("P"), Some(false));
     // The hint row: `! !! !!!` each in its priority's color, what to type in blue (the help page's section color), the labels
-    // muted
+    // muted, a `|` in the dimmer line color between two
     let marks: Vec<Color> = (0..80)
         .map(|x| &buffer[(x, 14)])
         .filter(|cell| cell.symbol() == "!")
@@ -1544,6 +1544,7 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     assert_eq!(marks, [low, medium, medium, high, high, high]);
     assert_eq!(color_of(buffer, 14, "@"), Some(theme.help_section));
     assert_eq!(color_of(buffer, 14, "日"), Some(theme.muted));
+    assert_eq!(color_of(buffer, 14, "|"), Some(theme.line));
     // `!!` instead: orange; no `!`: the normal text color, no priority field (the box is a row shorter: the
     // fields on rows 10-11, the hint row on row 13)
     app.handle_key(KeyEvent::from(KeyCode::Home));
@@ -1619,7 +1620,7 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
             "│  名字      （打日曆的名字）",
             "│  上層日曆  Work > SFAP",
             "",
-            "│  可以打  假日日曆 type:holiday  封存 archived:2026-10-17  上層日曆 #名字",
+            "│  語法：type:holiday 假日日曆 | archived:2026-10-17 封存 | #名字 上層日曆",
         ]
     );
     assert!(
@@ -1767,13 +1768,14 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     };
     let click = MouseEventKind::Down(MouseButton::Left);
     // 80 × 24: the typed text starts at x 5 (box 2 + border + padding + a blank), so the `#` after
-    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 9). 26 wide: the keys
-    // on its bottom border (24, with a `|` between them) and the borders; 4 calendars + borders = 6 tall
+    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 8: the hint row takes
+    // two lines here, so the box is a row taller and starts a row higher). 26 wide: the keys on its bottom
+    // border (24, with a `|` between them) and the borders; 4 calendars + borders = 6 tall
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     type_text(&mut app, "#");
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 9, 26, 6);
+    let list = Rect::new(10, 8, 26, 6);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 0))
@@ -1791,24 +1793,24 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     );
     // The chosen row (the first) on the selection background, across the box
     for x in 11..35 {
-        assert_eq!(buffer[(x, 10)].bg, theme.selection, "x {x}");
+        assert_eq!(buffer[(x, 9)].bg, theme.selection, "x {x}");
     }
-    assert_ne!(buffer[(11, 11)].bg, theme.selection);
+    assert_ne!(buffer[(11, 10)].bg, theme.selection);
     // `sf`: only Work > SFAP; its S and F (characters 7 and 8 of the name, after a blank at x 11) in the
     // focus color and bold, the rest in the text color
     type_text(&mut app, "sf");
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 9, 26, 3);
+    let list = Rect::new(10, 8, 26, 3);
     assert_eq!(area_rows(buffer, list)[1], "│ Work > SFAP            │");
     for x in [19, 20] {
-        assert_eq!(buffer[(x, 10)].fg, theme.focus, "x {x}");
-        assert!(buffer[(x, 10)].modifier.contains(Modifier::BOLD));
+        assert_eq!(buffer[(x, 9)].fg, theme.focus, "x {x}");
+        assert!(buffer[(x, 9)].modifier.contains(Modifier::BOLD));
     }
-    assert_eq!(buffer[(18, 10)].fg, theme.text);
-    assert!(!buffer[(18, 10)].modifier.contains(Modifier::BOLD));
+    assert_eq!(buffer[(18, 9)].fg, theme.text);
+    assert!(!buffer[(18, 9)].modifier.contains(Modifier::BOLD));
     // A click on it picks it
-    mouse(&mut app, click, 15, 10);
+    mouse(&mut app, click, 15, 9);
     let editor = app.editor().expect("editor");
     assert_eq!(
         editor.calendar().map(|path| path.join(" > ")).as_deref(),
@@ -1823,11 +1825,11 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     mouse(&mut app, MouseEventKind::ScrollDown, 40, 20);
     mouse(&mut app, MouseEventKind::ScrollUp, 40, 20);
     assert_eq!(app.editor().map(|editor| editor.hash_list.index), Some(1));
-    mouse(&mut app, click, 20, 9);
+    mouse(&mut app, click, 20, 8);
     assert!(app.editor().and_then(Editor::suggestions).is_some());
     mouse(&mut app, click, 40, 20);
     assert!(app.editor().is_none());
-    // Editing an item: the fields name its calendar, the hint row says `#name` picks another
+    // Editing an item: the fields name its calendar, the hint row (on two lines) says `#name` picks another
     app.handle_key(KeyEvent::from(KeyCode::Tab));
     app.handle_key(KeyEvent::from(KeyCode::Char('e')));
     let terminal = draw_app(&mut app, 80, 24);
@@ -1835,11 +1837,11 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     assert!(rows[0].starts_with("╭ Edit item ─"), "{}", rows[0]);
     assert_eq!(rows[6].trim_end_matches([' ', '│']), "│  Calendar  Work");
     assert!(
-        rows[8]
+        rows[9]
             .trim_end_matches([' ', '│'])
-            .ends_with("Calendar #name"),
+            .ends_with("#name calendar"),
         "{}",
-        rows[8]
+        rows[9]
     );
     // More than 8 calendars: 8 rows, scrolled so the chosen one (the last) shows at the bottom
     let text: String = (0..10)
@@ -1857,7 +1859,7 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         app.handle_key(KeyEvent::from(KeyCode::Down));
     }
     let terminal = draw_app(&mut app, 80, 24);
-    let list = Rect::new(10, 9, 26, 10);
+    let list = Rect::new(10, 8, 26, 10);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 2))
@@ -1865,7 +1867,7 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     let rows = area_rows(terminal.backend().buffer(), list);
     assert_eq!(rows[1], "│ C2                     │");
     assert_eq!(rows[8], "│ C9                     │");
-    assert_eq!(terminal.backend().buffer()[(11, 17)].bg, theme.selection);
+    assert_eq!(terminal.backend().buffer()[(11, 16)].bg, theme.selection);
 }
 
 #[test]
