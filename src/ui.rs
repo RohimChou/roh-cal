@@ -394,10 +394,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     } else {
         // The tasks page has its own key hints; while layout 2's popup or the calendar list has the keyboard,
         // show its keys
-        let muted = Style::new().fg(theme.muted);
         let line = match app.view {
-            _ if app.focus == Focus::Day => Line::styled(texts.hints_day, muted),
-            _ if app.focus == Focus::Side => Line::styled(texts.hints_side, muted),
+            _ if app.focus == Focus::Day => hints_line(app, texts.hints_day),
+            _ if app.focus == Focus::Side => hints_line(app, texts.hints_side),
             View::Tasks => view_keys_line(app, texts.hints_tasks),
             View::Planner | View::Month => view_keys_line(app, texts.hints),
         };
@@ -463,7 +462,32 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
 }
 
-/// The bottom row that starts with the layout keys, ` 123 view  ` + `hints`: the key of the layout shown now
+/// Key hints on the bottom row: `hints` is groups two spaces apart (` jk move  Space check`); each group in
+/// `muted`, with a `|` in the dimmer `line` color between two groups (` jk move | Space check`)
+fn hint_spans(app: &App, hints: &'static str) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    for (index, group) in hints.trim().split("  ").enumerate() {
+        if index > 0 {
+            spans.push(hint_separator(app));
+        }
+        spans.push(Span::styled(group, Style::new().fg(app.theme.muted)));
+    }
+    spans
+}
+
+/// The ` | ` between two groups of key hints, in the `line` color (dimmer than the hints)
+fn hint_separator(app: &App) -> Span<'static> {
+    Span::styled(" | ", Style::new().fg(app.theme.line))
+}
+
+/// The bottom row of only `hints` (the day popup's, the calendar list's), one space in from the left
+fn hints_line(app: &App, hints: &'static str) -> Line<'static> {
+    let mut spans = vec![Span::raw(" ")];
+    spans.extend(hint_spans(app, hints));
+    Line::from(spans)
+}
+
+/// The bottom row that starts with the layout keys, ` 123 view | ` + `hints`: the key of the layout shown now
 /// is lit up (like a tab), and clicking a key switches to that layout (`click_at`)
 fn view_keys_line(app: &App, hints: &'static str) -> Line<'static> {
     let theme = &app.theme;
@@ -477,8 +501,9 @@ fn view_keys_line(app: &App, hints: &'static str) -> Line<'static> {
         };
         spans.push(Span::styled(key.to_string(), style));
     }
-    spans.push(Span::styled(format!(" {} ", app.lang.texts().views), muted));
-    spans.push(Span::styled(hints, muted));
+    spans.push(Span::styled(format!(" {}", app.lang.texts().views), muted));
+    spans.push(hint_separator(app));
+    spans.extend(hint_spans(app, hints));
     Line::from(spans)
 }
 

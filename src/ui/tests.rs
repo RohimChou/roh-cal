@@ -102,7 +102,7 @@ fn calendar_from_this_month_down_with_a_thick_line_between_years() {
             "│2027年  1 │                  1   2   3  │",
             "│   1月  2 │  4   5   6   7   8   9  10  │",
             "╰────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
     );
 }
@@ -123,7 +123,7 @@ fn calendar_in_english() {
             "│       44 │ 26  27  28  29  30  31      │",
             "│──────────┼─────────────────────────────│",
             "╰────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today",
+            " 123 view | hjkl[] move | Tab pane | t tod",
         ]
     );
 }
@@ -143,7 +143,7 @@ fn selection_brackets_and_the_month_on_top() {
             "│       45 │ [2]  3   4   5   6   7   8  │",
             "│       46 │  9  10  11  12  13  14  15  │",
             "╰────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today",
+            " 123 view | hjkl[] move | Tab pane | t tod",
         ]
     );
     // Sunday: `]` goes in the extra cell at the end; the calendar has only 3 rows and must keep 1 row of
@@ -159,7 +159,7 @@ fn selection_brackets_and_the_month_on_top() {
             "│2027年  1 │                  1   2  [3] │",
             "│   1月  2 │  4   5   6   7   8   9  10  │",
             "╰────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
     );
 }
@@ -189,7 +189,7 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
             "│       46 │  9  10  11  12  13  14  15  │",
             "│       47 │ 16  17  18  19  20  21  22  │",
             "╰────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today",
+            " 123 view | hjkl[] move | Tab pane | t tod",
         ]
     );
     // One week back: the selected row keeps at least 2 rows from the top edge, so it scrolls up 2 rows
@@ -207,7 +207,7 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
             "│   Nov 44 │                          1  │",
             "│       45 │  2   3   4   5   6   7   8  │",
             "╰────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today",
+            " 123 view | hjkl[] move | Tab pane | t tod",
         ]
     );
 }
@@ -232,7 +232,7 @@ fn calendar_scrolls_up_into_earlier_months() {
             "│       43 │ 19  20  21  22  23  24  25  │",
             "│       44 │ 26  27  28  29  30  31      │",
             "╰────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
     );
 }
@@ -465,7 +465,7 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
     // Keyboard in the side menu: the key hints are the calendar list's
     assert_eq!(
         text_rows(buffer)[13].trim_end(),
-        " jk 移動  Space 勾選  a/A 新增日曆  e 改名  d 刪除  Esc 回去"
+        " jk 移動 | Space 勾選 | a/A 新增日曆 | e 改名 | d 刪除 | Esc"
     );
     // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
     // the end is cut off)
@@ -475,7 +475,7 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
     assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "W");
     assert!(
         text_rows(terminal.backend().buffer())[13]
-            .starts_with(" 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆")
+            .starts_with(" 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆")
     );
 }
 
@@ -492,7 +492,10 @@ fn the_shown_layouts_key_lights_up_on_the_bottom_row_and_clicks_switch() {
         app.screen = Rect::new(0, 0, 100, 20);
         let terminal = draw_app(&mut app, 100, 20);
         let buffer = terminal.backend().buffer();
-        assert!(text_rows(buffer)[19].starts_with(" 123 view  "), "{view:?}");
+        assert!(
+            text_rows(buffer)[19].starts_with(" 123 view | "),
+            "{view:?}"
+        );
         for x in 1..=3 {
             let cell = &buffer[(x, 19)];
             let expected = if x == lit {
@@ -547,7 +550,7 @@ fn side_menu_lists_the_calendars_when_wide() {
             "│                                    ││  11月 44 │                          1  ││  11/3 09:30 Release v2.3                     │",
             "│                                    ││       45 │  2   3⠂  4   5   6   7   8  ││                                              │",
             "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // ☑ uses the `checked` color, names and the header are normal text, numbers are muted, the border is a
@@ -581,7 +584,7 @@ fn side_menu_lists_the_calendars_when_wide() {
             "│  11月 44 │                          1  ││  11/3 09:30 Release v2.3                                                           │",
             "│       45 │  2   3⠂  4   5   6   7   8  ││                                                                                    │",
             "╰────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
 }
@@ -608,7 +611,7 @@ fn unchecked_calendars_hide_their_items() {
             "│                                    ││       45 │  2   3⠂  4   5   6   7   8  ││                                              │",
             "│                                    ││       46 │  9  10  11  12  13  14  15  ││                                              │",
             "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
         ]
     );
     let theme = Theme::default();
@@ -658,7 +661,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "│                     ││  12月 49 │      1   2   3   4   5   6  ││                                                             │",
             "│                     ││       50 │  7   8   9  10  11  12  13  ││                                                             │",
             "╰─────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // The rule (y 9) is a line with the muted name in the middle of the 21 cells inside the box: 6 `─`
@@ -704,7 +707,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "│                     ││   Dec 49 │      1   2   3   4   5   6  ││                                                             │",
             "│                     ││       50 │  7   8   9  10  11  12  13  ││                                                             │",
             "╰─────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
         ]
     );
 }
@@ -908,7 +911,7 @@ fn agenda_lists_each_months_items_next_to_it() {
             "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
             "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
 }
@@ -944,7 +947,7 @@ fn the_calendar_without_dots() {
             "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
             "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
 }
@@ -972,7 +975,7 @@ fn the_agenda_stays_one_column_when_wide() {
             "│       45 │  2   3⠂  4   5   6   7   8  ││                                                          │",
             "│       46 │  9  10  11  12  13  14  15  ││                                                          │",
             "╰────────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
         ]
     );
 }
@@ -1143,7 +1146,7 @@ fn agenda_focus_highlights_the_chosen_item() {
             "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
             "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
     let buffer = terminal.backend().buffer();
@@ -1235,7 +1238,7 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
             "│       44 │ 26  27  28  29  30  31      ││ 10/20 A really long title that j┃",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
@@ -1274,7 +1277,7 @@ fn the_agenda_follows_the_calendar() {
             "│       44 │ 26  27  28  29  30  31      ││ 10/20 A really long title that j┃",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
@@ -1363,7 +1366,7 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
             "│       44 │ 26  27  28  29  30  31      ││ 10/18 07:00 Go hiking           │",
             "│──────────┼─────────────────────────────││───────────────────── 還有 1 件 ─│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
     // The hint is muted; the line on both sides of it keeps the
@@ -1952,10 +1955,13 @@ fn colors_by_role() {
             cell.modifier.contains(Modifier::BOLD),
         )
     };
-    // The key hints are muted; of the layout keys `123` at the left end, the shown layout's (1) is lit up
+    // The key hints are muted, with a `|` in the dimmer line color between two groups; of the layout keys
+    // `123` at the left end, the shown layout's (1) is lit up
     assert_eq!(cell(1, 25), ("1", theme.focus, true));
     assert_eq!(cell(2, 25), ("2", theme.muted, false));
-    assert_eq!(cell(11, 25), ("h", theme.muted, false));
+    assert_eq!(cell(10, 25), ("|", theme.line, false));
+    assert_eq!(cell(12, 25), ("h", theme.muted, false));
+    assert_eq!(cell(24, 25), ("|", theme.line, false));
     // Keyboard in the calendar: the calendar box's border uses the focus color
     assert_eq!(cell(0, 0), ("╭", theme.focus, false));
     // Header: weekdays in the normal text color, Sat and Sun in the weekend color, vertical line
@@ -2041,7 +2047,7 @@ fn multi_day_items_are_listed_once_per_month() {
             "│        5 │ 25  26  27  28  29  30  31  ││                                 │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
     // Calendar: every day in a range is underlined (10/20-25, 10/28-11/3), the days just before and after
@@ -2099,7 +2105,7 @@ fn multi_day_items_are_listed_once_per_month() {
             "│        9 │ 22  23  24  25  26  27  28  ││                                 │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
     );
 }
@@ -2345,7 +2351,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
             "│       43 │ 19  20  21  22  23  24  25  ││                   │",
             "│       44 │ 26  27  28  29  30  31      ││                   │",
             "╰────────────────────────────────────────╯╰───────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 |",
         ]
     );
     let terminal = draw(Lang::ZhTw, 64, 10, date(2026, 10, 17));
@@ -2361,7 +2367,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
             "│       43 │ 19  20  21  22  23  24  25  ││                    │",
             "│       44 │ 26  27  28  29  30  31      ││                    │",
             "╰────────────────────────────────────────╯╰────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 |",
         ]
     );
 }
@@ -2406,7 +2412,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // 80 × 28: 3 rows per week fill it exactly, and the last week touches the bottom border (joined as ┴)
@@ -2441,7 +2447,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
             "│     │          │          │          │         │         │         │         │",
             "│     │          │          │          │         │         │         │         │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q qu",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
     );
 }
@@ -2493,7 +2499,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // 80 × 24, 2 rows per week: only 1 item fits; with 2 or more it just shows 「+N」
@@ -2524,7 +2530,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q qu",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
     );
     // 80 × 16, only 1 row per week: no items listed, dots after
@@ -2548,7 +2554,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
 }
@@ -2631,7 +2637,7 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
             "│                    ││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
             "│                    ││     │             │            │            │            │            │            │            │",
             "╰────────────────────╯╰─────┴─────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // Personal unchecked: its items leave the cells (10/18 stays weekend blue either way)
@@ -2661,7 +2667,7 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
             "│                    ││  45 │ 2           │ 3          │ 4          │ 5          │ 6          │ 7          │ 8          │",
             "│                    ││     │             │            │            │            │            │            │            │",
             "╰────────────────────╯╰─────┴─────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // 10/18 (Sun): the month grid starts at x 22, the Sunday column at x 108, week 3 at y 9 (2 rows per
@@ -2706,7 +2712,7 @@ fn month_view_without_grid_lines_gives_the_cells_more_room() {
             "│                                                                              │",
             "│  48  23         24         25         26        27        28        29       │",
             "╰──────────────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // Mouse: the cells without grid lines can be clicked too. Tuesday is x 17-27, week 2 (the week of
@@ -2779,7 +2785,7 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // One week down (the same even though 11/2 is not the last of
@@ -2803,7 +2809,7 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  48 │ 23       │ 24       │ 25       │ 26      │ 27      │ 28      │ 29      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
 }
@@ -2831,7 +2837,7 @@ fn relative_week_numbers_in_both_layouts() {
             "│        3 │  2   3   4   5   6   7   8  │",
             "│        4 │  9  10  11  12  13  14  15  │",
             "╰────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
     );
     // Same in layout 2
@@ -2854,7 +2860,7 @@ fn relative_week_numbers_in_both_layouts() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│   3 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
 }
@@ -2900,7 +2906,7 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     // Dates in a range are underlined: 10/20 (Tue) 「 20」 at x 19-20, y 15; 10/19 (Mon) at x 8-9 is not
@@ -3015,7 +3021,7 @@ fn tasks_page_with_collapsed_calendars() {
             "│──────────────────────────────────────────────────────────│",
             "│ Line 8  - [ ] Ship the monthly report @2026-10-22        │",
             "╰──────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  o e",
+            " 123 view | jk move | hl fold | Space check | e edit | a add",
         ]
     );
 }
@@ -3056,7 +3062,7 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             "│──────────────────────────────────────────────────────────│",
             "│ Line 3  - [ ] Fix the login bug @2026-10-20              │",
             "╰──────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  o e",
+            " 123 view | jk move | hl fold | Space check | e edit | a add",
         ]
     );
     // `▸` of the first item (under SFAP's heading, which is 1 level in): x = 1 + 1 + 2 × 2 = 6 on the
@@ -3159,7 +3165,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s",
+            " 123 版型 | jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯",
         ]
     );
     // Expand a few items (▾) and choose line 61 (three levels deep):
@@ -3185,7 +3191,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ Line 61  - [ ] Test that `@Rukis` is not a date                    │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 view  jk move  hl fold  Space check  e edit  a add  o editor  s c",
+            " 123 view | jk move | hl fold | Space check | e edit | a add | o edito",
         ]
     );
 }
@@ -3331,7 +3337,7 @@ fn tasks_page_points_at_format_mistakes() {
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
             "╰────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s",
+            " 123 版型 | jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯",
         ]
     );
     let buffer = terminal.backend().buffer();
@@ -3373,7 +3379,7 @@ fn tasks_page_with_the_side_menu() {
             "│ ☑\u{a0}Learning Rust 🦀 4 ││───────────────────────────────────────────────────────────────────────────────────────────────│",
             "│ ☑\u{a0}Tokyo trip       5 ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
             "╰──────────────────────╯╰───────────────────────────────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯器 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
 }
@@ -3524,10 +3530,10 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         ]
     );
     // The bottom border's right end: the switch for grouping by calendar (on by default). The key hints
-    // are 69 cells, so at 60 cells wide 「Esc 關閉」 is cut
+    // are 77 cells, so at 60 cells wide 「c 分組 | Esc 關閉」 is cut
     assert_eq!(
         text_rows(buffer)[19],
-        " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  c 分組"
+        " jk 移動 | Space 打勾 | e 編輯 | a 新增 | r 改期 | d 刪除 |"
     );
     // The border has the color of where the keyboard is; the chosen row (y 7) has the selection
     // background from border to border (x 10-49, the padding cells too), the others none; its dates are
@@ -3610,7 +3616,7 @@ fn month_view_scrolls_a_row_at_a_time() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  47 │ 16       │ 17       │ 18       │ 19      │ 20      │ 21      │ 22      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q qu",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
     );
     assert_eq!(app.month_top, Some(date(2026, 10, 12)));
@@ -3636,7 +3642,7 @@ fn month_view_scrolls_a_row_at_a_time() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     assert_eq!(app.month_top, Some(date(2026, 9, 14)));
@@ -3846,7 +3852,7 @@ fn month_view_puts_the_week_across_the_new_year_on_one_row() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│   7 │ 8        │ 9        │ 10       │ 11      │ 12      │ 13      │ 14      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
-            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q qu",
+            " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
     );
     let buffer = terminal.backend().buffer();
@@ -3909,7 +3915,7 @@ fn month_view_without_grid_lines_draws_only_the_months_edges() {
             "│ 2月                                                                          │",
             "│                                                                              │",
             "╰──────────────────────────────────────────────────────────────────────────────╯",
-            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+            " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
     let buffer = terminal.backend().buffer();
@@ -4460,7 +4466,7 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
 
 #[test]
 fn a_toast_covers_the_right_end_of_the_bottom_row() {
-    // 60 × 20, the popup open: its keys on the bottom row (80 cells, cut at 60), the note over their end
+    // 60 × 20, the popup open: its keys on the bottom row (87 cells, cut at 60), the note over their end
     // with a blank cell on each side, in the notice color (expected row from a separate Python count)
     let mut app = month_app(Lang::En, date(2026, 10, 17), "- [ ] Pack @2026-10-17\n");
     app.focus = Focus::Day;
@@ -4469,7 +4475,7 @@ fn a_toast_covers_the_right_end_of_the_bottom_row() {
     let buffer = terminal.backend().buffer();
     assert_eq!(
         text_rows(buffer)[19],
-        " jk move  Space check  e edit  a add  r res Copied 11 chars"
+        " jk move | Space check | e edit | a add | r Copied 11 chars"
     );
     // (`text_rows` drops blanks at the end: the last cell is the note's blank)
     assert_eq!(buffer[(58, 19)].symbol(), "s");
@@ -4485,7 +4491,7 @@ fn a_toast_covers_the_right_end_of_the_bottom_row() {
     let terminal = draw_app(&mut app, 60, 20);
     assert_eq!(
         text_rows(terminal.backend().buffer())[19],
-        " jk move  Space check  e edit  a add  r reschedule  d delete"
+        " jk move | Space check | e edit | a add | r reschedule | d d"
     );
 }
 

@@ -41,7 +41,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色；`Theme::dimmed` = 用不到的東西（設定頁的列、說明頁的段落）變暗的樣式：`other_month` 的顏色，是 `reset` 時改用 terminal 自己的 faint 字（SGR 2；terminal 那套只有 16 色，沒辦法把字和背景混一半） | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord-bright`（預設，`theme::DEFAULT`；Nord 每個顏色亮一點、鮮一點，色相不變；從背景混出來的照同樣比例重算）、`one-dark`、`rose-pine`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
-| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
+| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（每組鍵中間一條 `line` 色的 `|`，比字暗：`texts.rs` 的字照樣用兩個空格分組，畫的時候 `hint_spans` 照兩個空格切開、插 `hint_separator`；月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
 | `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框；月曆一天 `DAY_WIDTH` = 4 格（空格、靠右的日期 2 格、日期後面 1 格），寬度、標題列、滑鼠換算都從它算。日期後面那格是點點（`dots`：那天幾件事，數 `App::items_on`，跟著日曆勾選、隱藏做完的；點字 `⠂ ⠒ ⠖ ⠶`，最多 4 個；4 個點是同一個字、只能一個顏色，用那天還沒做完的事裡最急的那件的顏色（`dots_color`：最高的優先度，沒有就看有沒有假日的藍，都沒有就 `muted`；做完的、過去的行程不算）；設定檔 `[calendar] dots = false` 時那格空白、月曆寬度不變）；選到的那天沒點點是 `[17]`，有點點是 `[17⠒]`（`]` 放進下一天的第一個空格，週日放進最後多的那格）；右邊事項欄選到的那件只墊底色，不加括號 | ✓ |
@@ -140,7 +140,7 @@ App::run 的迴圈
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
 - test 裡還有 17 處就地寫 `MouseEvent { ... }`（`ui/tests.rs` 8 處、`app/write/tests.rs` 5 處等）：可以改用 `test_utils::mouse` / `mouse_event`
 - 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，第二下就點到別件，所以那幾列 double click 打不了勾（版型 2 的跳窗、side menu 已經改成跑出框外才捲）
-- 操作說明比 80 格寬的：任務頁英文 106 格、中文 97 格（加了 `o editor`），月曆的英文 82 格（加了 `123 view`），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
+- 操作說明比 80 格寬的：任務頁英文 116 格、中文 107 格，月曆的英文 89 格（`o editor`、`123 view`、每組中間的 ` | ` 都加寬了），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
 - `L`、`A` 縮排一律加 2 格空白：用 tab 縮排的檔（Obsidian 預設）會變成 tab、空白混著；可以改成照上面那件現有子任務的寫法
 - `read_tasks` 和 `read_tasks_for_adding` 只差檔案不存在時怎麼辦：可以合成一個、多一個參數
 - 顏色角色 `other_month` 現在只用在設定頁、說明頁用不到的那幾段（大月曆不再讓其他月份變灰），名字跟用途對不起來；要改名得想清楚使用者設定檔 `[colors]` 裡舊的名字怎麼辦
