@@ -146,6 +146,8 @@ pub struct EditorWords {
     pub kind: &'static str,
     /// A holiday calendar (`type:holiday`)
     pub holiday: &'static str,
+    /// The day a calendar was archived (`archived:<date>`): shown only for an archived one
+    pub archived: &'static str,
     /// The calendar a calendar is inside (`#name` picks another)
     pub inside: &'static str,
     /// What to type before part of a calendar's name: `#name`
@@ -225,6 +227,7 @@ const EN: Texts = Texts {
         name_placeholder: "(type its name)",
         kind: "Kind",
         holiday: "holiday calendar",
+        archived: "Archived",
         inside: "Inside",
         name_key: "#name",
     },
@@ -484,6 +487,7 @@ const ZH_TW: Texts = Texts {
         name_placeholder: "（打日曆的名字）",
         kind: "類型",
         holiday: "假日日曆",
+        archived: "封存",
         inside: "上層日曆",
         name_key: "#名字",
     },

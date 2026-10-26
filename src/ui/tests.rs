@@ -1591,7 +1591,8 @@ fn an_empty_title_is_blank_until_enter_cannot_save_it() {
 fn the_calendar_editor_says_where_a_new_calendar_goes() {
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
     // A in the calendar list on Work > SFAP: the fields say the name (a gray hint until it is typed) and the
-    // calendar it goes inside; the hint row: type:holiday, and `#` and a name picks where it goes.
+    // calendar it goes inside; the hint row: type:holiday, archived: and today, and `#` and a name picks
+    // where it goes.
     // 80 × 24: the box is (2, 6, 76, 10)
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
@@ -1615,7 +1616,7 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
             "│  名字      （打日曆的名字）",
             "│  上層日曆  Work > SFAP",
             "",
-            "│  可以打  假日日曆 type:holiday  上層日曆 #名字",
+            "│  可以打  假日日曆 type:holiday  封存 archived:2026-10-17  上層日曆 #名字",
         ]
     );
     assert!(
@@ -1629,6 +1630,43 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
     let terminal = draw_app(&mut app, 80, 24);
     let rows = area_rows(terminal.backend().buffer(), editor_area(&app));
     assert_eq!(rows[5].trim_end_matches([' ', '│']), "│  上層日曆  最外層");
+}
+
+#[test]
+fn the_calendar_editor_shows_the_day_a_calendar_was_archived() {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+    // e on Q3, archived on 10/5 (a Monday): the fields say its name, 「封存」 with that day (written like an
+    // item's date) and where it is
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.set_items(crate::tasks::parse(
+        "# Work\n- a\n# Q3 archived:2026-10-05\n- b\n",
+    ));
+    app.focus = Focus::Side;
+    app.side_row = SideRow::Calendar(1);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.handle_key(KeyEvent::from(KeyCode::Char('e')));
+    let fields = |app: &mut App| -> Vec<String> {
+        let terminal = draw_app(app, 80, 24);
+        area_rows(terminal.backend().buffer(), editor_area(app))
+            .iter()
+            .map(|row| row.trim_end_matches([' ', '│']).to_string())
+            .skip(4)
+            .take_while(|row| !row.is_empty())
+            .collect()
+    };
+    assert_eq!(
+        fields(&mut app),
+        [
+            "│  名字      Q3",
+            "│  封存      2026/10/5（一）",
+            "│  上層日曆  最外層",
+        ]
+    );
+    // The tag taken out: no 「封存」 field
+    for _ in " archived:2026-10-05".chars() {
+        app.handle_key(KeyEvent::from(KeyCode::Backspace));
+    }
+    assert_eq!(fields(&mut app), ["│  名字      Q3", "│  上層日曆  最外層"]);
 }
 
 #[test]

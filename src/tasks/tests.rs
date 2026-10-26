@@ -337,7 +337,7 @@ fn rule4_headings_set_the_group_and_keep_their_level() {
             level,
             name: name.into(),
             holiday: false,
-            archived: false,
+            archived: None,
             parents: parents.iter().map(|&parent| parent.into()).collect(),
         })
     };
@@ -386,12 +386,12 @@ fn rule4c_archived_and_a_date_archives_a_calendar() {
     let heading = group("## Q3 report archived:2026-10-26\n- a");
     assert_eq!(
         (heading.name.as_str(), heading.archived),
-        ("Q3 report", true)
+        ("Q3 report", Some(date(2026, 10, 26)))
     );
     let heading = group("# archived:2025-01-05 2024 holidays type:holiday\n- a");
     assert_eq!(
         (heading.name.as_str(), heading.holiday, heading.archived),
-        ("2024 holidays", true, true)
+        ("2024 holidays", true, Some(date(2025, 1, 5)))
     );
     // No date, a date that does not exist, upper case: part of the name, not archived
     for text in [
@@ -401,7 +401,7 @@ fn rule4c_archived_and_a_date_archives_a_calendar() {
         "# Q3 Archived:2026-10-26",
     ] {
         let heading = group(&format!("{text}\n- a"));
-        assert!(!heading.archived, "{text}");
+        assert_eq!(heading.archived, None, "{text}");
         assert_eq!(heading.name, text["# ".len()..], "{text}");
     }
 }

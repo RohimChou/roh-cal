@@ -240,7 +240,8 @@ fn body(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
 /// is wrong, in red on its own line. An item is read leniently (a wrong date stays in the title as text), so
 /// the fields show while it is being fixed; an empty title is left blank, an empty name is a gray hint, and
 /// neither is called wrong until `Enter` could not save it (`Editor::tried`). A calendar: its name,
-/// `類型  假日日曆` for a holiday calendar, the calendar it is inside (`上層日曆  最外層` at the top level)
+/// `類型  假日日曆` for a holiday calendar, `封存  2026/10/26（一）` for an archived one, the calendar it is
+/// inside (`上層日曆  最外層` at the top level)
 fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -290,6 +291,9 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
             if heading.as_ref().is_some_and(|heading| heading.holiday) {
                 fields.push((words.kind, Span::styled(words.holiday, text)));
             }
+            if let Some(day) = heading.as_ref().and_then(|heading| heading.archived) {
+                fields.push((words.archived, Span::styled(texts.date_title(day), text)));
+            }
             let inside = match parent.is_empty() {
                 true => texts.top_level.to_string(),
                 false => parent.join(" > "),
@@ -333,7 +337,8 @@ fn fields(editor: &Editor, app: &App) -> Vec<Line<'static>> {
 /// What can be typed, after 「可以打」: each thing with its label (as in the fields) then what to type, in
 /// the help page's section color (blue; the key color is orange in some themes, like a `!!` priority), e.g. `可以打  日期 @2026-10-19  時間 @10:00  優先度 ! !! !!!  日曆 #名字`
 /// (today's date; `!` `!!` `!!!` each in its priority's color; `#` only when it can pick a calendar, not
-/// for a subtask). A calendar: `可以打  假日日曆 type:holiday  上層日曆 #名字`. Wrapped to `width` cells
+/// for a subtask). A calendar: `可以打  假日日曆 type:holiday  封存 archived:2026-10-19  上層日曆 #名字`
+/// (today's date). Wrapped to `width` cells
 /// between the things, the next lines lined up under the first one
 fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
     let theme = &app.theme;
@@ -349,7 +354,10 @@ fn hints(editor: &Editor, app: &App, width: u16) -> Vec<Line<'static>> {
     };
     let mut things = match editor.target {
         Target::AddCalendar { .. } | Target::RenameCalendar { .. } => {
-            vec![thing(words.holiday, "type:holiday".to_string())]
+            vec![
+                thing(words.holiday, "type:holiday".to_string()),
+                thing(words.archived, format!("archived:{}", app.today)),
+            ]
         }
         Target::Edit { .. } | Target::Add(_) => {
             let mut priority = vec![Span::styled(format!("{} ", words.priority), muted)];

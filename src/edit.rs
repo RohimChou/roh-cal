@@ -496,7 +496,7 @@ fn without_archived(line: &str) -> String {
     // Word 0 is the `#`s, so a tag always has a word before it
     for pair in words.windows(2) {
         let [(_, before_end), (start, end)] = [pair[0], pair[1]];
-        if tasks::is_archived_word(&line[start..end]) {
+        if tasks::archived_day(&line[start..end]).is_some() {
             // Copy up to the end of the word before it: the blank in between goes with the tag
             kept.push_str(&line[from..before_end]);
             from = end;

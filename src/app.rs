@@ -164,7 +164,7 @@ impl Group {
                     .map(|heading| heading.parents.clone())
                     .unwrap_or_default(),
                 shown: true,
-                archived: heading.is_some_and(|heading| heading.archived),
+                archived: heading.is_some_and(|heading| heading.archived.is_some()),
             };
             // A calendar with several headings is archived when any of them says so
             match groups.iter_mut().find(|other| other.same(&group)) {

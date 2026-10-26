@@ -145,9 +145,9 @@ pub struct Heading {
     pub name: String,
     /// Holiday calendar: the heading has `type:holiday`, so the days of the items under it are holidays
     pub holiday: bool,
-    /// Archived calendar: the heading has `archived:` and the day it was archived, e.g.
-    /// `archived:2026-10-26`
-    pub archived: bool,
+    /// Archived calendar: the day it was archived, from `archived:<date>` in the heading, e.g.
+    /// `archived:2026-10-26`; `None` = not archived
+    pub archived: Option<Date>,
     /// The names of the calendars it is inside, outermost first: the nearest heading above with fewer `#`,
     /// then that one's, and so on (empty for a top-level calendar). A calendar is its whole path
     /// (`parents` + `name`): `Work > SFAP` and `Personal > SFAP` are two calendars
@@ -294,10 +294,10 @@ fn parse_heading(line: &str) -> Option<Heading> {
     // words with one space
     let words: Vec<&str> = text.split_whitespace().collect();
     let holiday = words.contains(&HOLIDAY);
-    let archived = words.iter().any(|word| is_archived_word(word));
+    let archived = words.iter().find_map(|word| archived_day(word));
     let name = words
         .into_iter()
-        .filter(|&word| word != HOLIDAY && !is_archived_word(word))
+        .filter(|&word| word != HOLIDAY && archived_day(word).is_none())
         .collect::<Vec<_>>()
         .join(" ");
     Some(Heading {
@@ -315,11 +315,13 @@ const HOLIDAY: &str = "type:holiday";
 /// The start of the word in a heading that marks an archived calendar; the day it was archived follows
 pub(crate) const ARCHIVED: &str = "archived:";
 
-/// Whether a heading word marks an archived calendar: `archived:` and a date that exists, e.g.
-/// `archived:2026-10-26`; `archived:2026-13-01` or `archived:yes` stay part of the name
-pub(crate) fn is_archived_word(word: &str) -> bool {
+/// The day a heading word archives its calendar on: `archived:` and a date that exists, e.g.
+/// `archived:2026-10-26` → 10/26; `archived:2026-13-01` or `archived:yes` → `None` (they stay part of the
+/// name)
+pub(crate) fn archived_day(word: &str) -> Option<Date> {
     word.strip_prefix(ARCHIVED)
-        .is_some_and(|day| looks_like_date(day) && day.parse::<Date>().is_ok())
+        .filter(|day| looks_like_date(day))
+        .and_then(|day| day.parse().ok())
 }
 
 /// What a task's box says (rule 1 of the spec)
