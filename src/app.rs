@@ -552,23 +552,33 @@ impl App {
             .collect()
     }
 
-    /// Every calendar's path and checked state (taken before a write that changes a calendar's path)
-    fn checked_states(&self) -> Vec<(Vec<String>, bool)> {
+    /// Every calendar's path, checked state and whether it is archived (taken before a write that changes a
+    /// calendar's path)
+    fn checked_states(&self) -> Vec<(Vec<String>, bool, bool)> {
         self.groups
             .iter()
-            .map(|group| (group.path(), group.shown))
+            .map(|group| (group.path(), group.shown, group.archived))
             .collect()
     }
 
     /// After a write that renamed or moved a calendar (its path went from `old` to `new`): it and the
     /// calendars inside it get back the checked state they had (`checked` = from `checked_states` before
-    /// the write), and it is chosen in the side menu
-    fn carry_checked(&mut self, checked: &[(Vec<String>, bool)], old: &[String], new: &[String]) {
+    /// the write), except the ones the write archived or brought back: they start over like with `z`
+    /// (unchecked / checked, as `App::set_items` left them); it is chosen in the side menu
+    fn carry_checked(
+        &mut self,
+        checked: &[(Vec<String>, bool, bool)],
+        old: &[String],
+        new: &[String],
+    ) {
         for group in &mut self.groups {
             let path = group.path();
             if path.len() >= new.len() && path[..new.len()] == *new {
                 let before: Vec<String> = old.iter().chain(&path[new.len()..]).cloned().collect();
-                if let Some((_, shown)) = checked.iter().find(|(path, _)| *path == before) {
+                if let Some((_, shown, _)) = checked
+                    .iter()
+                    .find(|(path, _, archived)| *path == before && *archived == group.archived)
+                {
                     group.shown = *shown;
                 }
             }

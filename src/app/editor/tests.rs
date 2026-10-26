@@ -375,6 +375,75 @@ fn a_in_the_agenda_adds_to_the_chosen_items_group() {
 }
 
 #[test]
+fn typing_archived_in_the_rename_editor_archives_the_calendar_like_z() {
+    let text = "# Work\n- a @2026-10-10\n## SFAP\n- b @2026-10-11\n### Bugs\n- c @2026-10-12\n\
+                    # Personal\n- d @2026-10-13\n";
+    let (mut app, path) = app_with_task_file("rename-archive", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    let list = |app: &App| -> Vec<(String, bool, bool)> {
+        app.groups
+            .iter()
+            .map(|group| (group.path().join(" > "), group.archived, group.shown))
+            .collect()
+    };
+    let state = |path: &str, archived, shown| (path.to_string(), archived, shown);
+    app.focus = Focus::Side;
+    // SFAP (with Bugs inside), checked, gets ` archived:2026-10-26` typed after its name: archived and
+    // unchecked, like `z`, and still chosen
+    app.side_row = SideRow::Calendar(1);
+    press(&mut app, KeyCode::Char('e'));
+    type_text(&mut app, " archived:2026-10-26");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        read(),
+        text.replace("## SFAP\n", "## SFAP archived:2026-10-26\n")
+    );
+    assert_eq!(
+        list(&app),
+        [
+            state("Work", false, true),
+            state("Personal", false, true),
+            state("Work > SFAP", true, false),
+            state("Work > SFAP > Bugs", true, false),
+        ]
+    );
+    assert_eq!(app.side_row, SideRow::Calendar(2));
+    // Checked by hand, then renamed with the tag kept: still archived, and the check stays
+    press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('e'));
+    for _ in "SFAP archived:2026-10-26".chars() {
+        press(&mut app, KeyCode::Backspace);
+    }
+    type_text(&mut app, "Payments archived:2026-10-26");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(
+        list(&app)[2..],
+        [
+            state("Work > Payments", true, true),
+            state("Work > Payments > Bugs", true, true),
+        ]
+    );
+    // Unchecked, then the tag taken out: brought back and checked, like `z`
+    press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('e'));
+    for _ in " archived:2026-10-26".chars() {
+        press(&mut app, KeyCode::Backspace);
+    }
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(read(), text.replace("## SFAP\n", "## Payments\n"));
+    assert_eq!(
+        list(&app),
+        [
+            state("Work", false, true),
+            state("Work > Payments", false, true),
+            state("Work > Payments > Bugs", false, true),
+            state("Personal", false, true),
+        ]
+    );
+    clean_up(&path);
+}
+
+#[test]
 fn with_no_calendar_yet_a_new_item_goes_into_a_default_calendar() {
     // An empty task file: 「預設」 is written first, the item under it, in one step (u takes both back)
     let (mut app, path) = app_with_task_file("default-calendar", "");
