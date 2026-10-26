@@ -1256,7 +1256,8 @@ impl App {
     /// a left click on a calendar date selects it (a double click = go into that day's items), on an agenda item
     /// chooses it (a double click = check it),
     /// on a tasks page row chooses it (a double click = check it; on `▸` = expand / collapse, a right click
-    /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck); dragging in
+    /// there = the whole subtree), on a side menu calendar chooses it (again = check / uncheck; a right click
+    /// = only that one / the checks back, like `Enter`); dragging in
     /// the day popup goes over its text, and letting go copies it; dragging the side menu's right border
     /// changes its width
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
@@ -1319,14 +1320,16 @@ impl App {
                     None => {}
                 }
             }
-            // Right click on a tasks page item's `▸` / `▾`: its whole subtree; anywhere else it is ignored
+            // Right click on a tasks page item's `▸` / `▾`: its whole subtree; on a side menu calendar: like
+            // `Enter` on it; anywhere else it is ignored
             MouseEventKind::Down(MouseButton::Right) => {
-                if let Some(Click::TaskRow {
-                    row,
-                    on_marker: true,
-                }) = ui::click_at(self, mouse.column, mouse.row)
-                {
-                    self.right_click_task(row);
+                match ui::click_at(self, mouse.column, mouse.row) {
+                    Some(Click::TaskRow {
+                        row,
+                        on_marker: true,
+                    }) => self.right_click_task(row),
+                    Some(Click::Group(index)) => self.right_click_group(index),
+                    _ => {}
                 }
             }
             // Anything else (other drags, move) is ignored
@@ -1511,6 +1514,15 @@ impl App {
             self.focus = Focus::Side;
             self.side_row = SideRow::Calendar(index);
         }
+    }
+
+    /// Right click on calendar number `index` in the side menu: chooses it (the keyboard moves to the side
+    /// menu) and does what `Enter` does there: shows only it, or on the calendar shown alone puts the checks
+    /// back (`toggle_solo`)
+    fn right_click_group(&mut self, index: usize) {
+        self.focus = Focus::Side;
+        self.side_row = SideRow::Calendar(index);
+        self.toggle_solo();
     }
 
     /// Moves the side menu choice `step` rows down (negative = up), in screen order: 「隱藏全部」, 「隱藏做完的」,

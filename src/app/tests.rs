@@ -1004,6 +1004,36 @@ fn clicking_a_calendar_selects_it_then_toggles_it() {
 }
 
 #[test]
+fn right_clicking_a_calendar_shows_only_it_and_again_puts_the_checks_back() {
+    // Same rows as `clicking_a_calendar_selects_it_then_toggles_it`: "Personal" at y 7, "Work" y 8
+    let mut app = wide_app_with(GROUPS);
+    let right_click = |app: &mut App, row| {
+        app.handle_mouse(mouse_event(
+            MouseEventKind::Down(MouseButton::Right),
+            5,
+            row,
+        ));
+    };
+    let checks = |app: &App| -> Vec<bool> { app.groups.iter().map(|group| group.shown).collect() };
+    // From the calendar: chooses "Work" (the keyboard moves to the side menu) and shows only it, like Enter
+    right_click(&mut app, 8);
+    assert_eq!(
+        (app.focus, app.side_row),
+        (Focus::Side, SideRow::Calendar(2))
+    );
+    assert_eq!(checks(&app), [false, false, true]);
+    // Another calendar meanwhile: only that one; on it again: every check back
+    right_click(&mut app, 7);
+    assert_eq!(checks(&app), [false, true, false]);
+    right_click(&mut app, 7);
+    assert_eq!(checks(&app), [true, true, true]);
+    // A right click on the switch rows does nothing
+    right_click(&mut app, 3);
+    assert_eq!(checks(&app), [true, true, true]);
+    assert_eq!(app.side_row, SideRow::Calendar(1));
+}
+
+#[test]
 fn s_hides_the_side_menu_when_wide_and_calls_it_up_when_narrow() {
     let mut app = app_with(GROUPS);
     // Narrow: s calls it up (the keyboard moves to the side menu), and it works like when wide; s again
