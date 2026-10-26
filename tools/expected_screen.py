@@ -65,8 +65,8 @@ CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 NO_DOTS = "NO_DOTS" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
-SIDE_MIN, SIDE_MAX = 22, 38  # side menu min / max width (borders included; the max is the config's default
-                             # [calendar_list] max_width); width follows the longest calendar
+SIDE_MIN, SIDE_MAX = 22, 38  # side menu min / max width (borders included) when [calendar_list] width is
+                             # left out (auto); width follows the longest calendar
 
 
 # A check box and the no-break space after it (see `check_box` in src/ui.rs: a plain space would let the

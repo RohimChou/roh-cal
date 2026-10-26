@@ -119,13 +119,14 @@ impl Default for MonthSettings {
     }
 }
 
-/// The calendar list (the config file's `[calendar_list]`); defaults are in `Default`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+/// The calendar list (the config file's `[calendar_list]`); defaults: auto width, done tasks shown
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CalendarListSettings {
-    /// The widest the list gets, in cells (incl. its border): it follows the longest calendar name up to
-    /// this, and longer names get cut off. Only `MIN_WIDTH` to `MAX_WIDTH` counts (see `max_width()`)
-    pub max_width: u16,
+    /// The list's width in cells (incl. its border), fixed; only `MIN_WIDTH` to `MAX_WIDTH` counts (see
+    /// `width()`). Left out (`None`) = auto: it follows the longest calendar name, from `MIN_WIDTH` up to
+    /// `AUTO_MAX_WIDTH`, and longer names get cut off. `None` is not written to the file (TOML has no null)
+    pub width: Option<u16>,
     /// Hide done tasks (and their subtasks) everywhere; switched at the bottom of the calendar list too
     pub hide_done: bool,
 }
@@ -133,21 +134,16 @@ pub struct CalendarListSettings {
 impl CalendarListSettings {
     /// The narrowest the list gets: its header always fits
     pub const MIN_WIDTH: u16 = 22;
-    /// The largest `max_width` that counts: wider would squeeze the calendar next to it
+    /// The widest a fixed width gets: wider would squeeze the calendar next to it
     pub const MAX_WIDTH: u16 = 60;
+    /// The widest the auto width gets: a long calendar name does not take up the screen
+    pub const AUTO_MAX_WIDTH: u16 = 38;
 
-    /// `max_width` kept between `MIN_WIDTH` and `MAX_WIDTH` (the config file may say anything)
-    pub fn max_width(self) -> u16 {
-        self.max_width.clamp(Self::MIN_WIDTH, Self::MAX_WIDTH)
-    }
-}
-
-impl Default for CalendarListSettings {
-    fn default() -> Self {
-        Self {
-            max_width: 38,
-            hide_done: false,
-        }
+    /// The fixed width kept between `MIN_WIDTH` and `MAX_WIDTH` (the config file may say anything);
+    /// `None` = auto
+    pub fn width(self) -> Option<u16> {
+        self.width
+            .map(|width| width.clamp(Self::MIN_WIDTH, Self::MAX_WIDTH))
     }
 }
 

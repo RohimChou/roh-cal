@@ -89,9 +89,11 @@ fn mistakes_are_errors() {
         // Names from v1, which v2 does not have
         "[calendar]\nweek_numbers = true",
         "[month]\nitem_icons = false",
-        // The width must be a whole number from 0 up, not text or negative
-        "[calendar_list]\nmax_width = \"wide\"",
-        "[calendar_list]\nmax_width = -1",
+        // The width must be a whole number from 0 up, not text or negative (left out = auto)
+        "[calendar_list]\nwidth = \"wide\"",
+        "[calendar_list]\nwidth = -1",
+        // The width's old name
+        "[calendar_list]\nmax_width = 38",
         // No such theme
         "theme = \"solarized\"",
         // Misspelled role name, not a color, terminal has no catppuccin palette names
@@ -120,7 +122,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
                 center_cursor: true,
             },
             calendar_list: CalendarListSettings {
-                max_width: 30,
+                width: Some(30),
                 hide_done: true,
             },
             day_popup: DayPopupSettings { by_calendar: false },
@@ -236,6 +238,19 @@ fn updated_removes_the_colors_table_when_every_color_is_reset() {
         updated_file("[month]\n", &Settings::default()).expect("valid"),
         "[month]\n"
     );
+}
+
+#[test]
+fn updated_writes_a_fixed_width_and_removes_it_for_auto() {
+    // Fixed at 30: a line under [calendar_list]
+    let text = "[calendar_list]\nhide_done = true\n";
+    let mut settings = parse(text).expect("valid");
+    settings.calendar_list.width = Some(30);
+    let fixed = updated_file(text, &settings).expect("valid");
+    assert_eq!(fixed, "[calendar_list]\nhide_done = true\nwidth = 30\n");
+    // Back to auto: the line goes (TOML has no null)
+    settings.calendar_list.width = None;
+    assert_eq!(updated_file(&fixed, &settings).expect("valid"), text);
 }
 
 #[test]

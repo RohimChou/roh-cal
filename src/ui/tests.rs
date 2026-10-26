@@ -523,8 +523,8 @@ fn the_shown_layouts_key_lights_up_on_the_bottom_row_and_clicks_switch() {
 fn side_menu_lists_the_calendars_when_wide() {
     // 121 cells wide: the calendars are listed on the far left (the task file's groups, in order of
     // appearance; items before any heading are 「未分組」), the number is how many items have a date
-    // (Work has one item without a date); the last name is too long even at the 38-cell max width
-    // (`[calendar_list] max_width`'s default), so it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
+    // (Work has one item without a date); the last name is too long even at the 38-cell max of the auto
+    // width (`CalendarListSettings::AUTO_MAX_WIDTH`), so it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
     // do not fit: it scrolls 1 row, leaving one row after the selected day's (10/17) items
     let mut app = agenda_app(Lang::ZhTw);
     let terminal = draw_app(&mut app, 128, 14);

@@ -250,7 +250,7 @@ fn every_switch_has_a_row() {
         },
         calendar_list:
             CalendarListSettings {
-                max_width: _,
+                width: _,
                 hide_done: _,
             },
         day_popup: DayPopupSettings { by_calendar: _ },
@@ -261,28 +261,52 @@ fn every_switch_has_a_row() {
 #[test]
 fn the_list_width_steps_by_one_cell_and_stops_at_the_ends() {
     let mut settings = Settings::default();
-    // Default 38: l = 39, h twice = 37
-    Row::ListWidth.change(&mut settings, 1);
-    assert_eq!(settings.calendar_list.max_width, 39);
-    Row::ListWidth.change(&mut settings, -1);
-    Row::ListWidth.change(&mut settings, -1);
-    assert_eq!(settings.calendar_list.max_width, 37);
-    // Stops at 22 and 60 instead of wrapping around
-    settings.calendar_list.max_width = 22;
-    Row::ListWidth.change(&mut settings, -1);
-    assert_eq!(settings.calendar_list.max_width, 22);
-    settings.calendar_list.max_width = 60;
-    Row::ListWidth.change(&mut settings, 1);
-    assert_eq!(settings.calendar_list.max_width, 60);
-    // A hand-written 100 in the config file counts as 60: shown as 60, h goes to 59
-    settings.calendar_list.max_width = 100;
     let theme = Theme::catppuccin_mocha();
+    // Auto by default; on its own, auto counts as 38: l = 39, h twice = 37, fixed from then on
+    assert_eq!(Row::ListWidth.value(&settings, &theme), "auto");
+    Row::ListWidth.change(&mut settings, 1);
+    assert_eq!(settings.calendar_list.width, Some(39));
+    assert_eq!(Row::ListWidth.value(&settings, &theme), "39");
+    Row::ListWidth.change(&mut settings, -1);
+    Row::ListWidth.change(&mut settings, -1);
+    assert_eq!(settings.calendar_list.width, Some(37));
+    // Stops at 22 and 60 instead of wrapping around
+    settings.calendar_list.width = Some(22);
+    Row::ListWidth.change(&mut settings, -1);
+    assert_eq!(settings.calendar_list.width, Some(22));
+    settings.calendar_list.width = Some(60);
+    Row::ListWidth.change(&mut settings, 1);
+    assert_eq!(settings.calendar_list.width, Some(60));
+    // A hand-written 100 in the config file counts as 60: shown as 60, h goes to 59
+    settings.calendar_list.width = Some(100);
     assert_eq!(Row::ListWidth.value(&settings, &theme), "60");
     Row::ListWidth.change(&mut settings, -1);
-    assert_eq!(settings.calendar_list.max_width, 59);
-    // r: back to 38
+    assert_eq!(settings.calendar_list.width, Some(59));
+    // r: back to auto; the other setting in `[calendar_list]` stays
+    settings.calendar_list.hide_done = true;
     Row::ListWidth.reset(&mut settings);
-    assert_eq!(settings.calendar_list.max_width, 38);
+    assert_eq!(settings.calendar_list.width, None);
+    assert!(settings.calendar_list.hide_done);
+}
+
+#[test]
+fn hl_on_the_auto_width_go_from_the_width_on_screen() {
+    // 「 ☑ Tokyo trip 🗼🍣 1 」 makes the auto width 23 (see `ui::side`)
+    let items = crate::tasks::parse("# Tokyo trip 🗼🍣\n- b @2026-12-24\n").items;
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), items).with_theme("catppuccin-mocha");
+    app.screen = Rect::new(0, 0, 130, 30);
+    press(&mut app, KeyCode::Char(','));
+    let list_width = rows().iter().position(|&row| row == Row::ListWidth);
+    while app.settings_page().map(|page| page.row) != list_width {
+        press(&mut app, KeyCode::Char('j'));
+    }
+    // l: 24 (not 39); r: auto again; h: 22
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(app.settings.calendar_list.width, Some(24));
+    press(&mut app, KeyCode::Char('r'));
+    assert_eq!(app.settings.calendar_list.width, None);
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(app.settings.calendar_list.width, Some(22));
 }
 
 #[test]
@@ -295,7 +319,7 @@ fn row_names_are_the_config_file_names() {
         let value = match row {
             Row::Theme => format!("\"{}\"", changed.theme),
             Row::Color(role) => format!("\"{}\"", changed.colors[role]),
-            Row::ListWidth => changed.calendar_list.max_width.to_string(),
+            Row::ListWidth => row.value(&changed, &Theme::catppuccin_mocha()),
             _ => (row.value(&changed, &Theme::catppuccin_mocha()) == "on").to_string(),
         };
         let table = row

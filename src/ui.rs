@@ -214,6 +214,11 @@ fn render_scrollbar(
     frame.render_stateful_widget(scrollbar, area.inner(Margin::new(0, 1)), &mut state);
 }
 
+/// How wide the side menu is (incl. its border) when it is on screen: see `side::width`
+pub fn side_width(app: &App) -> u16 {
+    side::width(app)
+}
+
 /// Whether the terminal (`screen`) is wide enough to draw the side menu
 pub fn side_fits(screen: Rect) -> bool {
     screen.width >= SIDE_MIN_WIDTH

@@ -16,12 +16,15 @@ use ratatui::{
     widgets::{Block, BorderType},
 };
 
-/// Side menu width (incl. left and right border): just enough for the longest calendar,
-/// e.g. 「 ☑ Payments API v2 12 」,
-/// but at least `CalendarListSettings::MIN_WIDTH` (22) and at most the config file's
-/// `[calendar_list] max_width` (38 by default); longer names get cut off
+/// Side menu width (incl. left and right border): the config file's `[calendar_list] width` when it is
+/// set; otherwise (auto) just enough for the longest calendar, e.g. 「 ☑ Payments API v2 12 」,
+/// but at least `CalendarListSettings::MIN_WIDTH` (22) and at most `AUTO_MAX_WIDTH` (38); longer names
+/// get cut off
 pub fn width(app: &App) -> u16 {
-    let max = app.settings.calendar_list.max_width();
+    if let Some(width) = app.settings.calendar_list.width() {
+        return width;
+    }
+    let max = CalendarListSettings::AUTO_MAX_WIDTH;
     let texts = app.lang.texts();
     let longest = app
         .groups
@@ -94,8 +97,8 @@ fn areas(area: Rect) -> (Rect, Rect, Rect, Option<[Rect; 3]>) {
 /// (`[calendar_list] hide_done`) and a rule, then one calendar per row, e.g. 「 ☑ Work            12 」; a
 /// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」
 ///
-/// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long (box already at
-/// `[calendar_list] max_width`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
+/// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long for the box (see
+/// `width`) gets cut off. When there are too many calendars to fit, first scroll so the chosen one
 /// is visible (stored in `app.side_top`) and draw a scrollbar on the right border. When the keyboard is
 /// on the side menu, the border lights up and the chosen calendar gets a background color
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -269,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn width_fits_the_longest_calendar_up_to_the_max_width() {
+    fn auto_width_fits_the_longest_calendar_up_to_38() {
         // No task file, or a short name (「 ☑ Personal 1 」 needs only 14 cells): the minimum, 22
         assert_eq!(width(&app_with("")), 22);
         assert_eq!(width(&app_with("# Personal\n- a @2026-10-10\n")), 22);
@@ -280,22 +283,26 @@ mod tests {
         // A two-digit count: 1 more cell
         let ten = "- x @2026-10-10\n".repeat(10);
         assert_eq!(width(&app_with(&format!("# Tokyo trip 🗼🍣\n{ten}"))), 24);
-        // Longer still (「 ☑ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): the
-        // config file's `[calendar_list] max_width`, 38 by default
-        let mut app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
+        // Longer still (「 ☑ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): 38, cut
+        let app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
         assert_eq!(width(&app), 38);
-        app.settings.calendar_list.max_width = 30;
+    }
+
+    #[test]
+    fn a_fixed_width_ignores_the_names() {
+        // The config file's `[calendar_list] width`, wider or narrower than the names need
+        let mut app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
+        app.settings.calendar_list.width = Some(30);
         assert_eq!(width(&app), 30);
-        // Wide enough for the whole name: just what it needs
-        app.settings.calendar_list.max_width = 50;
-        assert_eq!(width(&app), 45);
+        app.settings.calendar_list.width = Some(50);
+        assert_eq!(width(&app), 50);
+        let mut app = app_with("# Personal\n- a @2026-10-10\n");
+        app.settings.calendar_list.width = Some(40);
+        assert_eq!(width(&app), 40);
         // Out of range in the config file: below 22 counts as 22, above 60 as 60
-        app.settings.calendar_list.max_width = 10;
+        app.settings.calendar_list.width = Some(10);
         assert_eq!(width(&app), 22);
-        app.settings.calendar_list.max_width = 100;
-        assert_eq!(width(&app), 45);
-        let mut app = app_with(&format!("# {}\n- a\n", "x".repeat(70)));
-        app.settings.calendar_list.max_width = 100;
+        app.settings.calendar_list.width = Some(100);
         assert_eq!(width(&app), 60);
     }
 }

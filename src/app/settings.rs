@@ -56,7 +56,7 @@ pub enum Row {
     GridLines,
     /// `[month] center_cursor`
     CenterCursor,
-    /// `[calendar_list] max_width`: a number, not a switch
+    /// `[calendar_list] width`: a number or auto, not a switch
     ListWidth,
     /// `[calendar_list] hide_done`
     HideDone,
@@ -139,7 +139,7 @@ impl Row {
             Self::Dots => "dots",
             Self::GridLines => "grid_lines",
             Self::CenterCursor => "center_cursor",
-            Self::ListWidth => "max_width",
+            Self::ListWidth => "width",
             Self::HideDone => "hide_done",
             Self::ByCalendar => "by_calendar",
             Self::Color(role) => role,
@@ -161,7 +161,7 @@ impl Row {
     }
 
     /// The current value (text drawn on the right): switches are `on` / `off`, `theme` is the theme's name,
-    /// the width is a number (the one that counts, see `CalendarListSettings::max_width`);
+    /// the width is a number (the one that counts, see `CalendarListSettings::width`) or `auto`;
     /// colors are their palette name (a color not in the palette is written as
     /// itself, e.g. `#010203`). `theme` = the screen colors built from `settings`
     pub fn value(self, settings: &Settings, theme: &Theme) -> String {
@@ -183,7 +183,10 @@ impl Row {
             Self::CenterCursor => on_off(settings.month.center_cursor),
             Self::HideDone => on_off(settings.calendar_list.hide_done),
             Self::ByCalendar => on_off(settings.day_popup.by_calendar),
-            Self::ListWidth => settings.calendar_list.max_width().to_string(),
+            Self::ListWidth => settings
+                .calendar_list
+                .width()
+                .map_or_else(|| "auto".to_string(), |width| width.to_string()),
         }
     }
 
@@ -200,7 +203,9 @@ impl Row {
     /// the next (`step` = 1) / previous (-1) theme in built-in order;
     /// colors go to the next / previous one in the theme's palette
     /// (terminal's 16 colors if there is no palette). Both wrap around.
-    /// The width gets 1 cell wider / narrower, stopping at `MIN_WIDTH` / `MAX_WIDTH` (no wrapping)
+    /// The width gets 1 cell wider / narrower and fixed, stopping at `MIN_WIDTH` / `MAX_WIDTH` (no
+    /// wrapping); auto counts as `AUTO_MAX_WIDTH` here (`App::change_setting` first fixes it at the width
+    /// on screen)
     fn change(self, settings: &mut Settings, step: isize) {
         if let Some(switch) = self.switch(settings) {
             *switch = !*switch;
@@ -209,13 +214,15 @@ impl Row {
         match self {
             Self::ListWidth => {
                 let list = &mut settings.calendar_list;
-                list.max_width = list
-                    .max_width()
-                    .saturating_add_signed(i16::try_from(step).unwrap_or(0))
-                    .clamp(
-                        CalendarListSettings::MIN_WIDTH,
-                        CalendarListSettings::MAX_WIDTH,
-                    );
+                let width = list.width().unwrap_or(CalendarListSettings::AUTO_MAX_WIDTH);
+                list.width = Some(
+                    width
+                        .saturating_add_signed(i16::try_from(step).unwrap_or(0))
+                        .clamp(
+                            CalendarListSettings::MIN_WIDTH,
+                            CalendarListSettings::MAX_WIDTH,
+                        ),
+                );
             }
             Self::Color(role) => {
                 let choices = theme::choices(&settings.theme);
@@ -254,7 +261,8 @@ impl Row {
         }
     }
 
-    /// Resets this row to its default (color = remove the override, back to the theme's color)
+    /// Resets this row to its default (color = remove the override, back to the theme's color; the width =
+    /// auto)
     fn reset(self, settings: &mut Settings) {
         let mut defaults = Settings::default();
         if let Self::Color(role) = self {
@@ -262,7 +270,7 @@ impl Row {
             return;
         }
         if self == Self::ListWidth {
-            settings.calendar_list = defaults.calendar_list;
+            settings.calendar_list.width = defaults.calendar_list.width;
             return;
         }
         // Switch: use the same switch's value from the defaults; the only non-switch left is theme
@@ -378,6 +386,10 @@ impl App {
     /// Changes `row`'s value (`step`: see `Row::change`); when
     /// the theme changes, the screen colors change right away
     fn change_setting(&mut self, row: Row, step: isize) {
+        // Auto width: `h` / `l` go from the width the calendar list has now, e.g. 26 → 25 / 27
+        if row == Row::ListWidth && self.settings.calendar_list.width.is_none() {
+            self.settings.calendar_list.width = Some(ui::side_width(self));
+        }
         row.change(&mut self.settings, step);
         self.apply_theme();
     }
