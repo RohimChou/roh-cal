@@ -3,7 +3,7 @@
 
 use super::{Click, check_box, months::scrolled_top, planner::inner_areas, render_scrollbar};
 use crate::{
-    app::{App, Focus, Group, SideSwitch},
+    app::{App, Focus, Group, SideRow},
     config::CalendarListSettings,
     texts::Texts,
 };
@@ -106,9 +106,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let (header, rule, body, switches) = areas(area);
     let height = i64::from(body.height);
     // On a switch row (above the list): keep the first calendar in view
-    let chosen = match app.side_switch() {
-        Some(_) => 0,
-        None => app.group_index,
+    let chosen = match app.chosen_side_row() {
+        SideRow::Calendar(index) => index,
+        SideRow::HideAll | SideRow::HideDone => 0,
     };
     let top = scrolled_top(
         i64::try_from(app.side_top).unwrap_or(0),
@@ -172,7 +172,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             Line::styled(count, Style::new().fg(theme.muted)),
             count_area,
         );
-        if focused && index == app.group_index {
+        if focused && app.chosen_side_row() == SideRow::Calendar(index) {
             // Only change the background; leave the text color alone
             frame
                 .buffer_mut()
@@ -183,15 +183,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     // while every calendar is unchecked
     if let Some([hide_all, hide_done, switches_rule]) = switches {
         let rows = [
-            (
-                hide_all,
-                SideSwitch::HideAll,
-                app.all_hidden(),
-                texts.hide_all,
-            ),
+            (hide_all, SideRow::HideAll, app.all_hidden(), texts.hide_all),
             (
                 hide_done,
-                SideSwitch::HideDone,
+                SideRow::HideDone,
                 app.settings.calendar_list.hide_done,
                 texts.hide_done,
             ),
@@ -205,7 +200,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                 ]),
                 row,
             );
-            if focused && app.side_switch() == Some(switch) {
+            if focused && app.chosen_side_row() == switch {
                 frame
                     .buffer_mut()
                     .set_style(row, Style::new().bg(theme.selection));

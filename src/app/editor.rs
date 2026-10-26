@@ -19,7 +19,7 @@
 //! - `e` in the calendar list: rename the chosen calendar; `#` and part of another calendar's name moves it
 //!   inside that one (with its items and the calendars inside it) on save
 
-use super::{App, Focus, Mode};
+use super::{App, Focus, Mode, SideRow};
 use crate::edit::{self, Place};
 use crate::search::{self, Found};
 use crate::tasks::{Heading, HeadingLine, Item, Priority};
@@ -349,8 +349,7 @@ impl App {
     /// already has 6 `#`
     pub(super) fn start_adding_subcalendar(&mut self) {
         let Some(parent) = self
-            .groups
-            .get(self.group_index)
+            .chosen_group()
             .filter(|group| group.name.is_some())
             .map(super::Group::path)
         else {
@@ -713,7 +712,7 @@ impl App {
             .iter()
             .position(|group| group.parents == parent && group.name.as_deref() == Some(name))
         {
-            self.group_index = index;
+            self.side_row = SideRow::Calendar(index);
         }
     }
 }

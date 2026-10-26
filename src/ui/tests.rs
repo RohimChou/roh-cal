@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::{Focus, Toast};
+use crate::app::{Focus, SideRow, Toast};
 use crate::texts::Lang;
 use crate::theme::Theme;
 use jiff::{
@@ -393,18 +393,18 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
     assert_eq!(thumb.first(), Some(&6));
     // Choose the 9th: scroll only once it leaves the box,
     // just enough to put it on the last row (c05 on top)
-    app.group_index = 8;
+    app.side_row = SideRow::Calendar(8);
     assert_eq!(names(&mut app).0, ["c05", "c06", "c07", "c08", "c09"]);
     // The last one: the scrollbar is at the bottom
-    app.group_index = 11;
+    app.side_row = SideRow::Calendar(11);
     let (rows, thumb) = names(&mut app);
     assert_eq!(rows, ["c08", "c09", "c10", "c11", "c12"]);
     assert_eq!(thumb.last(), Some(&10));
     // Back to the 8th: still visible, no scroll; the 6th: scroll so it is just on the first row (c06 on
     // top); clicking the first row = c06
-    app.group_index = 7;
+    app.side_row = SideRow::Calendar(7);
     assert_eq!(names(&mut app).0, ["c08", "c09", "c10", "c11", "c12"]);
-    app.group_index = 5;
+    app.side_row = SideRow::Calendar(5);
     assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
     assert_eq!(click_at(&app, 5, 6), Some(Click::Group(5)));
     // Click the last row (c10): it gets chosen and does not scroll away; clicking the same
@@ -419,12 +419,12 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         });
     };
     click(&mut app);
-    assert_eq!(app.group_index, 9);
+    assert_eq!(app.side_row, SideRow::Calendar(9));
     assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
     click(&mut app);
     assert!(!app.groups[9].shown);
     // On a switch row the list keeps the first calendar in view
-    app.group_index = app.groups.len() + 1;
+    app.side_row = SideRow::HideAll;
     assert_eq!(names(&mut app).0, ["c01", "c02", "c03", "c04", "c05"]);
 }
 
@@ -660,7 +660,7 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
     // calendar's is not; that whole row gets the highlight background, text colors unchanged
     let mut app = agenda_app(Lang::ZhTw);
     app.focus = Focus::Side;
-    app.group_index = 1;
+    app.side_row = SideRow::Calendar(1);
     let terminal = draw_app(&mut app, 121, 14);
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
@@ -675,7 +675,7 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
         ("☑", theme.checked)
     );
     // The 「隱藏全部」 row chosen: it gets the background, the calendars do not
-    app.group_index = app.groups.len() + 1;
+    app.side_row = SideRow::HideAll;
     let terminal = draw_app(&mut app, 121, 14);
     let buffer = terminal.backend().buffer();
     assert_eq!(buffer[(1, 3)].bg, theme.selection);
@@ -1426,7 +1426,7 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
         "# Work\n## SFAP\n- [ ] Fix the login bug\n",
     ));
     app.focus = Focus::Side;
-    app.group_index = 1;
+    app.side_row = SideRow::Calendar(1);
     app.screen = Rect::new(0, 0, 80, 24);
     app.handle_key(KeyEvent::from(KeyCode::Char('A')));
     let terminal = draw_app(&mut app, 80, 24);

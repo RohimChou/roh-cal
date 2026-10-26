@@ -516,7 +516,7 @@ fn side_menu_keys_choose_and_check_calendars() {
     app.focus = Focus::Side;
     // j to "Personal", Space unchecks it: b is no longer listed
     press(&mut app, KeyCode::Char('j'));
-    assert_eq!(app.group_index, 1);
+    assert_eq!(app.side_row, SideRow::Calendar(1));
     press(&mut app, KeyCode::Char(' '));
     assert!(!app.groups[1].shown);
     assert_eq!(app.agenda().len(), 2);
@@ -524,16 +524,16 @@ fn side_menu_keys_choose_and_check_calendars() {
     press(&mut app, KeyCode::Enter);
     assert!(app.groups[1].shown);
     // Down past the last calendar: stays there; up past the first one: the switch rows above the list,
-    // 「隱藏做完的」 (index 3 = after the 3 calendars) and then 「隱藏全部」 (index 4), where it stops; Space
-    // switches 「隱藏做完的」; arrow keys and the wheel do the same
+    // 「隱藏做完的」 and then 「隱藏全部」, where it stops; Space switches 「隱藏做完的」; arrow keys and the
+    // wheel do the same
     for _ in 0..3 {
         press(&mut app, KeyCode::Down);
     }
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     for _ in 0..3 {
         press(&mut app, KeyCode::Up);
     }
-    assert_eq!(app.group_index, 3);
+    assert_eq!(app.side_row, SideRow::HideDone);
     // Switching it writes that one line to the config file right away
     let dir = crate::files::test_dir("side-hide-done");
     let path = dir.join("config.toml");
@@ -554,12 +554,12 @@ fn side_menu_keys_choose_and_check_calendars() {
     app.config_path = None;
     let _ = std::fs::remove_dir_all(&dir);
     app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 0, 0));
-    assert_eq!(app.group_index, 4);
+    assert_eq!(app.side_row, SideRow::HideAll);
     press(&mut app, KeyCode::Char('k'));
-    assert_eq!(app.group_index, 4);
+    assert_eq!(app.side_row, SideRow::HideAll);
     app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     press(&mut app, KeyCode::Char('j'));
-    assert_eq!(app.group_index, 0);
+    assert_eq!(app.side_row, SideRow::Calendar(0));
     // h / l do not move the selected day; Esc goes back to the calendar without quitting
     press(&mut app, KeyCode::Char('l'));
     assert_eq!(app.selected, date(2026, 10, 17));
@@ -574,23 +574,39 @@ fn gg_and_capital_g_jump_to_the_first_and_last_row() {
     app.focus = Focus::Side;
     // G: the last row, the last of the 3 calendars (index 2)
     press(&mut app, KeyCode::Char('G'));
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     // One g only waits; the second one jumps to the first row, the 「隱藏全部」 switch above the
-    // calendars (index 4 = after the 3 calendars and 「隱藏做完的」)
+    // calendars
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 4);
+    assert_eq!(app.side_row, SideRow::HideAll);
     // g, another key, g: not gg (the other key works as usual)
     press(&mut app, KeyCode::Char('G'));
     press(&mut app, KeyCode::Char('g'));
     press(&mut app, KeyCode::Char('k'));
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 1);
+    assert_eq!(app.side_row, SideRow::Calendar(1));
     // The wheel between the two g's: not gg either (the last g above is still waiting)
     app.handle_mouse(mouse_event(MouseEventKind::ScrollDown, 0, 0));
     press(&mut app, KeyCode::Char('g'));
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
+}
+
+#[test]
+fn reading_the_task_file_again_keeps_a_switch_row_chosen() {
+    // 「隱藏全部」 chosen; the calendars go away (an empty task file) and come back: still chosen
+    let mut app = wide_app_with(GROUPS);
+    app.focus = Focus::Side;
+    app.side_row = SideRow::HideAll;
+    app.set_items(crate::tasks::parse(""));
+    assert_eq!(app.chosen_side_row(), SideRow::HideAll);
+    app.set_items(crate::tasks::parse(GROUPS));
+    assert_eq!(app.chosen_side_row(), SideRow::HideAll);
+    // A calendar chosen and no calendars left: 「隱藏做完的」, the last row then
+    app.side_row = SideRow::Calendar(2);
+    app.set_items(crate::tasks::parse(""));
+    assert_eq!(app.chosen_side_row(), SideRow::HideDone);
 }
 
 #[test]
@@ -685,7 +701,10 @@ fn clicking_a_calendar_selects_it_then_toggles_it() {
     };
     // First click: chooses "Personal", the keyboard moves to the side menu, not toggled yet
     click(&mut app, 7);
-    assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+    assert_eq!(
+        (app.focus, app.side_row),
+        (Focus::Side, SideRow::Calendar(1))
+    );
     assert!(app.groups[1].shown);
     // Click again: unchecks it; once more: checks it again
     click(&mut app, 7);
@@ -694,7 +713,7 @@ fn clicking_a_calendar_selects_it_then_toggles_it() {
     assert!(app.groups[1].shown);
     // Click another calendar: only chooses, does not toggle
     click(&mut app, 8);
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     assert!(app.groups[2].shown);
     // When the keyboard is not in the side menu, clicking the chosen one also just chooses it
     // (back to the side menu)
@@ -705,7 +724,7 @@ fn clicking_a_calendar_selects_it_then_toggles_it() {
     // 「隱藏全部」 switches on the first click (like 「隱藏做完的」) and gets chosen: all unchecked; again:
     // all checked
     click(&mut app, 3);
-    assert_eq!(app.group_index, 4);
+    assert_eq!(app.side_row, SideRow::HideAll);
     assert!(app.all_hidden());
     click(&mut app, 3);
     assert!(app.groups.iter().all(|group| group.shown));
@@ -785,7 +804,10 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     // Click Personal: chooses it; click again: unchecks it
     let left = MouseEventKind::Down(MouseButton::Left);
     app.handle_mouse(mouse_event(left, 3, 7));
-    assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+    assert_eq!(
+        (app.focus, app.side_row),
+        (Focus::Side, SideRow::Calendar(1))
+    );
     app.handle_mouse(mouse_event(left, 3, 7));
     assert!(!app.groups[1].shown);
     // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 5):

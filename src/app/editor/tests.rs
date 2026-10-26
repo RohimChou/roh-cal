@@ -35,7 +35,10 @@ fn a_in_the_calendar_list_adds_a_calendar_at_the_end() {
         .map(|group| group.name.as_deref())
         .collect();
     assert_eq!(names, [Some("Work"), Some("Side projects")]);
-    assert_eq!((app.focus, app.group_index), (Focus::Side, 1));
+    assert_eq!(
+        (app.focus, app.side_row),
+        (Focus::Side, SideRow::Calendar(1))
+    );
     // u takes it back out
     press(&mut app, KeyCode::Char('u'));
     assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
@@ -77,10 +80,10 @@ fn capital_a_in_the_calendar_list_adds_a_calendar_inside_the_chosen_one() {
         "# Work\n- [ ] Review PRs @2026-10-10\n## SFAP\n- [ ] Fix the login bug\n\n## CAIS\n\n# Personal\n- Gym\n"
     );
     let paths: Vec<Vec<String>> = app.groups.iter().map(crate::app::Group::path).collect();
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     assert_eq!(paths[2], ["Work", "CAIS"]);
     // On 「Hide done」 (above the calendars): A does nothing
-    app.group_index = app.groups.len();
+    app.side_row = SideRow::HideDone;
     press(&mut app, KeyCode::Char('A'));
     assert!(app.editor().is_none());
     clean_up(&path);
@@ -146,7 +149,7 @@ fn hash_in_the_rename_editor_moves_the_calendar_inside_another() {
     app.focus = Focus::Side;
     // Work, Work > SFAP, Work > SFAP > Bugs, Personal: Bugs unchecked, SFAP chosen
     app.groups[2].shown = false;
-    app.group_index = 1;
+    app.side_row = SideRow::Calendar(1);
     press(&mut app, KeyCode::Char('e'));
     // The `#` list: 「最外層」 and the calendars SFAP can go inside (not itself, not Bugs inside it)
     type_text(&mut app, " #");
@@ -168,7 +171,7 @@ fn hash_in_the_rename_editor_moves_the_calendar_inside_another() {
         std::fs::read_to_string(&path).expect("read"),
         "# Work\n- a\n\n# Personal\n- d\n\n## SFAP\n- b\n### Bugs\n- c\n"
     );
-    let chosen = app.groups[app.group_index].path();
+    let chosen = app.chosen_group().expect("a calendar").path();
     assert_eq!(chosen, ["Personal", "SFAP"]);
     let bugs = app
         .groups
@@ -186,7 +189,7 @@ fn hash_in_the_rename_editor_moves_the_calendar_inside_another() {
     let text = "# A\n## B\n### C\n#### D\n##### E\n# X\n## Y\n- y\n";
     let (mut app, path) = app_with_task_file("move-calendar-deep", text);
     app.focus = Focus::Side;
-    app.group_index = 5;
+    app.side_row = SideRow::Calendar(5);
     press(&mut app, KeyCode::Char('e'));
     type_text(&mut app, " #");
     let editor = app.editor().expect("editor");
@@ -218,7 +221,7 @@ fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
     app.focus = Focus::Side;
     // The holiday calendar (third in the tree), unchecked: the editor holds its heading text,
     // type:holiday too
-    app.group_index = 2;
+    app.side_row = SideRow::Calendar(2);
     app.groups[2].shown = false;
     press(&mut app, KeyCode::Char('e'));
     let typed = "Days off type:holiday";
@@ -238,12 +241,12 @@ fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
     press(&mut app, KeyCode::Enter);
     let holidays = text.replace("# Days off", "# Holidays");
     assert_eq!(std::fs::read_to_string(&path).expect("read"), holidays);
-    assert_eq!(app.group_index, 2);
+    assert_eq!(app.side_row, SideRow::Calendar(2));
     assert_eq!(names(&app)[2], ("Holidays".to_string(), false));
     // Work, with SFAP unchecked: both Work headings are renamed, and SFAP (now inside Day job) stays
     // unchecked
     app.groups[1].shown = false;
-    app.group_index = 0;
+    app.side_row = SideRow::Calendar(0);
     press(&mut app, KeyCode::Char('e'));
     for _ in 0..4 {
         press(&mut app, KeyCode::Backspace);
@@ -260,7 +263,7 @@ fn e_in_the_calendar_list_renames_every_heading_of_the_calendar() {
             ("Holidays".to_string(), false),
         ]
     );
-    assert_eq!(app.group_index, 0);
+    assert_eq!(app.side_row, SideRow::Calendar(0));
     // Enter without changing anything: nothing written (no undo step)
     let steps = app.undo.len();
     press(&mut app, KeyCode::Char('e'));

@@ -112,13 +112,16 @@ pub enum View {
     Tasks,
 }
 
-/// The two switches above the calendars in the side menu
+/// A row of the side menu the keyboard can be on, top to bottom: the two switches above the calendars, then
+/// the calendars
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SideSwitch {
+pub enum SideRow {
     /// 「隱藏全部」: unchecks every calendar, or checks them all again
     HideAll,
     /// 「隱藏做完的」: `[calendar_list] hide_done`
     HideDone,
+    /// A calendar: its index in `App::groups`
+    Calendar(usize),
 }
 
 /// One calendar in the side menu (= one group in the task file)
@@ -296,10 +299,9 @@ pub struct App {
     pub groups: Vec<Group>,
     /// The side menu was hidden with `s`
     pub side_hidden: bool,
-    /// Which row is chosen in the side menu: a calendar (index in `groups`), or past them one of the two
-    /// switches above the list: `groups.len()` = 「隱藏做完的」, `groups.len() + 1` = 「隱藏全部」
-    /// (`side_switch`); used only when the keyboard is there
-    pub group_index: usize,
+    /// Which row is chosen in the side menu (read it with `chosen_side_row`); used only when the keyboard is
+    /// there
+    pub side_row: SideRow,
     /// Side menu scroll: which calendar is at the top (index in `groups`); it scrolls only when the calendars
     /// do not fit
     pub side_top: usize,
@@ -399,7 +401,7 @@ impl App {
             selected: today,
             groups: Group::list(&items, &[]),
             side_hidden: false,
-            group_index: 0,
+            side_row: SideRow::Calendar(0),
             side_top: 0,
             side_back: Focus::Calendar,
             pending_g: false,
@@ -508,7 +510,7 @@ impl App {
     /// The heading lines of the calendar chosen in the side menu (every heading with its path, as read last);
     /// empty for 「Ungrouped」
     fn chosen_calendar_headings(&self) -> Vec<HeadingLine> {
-        let Some(group) = self.groups.get(self.group_index) else {
+        let Some(group) = self.chosen_group() else {
             return Vec::new();
         };
         self.headings
@@ -540,7 +542,7 @@ impl App {
             }
         }
         if let Some(index) = self.groups.iter().position(|group| group.path() == new) {
-            self.group_index = index;
+            self.side_row = SideRow::Calendar(index);
         }
     }
 
@@ -949,10 +951,15 @@ impl App {
             KeyCode::Char('j') | KeyCode::Down => self.choose_group(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_group(-1),
             // The first row: the 「隱藏全部」 switch above the calendars
-            KeyCode::Char('g') if after_g => self.group_index = self.groups.len() + 1,
+            KeyCode::Char('g') if after_g => self.side_row = SideRow::HideAll,
             KeyCode::Char('g') => self.pending_g = true,
             // The last row: the last calendar (no calendars: the 「隱藏做完的」 switch)
-            KeyCode::Char('G') => self.group_index = self.groups.len().saturating_sub(1),
+            KeyCode::Char('G') => {
+                self.side_row = match self.groups.len().checked_sub(1) {
+                    Some(last) => SideRow::Calendar(last),
+                    None => SideRow::HideDone,
+                };
+            }
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('A') => self.start_adding_subcalendar(),
@@ -967,17 +974,17 @@ impl App {
     /// The calendar chosen in the side menu: checked ⇄ unchecked (`toggle_calendar`); on a switch row above
     /// the calendars, that switch
     fn toggle_group(&mut self) {
-        match self.side_switch() {
-            Some(SideSwitch::HideAll) => self.toggle_hide_all(),
-            Some(SideSwitch::HideDone) => self.toggle_hide_done(),
-            None => self.toggle_calendar(),
+        match self.chosen_side_row() {
+            SideRow::HideAll => self.toggle_hide_all(),
+            SideRow::HideDone => self.toggle_hide_done(),
+            SideRow::Calendar(_) => self.toggle_calendar(),
         }
     }
 
     /// The chosen calendar: checked ⇄ unchecked, and every calendar inside it (any number of levels down)
     /// gets the same, e.g. checking `Work` checks `Work > SFAP` too
     fn toggle_calendar(&mut self) {
-        let Some(chosen) = self.groups.get(self.group_index) else {
+        let Some(chosen) = self.chosen_group() else {
             return;
         };
         let shown = !chosen.shown;
@@ -993,12 +1000,20 @@ impl App {
         }
     }
 
-    /// The switch row chosen in the side menu (`group_index` past the calendars); `None` on a calendar
-    pub fn side_switch(&self) -> Option<SideSwitch> {
-        match self.group_index.checked_sub(self.groups.len()) {
-            None => None,
-            Some(0) => Some(SideSwitch::HideDone),
-            Some(_) => Some(SideSwitch::HideAll),
+    /// The row chosen in the side menu: `side_row`, except that with no calendars (nothing read yet, or an
+    /// empty task file) a calendar row counts as 「隱藏做完的」, the last row then
+    pub fn chosen_side_row(&self) -> SideRow {
+        match self.side_row {
+            SideRow::Calendar(_) if self.groups.is_empty() => SideRow::HideDone,
+            row => row,
+        }
+    }
+
+    /// The calendar chosen in the side menu; `None` on a switch row
+    fn chosen_group(&self) -> Option<&Group> {
+        match self.side_row {
+            SideRow::Calendar(index) => self.groups.get(index),
+            SideRow::HideAll | SideRow::HideDone => None,
         }
     }
 
@@ -1156,12 +1171,12 @@ impl App {
                     Some(Click::Group(index)) => self.click_group(index),
                     Some(Click::HideAll) => {
                         self.focus = Focus::Side;
-                        self.group_index = self.groups.len() + 1;
+                        self.side_row = SideRow::HideAll;
                         self.toggle_hide_all();
                     }
                     Some(Click::HideDone) => {
                         self.focus = Focus::Side;
-                        self.group_index = self.groups.len();
+                        self.side_row = SideRow::HideDone;
                         self.toggle_hide_done();
                     }
                     Some(Click::TaskRow { row, on_marker }) => {
@@ -1348,11 +1363,11 @@ impl App {
     /// Click on calendar number `index` in the side menu: one click chooses it (the keyboard moves to the
     /// side menu); clicking the chosen one again = check / uncheck
     fn click_group(&mut self, index: usize) {
-        if self.focus == Focus::Side && self.group_index == index {
+        if self.focus == Focus::Side && self.chosen_side_row() == SideRow::Calendar(index) {
             self.toggle_group();
         } else {
             self.focus = Focus::Side;
-            self.group_index = index;
+            self.side_row = SideRow::Calendar(index);
         }
     }
 
@@ -1360,16 +1375,16 @@ impl App {
     /// then the calendars; stops at the top and bottom rows
     fn choose_group(&mut self, step: isize) {
         let count = self.groups.len();
-        // `group_index` → row on screen (0 = the top), move, and back
-        let row = match self.side_switch() {
-            Some(SideSwitch::HideAll) => 0,
-            Some(SideSwitch::HideDone) => 1,
-            None => self.group_index + 2,
+        // The chosen row → its row on screen (0 = the top), move, and back
+        let row = match self.chosen_side_row() {
+            SideRow::HideAll => 0,
+            SideRow::HideDone => 1,
+            SideRow::Calendar(index) => index + 2,
         };
-        self.group_index = match row.saturating_add_signed(step).min(count + 1) {
-            0 => count + 1,
-            1 => count,
-            row => row - 2,
+        self.side_row = match row.saturating_add_signed(step).min(count + 1) {
+            0 => SideRow::HideAll,
+            1 => SideRow::HideDone,
+            row => SideRow::Calendar(row - 2),
         };
     }
 

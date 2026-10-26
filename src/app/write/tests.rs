@@ -301,7 +301,10 @@ fn d_in_the_calendar_list_asks_then_deletes_the_calendar_and_u_brings_it_back() 
         .map(|group| group.name.as_deref())
         .collect();
     assert_eq!(names, [Some("Personal")]);
-    assert_eq!((app.focus, app.group_index), (Focus::Side, 0));
+    assert_eq!(
+        (app.focus, app.side_row),
+        (Focus::Side, SideRow::Calendar(0))
+    );
     // u: it all comes back
     press(&mut app, KeyCode::Char('u'));
     assert_eq!(read(), text);
@@ -331,7 +334,7 @@ fn l_and_h_move_a_calendar_in_and_out_in_the_calendar_list() {
     app.focus = Focus::Side;
     // Bugs (inside SFAP) unchecked; SFAP chosen
     app.groups[2].shown = false;
-    app.group_index = 1;
+    app.side_row = SideRow::Calendar(1);
     // L: SFAP goes inside Work, Bugs along with it (still unchecked); SFAP stays chosen
     press(&mut app, KeyCode::Char('L'));
     let inside = "# Work\n- [ ] a @2026-10-10\n## SFAP\n- [ ] b @2026-10-11\n### Bugs\n- [ ] c @2026-10-12\n\
@@ -346,16 +349,16 @@ fn l_and_h_move_a_calendar_in_and_out_in_the_calendar_list() {
             ("Personal".to_string(), true),
         ]
     );
-    assert_eq!(app.group_index, 1);
+    assert_eq!(app.side_row, SideRow::Calendar(1));
     // H: back out
     press(&mut app, KeyCode::Char('H'));
     assert_eq!(read(), text);
-    assert_eq!(app.group_index, 1);
+    assert_eq!(app.side_row, SideRow::Calendar(1));
     assert_eq!(tree(&app)[2], ("SFAP > Bugs".to_string(), false));
     // Cannot move: SFAP is already at the top; Work has no calendar above it to go inside
     let steps = app.undo.len();
     press(&mut app, KeyCode::Char('H'));
-    app.group_index = 0;
+    app.side_row = SideRow::Calendar(0);
     press(&mut app, KeyCode::Char('L'));
     assert_eq!((read(), app.undo.len()), (text.to_string(), steps));
     // u undoes the last move (H): SFAP is inside Work again
