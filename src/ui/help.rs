@@ -3,11 +3,13 @@
 //! page, the tasks page's keys); `Tab` switches to the full version: every key, the sections that do not work
 //! where the keyboard is grayed out
 //!
-//! Keys are listed in left and right columns. When the screen is too narrow for two columns, they stack into
-//! one column, top to bottom. When it is too short, the page scrolls, with a scrollbar on the right border.
-//! The content lives in `Texts::help`
+//! On top, both versions say where the task file and config file are. Keys are listed below in left and
+//! right columns. When the screen is too narrow for two columns, they stack into one column, top to bottom.
+//! When it is too short, the page scrolls, with a scrollbar on the right border. The content lives in
+//! `Texts::help`
 
 use crate::app::{App, Focus, Help};
+use crate::paths;
 use crate::texts::HelpSection;
 use crate::theme::Theme;
 use ratatui::{
@@ -96,12 +98,23 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     let (left, right) = sections(app, full);
     // The full version grays out the sections that do not work where the keyboard is
     let here = full.then_some(app.focus);
-    let lines = arrange(&left, &right, &app.theme, screen.width, here);
+    let key_width = key_width(&left, &right);
+    let right_margin = if full { 1 } else { SHORT_RIGHT_MARGIN };
+    // Where the files are on top (both versions), then the keys
+    let room = usize::from(screen.width).saturating_sub(right_margin + 2);
+    let mut lines = files(app, key_width, room);
+    lines.extend(arrange(
+        &left,
+        &right,
+        key_width,
+        &app.theme,
+        screen.width,
+        here,
+    ));
     // Size: widest line + right margin + 2 for the border (also wide enough for the top and bottom border
     // text, or it gets cut off); line count + top and bottom padding + 2 for the border (shrunk to the
     // screen if larger)
     let (title, hint) = border_lines(app, full);
-    let right_margin = if full { 1 } else { SHORT_RIGHT_MARGIN };
     let inside = (width(&lines) + right_margin)
         .max(title.width())
         .max(hint.width());
@@ -144,25 +157,92 @@ fn border_lines(app: &App, full: bool) -> (Line<'static>, Line<'static>) {
     (title, hint)
 }
 
-/// Lays out the two columns' sections as lines: if the width (minus the border) fits, side by side, each
-/// column running down on its own; if not, one column, with the right column below the left one.
-/// `here` = gray out the sections that do not work with the keyboard there
-fn arrange(
-    left: &[HelpSection],
-    right: &[HelpSection],
-    theme: &Theme,
-    screen_width: u16,
-    here: Option<Focus>,
-) -> Vec<Line<'static>> {
-    // The key column is equally wide in both columns: the longest key in either column + `KEY_GAP`
-    let key_width = left
-        .iter()
+/// How wide the key column is, equally wide in both columns: the longest key in either column + `KEY_GAP`
+fn key_width(left: &[HelpSection], right: &[HelpSection]) -> usize {
+    left.iter()
         .chain(right)
         .flat_map(|section| section.keys)
         .map(|&(key, _)| Span::raw(key).width())
         .max()
         .unwrap_or(0)
-        + KEY_GAP;
+        + KEY_GAP
+}
+
+/// The block on top that says where the task file and config file are: the block name, then one line per
+/// file with a label and the path (`paths::shown`); a file not there yet says so. The label column is as
+/// wide as the key column below (`key_width`), or wider if a label needs it. A path too long for `room`
+/// cells (the screen width inside the box) loses its front, so the file name stays. Ends with a blank line;
+/// empty when there is no path at all (tests)
+fn files(app: &App, key_width: usize, room: usize) -> Vec<Line<'static>> {
+    let theme = &app.theme;
+    let help = app.lang.texts().help;
+    let files: Vec<_> = [
+        (help.task_file, &app.tasks_path),
+        (help.config_file, &app.config_path),
+    ]
+    .into_iter()
+    .filter_map(|(label, path)| Some((label, path.as_deref()?)))
+    .collect();
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let label_width = files
+        .iter()
+        .map(|&(label, _)| Span::raw(label).width() + KEY_GAP)
+        .fold(key_width, usize::max);
+    let bold = Modifier::BOLD;
+    let title = Span::styled(
+        format!("  {}", help.files),
+        Style::new().fg(theme.help_section).add_modifier(bold),
+    );
+    let mut lines = vec![Line::from(title)];
+    for (label, path) in files {
+        let (path, exists) = paths::shown(path);
+        let note = if exists { "" } else { help.not_created };
+        // Same indent as the keys below (4)
+        let path_room = room.saturating_sub(4 + label_width + Span::raw(note).width());
+        let padding = " ".repeat(label_width - Span::raw(label).width());
+        lines.push(Line::from(vec![
+            Span::raw("    "),
+            Span::styled(
+                format!("{label}{padding}"),
+                Style::new().fg(theme.help_key).add_modifier(bold),
+            ),
+            Span::styled(keep_end(&path, path_room), Style::new().fg(theme.text)),
+            Span::styled(note, Style::new().fg(theme.muted)),
+        ]));
+    }
+    lines.push(Line::default());
+    lines
+}
+
+/// `text` cut to at most `width` cells by dropping its front, marked with `...`
+/// (e.g. `~/notes/roh-cal/tasks.md` → `.../roh-cal/tasks.md`)
+fn keep_end(text: &str, width: usize) -> String {
+    if Span::raw(text).width() <= width {
+        return text.to_string();
+    }
+    // Start at the first character from which the rest fits after the `...`
+    let start = text
+        .char_indices()
+        .map(|(index, _)| index)
+        .find(|&index| Span::raw(&text[index..]).width() + 3 <= width)
+        .unwrap_or(text.len());
+    format!("...{}", &text[start..])
+}
+
+/// Lays out the two columns' sections as lines: if the width (minus the border) fits, side by side, each
+/// column running down on its own; if not, one column, with the right column below the left one.
+/// `key_width` = how wide the key column is (`key_width`); `here` = gray out the sections that do not work
+/// with the keyboard there
+fn arrange(
+    left: &[HelpSection],
+    right: &[HelpSection],
+    key_width: usize,
+    theme: &Theme,
+    screen_width: u16,
+    here: Option<Focus>,
+) -> Vec<Line<'static>> {
     let left = section_blocks(left, key_width, theme, here);
     let right = section_blocks(right, key_width, theme, here);
     let block_width = |blocks: &[Vec<Line>]| blocks.iter().map(|block| width(block)).max();

@@ -3,6 +3,7 @@ use crate::app::Mode;
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+use std::path::PathBuf;
 
 /// Opens the help page (`help`) and draws the whole `width` × `height` screen once (layout 1 underneath,
 /// the keyboard on the calendar); returns the box's area and the text of each row in the box
@@ -20,6 +21,11 @@ fn draw_in(
 ) -> (Rect, Vec<String>, Buffer) {
     let mut app = App::new(lang, date(2026, 10, 17), Vec::new());
     app.focus = focus;
+    draw_app(app, width, height, help)
+}
+
+/// Draws `app` with the help page (`help`) open on a `width` × `height` screen; returns the same as `draw`
+fn draw_app(mut app: App, width: u16, height: u16, help: Help) -> (Rect, Vec<String>, Buffer) {
     app.screen = Rect::new(0, 0, width, height);
     app.mode = Mode::Help(help);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -186,6 +192,95 @@ fn a_narrow_screen_stacks_the_columns() {
             "│    q       離開              │",
             "│                              │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──╯",
+        ]
+    );
+}
+
+/// The app on the calendar in Chinese, with the task file at `tasks` and the config file at `config`
+/// (under `/nonexistent`: not there, and not inside anyone's home, so the paths are the same on every machine)
+fn app_with_files(tasks: Option<&str>, config: Option<&str>) -> App {
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    app.tasks_path = tasks.map(PathBuf::from);
+    app.config_path = config.map(PathBuf::from);
+    app
+}
+
+#[test]
+fn files_are_listed_on_top_of_the_keys() {
+    // Expected box computed by a separate Python script: the files block, a blank line, then the same two
+    // columns as `short_page_puts_two_columns_in_the_middle_of_the_screen`; label column = 任務檔 (6) + 3,
+    // wider than the key column (8); neither file is there, so each says so; the box widens to fit:
+    // longest line 57 + right margin 3 + border 2 = 62
+    let app = app_with_files(
+        Some("/nonexistent/roh-cal/tasks.md"),
+        Some("/nonexistent/roh-cal/config.toml"),
+    );
+    let (area, rows, buffer) = draw_app(app, 70, 23, Help::default());
+    assert_eq!(area, Rect::new(4, 2, 62, 20));
+    assert_eq!(
+        rows,
+        [
+            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ─────────────────────────────────────╮",
+            "│                                                            │",
+            "│  檔案                                                      │",
+            "│    任務檔   /nonexistent/roh-cal/tasks.md（還沒建立）      │",
+            "│    設定檔   /nonexistent/roh-cal/config.toml（還沒建立）   │",
+            "│                                                            │",
+            "│  月曆                        畫面                          │",
+            "│    hjkl    移動                1       月曆 + 事項         │",
+            "│    [ / ]   上個月 / 下個月     2       大月曆              │",
+            "│    t       今天                3       任務頁              │",
+            "│    Enter   那天的事            s       日曆清單            │",
+            "│    a       在那天新增          .       隱藏做完的          │",
+            "│                                Tab     換框                │",
+            "│                                                            │",
+            "│                              系統                          │",
+            "│                                ?       說明                │",
+            "│                                ,       設定                │",
+            "│                                q       離開                │",
+            "│                                                            │",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ────────────────────────────────╯",
+        ]
+    );
+    // Colors like a section: block name, labels like keys, the path in text color, the note muted
+    let theme = Theme::default();
+    assert_eq!(buffer[(7, 4)].fg, theme.help_section);
+    assert_eq!(buffer[(9, 5)].fg, theme.help_key);
+    assert_eq!(buffer[(18, 5)].fg, theme.text);
+    assert_eq!(buffer[(47, 5)].fg, theme.muted);
+    // The full version has the same block on top
+    let app = app_with_files(Some("/nonexistent/roh-cal/tasks.md"), None);
+    let full = Help {
+        full: true,
+        scroll: 0,
+    };
+    let (_, rows, _) = draw_app(app, 100, 60, full);
+    assert!(rows[2].starts_with("│  檔案 "), "{rows:?}");
+    assert!(
+        rows[3].contains("/nonexistent/roh-cal/tasks.md（還沒建立）"),
+        "{rows:?}"
+    );
+    assert!(rows[5].starts_with("│  月曆 "), "{rows:?}");
+}
+
+#[test]
+fn a_path_too_long_for_the_screen_loses_its_front() {
+    // Expected box computed by the same separate Python script: 50 cells is too narrow for two columns, so
+    // the keys stack as in `a_narrow_screen_stacks_the_columns`; inside the box there is room for 50 − 2 − 3
+    // = 45 cells, minus indent 4, label 9 and the note 12 = 20 for the path: `...` + its last 17 cells.
+    // No config file path (no HOME): no line for it
+    let app = app_with_files(Some("/nonexistent/roh-cal/tasks.md"), None);
+    let (area, rows, _) = draw_app(app, 50, 30, Help::default());
+    assert_eq!(area, Rect::new(0, 2, 50, 26));
+    assert_eq!(
+        rows[..6],
+        [
+            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ─────────────────────────╮",
+            "│                                                │",
+            "│  檔案                                          │",
+            "│    任務檔   .../roh-cal/tasks.md（還沒建立）   │",
+            "│                                                │",
+            "│  月曆                                          │",
         ]
     );
 }

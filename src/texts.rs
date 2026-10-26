@@ -167,6 +167,15 @@ pub struct HelpPage {
     pub full_title: &'static str,
     /// The full version's key hints on the bottom border
     pub full_hint: &'static str,
+    /// Name of the block at the top of both versions that says where the task file and config file are
+    pub files: &'static str,
+    /// The label in front of the task file's path
+    pub task_file: &'static str,
+    /// The label in front of the config file's path
+    pub config_file: &'static str,
+    /// After the path of a file that is not there yet (the default task file before the first add, the
+    /// config file before the settings page saves)
+    pub not_created: &'static str,
     /// The short version's sections, each with the few keys used most where it works; the ones for one
     /// place go on the left, the ones that work anywhere on the right
     pub short: &'static [HelpSection],
@@ -241,6 +250,10 @@ const EN: Texts = Texts {
         short_hint: "?/Tab all keys  q/Esc close",
         full_title: "all keys, gray: not here",
         full_hint: "Tab keys for here  ?/q/Esc close",
+        files: "Files",
+        task_file: "Tasks",
+        config_file: "Config",
+        not_created: " (not created yet)",
         short: &[
             HelpSection {
                 title: "Calendar",
@@ -501,6 +514,10 @@ const ZH_TW: Texts = Texts {
         short_hint: "?/Tab 全部按鍵  q/Esc 關閉",
         full_title: "全部按鍵，灰的這裡用不到",
         full_hint: "Tab 這裡的按鍵  ?/q/Esc 關閉",
+        files: "檔案",
+        task_file: "任務檔",
+        config_file: "設定檔",
+        not_created: "（還沒建立）",
         short: &[
             HelpSection {
                 title: "月曆",
