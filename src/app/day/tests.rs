@@ -462,3 +462,93 @@ fn c_and_a_click_on_the_bottom_border_switch_grouping_by_calendar() {
     app.config_path = None;
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn subtasks_sit_under_their_parent_and_a_parent_not_on_the_day_comes_with_them() {
+    // 10/17 by time: the in-progress 「Compare prices」 first, then no time 「Check the hotel」 and 「Fix the
+    // build」, then 08:00 Pay rent, 09:00 Send the report, 10:00 Team sync, 11:00 Book flights, 12:00 Add a
+    // test. 「Plan the trip」 has no date and 「Write the report」 is on 10/16: both only come as parents
+    // (in parentheses below). A family takes the place of its first item (Plan the trip's: Compare prices)
+    let text = "# Work\n- [ ] Plan the trip\n  - [ ] Book flights @2026-10-17 11:00\n\
+                \x20 - [/] Compare prices @2026-10-17 15:00\n    - [ ] Check the hotel @2026-10-17\n\
+                - [ ] Team sync @2026-10-17 10:00\n- [x] Write the report @2026-10-16\n\
+                \x20 - [ ] Send the report @2026-10-17 09:00\n- [x] Fix the build @2026-10-17\n\
+                \x20 - [ ] Add a test @2026-10-17 12:00\n# Life\n- [ ] Pay rent @2026-10-17 08:00\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 60, 20);
+    let rows = |app: &App| -> Vec<String> {
+        app.day_entries()
+            .iter()
+            .map(|entry| match entry.on_day {
+                true => entry.item.title.clone(),
+                false => format!("({})", entry.item.title),
+            })
+            .collect()
+    };
+    // Grouped by calendar (the default): Work's families, then Life's
+    assert_eq!(
+        rows(&app),
+        [
+            "(Plan the trip)",
+            "Compare prices",
+            "Check the hotel",
+            "Book flights",
+            "Fix the build",
+            "Add a test",
+            "(Write the report)",
+            "Send the report",
+            "Team sync",
+            "Pay rent",
+        ]
+    );
+    // Not grouped: Pay rent (08:00) goes back between the families by time
+    app.settings.day_popup.by_calendar = false;
+    assert_eq!(
+        rows(&app),
+        [
+            "(Plan the trip)",
+            "Compare prices",
+            "Check the hotel",
+            "Book flights",
+            "Fix the build",
+            "Add a test",
+            "Pay rent",
+            "(Write the report)",
+            "Send the report",
+            "Team sync",
+        ]
+    );
+    // 「Hide done」 hides 「Fix the build」 itself: it stays over 「Add a test」 as a parent, the family now in
+    // that one's place (12:00, last in Work)
+    app.settings.day_popup.by_calendar = true;
+    app.settings.calendar_list.hide_done = true;
+    assert_eq!(
+        rows(&app),
+        [
+            "(Plan the trip)",
+            "Compare prices",
+            "Check the hotel",
+            "Book flights",
+            "(Write the report)",
+            "Send the report",
+            "Team sync",
+            "(Fix the build)",
+            "Add a test",
+            "Pay rent",
+        ]
+    );
+    // The keys skip the parents: 4 × j from Compare prices is Team sync, 5 × j Add a test
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(chosen(&app).as_deref(), Some("Compare prices"));
+    for _ in 0..4 {
+        press(&mut app, KeyCode::Char('j'));
+    }
+    assert_eq!(chosen(&app).as_deref(), Some("Team sync"));
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app).as_deref(), Some("Add a test"));
+}

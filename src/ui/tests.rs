@@ -4461,6 +4461,87 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
 }
 
 #[test]
+fn the_day_popup_lists_subtasks_under_their_parent() {
+    // 10/17: 「Plan the trip」 has no date, its subtask 「Book flights」 and that one's 「Compare prices」 are
+    // on the day; 「Fly out」 (07:40) comes before Book flights (09:00) by time, but the family stays
+    // together, in the place of its first item (Compare prices, no time). Widest line: 「      ☐ 09:00 Book
+    // flights」 25 + border 2 + a blank cell 1 + padding 2 = 30; the top border needs more: 38 (as in
+    // `the_day_popup_lists_items_under_their_outermost_calendar`). Expected rows from a separate Python
+    // count of the indents
+    let text = "# Trip\n- [ ] Plan the trip\n  - [ ] Book flights @2026-10-17 09:00\n\
+                \x20   - [ ] Compare prices @2026-10-17\n- Fly out @2026-10-17 07:40\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    // Grouped by calendar: the parent not on the day where a check box would be, gray, with no box of its
+    // own; each level 2 cells further in. The first item (Book flights) is chosen; its path is on the
+    // bottom border
+    assert_eq!(
+        area_rows(buffer, area),
+        [
+            "╭ Sat Oct 17, 2026 ─ 2 open / 0 done ╮",
+            "│                                    │",
+            "│  Trip                              │",
+            "│    Plan the trip                   │",
+            "│      ☐\u{a0}09:00 Book flights          │",
+            "│        ☐\u{a0}Compare prices            │",
+            "│    ∙ 07:40 Fly out                 │",
+            "│                                    │",
+            "╰ Trip ─────────────── ☑\u{a0}By calendar ╯",
+        ]
+    );
+    let theme = Theme::default();
+    assert_eq!(buffer[(area.x + 5, area.y + 3)].symbol(), "P");
+    assert_eq!(buffer[(area.x + 5, area.y + 3)].fg, theme.muted);
+    // The parent is not an item of the popup: clicking it chooses nothing, j skips it
+    assert_eq!(day_item_at(&app, area.x + 6, area.y + 3), None);
+    assert_eq!(day_item_at(&app, area.x + 6, area.y + 4), Some(0));
+    let titles: Vec<&str> = app
+        .day_items()
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Book flights", "Compare prices", "Fly out"]);
+    // Not grouped: the same tree, starting at the left, each item's calendar at the right end (none for
+    // the parent)
+    app.settings.day_popup.by_calendar = false;
+    let terminal = draw_app(&mut app, 80, 24);
+    assert_eq!(
+        area_rows(terminal.backend().buffer(), day_area(&app)),
+        [
+            "╭ Sat Oct 17, 2026 ─ 2 open / 0 done ╮",
+            "│                                    │",
+            "│  Plan the trip                     │",
+            "│    ☐\u{a0}09:00 Book flights      Trip  │",
+            "│      ☐\u{a0}Compare prices        Trip  │",
+            "│  ∙ 07:40 Fly out             Trip  │",
+            "│                                    │",
+            "╰ Trip ─────────────── ☐\u{a0}By calendar ╯",
+        ]
+    );
+    // Too short (60 × 6: 3 lines inside the box): after scrolling down to Fly out, choosing Book flights
+    // again brings both headings above it back into view (the calendar's and the parent's)
+    app.settings.day_popup.by_calendar = true;
+    app.screen = Rect::new(0, 0, 60, 6);
+    app.day_index = 2;
+    let terminal = draw_app(&mut app, 60, 6);
+    let rows = area_rows(terminal.backend().buffer(), day_area(&app));
+    assert!(rows[3].starts_with("│    ∙ 07:40 Fly out "), "{rows:#?}");
+    app.day_index = 0;
+    let terminal = draw_app(&mut app, 60, 6);
+    let rows = area_rows(terminal.backend().buffer(), day_area(&app));
+    assert!(rows[1].starts_with("│  Trip "), "{rows:#?}");
+    assert!(rows[2].starts_with("│    Plan the trip "), "{rows:#?}");
+    assert!(
+        rows[3].starts_with("│      ☐\u{a0}09:00 Book flights "),
+        "{rows:#?}"
+    );
+}
+
+#[test]
 fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
     // Box 38 wide: the top border's date 18 + 「 2 open / 0 done 」 17 + one line cell + 2 corners
     let text =

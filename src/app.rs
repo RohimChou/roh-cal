@@ -9,7 +9,7 @@ mod settings;
 mod tasks;
 mod write;
 
-pub use day::{TextDrag, TextSpot};
+pub use day::{DayEntry, TextDrag, TextSpot};
 pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;

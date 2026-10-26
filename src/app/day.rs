@@ -1,12 +1,22 @@
 //! The day popup: `Enter` on the calendar (or double-clicking a day) opens it, in layouts 1 and 2. It lists all
-//! items on the selected day (also ones a cell cannot fit and shows as `+N`). The keys are the same as in
-//! layout 1's agenda (drawing is in `ui::day`)
+//! items on the selected day (also ones a cell cannot fit and shows as `+N`), each subtask under its parent.
+//! The keys are the same as in layout 1's agenda (drawing is in `ui::day`)
 
 use super::{App, ClickTarget, Focus};
 use crate::tasks::Item;
 use crate::ui;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
+
+/// One row of the popup's list (`App::day_entries`): an item on the selected day, or a parent of one that is
+/// not on that day itself (drawn gray, like a heading; it cannot be chosen)
+#[derive(Debug, Clone, Copy)]
+pub struct DayEntry<'a> {
+    pub item: &'a Item,
+    /// Whether the item is on the selected day; `false` = only listed so its subtasks show whose they are
+    pub on_day: bool,
+}
 
 /// A spot in the popup's text: the `char`-th character of the title of the `item`-th item (`App::day_items`).
 /// Sorting goes in reading order: by item, then by character
@@ -25,22 +35,88 @@ pub struct TextDrag {
 }
 
 impl App {
-    /// The popup's items in display order (`day_index` counts in it): `items_on(selected)`, and with
-    /// `[day_popup] by_calendar` grouped by their outermost calendar, the calendars in the calendar list's
-    /// order and items outside any calendar first; inside a group the order stays
+    /// The popup's items in display order (`day_index` counts in it): `day_entries` without the parents that
+    /// are not on the day
     pub fn day_items(&self) -> Vec<&Item> {
-        let mut items = self.items_on(self.selected);
+        self.day_entries()
+            .into_iter()
+            .filter(|entry| entry.on_day)
+            .map(|entry| entry.item)
+            .collect()
+    }
+
+    /// The popup's rows in display order: the items on the selected day (`items_on`) as a tree, each subtask
+    /// under its parent. A parent not on that day itself (another day, no date, or hidden as done) is listed
+    /// too, so its subtasks show whose they are; e.g. on 10/26:
+    /// 「Plan the trip」 (no date) → 「Book flights」 (10/26) → 「Compare prices」 (10/26).
+    /// Items under the same parent (or at the outermost level) keep `items_on`'s order, a whole family taking
+    /// the place of its first item there (a parent with an in-progress subtask comes first with it). With
+    /// `[day_popup] by_calendar` the families are grouped by their outermost calendar, the calendars in the
+    /// calendar list's order and items outside any calendar first; inside a group the order stays
+    pub fn day_entries(&self) -> Vec<DayEntry<'_>> {
+        // Each item on the day with the parents above it, outermost first
+        let mut chains: Vec<Vec<&Item>> = self
+            .items_on(self.selected)
+            .into_iter()
+            .map(|item| self.with_parents(item))
+            .collect();
+        // Where each item (by its file line) first shows up in `items_on`'s order, as itself or as a parent
+        let mut first = HashMap::new();
+        for (place, chain) in chains.iter().enumerate() {
+            for item in chain {
+                first.entry(item.line).or_insert(place);
+            }
+        }
+        // Families together: a parent's chain is the start of its subtasks' chains, so it sorts before them
+        chains.sort_by_cached_key(|chain| {
+            chain
+                .iter()
+                .map(|item| first.get(&item.line).copied())
+                .collect::<Vec<_>>()
+        });
         if self.settings.day_popup.by_calendar {
-            items.sort_by_key(|item| {
-                item.group.as_ref().map(|group| {
-                    self.groups.iter().position(|calendar| {
-                        calendar.parents.is_empty()
-                            && calendar.name.as_deref() == Some(group.outermost())
+            // A family is all in one calendar: the item on the day stands for it
+            chains.sort_by_key(|chain| {
+                chain
+                    .last()
+                    .and_then(|item| item.group.as_ref())
+                    .map(|group| {
+                        self.groups.iter().position(|calendar| {
+                            calendar.parents.is_empty()
+                                && calendar.name.as_deref() == Some(group.outermost())
+                        })
                     })
-                })
             });
         }
-        items
+        // Each item once: a parent comes right before its first subtask (or on its own, when on the day)
+        let mut listed = HashSet::new();
+        let mut entries = Vec::new();
+        for chain in &chains {
+            for (level, item) in chain.iter().enumerate() {
+                if listed.insert(item.line) {
+                    entries.push(DayEntry {
+                        item,
+                        on_day: level + 1 == chain.len(),
+                    });
+                }
+            }
+        }
+        entries
+    }
+
+    /// `item` and its parent, its parent's parent, …, the outermost first
+    fn with_parents<'a>(&'a self, item: &'a Item) -> Vec<&'a Item> {
+        let mut chain = vec![item];
+        let mut parent = item.parent;
+        while let Some(index) = parent {
+            let Some(above) = self.items.get(index) else {
+                break;
+            };
+            chain.push(above);
+            parent = above.parent;
+        }
+        chain.reverse();
+        chain
     }
 
     /// Opens the popup with the first item chosen; does not open if the day has no items
@@ -90,7 +166,7 @@ impl App {
 
     /// The mouse moved with the left button held, now at (`column`, `row`): after a press on a title in the
     /// popup, the dragged-over text now ends at the character under it (past the box's edge: the nearest row
-    /// inside; on a calendar's name or a blank row it stays where it was). A click right after a drag is not
+    /// inside; on a heading or a blank row it stays where it was). A click right after a drag is not
     /// a double click
     pub(super) fn drag_day(&mut self, column: u16, row: u16) {
         let spot = ui::day_text_at(self, column, row, true);

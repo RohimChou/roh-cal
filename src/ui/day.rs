@@ -2,7 +2,8 @@
 //! agenda, but each item starts with a check box, or a dot for an event, and only a multi-day item writes
 //! its dates: the top border already says which day; a title too long for the box wraps onto the next
 //! lines, under the title), with the selected day on the top border and some blank space inside the border
-//! when there is room
+//! when there is room. A subtask sits under its parent, 2 cells further in; a parent not on that day is
+//! listed too, gray and without a check box
 
 use super::{
     calendar_path, calendar_tag, check_box, clear_with_ring, item_marker,
@@ -11,7 +12,7 @@ use super::{
     render_scrollbar,
     tasks::wrap,
 };
-use crate::app::{App, TextSpot};
+use crate::app::{App, DayEntry, TextSpot};
 use crate::tasks::{Heading, Item};
 use crate::theme::Theme;
 use ratatui::{
@@ -238,14 +239,46 @@ fn title_cells(
         .collect()
 }
 
-/// Grouped by calendar (`[day_popup] by_calendar`): an item in a calendar starts 2 cells in, under its
-/// calendar's heading, and has nothing at the right end. Not grouped: no indent, its outermost calendar at
-/// the right end (`tag_span`)
+/// How far in an item's line starts, and what goes at its right end: 2 cells per level it is under another
+/// item (a subtask under its parent). Grouped by calendar (`[day_popup] by_calendar`): 2 more for an item in
+/// a calendar, under its calendar's heading, and nothing at the right end. Not grouped: its outermost
+/// calendar at the right end (`tag_span`)
 fn indent_and_tag(item: &Item, app: &App) -> (usize, Option<Span<'static>>) {
+    let levels = 2 * item.depth;
     if !app.settings.day_popup.by_calendar {
-        return (0, tag_span(item, app));
+        return (levels, tag_span(item, app));
     }
-    (if item.group.is_some() { 2 } else { 0 }, None)
+    (levels + if item.group.is_some() { 2 } else { 0 }, None)
+}
+
+/// A parent not on the day (`DayEntry::on_day` is false), over its subtasks: only its title, gray, starting
+/// where its check box would, e.g. 「   Plan the trip」
+fn parent_line(item: &Item, app: &App) -> Line<'static> {
+    let (indent, _) = indent_and_tag(item, app);
+    Line::from(vec![
+        Span::raw(" ".repeat(1 + indent)),
+        Span::styled(item.title.clone(), Style::new().fg(app.theme.muted)),
+    ])
+}
+
+/// `parent_line` at `width` cells (one blank cell kept at the end): a title that does not fit wraps onto the
+/// next lines, under the title
+fn parent_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
+    let mut spans = parent_line(item, app).spans;
+    // The first span is the indent, the rest the title
+    let title = spans.split_off(1);
+    let prefix_width = Line::from(spans).width();
+    let room = usize::from(width).saturating_sub(prefix_width + 1);
+    wrap(&title, room)
+        .into_iter()
+        .map(|line| {
+            Line::from(
+                std::iter::once(Span::raw(" ".repeat(prefix_width)))
+                    .chain(line)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect()
 }
 
 /// The line over a group of items when grouped by calendar: their outermost calendar, in the calendar
@@ -255,20 +288,24 @@ fn heading_line(name: &str, app: &App) -> Line<'static> {
 }
 
 /// One piece of the popup's lines: one item's (`item` = its index in `App::day_items`; `cells` = where each
-/// line shows which title characters), or a calendar's heading (`item` = `None`, no `cells`)
+/// line shows which title characters), or a heading: a calendar's, or a parent not on the day (`item` =
+/// `None`, no `cells`)
 struct Piece {
     item: Option<usize>,
     lines: Vec<Line<'static>>,
     cells: Vec<Vec<TitleCell>>,
 }
 
-/// The popup's lines at `width` cells, top to bottom: the day's items in `App::day_items` order; grouped by
-/// calendar, a heading before the first item of each outermost calendar (none for items outside any
-/// calendar, which come first)
+/// The popup's lines at `width` cells, top to bottom: the rows in `App::day_entries` order (the parents not on
+/// the day gray, see `parent_lines`); grouped by calendar, a heading before the first row of each outermost
+/// calendar (none for items outside any calendar, which come first)
 fn pieces(app: &App, width: u16) -> Vec<Piece> {
     let mut pieces = Vec::new();
     let mut calendar = None;
-    for (index, item) in app.day_items().into_iter().enumerate() {
+    // The next item's index in `App::day_items` (the parents not on the day are not in it)
+    let mut index = 0;
+    for entry in app.day_entries() {
+        let item = entry.item;
         let outermost = item.group.as_ref().map(Heading::outermost);
         if app.settings.day_popup.by_calendar
             && let Some(name) = outermost
@@ -281,12 +318,21 @@ fn pieces(app: &App, width: u16) -> Vec<Piece> {
             });
         }
         calendar = outermost;
+        if !entry.on_day {
+            pieces.push(Piece {
+                item: None,
+                lines: parent_lines(item, app, width),
+                cells: Vec::new(),
+            });
+            continue;
+        }
         let (lines, cells) = item_lines(item, app, width);
         pieces.push(Piece {
             item: Some(index),
             lines,
             cells,
         });
+        index += 1;
     }
     pieces
 }
@@ -301,13 +347,18 @@ fn heights(pieces: &[Piece]) -> Vec<usize> {
 /// padding, so as many lines as possible show)
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let grouped = app.settings.day_popup.by_calendar;
-    // The widest line: indent, dates, time, title and the calendar at the right end; or a heading
+    // The widest line: indent, dates, time, title and the calendar at the right end; a parent not on the
+    // day; or a calendar's heading
     let widest = app
-        .day_items()
+        .day_entries()
         .iter()
-        .map(|item| {
+        .map(|&DayEntry { item, on_day }| {
             let (indent, tag) = indent_and_tag(item, app);
-            let line = indent + popup_line(item, app).width() + tag.as_ref().map_or(0, Span::width);
+            let line = if on_day {
+                indent + popup_line(item, app).width() + tag.as_ref().map_or(0, Span::width)
+            } else {
+                parent_line(item, app).width()
+            };
             let heading = item
                 .group
                 .as_ref()
@@ -396,15 +447,17 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
         .position(|piece| piece.item == Some(app.day_index))
     {
         let last = starts[chosen] + heights[chosen] - 1;
-        // The heading right above comes into view with the item, when both fit
-        let first = match chosen.checked_sub(1) {
-            Some(above)
-                if pieces[above].item.is_none() && heights[chosen] < usize::from(inner.height) =>
-            {
-                starts[above]
-            }
-            _ => starts[chosen],
-        };
+        // The headings right above (a calendar's, parents not on the day) come into view with the item, as
+        // many as fit with it
+        let mut first = starts[chosen];
+        let mut above = chosen;
+        while let Some(heading) = above.checked_sub(1)
+            && pieces[heading].item.is_none()
+            && last - starts[heading] < usize::from(inner.height)
+        {
+            first = starts[heading];
+            above = heading;
+        }
         let top = scrolled_to_range(to_i64(app.day_top), to_i64(first), to_i64(last), visible, 0);
         // Do not overscroll: the last line just touches the bottom
         let max = to_i64(total) - visible;
@@ -511,8 +564,8 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
 }
 
 /// Which popup item the mouse click at (`column`, `row`) hits (its index in `App::day_items`; any line of a
-/// wrapped item); `None` on a calendar's heading, the border, in the padding, outside the box, or below the
-/// last item
+/// wrapped item); `None` on a heading (a calendar's, a parent not on the day), the border, in the padding,
+/// outside the box, or below the last item
 pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
     let (_, inner) = layout(app, main);
     if !inner.contains(Position::new(column, row)) {
@@ -524,7 +577,7 @@ pub fn item_at(app: &App, main: Rect, column: u16, row: u16) -> Option<usize> {
 
 /// Which title character is at (`column`, `row`), as a `TextSpot`: the one under it; left or right of the
 /// title on that line (e.g. on the check box, past the end), that line's first or last one. `None` on a
-/// calendar's name, a blank row, the border, or outside the box; with `clamp`, a spot outside the lines
+/// heading, a blank row, the border, or outside the box; with `clamp`, a spot outside the lines
 /// counts as the nearest cell inside them (dragging past the box's edge)
 pub fn text_at(app: &App, main: Rect, column: u16, row: u16, clamp: bool) -> Option<TextSpot> {
     let (_, inner) = layout(app, main);
