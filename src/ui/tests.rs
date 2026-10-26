@@ -465,7 +465,7 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
     // Keyboard in the side menu: the key hints are the calendar list's
     assert_eq!(
         text_rows(buffer)[13].trim_end(),
-        " jk 移動 | Space 勾選 | a/A 新增日曆 | e 改名 | d 刪除 | Esc"
+        " jk 移動 | Space 勾選 | Enter 只看這個 | a/A 新增日曆 | e 改"
     );
     // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
     // the end is cut off)
