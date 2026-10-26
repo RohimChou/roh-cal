@@ -470,10 +470,17 @@ impl App {
                 group.shown = old.shown;
             }
         }
+        // The chosen calendar found again by its path (calendars added or removed above it, e.g. in another
+        // editor, move it to another index)
+        let moved_to = self
+            .chosen_group()
+            .and_then(|chosen| groups.iter().position(|group| group.same(chosen)));
         self.groups = groups;
-        // A switch row stays chosen; a calendar past the new last one becomes the last one
+        // A switch row stays chosen; a calendar stays chosen wherever it is now; when it is gone, the one in
+        // its place (the last one when past the end)
         if let SideRow::Calendar(index) = self.side_row {
-            self.side_row = SideRow::Calendar(index.min(self.groups.len().saturating_sub(1)));
+            let index = moved_to.unwrap_or(index.min(self.groups.len().saturating_sub(1)));
+            self.side_row = SideRow::Calendar(index);
         }
         self.items = items;
         self.warnings = warnings;

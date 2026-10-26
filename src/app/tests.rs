@@ -610,6 +610,40 @@ fn reading_the_task_file_again_keeps_a_switch_row_chosen() {
 }
 
 #[test]
+fn reading_the_task_file_again_keeps_the_chosen_calendar_chosen() {
+    let chosen = |app: &App| app.chosen_group().and_then(|group| group.name.clone());
+    // Work chosen: the third (ungrouped, Personal, Work)
+    let mut app = wide_app_with(GROUPS);
+    app.focus = Focus::Side;
+    app.side_row = SideRow::Calendar(2);
+    // Inbox added above it elsewhere: Work is the fourth now, and still chosen
+    let ungrouped = "- a @2026-10-10\n";
+    let inbox = "# Inbox\n- i @2026-10-11\n";
+    let personal = "# Personal\n- b @2026-10-17\n";
+    let work = "# Work\n- c @2026-10-20\n";
+    app.set_items(crate::tasks::parse(&format!(
+        "{ungrouped}{inbox}{personal}{work}"
+    )));
+    assert_eq!(app.side_row, SideRow::Calendar(3));
+    assert_eq!(chosen(&app).as_deref(), Some("Work"));
+    // Personal taken out: the third again
+    app.set_items(crate::tasks::parse(&format!("{ungrouped}{inbox}{work}")));
+    assert_eq!(app.side_row, SideRow::Calendar(2));
+    // Work itself taken out: the one in its place, here the last one (Inbox)
+    app.set_items(crate::tasks::parse(&format!("{ungrouped}{inbox}")));
+    assert_eq!(chosen(&app).as_deref(), Some("Inbox"));
+    // A calendar of the same name inside another one is not the same calendar: Work > Notes chosen,
+    // Notes (top level) added above it; Work > Notes stays chosen
+    app.set_items(crate::tasks::parse("# Work\n## Notes\n- n\n"));
+    app.side_row = SideRow::Calendar(1);
+    app.set_items(crate::tasks::parse("# Notes\n- x\n# Work\n## Notes\n- n\n"));
+    assert_eq!(
+        app.chosen_group().map(crate::app::Group::path),
+        Some(vec!["Work".to_string(), "Notes".to_string()])
+    );
+}
+
+#[test]
 fn hide_all_unchecks_every_calendar_then_checks_them_all_again() {
     let mut app = wide_app_with(GROUPS);
     app.focus = Focus::Side;
