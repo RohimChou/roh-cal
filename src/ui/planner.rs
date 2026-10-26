@@ -579,7 +579,7 @@ pub(super) fn time_and_title(item: &Item, app: &App) -> Vec<Span<'static>> {
         )
     });
     time.into_iter()
-        .chain([title_span(item, item_color(item, app))])
+        .chain([title_span(item, item_color(item, app), app)])
         .collect()
 }
 

@@ -27,6 +27,7 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
     // Change relative_weeks, then close: only that line is written
     press(&mut app, KeyCode::Char(','));
     press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('q'));
     assert_eq!(
@@ -36,7 +37,7 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
     assert_eq!(app.notice, None);
     // Ctrl+C saves before quitting too
     press(&mut app, KeyCode::Char(','));
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -68,9 +69,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
 #[test]
 fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     let mut app = app_with_settings();
-    // Row 10 is text's color: l switches to the palette's next color
+    // Row 11 is text's color: l switches to the palette's next color
     // (subtext0), records it in [colors], and the screen changes right away
-    for _ in 0..9 {
+    for _ in 0..10 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -239,6 +240,7 @@ fn every_switch_has_a_row() {
     // not added here, it won't compile, a reminder to add a row in `rows()`
     let Settings {
         theme: _,
+        cross_out_done: _,
         colors: _,
         calendar: CalendarSettings {
             relative_weeks: _,
@@ -257,7 +259,7 @@ fn every_switch_has_a_row() {
             },
         day_popup: DayPopupSettings { by_calendar: _ },
     } = Settings::default();
-    assert_eq!(rows().len(), 9 + theme::ROLES.len());
+    assert_eq!(rows().len(), 10 + theme::ROLES.len());
 }
 
 #[test]
@@ -360,6 +362,10 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     press(&mut app, KeyCode::Char('h'));
     assert_eq!(app.settings.theme, "terminal");
     assert_eq!(app.theme.text, ratatui::style::Color::Reset);
+    // j to cross_out_done: l turns it off (on by default)
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('l'));
+    assert!(!app.settings.cross_out_done);
     // j to relative_weeks: l turns it on, h turns it off again
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
@@ -374,7 +380,7 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char(' '));
     assert!(!app.settings.month.grid_lines);
-    for _ in 0..4 {
+    for _ in 0..5 {
         press(&mut app, KeyCode::Char('k'));
     }
     assert_eq!(app.settings_page().map(|page| page.row), Some(0));
@@ -393,6 +399,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     let mut app = app_with_settings();
     // theme switched to gruvbox-dark, relative_weeks on, grid_lines off
     press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('j'));
@@ -414,7 +421,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         app.settings_page().map(|page| page.confirm_reset),
         Some(false)
     );
-    assert_eq!(app.settings_page().map(|page| page.row), Some(3));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(4));
     assert!(app.settings.calendar.relative_weeks);
     // R then y: resets everything, and the screen colors go back to the default theme
     press(&mut app, KeyCode::Char('R'));
@@ -440,7 +447,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     assert_eq!(app.settings, Settings::default());
     std::fs::remove_dir_all(&dir).expect("clean up");
     // The theme row can also be reset alone with r
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Char('k'));
     }
     press(&mut app, KeyCode::Char('h'));
@@ -451,8 +458,8 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
 
 #[test]
 fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-    // 100 × 30: the box (28 tall) starts at row 1; grid_lines is list line 5 (theme, [calendar],
-    // relative_weeks, dots, [month], grid_lines): 1 + border 1 + 5 = 7
+    // 100 × 30: the box (30 tall) starts at row 0; grid_lines is list line 6 (theme, cross_out_done,
+    // [calendar], relative_weeks, dots, [month], grid_lines): border 1 + 6 = 7
     let mut app = app_with_settings();
     let click = |app: &mut App, column, row| {
         app.handle_mouse(MouseEvent {
@@ -463,7 +470,7 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
         });
     };
     click(&mut app, 50, 7);
-    assert_eq!(app.settings_page().map(|page| page.row), Some(3));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(4));
     assert!(app.settings.month.grid_lines);
     // Click the chosen row again: change the value
     click(&mut app, 50, 7);
@@ -475,7 +482,7 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
         row: 7,
         modifiers: KeyModifiers::NONE,
     });
-    assert_eq!(app.settings_page().map(|page| page.row), Some(4));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(5));
     // Click outside the box: closes it, and the calendar underneath is not clicked
     click(&mut app, 0, 0);
     assert_eq!(app.settings_page(), None);

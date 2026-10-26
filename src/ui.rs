@@ -146,11 +146,11 @@ fn item_marker(item: &Item) -> &'static str {
 /// and a space
 const IN_PROGRESS_ICON: &str = "🚧 ";
 
-/// An item's title in `color`, the same in every view: crossed out once done; while in progress (`[/]`)
-/// bold, with 🚧 in front
-fn title_span(item: &Item, color: Color) -> Span<'static> {
+/// An item's title in `color`, the same in every view: crossed out once done (unless `cross_out_done` is
+/// off); while in progress (`[/]`) bold, with 🚧 in front
+fn title_span(item: &Item, color: Color, app: &App) -> Span<'static> {
     let style = Style::new().fg(color);
-    if item.done {
+    if item.done && app.settings.cross_out_done {
         Span::styled(
             item.title.clone(),
             style.add_modifier(Modifier::CROSSED_OUT),

@@ -4298,6 +4298,44 @@ fn an_in_progress_title_is_bold_with_an_icon_in_every_view() {
 }
 
 #[test]
+fn with_cross_out_done_off_no_title_is_struck_through_in_any_view() {
+    // `cross_out_done = false`: done Clean is only gray, no cell is struck through; turned back on, its 5
+    // letters are (in the day popup: counting only inside the popup)
+    let text = "- [ ] Shop @2026-10-17\n- [x] Clean @2026-10-17\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.screen = Rect::new(0, 0, 100, 50);
+    // How many cells are struck through with the setting `on` (`popup`: only inside layout 2's day popup)
+    let struck = |app: &mut App, on: bool, popup: bool| {
+        app.settings.cross_out_done = on;
+        let terminal = draw_app(app, 100, 50);
+        let buffer = terminal.backend().buffer();
+        let area = if popup { day_area(app) } else { buffer.area };
+        let rows = area_rows(buffer, area).join("\n");
+        assert!(rows.contains("Clean"), "{rows}");
+        (area.top()..area.bottom())
+            .flat_map(|y| (area.left()..area.right()).map(move |x| (x, y)))
+            .filter(|&at| buffer[at].modifier.contains(Modifier::CROSSED_OUT))
+            .count()
+    };
+    let check = |app: &mut App, view: &str, popup: bool| {
+        assert_eq!(struck(app, false, popup), 0, "{view}");
+        assert_eq!(struck(app, true, popup), 5, "{view}");
+    };
+    check(&mut app, "layout 1", false);
+    app.view = View::Month;
+    check(&mut app, "layout 2", false);
+    app.focus = Focus::Day;
+    check(&mut app, "day popup", true);
+    app.view = View::Tasks;
+    app.focus = Focus::Tasks;
+    check(&mut app, "tasks page", false);
+}
+
+#[test]
 fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popup_shows_it() {
     // In a narrow cell, 「18:30 🚧」 would leave no room for the title
     let text = "- [/] Team happy hour @2026-10-17 18:30\n- [ ] Buy groceries @2026-10-17 17:30\n";

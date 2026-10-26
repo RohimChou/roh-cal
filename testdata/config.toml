@@ -5,6 +5,8 @@
 # Colors: the built-in catppuccin-mocha, gruvbox-dark, tokyo-night, dracula, nord (default), one-dark, rose-pine, terminal
 # (only the terminal's 16 colors)
 theme = "gruvbox-dark"
+# Done tasks' titles are struck through (default true)
+cross_out_done = false
 
 # The calendars (layouts 1 and 2)
 [calendar]

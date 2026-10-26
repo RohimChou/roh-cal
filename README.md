@@ -178,6 +178,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | Name | Default | Meaning |
 | :- | :- | :- |
 | `theme` | `"nord-bright"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
+| `cross_out_done` | `true` | Strike through done tasks' titles; off, only their gray color sets them apart |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4), in the color of its most urgent open item |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |

@@ -468,7 +468,7 @@ fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
             Style::new().fg(time_color),
         ));
     }
-    spans.push(title_span(item, color));
+    spans.push(title_span(item, color, app));
     let background = if lane.is_multiple_of(2) {
         theme.range
     } else {
@@ -614,7 +614,7 @@ fn item_line(item: &Item, app: &App) -> Line<'static> {
             Style::new().fg(time_color),
         ));
     }
-    spans.push(title_span(item, color));
+    spans.push(title_span(item, color, app));
     Line::from(spans)
 }
 

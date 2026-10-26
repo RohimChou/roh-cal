@@ -443,7 +443,7 @@ fn item_lines(
         Some(priority) if open => theme.priority(priority),
         _ => color,
     };
-    let mut title = title_span(item, title_color);
+    let mut title = title_span(item, title_color, app);
     if mistake {
         title = title.patch_style(Style::new().add_modifier(Modifier::UNDERLINED));
     }
