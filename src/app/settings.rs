@@ -56,6 +56,8 @@ pub enum Row {
     GridLines,
     /// `[month] center_cursor`
     CenterCursor,
+    /// `[month] overflow`
+    Overflow,
     /// `[calendar_list] width`: a number or auto, not a switch
     ListWidth,
     /// `[calendar_list] hide_done`
@@ -75,6 +77,7 @@ pub fn rows() -> Vec<Row> {
         Row::Dots,
         Row::GridLines,
         Row::CenterCursor,
+        Row::Overflow,
         Row::ListWidth,
         Row::HideDone,
         Row::ByCalendar,
@@ -90,7 +93,7 @@ impl Row {
         match self {
             Self::Theme => None,
             Self::RelativeWeeks | Self::Dots => Some("calendar"),
-            Self::GridLines | Self::CenterCursor => Some("month"),
+            Self::GridLines | Self::CenterCursor | Self::Overflow => Some("month"),
             Self::ListWidth | Self::HideDone => Some("calendar_list"),
             Self::ByCalendar => Some("day_popup"),
             Self::Color(_) => Some("colors"),
@@ -107,7 +110,7 @@ impl Row {
             Self::RelativeWeeks => Some(CALENDARS),
             // Only layout 1's calendar has dots
             Self::Dots => Some(PLANNER),
-            Self::GridLines | Self::CenterCursor => Some(MONTH),
+            Self::GridLines | Self::CenterCursor | Self::Overflow => Some(MONTH),
             Self::ListWidth => Some(&[Place::CalendarList]),
             Self::ByCalendar => Some(&[Place::DayPopup]),
             // Colors only the calendars draw: the year line, week numbers; the month grid's own: its grid
@@ -139,6 +142,7 @@ impl Row {
             Self::Dots => "dots",
             Self::GridLines => "grid_lines",
             Self::CenterCursor => "center_cursor",
+            Self::Overflow => "overflow",
             Self::ListWidth => "width",
             Self::HideDone => "hide_done",
             Self::ByCalendar => "by_calendar",
@@ -155,6 +159,7 @@ impl Row {
             Self::Dots => Some(&mut settings.calendar.dots),
             Self::GridLines => Some(&mut settings.month.grid_lines),
             Self::CenterCursor => Some(&mut settings.month.center_cursor),
+            Self::Overflow => Some(&mut settings.month.overflow),
             Self::HideDone => Some(&mut settings.calendar_list.hide_done),
             Self::ByCalendar => Some(&mut settings.day_popup.by_calendar),
         }
@@ -181,6 +186,7 @@ impl Row {
             Self::Dots => on_off(settings.calendar.dots),
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::CenterCursor => on_off(settings.month.center_cursor),
+            Self::Overflow => on_off(settings.month.overflow),
             Self::HideDone => on_off(settings.calendar_list.hide_done),
             Self::ByCalendar => on_off(settings.day_popup.by_calendar),
             Self::ListWidth => settings

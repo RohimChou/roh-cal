@@ -108,6 +108,9 @@ pub struct MonthSettings {
     /// Keeps the selected row fixed in the middle of the 6 rows (like vim's `scrolloff=999`);
     /// when off, it scrolls one row at a time, only when the selection moves out of the 6 rows
     pub center_cursor: bool,
+    /// A title too long for its cell runs into the empty cells to its right (see `ui::month::render_week`);
+    /// when off, every title is cut at its own cell
+    pub overflow: bool,
 }
 
 impl Default for MonthSettings {
@@ -115,6 +118,7 @@ impl Default for MonthSettings {
         Self {
             grid_lines: true,
             center_cursor: false,
+            overflow: true,
         }
     }
 }

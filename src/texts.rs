@@ -1071,6 +1071,8 @@ impl Texts {
             (Lang::ZhTw, Row::GridLines) => "大月曆：格子之間畫淡淡的格線",
             (Lang::En, Row::CenterCursor) => "Month grid: centers the selected week",
             (Lang::ZhTw, Row::CenterCursor) => "大月曆：選取的那週固定在正中間",
+            (Lang::En, Row::Overflow) => "Month grid: long titles spill over",
+            (Lang::ZhTw, Row::Overflow) => "大月曆：太長的字延伸到空的格子",
             (Lang::En, Row::ListWidth) => "List width: h -1, l +1, r auto",
             (Lang::ZhTw, Row::ListWidth) => "日曆清單寬度：h 窄、l 寬、r 自動",
             (Lang::En, Row::HideDone) => "Hide done tasks everywhere",

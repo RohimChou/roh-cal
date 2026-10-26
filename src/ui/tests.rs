@@ -3789,6 +3789,22 @@ fn the_selected_day_also_borrows_an_empty_line_next_to_items() {
 }
 
 #[test]
+fn with_overflow_off_every_title_stays_in_its_cell() {
+    // `[month] overflow = false`, 80 × 30, 10/17 selected: 10/20's long title (x 18-27, y 16) is cut at
+    // the grid line (x 28) although the days after it are empty; the selected day's 「 08:00 Coffee chat」
+    // (y 13) is cut too, with no background past its cell
+    let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
+    app.settings.month.overflow = false;
+    let terminal = draw_app(&mut app, 80, 30);
+    let buffer = terminal.backend().buffer();
+    let text: String = (18..40).map(|x| buffer[(x, 16)].symbol()).collect();
+    assert_eq!(text, " A really │          │");
+    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    assert_eq!(text, " 08:00 Co│         ");
+    assert_ne!(buffer[(69, 13)].bg, app.theme.selection);
+}
+
+#[test]
 fn the_cut_off_week_at_the_bottom_stays_inside_the_box() {
     // 80 × 30: the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27). The bar
     // of 11/10-12 would go on the next row, the bottom border (y 28): it is left out, the border stays

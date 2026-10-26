@@ -182,6 +182,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4), in the color of its most urgent open item |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |
+| `[month]` `overflow` | `true` | A title too long for its cell runs into the empty cells to its right; the selected day's also into an empty line next to other items; off: cut at its own cell |
 | `[calendar_list]` `width` | auto | The calendar list's width on the left, in cells (22 to 60); left out, it follows the longest calendar name from 22 up to 38, longer names are cut; `r` on its settings row puts it back to auto |
 | `[calendar_list]` `hide_done` | `false` | Hide done tasks everywhere (not their open subtasks; the tasks page keeps a done task with one under it); `.` switches it too |
 | `[day_popup]` `by_calendar` | `true` | The day popup lists the items under their outermost calendar's name; when off, one list with each item's outermost calendar at its right end; `c` in the popup switches it too |

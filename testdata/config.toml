@@ -20,6 +20,8 @@ dots = false
 grid_lines = false
 # Keep the selected week fixed in the middle (default false)
 center_cursor = true
+# A title too long for its cell runs into the empty cells to its right (default true)
+overflow = false
 
 # The calendar list on the far left
 [calendar_list]

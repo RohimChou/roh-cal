@@ -290,7 +290,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             .zip(&slots)
             .map(|(&day, slots)| cell_lines(day, month, slots, grid.week_height, app))
             .collect();
-        render_week(frame, &cells, &lines, &days, selected, selection);
+        let overflow = app.settings.month.overflow;
+        render_week(frame, &cells, &lines, &days, selected, selection, overflow);
         let shown: Vec<usize> = slots
             .iter()
             .map(|slots| shown_lines(slots.len(), grid.week_height))
@@ -487,7 +488,8 @@ fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
 /// The selected day's text takes its background along into the borrowed cells, up to one cell past the
 /// text (like the blank before it), so it reads as the selected day's; the rest of those cells stays plain.
 /// With that background to tell it apart, the selected day also borrows a neighbor that has nothing on
-/// that line, even with items above it
+/// that line, even with items above it. `overflow` off (`[month] overflow = false`): nothing borrows,
+/// every line is cut at its own cell
 fn render_week(
     frame: &mut Frame,
     cells: &[Rect],
@@ -495,11 +497,12 @@ fn render_week(
     days: &[Date],
     selected: Option<usize>,
     selection: Style,
+    overflow: bool,
 ) {
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
             let mut right = cell.right();
-            if row > 0 {
+            if row > 0 && overflow {
                 // How many lines a neighbor may have and still lend this line: the selected day's only
                 // needs this line free; other days' need the neighbor's whole cell empty (only its date;
                 // more means an item, a bar or 「+N」)

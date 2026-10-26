@@ -120,6 +120,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
             month: MonthSettings {
                 grid_lines: false,
                 center_cursor: true,
+                overflow: false,
             },
             calendar_list: CalendarListSettings {
                 width: Some(30),

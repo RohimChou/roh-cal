@@ -68,9 +68,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
 #[test]
 fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     let mut app = app_with_settings();
-    // Row 9 is text's color: l switches to the palette's next color
+    // Row 10 is text's color: l switches to the palette's next color
     // (subtext0), records it in [colors], and the screen changes right away
-    for _ in 0..8 {
+    for _ in 0..9 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -244,10 +244,12 @@ fn every_switch_has_a_row() {
             relative_weeks: _,
             dots: _,
         },
-        month: MonthSettings {
-            grid_lines: _,
-            center_cursor: _,
-        },
+        month:
+            MonthSettings {
+                grid_lines: _,
+                center_cursor: _,
+                overflow: _,
+            },
         calendar_list:
             CalendarListSettings {
                 width: _,
@@ -255,7 +257,7 @@ fn every_switch_has_a_row() {
             },
         day_popup: DayPopupSettings { by_calendar: _ },
     } = Settings::default();
-    assert_eq!(rows().len(), 8 + theme::ROLES.len());
+    assert_eq!(rows().len(), 9 + theme::ROLES.len());
 }
 
 #[test]
