@@ -2245,9 +2245,11 @@ fn month_view_lists_each_days_items_in_its_cell() {
     // 80 × 30, 3 rows per week: 2 items listed under the date; on the same day, items
     // without a time first (like layout 1); 10/16 has 4 items that do not fit: 1 is listed
     // and the last line says 「+3」; items on other months' days (9/25, 11/1) are listed
-    // too. A title that is too long borrows the next cells to the right (only where that
-    // line is empty, covering the grid line between) and is cut where it can't: 10/13
-    // borrows 10/14 and stops before 10/15; 10/12's neighbor has items, so it can't borrow
+    // too. A title that is too long borrows the next cells to the right (only a day with
+    // nothing at all, covering the grid line between) and is cut where it can't: 10/13
+    // borrows 10/14 and stops before 10/15; 10/12's neighbor has items, so it can't borrow;
+    // 10/17's 2nd line stays in its cell although 10/18's 2nd line is empty: under 10/18's
+    // own item it would read as 10/18's
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
@@ -2265,7 +2267,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
             "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 🚧 Team │ Dinner w│ 07:00 Go│",
-            "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
+            "│     │          │          │          │         │ +3      │ 08:00 Co│         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
             "│     │          │ A really long title that spills over    │         │         │",
@@ -2651,7 +2653,8 @@ fn relative_week_numbers_in_both_layouts() {
 fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
     // Business trip to NYC 10/20-25: one bar on its days' first line, across the grid lines, the title
     // written once; a one-day item on one of those days goes on the next line (10/22: Buy gifts for
-    // the team); Manager OOO 10/28-11/3: its bar breaks where November starts (between 10/31 and 11/1)
+    // the team, cut off: the days after it have the bar); Manager OOO 10/28-11/3: its bar breaks where
+    // November starts (between 10/31 and 11/1)
     // and at the end of the week, and each part writes the title again
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), RANGE_TASKS);
     let terminal = draw_app(&mut app, 80, 30);
@@ -2675,7 +2678,7 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
             "│     │          │ Business trip to NYC                                        │",
-            "│     │          │          │          │ Buy gifts for the team      │         │",
+            "│     │          │          │          │ Buy gift│         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 11月  │",
             "│ 11月│          │          │ Manager OOO                            │ Manager │",

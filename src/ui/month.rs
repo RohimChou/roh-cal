@@ -473,8 +473,9 @@ fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
 /// (0 = Monday) of the selected day's cell, if it is in this row
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
-/// (like a spreadsheet): if the neighbor has nothing on that line, its width is borrowed (drawing over
-/// the grid line between), and so on until a cell with something on that line, the selected day's cell
+/// (like a spreadsheet): if the neighbor's whole cell is empty (nothing that day, only its date), its
+/// width is borrowed (drawing over the grid line between), and so on until a day with something (even on
+/// another line: text under that day's own items would read as one of them), the selected day's cell
 /// (its background stays clean), a new month, or Sunday; anything longer is cut off
 fn render_week(
     frame: &mut Frame,
@@ -490,7 +491,8 @@ fn render_week(
                 for (next_column, (next, next_lines)) in
                     cells.iter().zip(lines).enumerate().skip(column + 1)
                 {
-                    if next_lines.len() > row
+                    // More than the date line: that day has an item, a bar or 「+N」
+                    if next_lines.len() > 1
                         || selected == Some(next_column)
                         || days[next_column].first_of_month() != days[column].first_of_month()
                     {

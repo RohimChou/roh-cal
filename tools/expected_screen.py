@@ -584,13 +584,13 @@ def month_screen(lang, w, h, selected, top, items, groups):
                     cell.append(f" +{len([s for s in slots[k][shown:] if s])}")
             week_cells.append(cell)
             shown_by_day.append(shown)
-        # Except on the first line, text may run right into the next cell as long as that cell's line
-        # is empty (all the way to a cell with something in it, the selected day's cell, a new month, or
-        # Sunday)
+        # Except on the first line, text may run right into the next cell as long as that whole cell is
+        # empty: nothing that day, only its date (all the way to a day with something, even on another
+        # line, the selected day's cell, a new month, or Sunday)
         for k, cell in enumerate(week_cells):
             for r, text in enumerate(cell):
                 end = k
-                while (r > 0 and end + 1 < 7 and len(week_cells[end + 1]) <= r
+                while (r > 0 and end + 1 < 7 and len(week_cells[end + 1]) == 1
                        and days[end + 1] != selected and days[end + 1].month == days[k].month):
                     end += 1
                 c.put(xs[k + 1], week_y(i) + r, text, xs[end + 1] + widths[end + 1] - xs[k + 1])
