@@ -773,6 +773,36 @@ fn archived_calendars_come_last_and_start_unchecked() {
 }
 
 #[test]
+fn brackets_in_the_archive_part_go_by_its_left_column() {
+    // The list: 0 Work, 1 Work > Ops, 2 Personal, then the archive part: 3 Work > Q3, 4 Old, 5 Old > Notes.
+    // Q3 is inside a running calendar, so in the archive part it starts at the left like Old
+    let mut app = wide_app_with(
+        "# Work\n- a\n## Q3 archived:2026-10-01\n- b\n## Ops\n- c\n# Old archived:2026-09-30\n- d\n## Notes\n- e\n# Personal\n- f\n",
+    );
+    let levels: Vec<usize> = app
+        .groups
+        .iter()
+        .map(|group| app.side_level(group))
+        .collect();
+    assert_eq!(levels, [0, 1, 0, 0, 0, 1]);
+    app.focus = Focus::Side;
+    // ] from Personal: Q3, then Old, and it stays on Old (the last one at the left)
+    app.side_row = SideRow::Calendar(2);
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(3));
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(4));
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(4));
+    // [ from Notes (inside Old): Q3, the one before Old; then Personal
+    app.side_row = SideRow::Calendar(5);
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::Calendar(3));
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::Calendar(2));
+}
+
+#[test]
 fn reading_again_keeps_the_checks_but_a_calendar_archived_since_starts_unchecked() {
     let mut app = app_with("");
     app.set_items(crate::tasks::parse(

@@ -28,7 +28,7 @@ RELATIVE = week-number column in layouts 1 and 2: the selected week shows its we
 how many weeks away they are (`[calendar] relative_weeks = true`);
 NO_DOTS = layout 1's calendar draws no dots right of the dates (`[calendar] dots = false`);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
-are not shown; COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
+are not shown (not given = the archived calendars, unchecked at start); COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
 `Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page
 Today is always 2026-10-17.
 """
@@ -44,7 +44,7 @@ TEXTS = {
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
                mistake=lambda n, kind, token: f" Line {n}: {token}: " + {"date": "no such day", "time": "no such time", "range": "ends before it starts"}[kind],
                hints=" 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
-               side=" Calendars", hide_all="Hide all", hide_done="Hide done", ungrouped="Ungrouped", hw=" Wk ",
+               side=" Calendars", hide_all="Hide all", hide_done="Hide done", archived="Archived", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
@@ -52,7 +52,7 @@ TEXTS = {
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
                hints=" 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
-               side=" 日曆", hide_all="隱藏全部", hide_done="隱藏做完的", ungrouped="未分組", hw=" 週 ",
+               side=" 日曆", hide_all="隱藏全部", hide_done="隱藏做完的", archived="已封存", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
                date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）"),
@@ -65,6 +65,8 @@ CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 NO_DOTS = "NO_DOTS" in os.environ
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
+ARCHIVED = set()  # paths of the archived calendars (set after reading the task file)
+RUNNING_MAX = 30  # the most rows the running calendars take when archived calendars are listed below them
 SIDE_MIN, SIDE_MAX = 22, 38  # side menu min / max width (borders included) when [calendar_list] width is
                              # left out (auto); width follows the longest calendar
 
@@ -138,9 +140,31 @@ def week_number(d, selected=None):
     return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
+def archived_word(word):
+    """Whether a heading word archives its calendar: `archived:` and a day that exists"""
+    m = re.fullmatch(r"archived:(\d{4})-(\d{2})-(\d{2})", word)
+    if not m:
+        return False
+    try:
+        datetime.date(*map(int, m.groups()))
+    except ValueError:
+        return False
+    return True
+
+
+def archived_calendars(text):
+    """Paths of the archived calendars: one of their headings has `archived:<date>`, or they are inside such a
+    calendar"""
+    paths, heading_lines = calendar_paths(text)
+    lines = text.splitlines()
+    tagged = {paths[n] for n in heading_lines if any(archived_word(w) for w in lines[n - 1].split())}
+    return {p for p in paths.values() if p and any(p[:len(tag)] == tag for tag in tagged)}
+
+
 def calendar_paths(text):
     """Which calendar each line is in: a tuple of names, outermost first (a heading is inside the nearest
-    heading above it with fewer #), or None before the first heading; `type:holiday` is not part of a name,
+    heading above it with fewer #), or None before the first heading; `type:holiday` and `archived:<date>` are
+    not part of a name,
     and a heading inside a code block does not count.
     Returns ({line number from 1: path}, the set of the heading lines' numbers)"""
     by_line, heading_lines, outline, current, in_code = {}, set(), [], None, False
@@ -152,7 +176,7 @@ def calendar_paths(text):
             heading = re.match(r"(#{1,6}) (.*)", raw)
             if heading:
                 level = len(heading.group(1))
-                name = " ".join(w for w in heading.group(2).split() if w != "type:holiday")
+                name = " ".join(w for w in heading.group(2).split() if w != "type:holiday" and not archived_word(w))
                 outline = [(lv, nm) for lv, nm in outline if lv < level] + [(level, name)]
                 current = tuple(nm for _, nm in outline)
                 heading_lines.add(n)
@@ -250,7 +274,10 @@ def read_groups(text):
         if path is None:
             return [first.index(None)]
         return [first.index(path[:k]) for k in range(1, len(path) + 1) if path[:k] in groups]
-    return sorted(groups.items(), key=lambda group: key(group[0]))
+    tree = sorted(groups.items(), key=lambda group: key(group[0]))
+    # The archived calendars after all the others, each part in tree order
+    archived = archived_calendars(text)
+    return [g for g in tree if g[0] not in archived] + [g for g in tree if g[0] in archived]
 
 
 def group_label(t, path):
@@ -258,6 +285,9 @@ def group_label(t, path):
     heading"""
     if path is None:
         return "", t["ungrouped"]
+    if path in ARCHIVED:
+        # In the archive part: only the archived calendars it is inside count
+        return "  " * sum(path[:k] in ARCHIVED for k in range(1, len(path))), path[-1]
     return "  " * (len(path) - 1), path[-1]
 
 
@@ -279,11 +309,24 @@ def side_lines(t, h, groups):
     if h - 3 - 2 >= 4:
         hide_all = " " + (BOX_ON if groups and len(HIDDEN) == len(groups) else BOX_OFF)
         rows += [ljust(hide_all + t["hide_all"], iw), ljust(" " + BOX_OFF + t["hide_done"], iw), "─" * iw]
-    for i, (path, count) in enumerate(groups):
+    def calendar_row(i):
+        path, count = groups[i]
         count = f" {count} "
         indent, name = group_label(t, path)
         left = indent + " " + (BOX_OFF if i in HIDDEN else BOX_ON) + name
-        rows.append(ljust(cut(left, iw - len(count)), iw - len(count)) + count)
+        return ljust(cut(left, iw - len(count)), iw - len(count)) + count
+
+    running = sum(path not in ARCHIVED for path, _ in groups)
+    room = h - 3 - len(rows)  # rows left in the box for the calendars
+    if running < len(groups) and room >= 3:
+        # The running calendars (at most RUNNING_MAX, and leaving room for the archive part's rule and a row),
+        # then the rule 「─ 已封存 ───」 and the archived calendars (no scrolling here)
+        rows += [calendar_row(i) for i in range(min(running, RUNNING_MAX, room - 2))]
+        label = f" {t['archived']} "
+        rows.append("─" + label + "─" * (iw - 1 - width(label)))
+        rows += [calendar_row(i) for i in range(running, len(groups))]
+    else:
+        rows += [calendar_row(i) for i in range(len(groups))]
     rows = (rows + [" " * iw] * h)[: h - 3]
     return ["╭" + "─" * iw + "╮"] + ["│" + row + "│" for row in rows] + ["╰" + "─" * iw + "╯"]
 
@@ -959,6 +1002,9 @@ lang, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 selected = datetime.date.fromisoformat(sys.argv[4])
 text = sys.stdin.read()
 groups = read_groups(text)
+ARCHIVED = archived_calendars(text)
+if "HIDDEN" not in os.environ:
+    HIDDEN = {i for i, (path, _) in enumerate(groups) if path in ARCHIVED}
 if os.environ.get("LAYOUT") == "3":
     out = tasks_screen(lang, w, h, text, groups)
 elif os.environ.get("LAYOUT") == "2":

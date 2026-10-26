@@ -315,6 +315,9 @@ fn click_positions_follow_the_scroll() {
 /// reads this same file for the expected screens)
 const AGENDA_TASKS: &str = include_str!("../../testdata/agenda.md");
 
+/// Calendars with archived ones among them (`archived:<date>` in their headings)
+const ARCHIVED_TASKS: &str = include_str!("../../testdata/archived.md");
+
 /// An app with today 2026/10/17, today selected, and `AGENDA_TASKS` as the task file
 fn agenda_app(lang: Lang) -> App {
     App::new(
@@ -619,6 +622,162 @@ fn unchecked_calendars_hide_their_items() {
     assert_eq!(cell(52, 4), ("5", theme.text));
     assert_eq!(cell(72, 4), ("0", theme.weekend));
     assert_eq!(cell(68, 5), ("6", theme.text));
+}
+
+#[test]
+fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
+    // testdata/archived.md: Work > Payments API v2, Tokyo trip (with Packing list inside it) and 2025 holidays
+    // are archived: under the rule 「─ 已封存 ─」 and unchecked, so their items (10/2 Release v2.3) are not
+    // listed; Payments API v2 sits inside a running calendar, so it starts at the left of the archive part
+    let mut app = App::new(
+        Lang::ZhTw,
+        date(2026, 10, 17),
+        crate::tasks::parse(ARCHIVED_TASKS).items,
+    );
+    app.screen = Rect::new(0, 0, 128, 20);
+    let terminal = draw_app(&mut app, 128, 20);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
+            "│ 日曆                ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                                   2026/10/17（六） │",
+            "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│ ☐\u{a0}隱藏全部          ││  10月 40 │              1   2   3   4  ││ 10/14 Index the old orders                                  │",
+            "│ ☐\u{a0}隱藏做完的        ││       41 │  5   6   7   8   9  10  11  ││ 10/14 10:30 Dentist appointment                             │",
+            "│─────────────────────││       42 │ 12  13  14⠒ 15  16 [17] 18  ││ 10/20 Ship the v2.4 release                                 │",
+            "│ ☑\u{a0}Work            1 ││       43 │ 19  20⠂ 21⠂ 22  23  24  25  ││ 10/21 10:00 Design review                                   │",
+            "│   ☑\u{a0}Search revamp 2 ││       44 │ 26  27  28  29  30  31      ││                                                             │",
+            "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│─ 已封存 ────────────││  11月 44 │                          1  ││                                                             │",
+            "│ ☐\u{a0}Payments API v2 2 ││       45 │  2   3   4   5   6   7   8  ││                                                             │",
+            "│ ☐\u{a0}Tokyo trip      1 ││       46 │  9  10  11  12  13  14  15  ││                                                             │",
+            "│   ☐\u{a0}Packing list  0 ││       47 │ 16  17  18  19  20  21  22  ││                                                             │",
+            "│ ☐\u{a0}2025 holidays   1 ││       48 │ 23  24  25  26  27  28  29  ││                                                             │",
+            "│                     ││       49 │ 30                          ││                                                             │",
+            "│                     ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│                     ││  12月 49 │      1   2   3   4   5   6  ││                                                             │",
+            "│                     ││       50 │  7   8   9  10  11  12  13  ││                                                             │",
+            "╰─────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────────────────────────╯",
+            " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
+        ]
+    );
+    // The rule is a line with the name in the title color
+    let theme = Theme::default();
+    let buffer = terminal.backend().buffer();
+    let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
+    assert_eq!(cell(1, 9), ("─", theme.line));
+    assert_eq!(cell(3, 9), ("已", theme.label));
+    assert_eq!(cell(20, 9), ("─", theme.line));
+    // Clicks: the rule hits nothing, the rows under it the archived calendars (3 = the first archived one in
+    // `App::groups`), the blank rows below them nothing
+    assert_eq!(click_at(&app, 5, 8), Some(Click::Group(2)));
+    assert_eq!(click_at(&app, 5, 9), None);
+    assert_eq!(click_at(&app, 5, 10), Some(Click::Group(3)));
+    assert_eq!(click_at(&app, 5, 13), Some(Click::Group(6)));
+    assert_eq!(click_at(&app, 5, 14), None);
+    // Payments API v2 checked: its item is back
+    app.lang = Lang::En;
+    app.groups[3].shown = true;
+    let terminal = draw_app(&mut app, 128, 20);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
+            "│ Calendars           ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                                     Sat Oct 17, 2026 │",
+            "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│ ☐\u{a0}Hide all          ││   Oct 40 │              1   2⠂  3   4  ││  10/2 Release v2.3                                          │",
+            "│ ☐\u{a0}Hide done         ││       41 │  5   6   7   8   9  10  11  ││ 10/14 Index the old orders                                  │",
+            "│─────────────────────││       42 │ 12  13  14⠒ 15  16 [17] 18  ││ 10/14 10:30 Dentist appointment                             │",
+            "│ ☑\u{a0}Work            1 ││       43 │ 19  20⠂ 21⠂ 22  23  24  25  ││ 10/20 Ship the v2.4 release                                 │",
+            "│   ☑\u{a0}Search revamp 2 ││       44 │ 26  27  28  29  30  31      ││ 10/21 10:00 Design review                                   │",
+            "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│─ Archived ──────────││   Nov 44 │                          1  ││                                                             │",
+            "│ ☑\u{a0}Payments API v2 2 ││       45 │  2   3   4   5   6   7   8  ││                                                             │",
+            "│ ☐\u{a0}Tokyo trip      1 ││       46 │  9  10  11  12  13  14  15  ││                                                             │",
+            "│   ☐\u{a0}Packing list  0 ││       47 │ 16  17  18  19  20  21  22  ││                                                             │",
+            "│ ☐\u{a0}2025 holidays   1 ││       48 │ 23  24  25  26  27  28  29  ││                                                             │",
+            "│                     ││       49 │ 30                          ││                                                             │",
+            "│                     ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│                     ││   Dec 49 │      1   2   3   4   5   6  ││                                                             │",
+            "│                     ││       50 │  7   8   9  10  11  12  13  ││                                                             │",
+            "╰─────────────────────╯╰────────────────────────────────────────╯╰─────────────────────────────────────────────────────────────╯",
+            " 123 view  hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
+        ]
+    );
+}
+
+#[test]
+fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+    // 121 × 45: under the switches the calendars get 37 rows (y 6-42). 33 running calendars r01-r33 and 10
+    // archived ones a01-a10 (1 item each): the running ones take 30 rows (y 6-35) and scroll, the rule is
+    // on y 36, the archived ones get the 6 rows left (y 37-42) and scroll on their own
+    let running: String = (1..=33)
+        .map(|n| format!("# r{n:02}\n- a @2026-10-01\n"))
+        .collect();
+    let archived: String = (1..=10)
+        .map(|n| format!("# a{n:02} archived:2026-10-01\n- a @2026-10-01\n"))
+        .collect();
+    let mut app = App::new(
+        Lang::ZhTw,
+        date(2026, 10, 17),
+        crate::tasks::parse(&format!("{running}{archived}")).items,
+    );
+    app.screen = Rect::new(0, 0, 121, 45);
+    app.focus = Focus::Side;
+    // The names on rows `y` to `y + height - 1` (split 「│ ☑ r01 … 1」 on whitespace: the 3rd part), and
+    // the rows among them with the scrollbar's thumb on the right border
+    let names = |app: &mut App, y: u16, height: u16| {
+        let terminal = draw_app(app, 121, 45);
+        let buffer = terminal.backend().buffer();
+        let names: Vec<String> = area_rows(buffer, Rect::new(0, y, 21, height))
+            .iter()
+            .map(|row| row.split_whitespace().nth(2).unwrap_or("").to_string())
+            .collect();
+        let thumb: Vec<u16> = (y..y + height)
+            .filter(|&row| buffer[(21, row)].symbol() == "┃")
+            .collect();
+        (names, thumb)
+    };
+    let numbered = |prefix: &str, numbers: std::ops::RangeInclusive<u32>| -> Vec<String> {
+        numbers.map(|n| format!("{prefix}{n:02}")).collect()
+    };
+    // At start: r01-r30 with the thumb at the top, the rule, a01-a06 with their own thumb at the top
+    let (rows, thumb) = names(&mut app, 6, 30);
+    assert_eq!(rows, numbered("r", 1..=30));
+    assert_eq!(thumb.first(), Some(&6));
+    let terminal = draw_app(&mut app, 121, 45);
+    let rule = &area_rows(terminal.backend().buffer(), Rect::new(0, 36, 22, 1))[0];
+    assert!(rule.starts_with("│─ 已封存 ──"), "{rule}");
+    let (rows, thumb) = names(&mut app, 37, 6);
+    assert_eq!(rows, numbered("a", 1..=6));
+    assert_eq!(thumb.first(), Some(&37));
+    // G to the last archived one: only the archive part scrolls (a05-a10, its thumb at the bottom)
+    app.handle_key(KeyEvent::from(KeyCode::Char('G')));
+    let (rows, thumb) = names(&mut app, 37, 6);
+    assert_eq!(rows, numbered("a", 5..=10));
+    assert_eq!(thumb.last(), Some(&42));
+    assert_eq!(names(&mut app, 6, 30).0, numbered("r", 1..=30));
+    // A click on the archive part's first row hits a05 (33 running ones come before it in `App::groups`)
+    assert_eq!(click_at(&app, 5, 37), Some(Click::Group(33 + 4)));
+    // The last running one (r33): the running part scrolls (r04-r33), the archive part stays
+    app.side_row = SideRow::Calendar(32);
+    assert_eq!(names(&mut app, 6, 30).0, numbered("r", 4..=33));
+    assert_eq!(names(&mut app, 37, 6).0, numbered("a", 5..=10));
+    // j from there goes on into the archive part: a01, which scrolls it back up
+    app.handle_key(KeyEvent::from(KeyCode::Char('j')));
+    assert_eq!(app.side_row, SideRow::Calendar(33));
+    assert_eq!(names(&mut app, 37, 6).0, numbered("a", 1..=6));
+    // Without archived calendars there is no rule and no 30-row cap: all 33 fit in the 37 rows
+    let mut app = App::new(
+        Lang::ZhTw,
+        date(2026, 10, 17),
+        crate::tasks::parse(&running).items,
+    );
+    let (rows, thumb) = names(&mut app, 6, 37);
+    assert_eq!(rows[..33], numbered("r", 1..=33));
+    assert!(rows[33..].iter().all(String::is_empty));
+    assert!(thumb.is_empty());
 }
 
 #[test]

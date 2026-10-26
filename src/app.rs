@@ -333,6 +333,9 @@ pub struct App {
     /// Side menu scroll: which calendar is at the top (index in `groups`); it scrolls only when the calendars
     /// do not fit
     pub side_top: usize,
+    /// The side menu's archive part scrolls on its own: which archived calendar is at its top (0 = the first
+    /// archived one)
+    pub side_archive_top: usize,
     /// Which pane had the keyboard before `s` called up the side menu when narrow (it goes back there on hide)
     side_back: Focus,
     /// The last key was `g` in the side menu or on the tasks page: one more `g` right after it jumps to the
@@ -431,6 +434,7 @@ impl App {
             side_hidden: false,
             side_row: SideRow::Calendar(0),
             side_top: 0,
+            side_archive_top: 0,
             side_back: Focus::Calendar,
             pending_g: false,
             items,
@@ -1048,6 +1052,22 @@ impl App {
         }
     }
 
+    /// How many levels a calendar is indented in its part of the side menu: a running one by how many
+    /// calendars it is inside; an archived one only by the archived calendars it is inside, so one archived
+    /// inside a running calendar (`CAIS > 2603_…`) starts at the left of the archive part
+    pub fn side_level(&self, group: &Group) -> usize {
+        if !group.archived {
+            return group.parents.len();
+        }
+        (1..=group.parents.len())
+            .filter(|&depth| {
+                self.groups
+                    .iter()
+                    .any(|other| other.archived && other.path() == group.parents[..depth])
+            })
+            .count()
+    }
+
     /// The calendar chosen in the side menu; `None` on a switch row
     fn chosen_group(&self) -> Option<&Group> {
         match self.side_row {
@@ -1440,6 +1460,7 @@ impl App {
     /// `[` / `]` in the side menu: chooses the previous (`step` = -1) / next (1) top-level calendar,
     /// skipping the calendars inside them, like `[` `]` on the tasks page go to the previous / next
     /// calendar; from a calendar inside one, `[` goes to the top-level calendar before the one it is in.
+    /// In the archive part, top level = at the left of that part (`side_level`).
     /// With no top-level calendar before, `[` goes up to the 「隱藏全部」 switch (the first row, like `gg`);
     /// on a switch row, `]` goes to the first calendar; `]` stays put on the last one
     fn jump_top_calendar(&mut self, step: isize) {
@@ -1448,7 +1469,7 @@ impl App {
             .groups
             .iter()
             .enumerate()
-            .filter(|(_, group)| group.parents.is_empty())
+            .filter(|(_, group)| self.side_level(group) == 0)
             .map(|(index, _)| index)
             .collect();
         // The top-level calendar the chosen row is in: the last one at or above it (none on a switch row)

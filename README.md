@@ -146,11 +146,13 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 **In the calendar list**
 
+Archived calendars (`archived:<date>` in the heading) are listed last, under an 「Archived」 rule, and scroll on their own; the calendars above that rule take at most 30 rows.
+
 | Key | Action |
 | :- | :- |
 | `j` `k` / `↓` `↑` | Choose the next / previous calendar |
 | `gg` / `G` | Choose the 「Hide all」 switch at the top of the list / the last calendar |
-| `[` / `]` | Choose the previous / next top-level calendar, skipping the calendars inside them; `[` past the first one goes up to 「Hide all」 (here they do not change the month) |
+| `[` / `]` | Choose the previous / next top-level calendar (in the archive part: one at its left), skipping the calendars inside them; `[` past the first one goes up to 「Hide all」 (here they do not change the month) |
 | `Space` / `Enter` | Check / uncheck the chosen calendar together with the calendars inside it; an unchecked calendar's items are hidden. Each calendar follows only its own check, so one checked inside an unchecked one still shows |
 | `k` past the first calendar | The two switches at the top of the list; `Space`, `Enter` or a click switches them. 「Hide all」 unchecks every calendar (it is on while they all are unchecked; switching it off checks them all again); 「Hide done」 hides done tasks everywhere (not their open subtasks; the tasks page keeps a done task with one under it), saved to the config file right away |
 | `a` | Add a calendar: type its name in the one-line editor (`type:holiday` in it makes a holiday calendar); it is written as a `# name` heading at the end of the task file. A name another top-level calendar already has cannot be saved. To put it inside another calendar, type `#` and part of that calendar's name and pick it from the list (as for items; 「Top level」 is first) |

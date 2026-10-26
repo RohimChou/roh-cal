@@ -32,6 +32,7 @@ PLAN = {
     "the_agenda_follows_the_calendar": [(["zh", "77", "11", "2026-10-20"], True, {"WINDOW": "3"})],
     "a_hint_tells_how_many_more_items_a_month_has": [(["zh", "77", "11", "2026-10-17"], True, {"WINDOW": "2"})],
     "side_menu_lists_the_calendars_when_wide": [(["zh", "128", "14", "2026-10-17"], True, {"WINDOW": "1"}), (["zh", "128", "14", "2026-10-17"], True, {"SIDE_HIDDEN": "1", "WINDOW": "1"})],
+    "archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu": [(["zh", "128", "20", "2026-10-17"], "archived.md", {}), (["en", "128", "20", "2026-10-17"], "archived.md", {"HIDDEN": "4,5,6"})],
     "unchecked_calendars_hide_their_items": [(["en", "128", "14", "2026-10-17"], True, {"HIDDEN": "1"})],
     "multi_day_items_are_listed_once_per_month": [(["zh", "77", "30", "2026-10-17"], "ranges.md", {}), (["zh", "77", "30", "2026-11-02", "2026-10", "5"], "ranges.md", {"CHOSEN": "4"})],
     "the_agenda_header_keeps_the_whole_date_when_narrow": [(["zh", "63", "10", "2026-10-17"], False, {}), (["zh", "64", "10", "2026-10-17"], False, {})],

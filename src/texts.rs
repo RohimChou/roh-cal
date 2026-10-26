@@ -70,6 +70,8 @@ pub struct Texts {
     pub hide_all: &'static str,
     /// The second switch above the calendars in the side menu: hide done tasks (`[calendar_list] hide_done`)
     pub hide_done: &'static str,
+    /// The rule above the archived calendars at the bottom of the side menu
+    pub archived: &'static str,
     /// The switch on the day popup's bottom border: list the items under their calendar
     /// (`[day_popup] by_calendar`)
     pub by_calendar: &'static str,
@@ -203,6 +205,7 @@ const EN: Texts = Texts {
     header_side: " Calendars",
     hide_all: "Hide all",
     hide_done: "Hide done",
+    archived: "Archived",
     by_calendar: "By calendar",
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  s calendars  ? help  , settings  q quit",
@@ -459,6 +462,7 @@ const ZH_TW: Texts = Texts {
     header_side: " 日曆",
     hide_all: "隱藏全部",
     hide_done: "隱藏做完的",
+    archived: "已封存",
     by_calendar: "照日曆分組",
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  s 日曆  ? 說明  , 設定  q 離開",
