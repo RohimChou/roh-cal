@@ -13,7 +13,7 @@ use super::{
     tasks::wrap,
 };
 use crate::app::{App, DayEntry, TextSpot};
-use crate::tasks::{Heading, Item};
+use crate::tasks::Item;
 use crate::theme::Theme;
 use ratatui::{
     Frame,
@@ -239,16 +239,26 @@ fn title_cells(
         .collect()
 }
 
+/// The calendars an item is in, outermost first, e.g. 「CAIS」, 「2603_中信_CAIS_CAMS報表轉送CAIS系統」; none
+/// outside any calendar
+fn calendar_names(item: &Item) -> Vec<&str> {
+    item.group
+        .iter()
+        .flat_map(|group| group.parents.iter().chain([&group.name]))
+        .map(String::as_str)
+        .collect()
+}
+
 /// How far in an item's line starts, and what goes at its right end: 2 cells per level it is under another
-/// item (a subtask under its parent). Grouped by calendar (`[day_popup] by_calendar`): 2 more for an item in
-/// a calendar, under its calendar's heading, and nothing at the right end. Not grouped: its outermost
+/// item (a subtask under its parent). Grouped by calendar (`[day_popup] by_calendar`): 2 more for each
+/// calendar it is in, under the last one's heading, and nothing at the right end. Not grouped: its outermost
 /// calendar at the right end (`tag_span`)
 fn indent_and_tag(item: &Item, app: &App) -> (usize, Option<Span<'static>>) {
     let levels = 2 * item.depth;
     if !app.settings.day_popup.by_calendar {
         return (levels, tag_span(item, app));
     }
-    (levels + if item.group.is_some() { 2 } else { 0 }, None)
+    (levels + 2 * calendar_names(item).len(), None)
 }
 
 /// A parent not on the day (`DayEntry::on_day` is false), over its subtasks: only its title, gray, starting
@@ -281,10 +291,13 @@ fn parent_lines(item: &Item, app: &App, width: u16) -> Vec<Line<'static>> {
         .collect()
 }
 
-/// The line over a group of items when grouped by calendar: their outermost calendar, in the calendar
-/// headings' color (as on the tasks page), e.g. 「 CAIS」
-fn heading_line(name: &str, app: &App) -> Line<'static> {
-    Line::styled(format!(" {name}"), Style::new().fg(app.theme.label))
+/// A calendar's heading when grouped by calendar: its name, 2 cells further in for each calendar it is
+/// inside (`depth`), in the calendar headings' color (as on the tasks page), e.g. 「 CAIS」, 「   Reports」
+fn heading_line(name: &str, depth: usize, app: &App) -> Line<'static> {
+    Line::styled(
+        format!(" {}{name}", "  ".repeat(depth)),
+        Style::new().fg(app.theme.label),
+    )
 }
 
 /// One piece of the popup's lines: one item's (`item` = its index in `App::day_items`; `cells` = where each
@@ -297,27 +310,33 @@ struct Piece {
 }
 
 /// The popup's lines at `width` cells, top to bottom: the rows in `App::day_entries` order (the parents not on
-/// the day gray, see `parent_lines`); grouped by calendar, a heading before the first row of each outermost
-/// calendar (none for items outside any calendar, which come first)
+/// the day gray, see `parent_lines`); grouped by calendar, the calendars as a tree like on the tasks page: a
+/// heading before the first row of each calendar, and before that the headings of the calendars it is inside
+/// that are not on screen yet (none for items outside any calendar, which come first)
 fn pieces(app: &App, width: u16) -> Vec<Piece> {
     let mut pieces = Vec::new();
-    let mut calendar = None;
+    // The calendars of the last row, outermost first: their headings are already on screen
+    let mut listed: Vec<&str> = Vec::new();
     // The next item's index in `App::day_items` (the parents not on the day are not in it)
     let mut index = 0;
     for entry in app.day_entries() {
         let item = entry.item;
-        let outermost = item.group.as_ref().map(Heading::outermost);
-        if app.settings.day_popup.by_calendar
-            && let Some(name) = outermost
-            && outermost != calendar
-        {
-            pieces.push(Piece {
-                item: None,
-                lines: vec![heading_line(name, app)],
-                cells: Vec::new(),
-            });
+        if app.settings.day_popup.by_calendar {
+            let names = calendar_names(item);
+            let same = names
+                .iter()
+                .zip(&listed)
+                .take_while(|(name, other)| name == other)
+                .count();
+            for (depth, name) in names.iter().enumerate().skip(same) {
+                pieces.push(Piece {
+                    item: None,
+                    lines: vec![heading_line(name, depth, app)],
+                    cells: Vec::new(),
+                });
+            }
+            listed = names;
         }
-        calendar = outermost;
         if !entry.on_day {
             pieces.push(Piece {
                 item: None,
@@ -348,7 +367,7 @@ fn heights(pieces: &[Piece]) -> Vec<usize> {
 fn layout(app: &App, main: Rect) -> (Rect, Rect) {
     let grouped = app.settings.day_popup.by_calendar;
     // The widest line: indent, dates, time, title and the calendar at the right end; a parent not on the
-    // day; or a calendar's heading
+    // day; or the heading of a calendar it is in
     let widest = app
         .day_entries()
         .iter()
@@ -359,11 +378,13 @@ fn layout(app: &App, main: Rect) -> (Rect, Rect) {
             } else {
                 parent_line(item, app).width()
             };
-            let heading = item
-                .group
-                .as_ref()
+            let heading = calendar_names(item)
+                .iter()
+                .enumerate()
                 .filter(|_| grouped)
-                .map_or(0, |group| heading_line(group.outermost(), app).width());
+                .map(|(depth, name)| heading_line(name, depth, app).width())
+                .max()
+                .unwrap_or(0);
             line.max(heading)
         })
         .max()

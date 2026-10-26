@@ -4400,12 +4400,14 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
 }
 
 #[test]
-fn the_day_popup_lists_items_under_their_outermost_calendar() {
-    // By time the calendars take turns (Day off, CAIS 08:00, Life 09:00, CAIS 17:00, no calendar 20:00);
-    // grouped (the default): the item outside any calendar first, then each outermost calendar in the
-    // calendar list's order, its name on its own line and its items 2 cells in, by time inside it.
-    // Widest line: 「   ☐ 08:00 Send the report」 26 + border 2 + a blank cell 1 + padding 2 = 31; the top
-    // border needs more: the date 18 + 「 4 open / 0 done 」 17 + one line cell + 2 corners = 38
+fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
+    // By time the calendars take turns (Day off, CAIS > Reports 08:00, Life 09:00, CAIS 17:00, no calendar
+    // 20:00); grouped (the default): the item outside any calendar first, then the calendars in the
+    // calendar list's order as a tree like the tasks page (CAIS's own items, then Reports inside it), each
+    // name on its own line, 2 cells further in per level, and its items 2 cells further in than it, by
+    // time inside it. Widest line: 「     ☐ 08:00 Send the report」 28 + border 2 + a blank cell 1 +
+    // padding 2 = 33; the top border needs more: the date 18 + 「 4 open / 0 done 」 17 + one line cell +
+    // 2 corners = 38. Expected rows from a separate Python count of the indents
     let text = "- [ ] Loose end @2026-10-17 20:00\n# CAIS\n- [ ] Ship the fix @2026-10-17 17:00\n\
                 ## Reports\n- [ ] Send the report @2026-10-17 08:00\n\
                 # Life\n- [ ] Pay the fine !!! @2026-10-17 09:00\n# Holidays type:holiday\n- Day off @2026-10-17\n";
@@ -4421,8 +4423,8 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
         titles,
         [
             "Loose end",
-            "Send the report",
             "Ship the fix",
+            "Send the report",
             "Pay the fine",
             "Day off"
         ]
@@ -4437,8 +4439,9 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
             "│                                    │",
             "│  ☐\u{a0}20:00 Loose end                 │",
             "│  CAIS                              │",
-            "│    ☐\u{a0}08:00 Send the report         │",
             "│    ☐\u{a0}17:00 Ship the fix            │",
+            "│    Reports                         │",
+            "│      ☐\u{a0}08:00 Send the report       │",
             "│  Life                              │",
             "│    ☐\u{a0}09:00 Pay the fine            │",
             "│  Holidays                          │",
@@ -4447,17 +4450,35 @@ fn the_day_popup_lists_items_under_their_outermost_calendar() {
             "╰───────────────────── ☑\u{a0}By calendar ╯",
         ]
     );
-    // A calendar's name is in the color of the tasks page's calendar headings
+    // A calendar's name is in the color of the tasks page's calendar headings, at every level
+    let theme = Theme::default();
     assert_eq!(buffer[(area.x + 3, area.y + 3)].symbol(), "C");
-    assert_eq!(buffer[(area.x + 3, area.y + 3)].fg, Theme::default().label);
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].fg, theme.label);
+    assert_eq!(buffer[(area.x + 5, area.y + 5)].symbol(), "R");
+    assert_eq!(buffer[(area.x + 5, area.y + 5)].fg, theme.label);
     // Clicking a calendar's name chooses nothing; the line under it is its first item
     assert_eq!(day_item_at(&app, area.x + 5, area.y + 3), None);
     assert_eq!(day_item_at(&app, area.x + 5, area.y + 4), Some(1));
+    assert_eq!(day_item_at(&app, area.x + 7, area.y + 5), None);
+    assert_eq!(day_item_at(&app, area.x + 7, area.y + 6), Some(2));
     // The bottom border still has the chosen item's whole path
-    app.day_index = 1;
+    app.day_index = 2;
     let terminal = draw_app(&mut app, 80, 24);
     let rows = area_rows(terminal.backend().buffer(), area);
-    assert!(rows[11].starts_with("╰ CAIS > Reports ─"), "{rows:#?}");
+    assert!(rows[12].starts_with("╰ CAIS > Reports ─"), "{rows:#?}");
+    // Only Reports has an item that day: CAIS still gets its heading above it
+    let text = "# CAIS\n## Reports\n- [ ] Send the report @2026-10-17 08:00\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    app.screen = Rect::new(0, 0, 80, 24);
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 80, 24);
+    let rows = area_rows(terminal.backend().buffer(), day_area(&app));
+    assert!(rows[2].starts_with("│  CAIS "), "{rows:#?}");
+    assert!(rows[3].starts_with("│    Reports "), "{rows:#?}");
+    assert!(
+        rows[4].starts_with("│      ☐\u{a0}08:00 Send the report "),
+        "{rows:#?}"
+    );
 }
 
 #[test]
@@ -4589,7 +4610,9 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
         day_switch_area(&app),
         Rect::new(area.right() - 16, y, 15, 1)
     );
-    // A path too long for the room left of the switch is cut, one line cell before the switch
+    // A path too long for the room left of the switch is cut, one line cell before the switch. The box
+    // grows for the calendar's heading 「   2603_Monthly_report_handover_to_CAIS」 (39 + border 2 + a blank
+    // cell 1 + padding 2 = 44), so 44 - 2 corners - the switch 15 - one line cell = 26 cells are left
     let text =
         "# CAIS\n## 2603_Monthly_report_handover_to_CAIS\n- [ ] Send the report @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
@@ -4597,7 +4620,7 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
     app.focus = Focus::Day;
     assert_eq!(
         bottom(&mut app).0,
-        "╰ CAIS > 2603_Monthly─ ☑\u{a0}By calendar ╯"
+        "╰ CAIS > 2603_Monthly_repor─ ☑\u{a0}By calendar ╯"
     );
 }
 

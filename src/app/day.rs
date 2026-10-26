@@ -51,8 +51,9 @@ impl App {
     /// 「Plan the trip」 (no date) → 「Book flights」 (10/26) → 「Compare prices」 (10/26).
     /// Items under the same parent (or at the outermost level) keep `items_on`'s order, a whole family taking
     /// the place of its first item there (a parent with an in-progress subtask comes first with it). With
-    /// `[day_popup] by_calendar` the families are grouped by their outermost calendar, the calendars in the
-    /// calendar list's order and items outside any calendar first; inside a group the order stays
+    /// `[day_popup] by_calendar` the families are grouped by their calendar, the calendars in the calendar
+    /// list's order (each right before the calendars inside it, as on the tasks page) and items outside any
+    /// calendar first; inside a group the order stays
     pub fn day_entries(&self) -> Vec<DayEntry<'_>> {
         // Each item on the day with the parents above it, outermost first
         let mut chains: Vec<Vec<&Item>> = self
@@ -80,12 +81,7 @@ impl App {
                 chain
                     .last()
                     .and_then(|item| item.group.as_ref())
-                    .map(|group| {
-                        self.groups.iter().position(|calendar| {
-                            calendar.parents.is_empty()
-                                && calendar.name.as_deref() == Some(group.outermost())
-                        })
-                    })
+                    .map(|heading| self.groups.iter().position(|group| group.is(heading)))
             });
         }
         // Each item once: a parent comes right before its first subtask (or on its own, when on the day)
