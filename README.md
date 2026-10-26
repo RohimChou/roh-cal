@@ -98,7 +98,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 | Key | Action |
 | :- | :- |
-| `1` / `2` / `3` | Switch to the calendar + agenda / the month grid / the tasks page. The bottom row starts with `123`, the shown layout's key lit up; clicking a key there switches too |
+| `1` / `2` / `3` | Switch to the calendar + agenda / the month grid / the tasks page; the month grid opens with the selected week on the 2nd row. The bottom row starts with `123`, the shown layout's key lit up; clicking a key there switches too |
 | `Tab` / `Shift+Tab` | Switch to the next / previous pane: the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 2's day popup is open |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups) when the terminal is at least 120 columns wide; narrower, `s` calls it up over the left of the screen with the keyboard in it, and `s`, `Esc`, `q` or clicking outside put it away, back to the pane you were in |
 | `.` | Hide / show done tasks everywhere (not their open subtasks; the tasks page keeps a done task with one under it), like the calendar list's `Hide done` switch; saved to the config file right away |

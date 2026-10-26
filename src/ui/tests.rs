@@ -3460,6 +3460,19 @@ fn t_in_the_month_view_draws_todays_week_on_row_2() {
 }
 
 #[test]
+fn switching_to_the_month_view_draws_the_selected_week_on_row_2() {
+    // 80 × 30, from layout 1 with Thu 12/24 selected: its week (12/21, week 52) on row 2 (y 7), the week
+    // before (12/14, week 51) on top (y 3), not the week of 12/1
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.selected = date(2026, 12, 24);
+    app.handle_key(KeyEvent::from(KeyCode::Char('2')));
+    let rows = text_rows(draw_app(&mut app, 80, 30).backend().buffer());
+    assert!(rows[3].starts_with("│  51 │ 14 "), "{}", rows[3]);
+    assert!(rows[7].starts_with("│  52 │ 21 "), "{}", rows[7]);
+}
+
+#[test]
 fn a_long_title_does_not_borrow_into_the_next_month() {
     // 10/31 (Sat) has a long title and 11/1 (Sun) next to it is empty: the title stops at the grid
     // line between them (x 69) instead of running into November. 80 × 30: the week of 10/26 is at y 19

@@ -1290,11 +1290,12 @@ impl App {
         }
     }
 
-    /// Switches layout: the selected day's month scrolls to the top; layout 2 has no agenda, so a keyboard
-    /// there goes back to the calendar
+    /// Switches layout: layout 1's calendar scrolls the selected day's month to the top, layout 2 puts the
+    /// selected week on row 2; layout 2 has no agenda, so a keyboard there goes back to the calendar
     fn set_view(&mut self, view: View) {
         self.view = view;
         self.scroll_to_month();
+        self.selected_week_on_row_2();
         // The side menu stays; other panes go to this layout's main pane (layout 2 has no agenda, the tasks
         // page has no calendar)
         if self.focus != Focus::Side {
@@ -1305,13 +1306,18 @@ impl App {
         }
     }
 
-    /// `t`: selects today and scrolls: layout 1's calendar puts today's month on top; layout 2 puts today's
-    /// week on row 2, so the week just past still shows above it (with `[month] center_cursor` on, row 3
-    /// as usual)
+    /// `t`: selects today and scrolls like switching layouts (`set_view`): layout 1's calendar puts today's
+    /// month on top, layout 2 today's week on row 2
     fn go_today(&mut self) {
         self.selected = self.today;
         self.scroll_to_month();
-        self.month_top = Some(calendar::monday_of(self.today).saturating_sub(1.week()));
+        self.selected_week_on_row_2();
+    }
+
+    /// Layout 2: the selected week goes on row 2, the week before on top, so the days just past still show
+    /// (with `[month] center_cursor` on, `ui::month::render` puts it on row 3 as usual)
+    fn selected_week_on_row_2(&mut self) {
+        self.month_top = Some(calendar::monday_of(self.selected).saturating_sub(1.week()));
     }
 
     /// Layout 2's wheel: the 6 weeks move a week down (`step` = 1) / up (-1) and the selected day stays, even

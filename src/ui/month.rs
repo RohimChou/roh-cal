@@ -160,8 +160,9 @@ fn scrolled(top: Date, selected: Date, center: bool) -> Date {
     }
 }
 
-/// The top week right after opening, after `t` / `[` / `]`, or when switching to layout 2: the week with
-/// the 1st of `date`'s month (a month takes at most 6 weeks, so all of it shows)
+/// The top week after `[` / `]` (`app.month_top` cleared): the week with the 1st of `date`'s month (a
+/// month takes at most 6 weeks, so all of it shows). Switching to layout 2 and `t` set their own instead
+/// (`App::selected_week_on_row_2`)
 fn month_top(date: Date) -> Date {
     calendar::monday_of(date.first_of_month())
 }

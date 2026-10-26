@@ -1128,13 +1128,17 @@ fn only_a_double_click_goes_into_the_day_in_layout_1() {
 
 #[test]
 fn number_keys_switch_layouts() {
-    // 2 switches to the month grid, 1 switches back; switching scrolls the selected month to the top
+    // 2 switches to the month grid, 1 switches back; switching scrolls layout 1's calendar to the selected
+    // month and puts the selected week (Sat 10/17: from Mon 10/12) on layout 2's row 2 (10/5 on top)
     let mut app = app_with(ITEMS);
     app.calendar_top = Some(5);
     app.month_top = Some(date(2026, 1, 5));
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(app.view, View::Month);
-    assert_eq!((app.calendar_top, app.month_top), (None, None));
+    assert_eq!(
+        (app.calendar_top, app.month_top),
+        (None, Some(date(2026, 10, 5)))
+    );
     press(&mut app, KeyCode::Char('1'));
     assert_eq!(app.view, View::Planner);
     // Switching to the month grid (no agenda) with the keyboard in the agenda: back to the calendar;
