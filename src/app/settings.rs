@@ -113,7 +113,7 @@ impl Row {
             // Colors only the calendars draw: the year line, week numbers; the month grid's own: its grid
             // lines and multi-day bars
             Self::Color("year_line" | "week_number" | "week_number_dim") => Some(CALENDARS),
-            Self::Color("grid" | "range") => Some(MONTH),
+            Self::Color("grid" | "range" | "range_alt") => Some(MONTH),
             // Only layout 1's calendar has brackets around the selected day (the month grid gives it a
             // background) and underlines overlapping multi-day items
             Self::Color("selected" | "range_overlap") => Some(PLANNER),

@@ -27,6 +27,8 @@ grid = "dark-gray"
 other_month = "reset"
 # Multi-day bars in the month grid: dark-gray is taken by the selected row
 range = "blue"
+# Every other line of stacked multi-day bars: cyan, the 16 colors' other blue
+range_alt = "cyan"
 # Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
 range_overlap = "light-red"
 # Priorities (!!! / !! / !): the 16 colors have no orange, so the middle one is bright red

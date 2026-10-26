@@ -67,9 +67,9 @@ fn colors_override_roles_and_must_be_real_roles_and_colors() {
 fn choices_are_the_palette_in_file_order_or_the_16_colors() {
     assert!(choices("no-such-theme").is_empty());
     let mocha = choices("catppuccin-mocha");
-    assert_eq!(mocha.len(), 16);
+    assert_eq!(mocha.len(), 17);
     assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
-    assert_eq!(mocha[15].0, "mid_blue");
+    assert_eq!(mocha[16].0, "mid_blue");
     let terminal = choices("terminal");
     assert_eq!(terminal.len(), 16);
     assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
@@ -107,10 +107,18 @@ fn every_builtin_theme_reads() {
         }
         // A multi-day bar must not look like the selected cell's background
         assert_ne!(theme.range, theme.selection, "{}", names()[index]);
+        // Bars stacked on lines next to each other take turns between two different backgrounds
+        assert_ne!(theme.range_alt, theme.range, "{}", names()[index]);
+        assert_ne!(theme.range_alt, theme.selection, "{}", names()[index]);
     }
     assert_eq!(
         Theme::catppuccin_mocha().range,
         Color::Rgb(0x38, 0x51, 0x67)
+    );
+    // Every other line of bars: sapphire and the background mixed 4:6
+    assert_eq!(
+        Theme::catppuccin_mocha().range_alt,
+        Color::Rgb(0x40, 0x62, 0x7a)
     );
     // The selection background: mauve and the background mixed 3:7
     assert_eq!(

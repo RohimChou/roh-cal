@@ -2933,6 +2933,39 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
     );
 }
 
+#[test]
+fn stacked_bars_take_turns_between_two_backgrounds() {
+    // Three overlapping trips in the week of 10/19, one line each: the 1st and 3rd lines in `range`, the
+    // 2nd in `range_alt`, so bars on lines next to each other read as two. In English, so a text's
+    // position in the row is its x
+    let text = "- Trip A @2026-10-20..2026-10-23\n- Trip B @2026-10-21..2026-10-24\n\
+                - Trip C @2026-10-22..2026-10-25\n";
+    let mut app = month_app(Lang::En, date(2026, 10, 17), text);
+    let terminal = draw_app(&mut app, 100, 40);
+    let buffer = terminal.backend().buffer();
+    let rows = text_rows(buffer);
+    // Where `text` starts on screen (x, y)
+    let at = |text: &str| {
+        rows.iter()
+            .enumerate()
+            .find_map(|(y, row)| row.find(text).map(|x| (x, y)))
+            .expect(text)
+    };
+    let background =
+        |x: usize, y: usize| buffer[(u16::try_from(x).unwrap(), u16::try_from(y).unwrap())].bg;
+    let theme = Theme::default();
+    let (a, b, c) = (at("Trip A"), at("Trip B"), at("Trip C"));
+    // On lines right below each other
+    assert_eq!((b.1, c.1), (a.1 + 1, a.1 + 2));
+    assert_eq!(background(a.0, a.1), theme.range);
+    assert_eq!(background(b.0, b.1), theme.range_alt);
+    assert_eq!(background(c.0, c.1), theme.range);
+    // The whole of B's band: from its title to Saturday, past the end of its text
+    for x in b.0..b.0 + 30 {
+        assert_eq!(background(x, b.1), theme.range_alt, "x {x}");
+    }
+}
+
 /// An app on the tasks page with today 2026/10/17 and the
 /// sample task file (mistakes recorded too, as in `main`)
 fn tasks_app(lang: Lang) -> App {

@@ -231,10 +231,10 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
         [
             "╭ roh-cal ∙ 設定 ─────────────────────────╮",
             "│  [colors]                               │",
-            "│    error                red             │",
             "│    grid                 surface0        │",
             "│    other_month          faint           │",
             "│    range                dim_sapphire    │",
+            "│    range_alt            mid_sapphire    │",
             "│    range_overlap        peach           │",
             "│    priority_high        red             │",
             "│    priority_medium      peach           │",
@@ -251,12 +251,12 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
     assert_eq!(cell(&buffer, area, 42, 14).symbol(), "┃");
     assert_eq!(cell(&buffer, area, 42, 1).symbol(), "│");
     // Clicking the bottom list row: still help_key; the top one is `[colors]` (not a row), the one
-    // below it error, the first color shown: mapped using both scroll positions
+    // below it grid, the first color shown: mapped using both scroll positions
     assert_eq!(row_at(&app, app.screen, 20, 11), Some(last));
     assert_eq!(row_at(&app, app.screen, 20, 1), None);
     assert_eq!(
         row_at(&app, app.screen, 20, 2),
-        Some(index_of(Row::Color("error")))
+        Some(index_of(Row::Color("grid")))
     );
 }
 

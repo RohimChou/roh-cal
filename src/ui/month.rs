@@ -403,7 +403,8 @@ fn shown_lines(slots: usize, rows: u16) -> usize {
     }
 }
 
-/// Draws the row's bars over its cells: each bar is one band on its line in the `range` background, from
+/// Draws the row's bars over its cells: each bar is one band on its line in the `range` background (`range_alt`
+/// on every other line, so stacked bars stay apart), from
 /// its first day in the row to its last (over the grid lines between), with the title written once at the
 /// start; a day whose cell cannot show that line (it shows `+N` there instead) cuts the band, and so does
 /// a new month (the title is written again after it). A band outside the selected month has gray text
@@ -444,18 +445,19 @@ fn render_bars(
             let time = bar.starts && first == bar.first;
             // Clear first: the grid lines under the band would otherwise still show through
             frame.render_widget(Clear, area);
-            frame.render_widget(bar_line(bar.item, time, app), area);
+            frame.render_widget(bar_line(bar.item, time, bar.lane, app), area);
             column += 1;
         }
     }
 }
 
 /// A multi-day item's band: 「 09:00 New Year trip」 on the `range` background (the whole band, set on the
-/// `Line`); `time` = write the time (only where the item starts). The title is colored like layout 1's
+/// `Line`; `range_alt` on the 2nd, 4th… line under the date, `lane` 1, 3…, so bars stacked on lines next
+/// to each other read as two); `time` = write the time (only where the item starts). The title is colored like layout 1's
 /// agenda (`open_item_color`: a priority's or a holiday's color for the whole band's text, otherwise the
 /// normal color with the time muted), gray once the item is over (struck through when a done task); other
 /// months look the same (the grid lines between months already set them apart)
-fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
+fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
     let theme = &app.theme;
     let (color, time_color) = item_colors(item, app);
     let mut spans = vec![Span::raw(" ")];
@@ -466,7 +468,12 @@ fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
         ));
     }
     spans.push(title_span(item, color));
-    Line::from(spans).style(Style::new().bg(theme.range))
+    let background = if lane.is_multiple_of(2) {
+        theme.range
+    } else {
+        theme.range_alt
+    };
+    Line::from(spans).style(Style::new().bg(background))
 }
 
 /// Draws the 7 cells of one week (`days`, Monday to Sunday), line by line; `selected` = the column

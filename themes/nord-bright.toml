@@ -29,6 +29,9 @@ nord14 = "#a2d386"
 nord15 = "#c69bbe"
 # Multi-day bars: nord8 and the background mixed 3:7. A tinted band, dark enough for text on it
 nord8_dim = "#4d6371"
+# Every other line of stacked multi-day bars: nord8 and the background mixed 4:6. A step lighter than
+# nord8_dim, so two bars on lines next to each other read as two
+nord8_mid = "#577381"
 # The line where the year changes: nord8 and the background mixed 55:45. Still the cyan of the month names,
 # but faint, so it marks the year without standing out
 nord8_faint = "#668a9a"
@@ -60,6 +63,8 @@ grid = "nord1"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "nord8_dim"
+# Every other line of stacked bars (the 2nd, 4th…): a step lighter, so bars next to each other read as two
+range_alt = "nord8_mid"
 # Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
 range_overlap = "nord12"
 # Priorities (!!! / !! / !): red, orange, yellow

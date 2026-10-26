@@ -61,8 +61,12 @@ pub struct Theme {
     /// The settings and help sections that do nothing where the keyboard is (a step darker than `muted`). The
     /// name is from when the month grid grayed out the days outside the selected month (it no longer does)
     pub other_month: Color,
-    /// Background of a multi-day item's bar in the month grid (layout 2)
+    /// Background of a multi-day item's bar in the month grid (layout 2), on the 1st, 3rd… line under the
+    /// date
     pub range: Color,
+    /// Background of the bars on the 2nd, 4th… line: a step off `range`, so bars stacked on lines next to
+    /// each other read as separate bars
+    pub range_alt: Color,
     /// The underline under the days where two or more multi-day items overlap, in layout 1's calendar (one
     /// underline cannot be drawn twice, so it changes color instead)
     pub range_overlap: Color,
@@ -104,7 +108,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 25] = [
+pub const ROLES: [&str; 26] = [
     "text",
     "muted",
     "line",
@@ -124,6 +128,7 @@ pub const ROLES: [&str; 25] = [
     "grid",
     "other_month",
     "range",
+    "range_alt",
     "range_overlap",
     "priority_high",
     "priority_medium",
@@ -302,6 +307,7 @@ impl Theme {
             "grid" => self.grid,
             "other_month" => self.other_month,
             "range" => self.range,
+            "range_alt" => self.range_alt,
             "range_overlap" => self.range_overlap,
             "priority_high" => self.priority_high,
             "priority_medium" => self.priority_medium,

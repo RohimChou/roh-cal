@@ -51,6 +51,8 @@ grid = "dark1"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_blue"
+# Every other line of stacked bars (the 2nd, 4th…): a step lighter, so bars next to each other read as two
+range_alt = "mid_blue"
 # Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
 range_overlap = "orange"
 # Priorities (!!! / !! / !): red, orange, yellow

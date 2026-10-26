@@ -49,6 +49,8 @@ grid = "overlay"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_foam"
+# Every other line of stacked bars (the 2nd, 4th…): a step lighter, so bars next to each other read as two
+range_alt = "mid_foam"
 # Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
 range_overlap = "rose"
 # Priorities (!!! / !! / !): love (red), rose, gold

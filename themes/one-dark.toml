@@ -25,6 +25,9 @@ purple = "#c678dd"
 cyan = "#56b6c2"
 # Multi-day bars: cyan and the background mixed 3:7. A tinted band, dark enough for text on it
 dim_cyan = "#36555f"
+# Every other line of stacked multi-day bars: cyan and the background mixed 4:6. A step lighter than
+# dim_cyan, so two bars on lines next to each other read as two
+mid_cyan = "#3a636d"
 # Selection background: purple and the background mixed 3:7. A light purple that stands out
 # from the background (also a translucent one), dark enough for text on it
 dim_purple = "#574367"
@@ -54,6 +57,8 @@ grid = "special_grey"
 other_month = "faint"
 # Multi-day bars in the month grid: a tinted band
 range = "dim_cyan"
+# Every other line of stacked bars (the 2nd, 4th…): a step lighter, so bars next to each other read as two
+range_alt = "mid_cyan"
 # Layout 1's calendar: the underline where two or more multi-day items overlap (the !! color)
 range_overlap = "dark_yellow"
 # Priorities (!!! / !! / !): red, orange, yellow
