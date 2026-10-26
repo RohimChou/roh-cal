@@ -1202,14 +1202,26 @@ fn the_mouse_works_in_the_month_view() {
 }
 
 #[test]
-fn t_and_brackets_put_the_month_on_top_in_the_month_view_too() {
-    for code in [KeyCode::Char('t'), KeyCode::Char('['), KeyCode::Char(']')] {
+fn brackets_put_the_month_on_top_in_the_month_view_too() {
+    for code in [KeyCode::Char('['), KeyCode::Char(']')] {
         let mut app = app_with(ITEMS);
         app.view = View::Month;
         app.month_top = Some(date(2026, 1, 5));
         press(&mut app, code);
         assert_eq!(app.month_top, None, "{code:?}");
     }
+}
+
+#[test]
+fn t_puts_todays_week_on_row_2_in_the_month_view() {
+    // Today is Sat 10/17: its week starts Mon 10/12, so the week before (10/5) goes on top
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.view = View::Month;
+    app.selected = date(2027, 3, 1);
+    app.month_top = Some(date(2027, 2, 22));
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(app.selected, date(2026, 10, 17));
+    assert_eq!(app.month_top, Some(date(2026, 10, 5)));
 }
 
 #[test]

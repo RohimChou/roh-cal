@@ -851,7 +851,7 @@ impl App {
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
             KeyCode::BackTab => self.previous_focus(),
-            // Back to today and scroll its month to the top (the tasks page has no calendar, so ignored)
+            // Back to today, scrolled like `go_today` says (the tasks page has no calendar, so ignored)
             KeyCode::Char('t') if self.view != View::Tasks => {
                 self.go_today();
                 self.focus = Focus::Calendar;
@@ -1305,10 +1305,13 @@ impl App {
         }
     }
 
-    /// `t`: selects today and scrolls today's month to the top
+    /// `t`: selects today and scrolls: layout 1's calendar puts today's month on top; layout 2 puts today's
+    /// week on row 2, so the week just past still shows above it (with `[month] center_cursor` on, row 3
+    /// as usual)
     fn go_today(&mut self) {
         self.selected = self.today;
         self.scroll_to_month();
+        self.month_top = Some(calendar::monday_of(self.today).saturating_sub(1.week()));
     }
 
     /// Layout 2's wheel: the 6 weeks move a week down (`step` = 1) / up (-1) and the selected day stays, even
