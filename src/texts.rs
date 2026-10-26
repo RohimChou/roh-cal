@@ -288,6 +288,7 @@ const EN: Texts = Texts {
                 keys: &[
                     ("j / k", "choose"),
                     ("gg / G", "first / last"),
+                    ("[ / ]", "previous / next top level"),
                     ("Space", "show / hide"),
                     ("a / A", "add / add inside"),
                     ("e", "rename"),
@@ -416,6 +417,7 @@ const EN: Texts = Texts {
                 keys: &[
                     ("j / k", "choose"),
                     ("gg / G", "first / last one"),
+                    ("[ / ]", "previous / next top level"),
                     ("Space / Enter", "check / uncheck"),
                     ("a / A", "add / add inside"),
                     ("e", "rename it"),
@@ -542,6 +544,7 @@ const ZH_TW: Texts = Texts {
                 keys: &[
                     ("j / k", "選"),
                     ("gg / G", "第一個 / 最後一個"),
+                    ("[ / ]", "上 / 下一個最外層"),
                     ("Space", "勾選"),
                     ("a / A", "新增 / 新增子日曆"),
                     ("e", "改名"),
@@ -670,6 +673,7 @@ const ZH_TW: Texts = Texts {
                 keys: &[
                     ("j / k", "選日曆"),
                     ("gg / G", "第一個 / 最後一個"),
+                    ("[ / ]", "上 / 下一個最外層"),
                     ("Space / Enter", "勾選 / 取消"),
                     ("a / A", "新增 / 新增子日曆"),
                     ("e", "改名"),

@@ -865,9 +865,14 @@ impl App {
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('2') => self.set_view(View::Month),
             KeyCode::Char('3') => self.set_view(View::Tasks),
-            // 1st of the previous / next month, scrolled to the top (ignored on the tasks page: no calendar)
-            KeyCode::Char('[') if self.view != View::Tasks => self.jump_month(-1),
-            KeyCode::Char(']') if self.view != View::Tasks => self.jump_month(1),
+            // 1st of the previous / next month, scrolled to the top (ignored on the tasks page: no calendar;
+            // in the side menu they choose a top-level calendar instead)
+            KeyCode::Char('[') if self.view != View::Tasks && self.focus != Focus::Side => {
+                self.jump_month(-1)
+            }
+            KeyCode::Char(']') if self.view != View::Tasks && self.focus != Focus::Side => {
+                self.jump_month(1)
+            }
             // Terminal wide enough: hide / show the side menu; when hiding it while it has the keyboard,
             // go back to the main pane
             KeyCode::Char('s') if ui::side_fits(self.screen) => {
@@ -941,7 +946,8 @@ impl App {
     }
 
     /// Keyboard in the side menu: up / down choose a row, `gg` / `G` the first / last row (like vim; the
-    /// first row is the 「隱藏全部」 switch, the last one the last calendar),
+    /// first row is the 「隱藏全部」 switch, the last one the last calendar), `[` / `]` the previous / next
+    /// top-level calendar,
     /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar
     /// (`A` inside the chosen one),
     /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
@@ -960,6 +966,8 @@ impl App {
                     None => SideRow::HideDone,
                 };
             }
+            KeyCode::Char('[') => self.jump_top_calendar(-1),
+            KeyCode::Char(']') => self.jump_top_calendar(1),
             KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('A') => self.start_adding_subcalendar(),
@@ -1386,6 +1394,35 @@ impl App {
             1 => SideRow::HideDone,
             row => SideRow::Calendar(row - 2),
         };
+    }
+
+    /// `[` / `]` in the side menu: chooses the previous (`step` = -1) / next (1) top-level calendar,
+    /// skipping the calendars inside them, like `[` `]` on the tasks page go to the previous / next
+    /// calendar; from a calendar inside one, `[` goes to the top-level calendar before the one it is in.
+    /// On a switch row above the calendars, `]` goes to the first calendar; stays put when there is no
+    /// calendar that way
+    fn jump_top_calendar(&mut self, step: isize) {
+        // Index in `groups` of each top-level calendar, in screen order
+        let tops: Vec<usize> = self
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, group)| group.parents.is_empty())
+            .map(|(index, _)| index)
+            .collect();
+        // The top-level calendar the chosen row is in: the last one at or above it (none on a switch row)
+        let current = match self.chosen_side_row() {
+            SideRow::Calendar(chosen) => tops.iter().rposition(|&index| index <= chosen),
+            SideRow::HideAll | SideRow::HideDone => None,
+        };
+        let target = match current {
+            Some(current) => current.checked_add_signed(step),
+            None if step > 0 => Some(0),
+            None => None,
+        };
+        if let Some(&index) = target.and_then(|target| tops.get(target)) {
+            self.side_row = SideRow::Calendar(index);
+        }
     }
 
     /// Moves the keyboard to the agenda: chooses the first item on or after the selected day (a multi-day item

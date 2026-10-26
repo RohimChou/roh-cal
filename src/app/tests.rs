@@ -709,6 +709,48 @@ fn checking_a_calendar_checks_the_calendars_inside_it_too() {
 }
 
 #[test]
+fn brackets_in_the_side_menu_jump_to_the_previous_or_next_top_level_calendar() {
+    // The list: 0 Personal, 1 Work, 2 Work > SFAP, 3 Work > SFAP > Bugs, 4 Travel
+    let mut app = wide_app_with(
+        "# Personal\n- a @2026-10-10\n# Work\n- b @2026-10-11\n## SFAP\n- c @2026-10-12\n### Bugs\n- d @2026-10-13\n# Travel\n- e @2026-10-14\n",
+    );
+    app.focus = Focus::Side;
+    // ] from Personal: Work, then Travel (skipping the two calendars inside Work); no calendar after
+    // Travel: stays
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(1));
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(4));
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(4));
+    // [ back to Work, then Personal; stays at the first calendar (not up to the switches)
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::Calendar(1));
+    press(&mut app, KeyCode::Char('['));
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::Calendar(0));
+    // From Bugs (inside Work): ] = Travel, [ = the one before Work (Personal), like on the tasks page
+    app.side_row = SideRow::Calendar(3);
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(4));
+    app.side_row = SideRow::Calendar(3);
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::Calendar(0));
+    // On a switch row: ] = the first calendar, [ stays
+    app.side_row = SideRow::HideAll;
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::HideAll);
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(0));
+    // In the side menu they are not months: the selected day did not move
+    assert_eq!(app.selected, date(2026, 10, 17));
+    // Same on the tasks page
+    app.view = View::Tasks;
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.side_row, SideRow::Calendar(1));
+}
+
+#[test]
 fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
     // Hide it with `s`
     let mut app = wide_app_with(GROUPS);
