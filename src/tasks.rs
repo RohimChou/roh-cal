@@ -313,11 +313,11 @@ fn parse_heading(line: &str) -> Option<Heading> {
 const HOLIDAY: &str = "type:holiday";
 
 /// The start of the word in a heading that marks an archived calendar; the day it was archived follows
-const ARCHIVED: &str = "archived:";
+pub(crate) const ARCHIVED: &str = "archived:";
 
 /// Whether a heading word marks an archived calendar: `archived:` and a date that exists, e.g.
 /// `archived:2026-10-26`; `archived:2026-13-01` or `archived:yes` stay part of the name
-fn is_archived_word(word: &str) -> bool {
+pub(crate) fn is_archived_word(word: &str) -> bool {
     word.strip_prefix(ARCHIVED)
         .is_some_and(|day| looks_like_date(day) && day.parse::<Date>().is_ok())
 }

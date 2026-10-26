@@ -445,6 +445,67 @@ pub fn shift_calendar(
     Ok(Some(result))
 }
 
+/// Archive a calendar (`day` = the day it is archived): ` archived:<day>` at the end of each of its heading
+/// lines (`headings`); bring it back (`day` = `None`): every `archived:<date>` word comes out of them (see
+/// `without_archived`). Return the whole changed file. `Changed` if one of those lines now differs from when
+/// it was read
+///
+/// E.g. `## Q3 report` archived on 10/26 → `## Q3 report archived:2026-10-26`, and brought back → `## Q3 report`
+pub fn set_archived(
+    text: &str,
+    headings: &[HeadingLine],
+    day: Option<Date>,
+) -> Result<String, Changed> {
+    let mut result = String::with_capacity(text.len() + 20 * headings.len());
+    let mut changed = 0;
+    // Whole segments including the newline, so the newlines (\n or \r\n) stay as they were
+    for (index, (content, segment)) in text.lines().zip(text.split_inclusive('\n')).enumerate() {
+        let Some(heading) = headings.iter().find(|heading| heading.line == index + 1) else {
+            result.push_str(segment);
+            continue;
+        };
+        if content != heading.text {
+            return Err(Changed);
+        }
+        match day {
+            Some(day) => {
+                result.push_str(&format!("{} {}{day}", content.trim_end(), tasks::ARCHIVED))
+            }
+            None => result.push_str(&without_archived(content)),
+        }
+        result.push_str(&segment[content.len()..]);
+        changed += 1;
+    }
+    if changed == headings.len() {
+        Ok(result)
+    } else {
+        Err(Changed)
+    }
+}
+
+/// A heading line without its `archived:<date>` words, each taken out with the blank before it; the rest of
+/// the line stays as it is
+///
+/// E.g. `## Q3 report archived:2026-10-26` → `## Q3 report`;
+/// `# archived:2025-01-05 2024 holidays type:holiday` → `# 2024 holidays type:holiday`
+fn without_archived(line: &str) -> String {
+    let words = word_spans(line);
+    let mut kept = String::with_capacity(line.len());
+    // Where the part of the line not copied yet starts
+    let mut from = 0;
+    // Word 0 is the `#`s, so a tag always has a word before it
+    for pair in words.windows(2) {
+        let [(_, before_end), (start, end)] = [pair[0], pair[1]];
+        if tasks::is_archived_word(&line[start..end]) {
+            // Copy up to the end of the word before it: the blank in between goes with the tag
+            kept.push_str(&line[from..before_end]);
+            from = end;
+        }
+    }
+    kept.push_str(&line[from..]);
+    kept
+}
+
 /// Add: put `new` (the line typed in the editor) at `place`; return the new file content and the new line's
 /// line number (from 1)
 ///

@@ -160,6 +160,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | `e` | Rename the chosen calendar in the same editor: it starts with the heading's text (`type:holiday` included, so a holiday calendar stays one unless you take it out); every heading of that calendar is rewritten, each keeping its `#` level. Ungrouped items have no heading to rename. Type `#` and part of another calendar's name to move it inside that one (「Top level」 to move it out): its headings, items and the calendars inside it go to the end of that calendar on save, the levels following along; `u` moves it back |
 | `d` | Delete the chosen calendar: its headings and everything under them, the calendars inside it too, up to the next heading with as many `#` or fewer. The bottom row asks first and says how many items go with it; only `d` again (`dd`) or `y` deletes, `u` brings it back |
 | `L` / `H` | Move the chosen calendar one level in (inside the calendar right above it at the same level) / out, with the calendars inside it: their headings get one `#` more / fewer |
+| `z` | Archive the chosen calendar: ` archived:<today>` goes at the end of its headings, and it moves to the archive part at the bottom, unchecked. On an archived one: bring it back (the tag comes out; one archived together with the calendar it is in comes back with that one). `u` undoes it |
 
 **Mouse**
 

@@ -982,7 +982,8 @@ impl App {
     /// top-level calendar,
     /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar
     /// (`A` inside the chosen one),
-    /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out
+    /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out, `z` archives it or
+    /// brings it back
     /// (`after_g`: the key before this one was `g`)
     fn handle_side_key(&mut self, code: KeyCode, after_g: bool) {
         match code {
@@ -1007,6 +1008,7 @@ impl App {
             KeyCode::Char('d') => self.ask_delete_calendar(),
             KeyCode::Char('L') => self.shift_calendar(true),
             KeyCode::Char('H') => self.shift_calendar(false),
+            KeyCode::Char('z') => self.toggle_archived(),
             _ => {}
         }
     }

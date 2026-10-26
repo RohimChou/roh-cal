@@ -320,6 +320,75 @@ fn d_in_the_calendar_list_asks_then_deletes_the_calendar_and_u_brings_it_back() 
 }
 
 #[test]
+fn z_archives_the_chosen_calendar_and_brings_it_back() {
+    let text = "# Work\n- [ ] a @2026-10-10\n## Q3\n- [ ] b @2026-10-11\n# Old archived:2026-09-30\n- c @2026-10-12\n\
+                    ## Notes\n- d @2026-10-13\n# Personal\n- e @2026-10-14\n";
+    let (mut app, path) = app_with_task_file("archive-calendar", text);
+    let read = || std::fs::read_to_string(&path).expect("read");
+    let list = |app: &App| -> Vec<(String, bool, bool)> {
+        app.groups
+            .iter()
+            .map(|group| (group.path().join(" > "), group.archived, group.shown))
+            .collect()
+    };
+    let state = |path: &str, archived, shown| (path.to_string(), archived, shown);
+    app.focus = Focus::Side;
+    // z on Q3 (list: Work, Work > Q3, Personal, then the archived Old, Old > Notes): its heading gets
+    // today (10/17); it goes to the archive part, unchecked, and stays chosen there
+    app.side_row = SideRow::Calendar(1);
+    press(&mut app, KeyCode::Char('z'));
+    assert_eq!(
+        read(),
+        text.replace("## Q3\n", "## Q3 archived:2026-10-17\n")
+    );
+    assert_eq!(
+        list(&app),
+        [
+            state("Work", false, true),
+            state("Personal", false, true),
+            state("Work > Q3", true, false),
+            state("Old", true, false),
+            state("Old > Notes", true, false),
+        ]
+    );
+    assert_eq!(app.side_row, SideRow::Calendar(2));
+    // u: as it was, Q3 back in its place and checked
+    press(&mut app, KeyCode::Char('u'));
+    assert_eq!(read(), text);
+    assert_eq!(app.notice, Some(Notice::Undone("Q3".into())));
+    assert_eq!(list(&app)[1], state("Work > Q3", false, true));
+    assert_eq!(app.side_row, SideRow::Calendar(1));
+    // z on Notes, archived only because Old is: Old's tag comes out, so both come back (checked); Notes
+    // stays chosen
+    app.side_row = SideRow::Calendar(4);
+    press(&mut app, KeyCode::Char('z'));
+    assert_eq!(
+        read(),
+        text.replace("# Old archived:2026-09-30\n", "# Old\n")
+    );
+    assert_eq!(
+        list(&app),
+        [
+            state("Work", false, true),
+            state("Work > Q3", false, true),
+            state("Old", false, true),
+            state("Old > Notes", false, true),
+            state("Personal", false, true),
+        ]
+    );
+    assert_eq!(app.side_row, SideRow::Calendar(3));
+    clean_up(&path);
+    // Ungrouped items (before any heading) have no heading to tag: z does nothing
+    let text = "- loose\n# Work\n- a\n";
+    let (mut app, path) = app_with_task_file("archive-ungrouped", text);
+    app.focus = Focus::Side;
+    app.side_row = SideRow::Calendar(0);
+    press(&mut app, KeyCode::Char('z'));
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+    clean_up(&path);
+}
+
+#[test]
 fn l_and_h_move_a_calendar_in_and_out_in_the_calendar_list() {
     let text = "# Work\n- [ ] a @2026-10-10\n# SFAP\n- [ ] b @2026-10-11\n## Bugs\n- [ ] c @2026-10-12\n\
                     # Personal\n- d @2026-10-13\n";

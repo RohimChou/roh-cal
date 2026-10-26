@@ -57,6 +57,49 @@ fn renaming_a_calendar_rewrites_each_of_its_headings() {
 }
 
 #[test]
+fn archiving_a_calendar_tags_each_of_its_headings_and_bringing_it_back_takes_the_tag_out() {
+    // Two Work headings (one calendar), \r\n endings, a trailing blank on one: each gets the tag at its end
+    let text = "# Work \r\n- a\r\n## Moving\r\n- b\r\n# Work\r\n- c\r\n";
+    let day = Some(date(2026, 10, 26));
+    let archived = set_archived(text, &headings_named(text, "Work"), day).expect("archived");
+    assert_eq!(
+        archived,
+        "# Work archived:2026-10-26\r\n- a\r\n## Moving\r\n- b\r\n# Work archived:2026-10-26\r\n- c\r\n"
+    );
+    // Brought back: the same file again
+    assert_eq!(
+        set_archived(&archived, &headings_named(&archived, "Work"), None),
+        Ok("# Work\r\n- a\r\n## Moving\r\n- b\r\n# Work\r\n- c\r\n".to_string())
+    );
+    // The tag anywhere in the heading comes out with the blank before it (after it, right after the #s);
+    // other words, `type:holiday` and a misspelled tag stay
+    for (heading, back) in [
+        (
+            "# archived:2025-01-05 2024 holidays type:holiday",
+            "# 2024 holidays type:holiday",
+        ),
+        ("## Q3   archived:2026-10-01  report", "## Q3  report"),
+        ("# Q3 archived:2026-10-01 archived:2026-10-02", "# Q3"),
+        ("# Q3 archived:yes archived:2026-10-01", "# Q3 archived:yes"),
+    ] {
+        let text = format!("{heading}\n- a\n");
+        let headings = tasks::parse(&text).headings;
+        assert_eq!(
+            set_archived(&text, &headings, None),
+            Ok(format!("{back}\n- a\n")),
+            "{heading}"
+        );
+    }
+    // One of its lines was changed elsewhere, or is gone: nothing is written
+    let work = headings_named(text, "Work");
+    assert_eq!(
+        set_archived(&text.replace("# Work \r\n", "# Wrok\r\n"), &work, day),
+        Err(Changed)
+    );
+    assert_eq!(set_archived("# Work\n- a\n", &work, day), Err(Changed));
+}
+
+#[test]
 fn deleting_a_calendar_removes_its_headings_and_everything_under_them() {
     // Work has two headings; under Personal, a `#` line in a code block is not a heading, so the part
     // under the first Work does not end there

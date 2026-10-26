@@ -224,6 +224,49 @@ impl App {
         }
     }
 
+    /// `z` in the calendar list: archives the chosen calendar (` archived:<today>` in its headings), or brings an
+    /// archived one back: `archived:<date>` comes out of the headings of the outermost archived calendar it is
+    /// in or is (the one with the tag; a calendar archived together with the one it is inside comes back with
+    /// it). It stays chosen, now in the other part of the list; `u` undoes it. Nothing happens for
+    /// 「Ungrouped」
+    pub(super) fn toggle_archived(&mut self) {
+        let Some(chosen) = self.chosen_group() else {
+            return;
+        };
+        let path = chosen.path();
+        let target = if chosen.archived {
+            (1..=path.len()).find_map(|depth| {
+                self.groups
+                    .iter()
+                    .find(|group| group.archived && group.path() == path[..depth])
+            })
+        } else {
+            Some(chosen)
+        };
+        let Some(target) = target else {
+            return;
+        };
+        let day = (!target.archived).then_some(self.today);
+        let headings: Vec<tasks::HeadingLine> = self
+            .headings
+            .iter()
+            .filter(|line| target.is(&line.heading))
+            .cloned()
+            .collect();
+        let Some(name) = headings.first().map(|line| line.heading.name.clone()) else {
+            return;
+        };
+        let Some((path, text)) = self.read_tasks() else {
+            return;
+        };
+        match edit::set_archived(&text, &headings, day) {
+            Ok(after) => {
+                self.write_tasks(&path, text, after, name);
+            }
+            Err(edit::Changed) => self.reload(&text),
+        }
+    }
+
     /// `L` / `H` in the calendar list: moves the chosen calendar one level in (inside the calendar right
     /// above it at the same level) / out, with the calendars inside it; it stays chosen and they keep their
     /// checked state. Nothing happens when it cannot move (see `edit::shift_calendar`) or for 「Ungrouped」

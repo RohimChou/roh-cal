@@ -116,7 +116,7 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    e        改名                  Tab      換框          │",
             "│    d        刪除                                         │",
             "│    L / H    往內 / 往外一層     系統                     │",
-            "│                                   ?        說明          │",
+            "│    z        封存 / 取消封存       ?        說明          │",
             "│                                   ,        設定          │",
             "│                                   q        離開          │",
             "│                                                          │",
@@ -228,14 +228,14 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
         let (area, rows, _) = draw(
             lang,
             100,
-            43,
+            44,
             Help {
                 full: true,
                 scroll: 0,
             },
         );
-        // The longer column (left) is 39 lines + padding 2 + border 2: it just fits, no scrolling
-        assert_eq!(area.height, 43, "{lang:?}");
+        // The longer column (right) is 40 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 44, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);
