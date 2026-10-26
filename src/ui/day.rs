@@ -502,12 +502,14 @@ pub fn render(frame: &mut Frame, main: Rect, app: &mut App) {
     block = block.title_bottom(switch);
     clear_with_ring(frame, area, main);
     frame.render_widget(block, area);
-    // Bottom border, left: the chosen item's whole calendar path, in the calendar headings' color (as on
-    // the tasks page); cut off at the right so a line cell stays before the switch
-    if let Some(path) = app
-        .day_items()
-        .get(app.day_index)
-        .and_then(|item| calendar_path(item))
+    // Bottom border, left, only when not grouped by calendar (grouped, the headings above already show it):
+    // the chosen item's whole calendar path, in the calendar headings' color (as on the tasks page); cut off
+    // at the right so a line cell stays before the switch
+    if !app.settings.day_popup.by_calendar
+        && let Some(path) = app
+            .day_items()
+            .get(app.day_index)
+            .and_then(|item| calendar_path(item))
     {
         // Colored by its span, not the line: a line's style would also color the border cells it covers
         let path = Line::from(Span::styled(

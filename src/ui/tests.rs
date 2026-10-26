@@ -4461,11 +4461,11 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
     assert_eq!(day_item_at(&app, area.x + 5, area.y + 4), Some(1));
     assert_eq!(day_item_at(&app, area.x + 7, area.y + 5), None);
     assert_eq!(day_item_at(&app, area.x + 7, area.y + 6), Some(2));
-    // The bottom border still has the chosen item's whole path
+    // The calendars' headings show the chosen item's path, so the bottom border does not (only the switch)
     app.day_index = 2;
     let terminal = draw_app(&mut app, 80, 24);
     let rows = area_rows(terminal.backend().buffer(), area);
-    assert!(rows[12].starts_with("╰ CAIS > Reports ─"), "{rows:#?}");
+    assert_eq!(rows[12], "╰───────────────────── ☑\u{a0}By calendar ╯");
     // Only Reports has an item that day: CAIS still gets its heading above it
     let text = "# CAIS\n## Reports\n- [ ] Send the report @2026-10-17 08:00\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
@@ -4498,8 +4498,7 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
     // Grouped by calendar: the parent not on the day where a check box would be, gray, with no box of its
-    // own; each level 2 cells further in. The first item (Book flights) is chosen; its path is on the
-    // bottom border
+    // own; each level 2 cells further in. The first item (Book flights) is chosen
     assert_eq!(
         area_rows(buffer, area),
         [
@@ -4511,7 +4510,7 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
             "│        ☐\u{a0}Compare prices            │",
             "│    ∙ 07:40 Fly out                 │",
             "│                                    │",
-            "╰ Trip ─────────────── ☑\u{a0}By calendar ╯",
+            "╰───────────────────── ☑\u{a0}By calendar ╯",
         ]
     );
     let theme = Theme::default();
@@ -4527,7 +4526,7 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
         .collect();
     assert_eq!(titles, ["Book flights", "Compare prices", "Fly out"]);
     // Not grouped: the same tree, starting at the left, each item's calendar at the right end (none for
-    // the parent)
+    // the parent), the chosen one's path on the bottom border
     app.settings.day_popup.by_calendar = false;
     let terminal = draw_app(&mut app, 80, 24);
     assert_eq!(
@@ -4563,13 +4562,14 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
 }
 
 #[test]
-fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
+fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when_not_grouped() {
     // Box 38 wide: the top border's date 18 + 「 2 open / 0 done 」 17 + one line cell + 2 corners
     let text =
         "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.screen = Rect::new(0, 0, 80, 24);
     app.focus = Focus::Day;
+    app.settings.day_popup.by_calendar = false;
     let bottom = |app: &mut App| {
         let terminal = draw_app(app, 80, 24);
         let buffer = terminal.backend().buffer();
@@ -4578,49 +4578,61 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border() {
         let color = buffer[(area.x + 2, area.bottom() - 1)].fg;
         (rows.last().cloned().unwrap_or_default(), color)
     };
-    // The chosen item is in CAIS > Reports: its whole path on the left of the bottom border, in the color
-    // of the tasks page's calendar headings; the switch stays at the right end
+    // Not grouped, the chosen item is in CAIS > Reports: its whole path on the left of the bottom border,
+    // in the color of the tasks page's calendar headings; the switch stays at the right end
     app.day_index = 1;
     assert_eq!(
         bottom(&mut app),
         (
-            "╰ CAIS > Reports ───── ☑\u{a0}By calendar ╯".to_string(),
+            "╰ CAIS > Reports ───── ☐\u{a0}By calendar ╯".to_string(),
             Theme::default().label
         )
     );
-    // The chosen item is outside any calendar: only the switch
-    app.day_index = 0;
-    assert_eq!(
-        bottom(&mut app).0,
-        "╰───────────────────── ☑\u{a0}By calendar ╯"
-    );
-    // ☑ in the `checked` color, its name in the text color; the border before the path keeps its own
-    // color (the path is 16 cells, the switch 15: 「─」 at x 17 is the border)
+    // The border after the path keeps its own color (the path is 16 cells: 「─」 at x 17 is the border)
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
     let y = area.bottom() - 1;
     let theme = Theme::default();
+    assert_eq!(buffer[(area.x + 17, y)].symbol(), "─");
+    assert_eq!(buffer[(area.x + 17, y)].fg, theme.focus);
+    // The chosen item is outside any calendar: only the switch
+    app.day_index = 0;
+    assert_eq!(
+        bottom(&mut app).0,
+        "╰───────────────────── ☐\u{a0}By calendar ╯"
+    );
+    // Grouped, the calendars' headings already show the path: only the switch, for every item
+    app.settings.day_popup.by_calendar = true;
+    app.day_index = 1;
+    assert_eq!(
+        bottom(&mut app).0,
+        "╰───────────────────── ☑\u{a0}By calendar ╯"
+    );
+    // ☑ in the `checked` color, its name in the text color (the box is taller now, with the headings)
+    let terminal = draw_app(&mut app, 80, 24);
+    let buffer = terminal.backend().buffer();
+    let area = day_area(&app);
+    let y = area.bottom() - 1;
     assert_eq!(buffer[(area.right() - 15, y)].symbol(), "☑");
     assert_eq!(buffer[(area.right() - 15, y)].fg, theme.checked);
     assert_eq!(buffer[(area.right() - 13, y)].fg, theme.text);
-    assert_eq!(buffer[(area.x + 17, y)].fg, theme.focus);
     // A click there flips it: the switch's 15 cells end next to the corner
     assert_eq!(
         day_switch_area(&app),
         Rect::new(area.right() - 16, y, 15, 1)
     );
-    // A path too long for the room left of the switch is cut, one line cell before the switch. The box
-    // grows for the calendar's heading 「   2603_Monthly_report_handover_to_CAIS」 (39 + border 2 + a blank
-    // cell 1 + padding 2 = 44), so 44 - 2 corners - the switch 15 - one line cell = 26 cells are left
+    // Not grouped, a path too long for the room left of the switch is cut, one line cell before the switch
+    // (38 - 2 corners - the switch 15 - one line cell = 20 cells)
     let text =
         "# CAIS\n## 2603_Monthly_report_handover_to_CAIS\n- [ ] Send the report @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.screen = Rect::new(0, 0, 80, 24);
     app.focus = Focus::Day;
+    app.settings.day_popup.by_calendar = false;
     assert_eq!(
         bottom(&mut app).0,
-        "╰ CAIS > 2603_Monthly_repor─ ☑\u{a0}By calendar ╯"
+        "╰ CAIS > 2603_Monthly─ ☐\u{a0}By calendar ╯"
     );
 }
 
