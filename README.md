@@ -164,7 +164,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar); on the month grid (`2`) it only scrolls the weeks and the selected day stays, until a key moves it back into view |
 | Click | Select a day, an item or a calendar; double-click a day to go into its items, a task to check it off (a single click never checks one off); click a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
-| Drag | In the day popup: marks the item titles it goes over (color: `text_selection`); letting go copies that text to the clipboard, one item per line, and the bottom right says how many characters. The calendar list's right border: sets its width, which stays fixed (saved to the config file on letting go; `r` on its settings row goes back to auto) |
+| Drag | In the day popup: marks the item titles it goes over (color: `text_selection`); letting go copies that text to the clipboard, one item per line, and the bottom right says how many characters. The calendar list's right border: sets its width, which stays fixed (saved to the config file on letting go); double-click that border, or `r` on its settings row, to go back to auto |
 
 ## Config file
 `~/.config/roh-cal/config.toml` (`$XDG_CONFIG_HOME` respected). It is optional: write only what you want to change, the rest keeps its default. A misspelt name or a wrong type stops roh-cal at start and says what is wrong (the line, or for `[colors]` the role and value). The settings page (`,`) edits it for you. Example: [testdata/config.toml](testdata/config.toml).

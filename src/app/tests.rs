@@ -870,6 +870,44 @@ fn dragging_the_side_menus_right_border_fixes_its_width_and_letting_go_saves_it(
 }
 
 #[test]
+fn double_clicking_the_side_menus_right_border_goes_back_to_the_auto_width() {
+    // 130 × 20, fixed at 30 (auto would be 22: the names are short), right border at x 29
+    let mut app = app_with(GROUPS);
+    app.screen = Rect::new(0, 0, 130, 20);
+    app.settings.calendar_list.width = Some(30);
+    let dir = crate::files::test_dir("double-click-side-border");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[calendar_list]\nwidth = 30\n").expect("write");
+    app.config_path = Some(path.clone());
+    let left = MouseButton::Left;
+    let click = |app: &mut App, column| {
+        app.handle_mouse(mouse_event(MouseEventKind::Down(left), column, 5));
+        app.handle_mouse(mouse_event(MouseEventKind::Up(left), column, 5));
+    };
+    // Double-click: auto again, saved right away (the config file had only that line)
+    click(&mut app, 29);
+    assert_eq!(app.settings.calendar_list.width, Some(30));
+    click(&mut app, 29);
+    assert_eq!(app.settings.calendar_list.width, None);
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "");
+    let _ = std::fs::remove_dir_all(&dir);
+    // Dragged 2 cells (22 → 24), then clicked right away: not a double click, it stays 24
+    app.handle_mouse(mouse_event(MouseEventKind::Down(left), 21, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Drag(left), 23, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 23, 5));
+    click(&mut app, 23);
+    assert_eq!(app.settings.calendar_list.width, Some(24));
+    // Two clicks a second apart: not a double click either
+    let start = Instant::now();
+    app.press_side_border(23, start + Duration::from_secs(2));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 23, 5));
+    app.press_side_border(23, start + Duration::from_secs(3));
+    app.handle_mouse(mouse_event(MouseEventKind::Up(left), 23, 5));
+    assert_eq!(app.settings.calendar_list.width, Some(24));
+}
+
+#[test]
 fn a_multi_day_item_is_listed_in_each_month_and_chosen_from_any_of_its_days() {
     // Manager OOO 10/28-11/3: one row in October and one in November; the November row is listed on
     // 11/1, before 11/1's "Write the monthly report"

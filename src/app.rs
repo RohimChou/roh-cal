@@ -86,6 +86,8 @@ enum ClickTarget {
     Day(Date),
     /// An item in the agenda, the day popup or on the tasks page: its line in the task file
     Item(usize),
+    /// The side menu's right border
+    SideBorder,
 }
 
 /// The side menu's right border is held down with the mouse (see `App::drag_side_border`)
@@ -1114,17 +1116,13 @@ impl App {
             // Scroll down (to see later ones), scroll up
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
-            // The side menu's right border: hold it down to drag it (not while the day popup is open: a
-            // click outside the popup closes it)
+            // The side menu's right border: hold it down to drag it, double-click it for the auto width (not
+            // while the day popup is open: a click outside the popup closes it)
             MouseEventKind::Down(MouseButton::Left)
                 if self.focus != Focus::Day
                     && ui::on_side_border(self, mouse.column, mouse.row) =>
             {
-                self.side_drag = Some(SideDrag {
-                    before: self.settings.clone(),
-                    column: mouse.column,
-                    width: ui::side_width(self),
-                });
+                self.press_side_border(mouse.column, Instant::now());
             }
             MouseEventKind::Drag(MouseButton::Left) if self.side_drag.is_some() => {
                 self.drag_side_border(mouse.column);
@@ -1188,6 +1186,22 @@ impl App {
         }
     }
 
+    /// The side menu's right border pressed at terminal column `column`, time `now`: starts dragging it; the
+    /// second click of a double click puts the width back to auto (it follows the names again) and saves that
+    fn press_side_border(&mut self, column: u16, now: Instant) {
+        if self.is_double_click(ClickTarget::SideBorder, now) {
+            let before = self.settings.clone();
+            self.settings.calendar_list.width = None;
+            self.save_switch(&before);
+            return;
+        }
+        self.side_drag = Some(SideDrag {
+            before: self.settings.clone(),
+            column,
+            width: ui::side_width(self),
+        });
+    }
+
     /// Dragging the side menu's right border to terminal column `column`: the width follows the mouse
     /// (moved 3 cells right = 3 cells wider) and is fixed from now on (`[calendar_list] width`), kept between
     /// `MIN_WIDTH` and `MAX_WIDTH`; letting go saves it to the config file
@@ -1195,6 +1209,8 @@ impl App {
         let Some(drag) = &self.side_drag else {
             return;
         };
+        // Dragged, so letting go and clicking it again is not a double click
+        self.last_click = None;
         let moved = i32::from(column) - i32::from(drag.column);
         let width = (i32::from(drag.width) + moved).clamp(
             i32::from(CalendarListSettings::MIN_WIDTH),
