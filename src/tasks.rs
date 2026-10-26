@@ -135,15 +135,19 @@ struct When {
     time: Option<Time>,
 }
 
-/// A group heading, e.g. `# Payments API v2`, `# US holidays type:holiday`
+/// A group heading, e.g. `# Payments API v2`, `# US holidays type:holiday`,
+/// `## Q3 report archived:2026-10-26`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
     /// How many `#`: fewer `#` = a level up (`#` Work → `##` SFAP is a calendar inside Work)
     pub level: usize,
-    /// The heading text (without `type:holiday`)
+    /// The heading text (without `type:holiday` and `archived:<date>`)
     pub name: String,
     /// Holiday calendar: the heading has `type:holiday`, so the days of the items under it are holidays
     pub holiday: bool,
+    /// Archived calendar: the heading has `archived:` and the day it was archived, e.g.
+    /// `archived:2026-10-26`
+    pub archived: bool,
     /// The names of the calendars it is inside, outermost first: the nearest heading above with fewer `#`,
     /// then that one's, and so on (empty for a top-level calendar). A calendar is its whole path
     /// (`parents` + `name`): `Work > SFAP` and `Personal > SFAP` are two calendars
@@ -286,24 +290,37 @@ fn parse_heading(line: &str) -> Option<Heading> {
     }
     // Each `#` is 1 byte, so level can be used directly to slice the string
     let text = line[level..].strip_prefix(' ')?;
-    // `type:holiday` is not part of the name; after removing it, join the remaining words with one space
+    // `type:holiday` and `archived:<date>` are not part of the name; after removing them, join the remaining
+    // words with one space
     let words: Vec<&str> = text.split_whitespace().collect();
     let holiday = words.contains(&HOLIDAY);
+    let archived = words.iter().any(|word| is_archived_word(word));
     let name = words
         .into_iter()
-        .filter(|&word| word != HOLIDAY)
+        .filter(|&word| word != HOLIDAY && !is_archived_word(word))
         .collect::<Vec<_>>()
         .join(" ");
     Some(Heading {
         level,
         name,
         holiday,
+        archived,
         parents: Vec::new(),
     })
 }
 
 /// The word in a heading that marks a holiday calendar (the spec's `key:value` form)
 const HOLIDAY: &str = "type:holiday";
+
+/// The start of the word in a heading that marks an archived calendar; the day it was archived follows
+const ARCHIVED: &str = "archived:";
+
+/// Whether a heading word marks an archived calendar: `archived:` and a date that exists, e.g.
+/// `archived:2026-10-26`; `archived:2026-13-01` or `archived:yes` stay part of the name
+fn is_archived_word(word: &str) -> bool {
+    word.strip_prefix(ARCHIVED)
+        .is_some_and(|day| looks_like_date(day) && day.parse::<Date>().is_ok())
+}
 
 /// What a task's box says (rule 1 of the spec)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -465,8 +465,13 @@ impl App {
         // The popup's items may have changed: text dragged over no longer points at the same characters
         self.day_drag = None;
         let mut groups = super::Group::list(&items, &headings);
+        // Each calendar keeps its check; one archived or brought back since starts over (unchecked / checked)
         for group in &mut groups {
-            if let Some(old) = self.groups.iter().find(|old| old.same(group)) {
+            if let Some(old) = self
+                .groups
+                .iter()
+                .find(|old| old.same(group) && old.archived == group.archived)
+            {
                 group.shown = old.shown;
             }
         }

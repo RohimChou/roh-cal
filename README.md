@@ -22,7 +22,7 @@ Your tasks live in one Markdown file that you can edit in any editor (Obsidian i
 - **Edit in place**: check off, add, edit, reschedule (the calendar is the date picker), delete, indent and reorder, and undo the last 50 writes
 - **Safe writes**: only the changed lines are rewritten, through a temp file; if the file changed elsewhere since roh-cal read it, roh-cal reloads instead of overwriting
 - **Live reload**: edit the task file in another editor and every view updates within a second
-- **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` makes its days holidays, colored like weekends
+- **Calendars**: show or hide each `#` group, nested by heading level (`#` Work → `##` SFAP); a heading marked `type:holiday` makes its days holidays, colored like weekends; one marked `archived:<date>` (a finished project) moves to the bottom of the list, hidden until you check it
 - **Mouse**: the wheel scrolls and clicks select everywhere; a double click opens a day or checks off a task
 - **Themes**: eight built in, and any color can be overridden per role from a settings page
 - **English and 繁體中文**

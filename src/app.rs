@@ -131,15 +131,20 @@ pub struct Group {
     pub name: Option<String>,
     /// The calendars it is inside, outermost first (see `Heading::parents`); empty at the top level
     pub parents: Vec<String>,
-    /// Whether it is checked (all are checked at start); unchecking it hides the calendars inside it too
+    /// Whether it is checked (all are checked at start, except archived ones); unchecking it hides the
+    /// calendars inside it too
     pub shown: bool,
+    /// Archived: one of its headings, or one of the calendars it is inside, has `archived:<date>`
+    /// (`Heading::archived`)
+    pub archived: bool,
 }
 
 impl Group {
     /// All groups in the task file: the groups of `items` and every heading in `headings` (so a heading
     /// with no items under it yet is a calendar too); headings with the same path count as one.
     /// In tree order: each calendar right after the one it is inside, calendars at the same level in
-    /// order of first appearance
+    /// order of first appearance; archived calendars come after all the others (in tree order too) and
+    /// start unchecked
     fn list(items: &[Item], headings: &[HeadingLine]) -> Vec<Self> {
         let mut found: Vec<(usize, Option<&Heading>)> = items
             .iter()
@@ -159,9 +164,12 @@ impl Group {
                     .map(|heading| heading.parents.clone())
                     .unwrap_or_default(),
                 shown: true,
+                archived: heading.is_some_and(|heading| heading.archived),
             };
-            if !groups.iter().any(|other| other.same(&group)) {
-                groups.push(group);
+            // A calendar with several headings is archived when any of them says so
+            match groups.iter_mut().find(|other| other.same(&group)) {
+                Some(other) => other.archived |= group.archived,
+                None => groups.push(group),
             }
         }
         // Tree order: sort by where each calendar on its path first appeared, outermost first (a parent's
@@ -183,10 +191,25 @@ impl Group {
         let mut order: Vec<usize> = (0..groups.len()).collect();
         order.sort_by(|&a, &b| keys[a].cmp(&keys[b]));
         let mut groups: Vec<Option<Self>> = groups.into_iter().map(Some).collect();
-        order
+        let mut tree: Vec<Self> = order
             .into_iter()
             .filter_map(|index| groups[index].take())
-            .collect()
+            .collect();
+        // A calendar inside an archived one is archived too
+        let archived: Vec<Vec<String>> = tree
+            .iter()
+            .filter(|group| group.archived)
+            .map(Self::path)
+            .collect();
+        for group in &mut tree {
+            group.archived |= archived.iter().any(|outer| group.inside_path(outer));
+            group.shown = !group.archived;
+        }
+        // The running calendars first, then the archived ones; each part keeps tree order
+        let (mut running, archived): (Vec<Self>, Vec<Self>) =
+            tree.into_iter().partition(|group| !group.archived);
+        running.extend(archived);
+        running
     }
 
     /// Its path: the calendars it is inside, then its own name (empty for 「Ungrouped」)
@@ -200,8 +223,13 @@ impl Group {
 
     /// Whether it is inside `other` (any number of levels down)
     pub fn inside(&self, other: &Self) -> bool {
-        let (path, outer) = (self.path(), other.path());
-        !outer.is_empty() && path.len() > outer.len() && path[..outer.len()] == outer[..]
+        self.inside_path(&other.path())
+    }
+
+    /// Whether it is inside the calendar with the path `outer` (any number of levels down)
+    fn inside_path(&self, outer: &[String]) -> bool {
+        let path = self.path();
+        !outer.is_empty() && path.len() > outer.len() && path[..outer.len()] == *outer
     }
 
     /// Whether it is the same calendar as `other` (same path)
@@ -990,7 +1018,8 @@ impl App {
     }
 
     /// The chosen calendar: checked ⇄ unchecked, and every calendar inside it (any number of levels down)
-    /// gets the same, e.g. checking `Work` checks `Work > SFAP` too
+    /// gets the same, e.g. checking `Work` checks `Work > SFAP` too; an archived calendar inside a running
+    /// one keeps its own check
     fn toggle_calendar(&mut self) {
         let Some(chosen) = self.chosen_group() else {
             return;
@@ -1000,7 +1029,9 @@ impl App {
             .groups
             .iter()
             .enumerate()
-            .filter(|(_, group)| group.same(chosen) || group.inside(chosen))
+            .filter(|(_, group)| {
+                group.same(chosen) || (group.inside(chosen) && (chosen.archived || !group.archived))
+            })
             .map(|(index, _)| index)
             .collect();
         for index in affected {
@@ -1031,10 +1062,11 @@ impl App {
     }
 
     /// 「隱藏全部」: unchecks every calendar; when they are all unchecked already, checks them all again
+    /// except the archived ones (they stay unchecked, as at start)
     fn toggle_hide_all(&mut self) {
         let show = self.all_hidden();
         for group in &mut self.groups {
-            group.shown = show;
+            group.shown = show && !group.archived;
         }
     }
 

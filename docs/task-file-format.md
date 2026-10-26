@@ -1,4 +1,4 @@
-# Task file format (spec v0.5)
+# Task file format (spec v0.6)
 One plain-text file, **one item per line**, written with Markdown list syntax. An item with a checkbox is a **task** you check off; one without is an **event** (a meeting, a holiday, a release date) that is simply over once its day has passed. The file is meant to be hand-edited in any editor, diffed in git and searched with `grep`; roh-cal reads it and writes it back (see [Writing](#writing)).
 
 ```markdown
@@ -31,6 +31,7 @@ A longer example: [`testdata/tasks.md`](../testdata/tasks.md).
 | 3b | `@YYYY-MM-DD..YYYY-MM-DD` (optionally followed by `HH:MM`) | A **multi-day** item, from the first date to the last, both included (a trip, a training course). The time is the start time on the first day |
 | 4 | `# Name` (any heading level) | Starts a **group** (project, calendar); applies to the items below until the next heading. A heading with no items under it is still a group (an empty calendar). Groups **nest by heading level**: a heading is inside the nearest heading above it with fewer `#` (`# Payments API` → `## Refunds`). A group is its whole path: `Work > SFAP` and `Personal > SFAP` are two groups, while a heading that repeats the same path (`# Work` again further down) continues the same group. Hiding a group hides the groups inside it |
 | 4b | `type:holiday` anywhere in a heading | The group is a **holiday calendar**: the days of its items (every day of a multi-day item) are holidays, drawn like a weekend (a day off). The token is not part of the group's name. Write holidays as events (no box), e.g. `- Thanksgiving break @2026-11-26..2026-11-29` |
+| 4c | `archived:YYYY-MM-DD` anywhere in a heading | The group is **archived** since that day (a project that is over); so are the groups inside it. roh-cal lists archived groups in their own part at the bottom of the calendar list and starts them hidden; check one to see its items again. The token is not part of the group's name; without a valid date (`archived:yes`) it is plain text |
 | 5 | An item indented deeper than the previous item | **Child** of that item (subtask) |
 | 6 | `!`, `!!` or `!!!` anywhere in an item, as a word of its own | **Priority**: low, medium, high; roh-cal colors the item by it (yellow, orange, red in the default theme) until it is done or over. Only the first counts, and it is removed from the displayed title; `!!!!` or a `!` stuck to a word (`Ship it!`) is plain text. Convention: put it before the date |
 
@@ -47,7 +48,7 @@ Everything else (blank lines, prose, code blocks, other Markdown) is ignored whe
 | Indentation | Any amount of spaces or tabs; deeper than the parent = child |
 | Encoding | UTF-8; LF or CRLF, preserved on write |
 | Block id | An Obsidian block id at the very end of an item (`^refund-01`: `^` + letters, digits, `-`) is not part of the title; it stays in the file so links to the line keep working |
-| Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; so far that is only `type:holiday` in a heading (rule 4b), so URLs like `https://...` are just text |
+| Reserved syntax | `key:value` (lowercase key, no spaces) is reserved for future fields such as `due:2026-10-20`. Only keys defined by the spec are interpreted; so far that is `type:holiday` (rule 4b) and `archived:YYYY-MM-DD` (rule 4c) in a heading, so URLs like `https://...` are just text |
 
 ## Where it is stored
 Default `~/.local/share/roh-cal/tasks.md` (XDG data dir; `$XDG_DATA_HOME` respected). Point roh-cal at your own file — e.g. inside a notes vault or a git repo — with `--tasks <path>`.
@@ -90,3 +91,4 @@ Planned to revisit:
 - v0.3 (same day): groups nest by heading level, and a group is its whole path (rule 4)
 - v0.4 (same day): priorities `!` / `!!` / `!!!` (rule 6)
 - v0.5 (2026-10-19): in progress `[/]` (rule 1)
+- v0.6 (2026-10-26): archived groups, `archived:YYYY-MM-DD` in a heading (rule 4c)

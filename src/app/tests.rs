@@ -708,6 +708,109 @@ fn checking_a_calendar_checks_the_calendars_inside_it_too() {
     assert_eq!(shown(&app), [true, true, true, false]);
 }
 
+/// Each calendar in the list: its path, whether it is archived, whether it is checked
+fn calendar_states(app: &App) -> Vec<(String, bool, bool)> {
+    app.groups
+        .iter()
+        .map(|group| (group.path().join(" > "), group.archived, group.shown))
+        .collect()
+}
+
+/// The agenda's titles in order
+fn agenda_titles(app: &App) -> Vec<String> {
+    app.agenda()
+        .iter()
+        .map(|entry| entry.item.title.clone())
+        .collect()
+}
+
+#[test]
+fn archived_calendars_come_last_and_start_unchecked() {
+    // Work > Q3 and Old are archived, and so is Old > Notes inside Old (no tag of its own)
+    let mut app = wide_app_with(
+        "# Work\n- a @2026-10-10\n## Q3 archived:2026-10-01\n- b @2026-10-11\n## Ops\n- c @2026-10-12\n\
+         # Old archived:2026-09-30\n- d @2026-10-13\n## Notes\n- e @2026-10-14\n# Personal\n- f @2026-10-15\n",
+    );
+    let state = |path: &str, archived, shown| (path.to_string(), archived, shown);
+    // The running calendars in tree order, then the archived ones in tree order; their items are hidden
+    assert_eq!(
+        calendar_states(&app),
+        [
+            state("Work", false, true),
+            state("Work > Ops", false, true),
+            state("Personal", false, true),
+            state("Work > Q3", true, false),
+            state("Old", true, false),
+            state("Old > Notes", true, false),
+        ]
+    );
+    assert_eq!(agenda_titles(&app), ["a", "c", "f"]);
+    app.focus = Focus::Side;
+    let shown = |app: &App| {
+        app.groups
+            .iter()
+            .map(|group| group.shown)
+            .collect::<Vec<_>>()
+    };
+    // Space on Work twice: Work and Ops unchecked, then checked; Q3 inside it (archived) stays unchecked
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [false, false, true, false, false, false]);
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [true, true, true, false, false, false]);
+    // Space on Old (archived): it and Notes inside it are checked, their items show
+    press(&mut app, KeyCode::Char('G'));
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [true, true, true, false, true, true]);
+    assert_eq!(agenda_titles(&app), ["a", "c", "d", "e", "f"]);
+    // Hide all, then show all: the running ones are checked, the archived ones unchecked as at start
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [false; 6]);
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(shown(&app), [true, true, true, false, false, false]);
+}
+
+#[test]
+fn reading_again_keeps_the_checks_but_a_calendar_archived_since_starts_unchecked() {
+    let mut app = app_with("");
+    app.set_items(crate::tasks::parse(
+        "# Work\n- a\n# Q3\n- b\n# Personal\n- c\n",
+    ));
+    // Personal unchecked by hand
+    app.groups[2].shown = false;
+    // Q3 archived elsewhere (e.g. in Obsidian): last and unchecked; Personal keeps its check
+    let archived = "# Work\n- a\n# Q3 archived:2026-10-26\n- b\n# Personal\n- c\n";
+    app.set_items(crate::tasks::parse(archived));
+    let state = |path: &str, archived, shown| (path.to_string(), archived, shown);
+    assert_eq!(
+        calendar_states(&app),
+        [
+            state("Work", false, true),
+            state("Personal", false, false),
+            state("Q3", true, false),
+        ]
+    );
+    // Q3 checked by hand and read again: stays checked
+    app.groups[2].shown = true;
+    app.set_items(crate::tasks::parse(archived));
+    assert_eq!(calendar_states(&app)[2], state("Q3", true, true));
+    // Q3 unchecked, then brought back (the tag taken out): checked again, back in its place
+    app.groups[2].shown = false;
+    app.set_items(crate::tasks::parse(
+        "# Work\n- a\n# Q3\n- b\n# Personal\n- c\n",
+    ));
+    assert_eq!(
+        calendar_states(&app),
+        [
+            state("Work", false, true),
+            state("Q3", false, true),
+            state("Personal", false, false),
+        ]
+    );
+}
+
 #[test]
 fn brackets_in_the_side_menu_jump_to_the_previous_or_next_top_level_calendar() {
     // The list: 0 Personal, 1 Work, 2 Work > SFAP, 3 Work > SFAP > Bugs, 4 Travel

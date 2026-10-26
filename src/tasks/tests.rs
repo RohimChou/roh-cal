@@ -337,6 +337,7 @@ fn rule4_headings_set_the_group_and_keep_their_level() {
             level,
             name: name.into(),
             holiday: false,
+            archived: false,
             parents: parents.iter().map(|&parent| parent.into()).collect(),
         })
     };
@@ -376,6 +377,33 @@ fn rule4b_type_holiday_makes_a_holiday_calendar() {
     // Upper case or a missing colon does not count
     assert!(!group("# Days off Type:Holiday\n- a").holiday);
     assert!(!group("# Days off holiday\n- a").holiday);
+}
+
+#[test]
+fn rule4c_archived_and_a_date_archives_a_calendar() {
+    // `archived:<date>` can go anywhere, also next to `type:holiday`, and is not part of the name
+    let group = |text: &str| parse(text).items[0].group.clone().expect("has a heading");
+    let heading = group("## Q3 report archived:2026-10-26\n- a");
+    assert_eq!(
+        (heading.name.as_str(), heading.archived),
+        ("Q3 report", true)
+    );
+    let heading = group("# archived:2025-01-05 2024 holidays type:holiday\n- a");
+    assert_eq!(
+        (heading.name.as_str(), heading.holiday, heading.archived),
+        ("2024 holidays", true, true)
+    );
+    // No date, a date that does not exist, upper case: part of the name, not archived
+    for text in [
+        "# Q3 archived:yes",
+        "# Q3 archived:",
+        "# Q3 archived:2026-13-01",
+        "# Q3 Archived:2026-10-26",
+    ] {
+        let heading = group(&format!("{text}\n- a"));
+        assert!(!heading.archived, "{text}");
+        assert_eq!(heading.name, text["# ".len()..], "{text}");
+    }
 }
 
 #[test]
