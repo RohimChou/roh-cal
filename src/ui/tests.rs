@@ -2248,8 +2248,8 @@ fn month_view_lists_each_days_items_in_its_cell() {
     // too. A title that is too long borrows the next cells to the right (only a day with
     // nothing at all, covering the grid line between) and is cut where it can't: 10/13
     // borrows 10/14 and stops before 10/15; 10/12's neighbor has items, so it can't borrow;
-    // 10/17's 2nd line stays in its cell although 10/18's 2nd line is empty: under 10/18's
-    // own item it would read as 10/18's
+    // 10/18 has an item, so other days can't borrow it, but 10/17 is the selected day: its
+    // 2nd line borrows 10/18's empty 2nd line (its background shows whose text it is)
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
@@ -2267,7 +2267,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
             "│     │ 14:00 Cod│ 15:00 Confirm alerti│ Fix the │ 🚧 Team │ Dinner w│ 07:00 Go│",
-            "│     │          │          │          │         │ +3      │ 08:00 Co│         │",
+            "│     │          │          │          │         │ +3      │ 08:00 Coffee chat │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
             "│     │          │ A really long title that spills over    │         │         │",
@@ -3479,6 +3479,32 @@ fn the_selected_days_background_follows_its_long_title() {
     for x in [28, 40, 55] {
         assert_ne!(buffer[(x, 16)].bg, app.theme.selection, "x {x}");
     }
+}
+
+#[test]
+fn the_selected_day_also_borrows_an_empty_line_next_to_items() {
+    // 80 × 30: 10/17 (Sat, x 60-68) has 「 08:00 Coffee chat」 (18 cells) on its 2nd line (y 13); 10/18
+    // (Sun, x 70-78) has its own item on the 1st line (y 12), its 2nd line is empty. Selected, 10/17
+    // borrows it: the text runs to x 77, the background up to x 78, over the grid line (x 69)
+    let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
+    let terminal = draw_app(&mut app, 80, 30);
+    let buffer = terminal.backend().buffer();
+    let theme = &app.theme;
+    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    assert_eq!(text, " 08:00 Coffee chat ");
+    for x in [69, 77, 78] {
+        assert_eq!(buffer[(x, 13)].bg, theme.selection, "x {x}");
+    }
+    // 10/18's own line keeps its own (plain) background
+    for x in [70, 78] {
+        assert_ne!(buffer[(x, 12)].bg, theme.selection, "x {x}");
+    }
+    // Not selected (10/16 is): the title stays in its cell, cut at the grid line
+    let mut app = month_app(Lang::En, date(2026, 10, 16), MONTH_TASKS);
+    let terminal = draw_app(&mut app, 80, 30);
+    let buffer = terminal.backend().buffer();
+    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    assert_eq!(text, " 08:00 Co│         ");
 }
 
 #[test]

@@ -477,7 +477,9 @@ fn bar_line(item: &Item, time: bool, app: &App) -> Line<'static> {
 /// another line: text under that day's own items would read as one of them), the selected day's cell
 /// (its background stays clean), a new month, or Sunday; anything longer is cut off.
 /// The selected day's text takes its background along into the borrowed cells, up to one cell past the
-/// text (like the blank before it), so it reads as the selected day's; the rest of those cells stays plain
+/// text (like the blank before it), so it reads as the selected day's; the rest of those cells stays plain.
+/// With that background to tell it apart, the selected day also borrows a neighbor that has nothing on
+/// that line, even with items above it
 fn render_week(
     frame: &mut Frame,
     cells: &[Rect],
@@ -490,11 +492,14 @@ fn render_week(
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
             let mut right = cell.right();
             if row > 0 {
+                // How many lines a neighbor may have and still lend this line: the selected day's only
+                // needs this line free; other days' need the neighbor's whole cell empty (only its date;
+                // more means an item, a bar or 「+N」)
+                let most = if selected == Some(column) { row } else { 1 };
                 for (next_column, (next, next_lines)) in
                     cells.iter().zip(lines).enumerate().skip(column + 1)
                 {
-                    // More than the date line: that day has an item, a bar or 「+N」
-                    if next_lines.len() > 1
+                    if next_lines.len() > most
                         || selected == Some(next_column)
                         || days[next_column].first_of_month() != days[column].first_of_month()
                     {
