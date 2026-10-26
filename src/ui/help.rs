@@ -100,24 +100,23 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
     let here = full.then_some(app.focus);
     let key_width = key_width(&left, &right);
     let right_margin = if full { 1 } else { SHORT_RIGHT_MARGIN };
-    // Where the files are on top (both versions), then the keys
-    let room = usize::from(screen.width).saturating_sub(right_margin + 2);
-    let mut lines = files(app, key_width, room);
-    lines.extend(arrange(
-        &left,
-        &right,
-        key_width,
-        &app.theme,
-        screen.width,
-        here,
-    ));
+    let keys = arrange(&left, &right, key_width, &app.theme, screen.width, here);
     // Size: widest line + right margin + 2 for the border (also wide enough for the top and bottom border
     // text, or it gets cut off); line count + top and bottom padding + 2 for the border (shrunk to the
-    // screen if larger)
+    // screen if larger). The keys set the width: the files on top (both versions) wrap inside it
     let (title, hint) = border_lines(app, full);
-    let inside = (width(&lines) + right_margin)
+    let keys_inside = (width(&keys) + right_margin)
         .max(title.width())
         .max(hint.width());
+    let room = usize::from(screen.width).saturating_sub(right_margin + 2);
+    let mut lines = files(
+        app,
+        key_width,
+        keys_inside.saturating_sub(right_margin),
+        room,
+    );
+    lines.extend(keys);
+    let inside = keys_inside.max(width(&lines) + right_margin);
     let box_width = u16::try_from(inside + 2).unwrap_or(u16::MAX);
     let box_height = u16::try_from(lines.len())
         .unwrap_or(u16::MAX)
@@ -168,12 +167,13 @@ fn key_width(left: &[HelpSection], right: &[HelpSection]) -> usize {
         + KEY_GAP
 }
 
-/// The block on top that says where the task file and config file are: the block name, then one line per
-/// file with a label and the path (`paths::shown`); a file not there yet says so. The label column is as
-/// wide as the key column below (`key_width`), or wider if a label needs it. A path too long for `room`
-/// cells (the screen width inside the box) loses its front, so the file name stays. Ends with a blank line;
-/// empty when there is no path at all (tests)
-fn files(app: &App, key_width: usize, room: usize) -> Vec<Line<'static>> {
+/// The block on top that says where the task file and config file are: the block name, then each file with
+/// a label and the path (`paths::shown`); a file not there yet says so after it. The label column is as
+/// wide as the key column below (`key_width`), or wider if a label needs it. A path longer than `width`
+/// cells (the keys' width) wraps under its first line, after a `/` (`wrap_path`); the lines get wider only
+/// when one part between two `/` needs it, up to `room` cells (the screen width inside the box). Ends with a
+/// blank line; empty when there is no path at all (tests)
+fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let help = app.lang.texts().help;
     let files: Vec<_> = [
@@ -196,39 +196,77 @@ fn files(app: &App, key_width: usize, room: usize) -> Vec<Line<'static>> {
         Style::new().fg(theme.help_section).add_modifier(bold),
     );
     let mut lines = vec![Line::from(title)];
+    // Same indent as the keys below (4); the path's next lines start under its first character
+    let indent = 4 + label_width;
     for (label, path) in files {
         let (path, exists) = paths::shown(path);
         let note = if exists { "" } else { help.not_created };
-        // Same indent as the keys below (4)
-        let path_room = room.saturating_sub(4 + label_width + Span::raw(note).width());
+        // The note stays with the file name: wrapped as one text, styled apart below
+        let text = format!("{path}{note}");
+        let longest = text
+            .split_inclusive('/')
+            .map(|part| Span::raw(part).width())
+            .max()
+            .unwrap_or(0);
+        let path_width = width
+            .saturating_sub(indent)
+            .max(longest)
+            .min(room.saturating_sub(indent));
         let padding = " ".repeat(label_width - Span::raw(label).width());
-        lines.push(Line::from(vec![
-            Span::raw("    "),
-            Span::styled(
-                format!("{label}{padding}"),
-                Style::new().fg(theme.help_key).add_modifier(bold),
-            ),
-            Span::styled(keep_end(&path, path_room), Style::new().fg(theme.text)),
-            Span::styled(note, Style::new().fg(theme.muted)),
-        ]));
+        // Where the path ends in `text` (the note is after it)
+        let mut start = 0;
+        for (index, row) in wrap_path(&text, path_width).into_iter().enumerate() {
+            let head = if index == 0 {
+                Span::styled(
+                    format!("    {label}{padding}"),
+                    Style::new().fg(theme.help_key).add_modifier(bold),
+                )
+            } else {
+                Span::raw(" ".repeat(indent))
+            };
+            let end = start + row.len();
+            let split = path.len().clamp(start, end) - start;
+            let (own, after) = row.split_at(split);
+            lines.push(Line::from(vec![
+                head,
+                Span::styled(own.to_string(), Style::new().fg(theme.text)),
+                Span::styled(after.to_string(), Style::new().fg(theme.muted)),
+            ]));
+            start = end;
+        }
     }
     lines.push(Line::default());
     lines
 }
 
-/// `text` cut to at most `width` cells by dropping its front, marked with `...`
-/// (e.g. `~/notes/roh-cal/tasks.md` → `.../roh-cal/tasks.md`)
-fn keep_end(text: &str, width: usize) -> String {
-    if Span::raw(text).width() <= width {
-        return text.to_string();
+/// `text` (a path) in lines of at most `width` cells, broken right after a `/` (e.g.
+/// `~/notes/52.51 roh-cal/` + `tasks.md`); a part between two `/` wider than a line is broken anywhere.
+/// The lines put together are `text` again
+fn wrap_path(text: &str, width: usize) -> Vec<String> {
+    let cells = |text: &str| Span::raw(text).width();
+    let mut lines = vec![String::new()];
+    for part in text.split_inclusive('/') {
+        if let Some(line) = lines.last()
+            && !line.is_empty()
+            && cells(line) + cells(part) > width
+        {
+            lines.push(String::new());
+        }
+        for character in part.chars() {
+            let mut buffer = [0; 4];
+            let character = character.encode_utf8(&mut buffer);
+            if let Some(line) = lines.last()
+                && !line.is_empty()
+                && cells(line) + cells(character) > width
+            {
+                lines.push(String::new());
+            }
+            if let Some(line) = lines.last_mut() {
+                line.push_str(character);
+            }
+        }
     }
-    // Start at the first character from which the rest fits after the `...`
-    let start = text
-        .char_indices()
-        .map(|(index, _)| index)
-        .find(|&index| Span::raw(&text[index..]).width() + 3 <= width)
-        .unwrap_or(text.len());
-    format!("...{}", &text[start..])
+    lines
 }
 
 /// Lays out the two columns' sections as lines: if the width (minus the border) fits, side by side, each

@@ -208,47 +208,53 @@ fn app_with_files(tasks: Option<&str>, config: Option<&str>) -> App {
 #[test]
 fn files_are_listed_on_top_of_the_keys() {
     // Expected box computed by a separate Python script: the files block, a blank line, then the same two
-    // columns as `short_page_puts_two_columns_in_the_middle_of_the_screen`; label column = 任務檔 (6) + 3,
-    // wider than the key column (8); neither file is there, so each says so; the box widens to fit:
-    // longest line 57 + right margin 3 + border 2 = 62
+    // columns as `short_page_puts_two_columns_in_the_middle_of_the_screen`, and the box just as wide (the
+    // keys set the width); label column = 任務檔 (6) + 3, wider than the key column (8); neither file is
+    // there, so each says so after its name. A path does not fit the 54 − 3 − 4 − 9 = 38 cells after the
+    // label: it wraps after a `/`, the next line under its first character
     let app = app_with_files(
         Some("/nonexistent/roh-cal/tasks.md"),
         Some("/nonexistent/roh-cal/config.toml"),
     );
     let (area, rows, buffer) = draw_app(app, 70, 23, Help::default());
-    assert_eq!(area, Rect::new(4, 2, 62, 20));
+    assert_eq!(area, Rect::new(7, 1, 56, 22));
     assert_eq!(
         rows,
         [
-            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ─────────────────────────────────────╮",
-            "│                                                            │",
-            "│  檔案                                                      │",
-            "│    任務檔   /nonexistent/roh-cal/tasks.md（還沒建立）      │",
-            "│    設定檔   /nonexistent/roh-cal/config.toml（還沒建立）   │",
-            "│                                                            │",
-            "│  月曆                        畫面                          │",
-            "│    hjkl    移動                1       月曆 + 事項         │",
-            "│    [ / ]   上個月 / 下個月     2       大月曆              │",
-            "│    t       今天                3       任務頁              │",
-            "│    Enter   那天的事            s       日曆清單            │",
-            "│    a       在那天新增          .       隱藏做完的          │",
-            "│                                Tab     換框                │",
-            "│                                                            │",
-            "│                              系統                          │",
-            "│                                ?       說明                │",
-            "│                                ,       設定                │",
-            "│                                q       離開                │",
-            "│                                                            │",
-            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ────────────────────────────────╯",
+            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ───────────────────────────────╮",
+            "│                                                      │",
+            "│  檔案                                                │",
+            "│    任務檔   /nonexistent/roh-cal/                    │",
+            "│             tasks.md（還沒建立）                     │",
+            "│    設定檔   /nonexistent/roh-cal/                    │",
+            "│             config.toml（還沒建立）                  │",
+            "│                                                      │",
+            "│  月曆                        畫面                    │",
+            "│    hjkl    移動                1       月曆 + 事項   │",
+            "│    [ / ]   上個月 / 下個月     2       大月曆        │",
+            "│    t       今天                3       任務頁        │",
+            "│    Enter   那天的事            s       日曆清單      │",
+            "│    a       在那天新增          .       隱藏做完的    │",
+            "│                                Tab     換框          │",
+            "│                                                      │",
+            "│                              系統                    │",
+            "│                                ?       說明          │",
+            "│                                ,       設定          │",
+            "│                                q       離開          │",
+            "│                                                      │",
+            "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────╯",
         ]
     );
-    // Colors like a section: block name, labels like keys, the path in text color, the note muted
+    // Colors like a section: block name, labels like keys, the path in text color (its next line too), the
+    // note muted
     let theme = Theme::default();
-    assert_eq!(buffer[(7, 4)].fg, theme.help_section);
-    assert_eq!(buffer[(9, 5)].fg, theme.help_key);
-    assert_eq!(buffer[(18, 5)].fg, theme.text);
-    assert_eq!(buffer[(47, 5)].fg, theme.muted);
-    // The full version has the same block on top
+    assert_eq!(buffer[(10, 3)].fg, theme.help_section);
+    assert_eq!(buffer[(12, 4)].fg, theme.help_key);
+    assert_eq!(buffer[(21, 4)].fg, theme.text);
+    assert_eq!(buffer[(21, 5)].fg, theme.text);
+    assert_eq!(buffer[(28, 5)].fg, theme.text);
+    assert_eq!(buffer[(29, 5)].fg, theme.muted);
+    // The full version has the same block on top; its keys are wide enough for the whole path
     let app = app_with_files(Some("/nonexistent/roh-cal/tasks.md"), None);
     let full = Help {
         full: true,
@@ -264,24 +270,51 @@ fn files_are_listed_on_top_of_the_keys() {
 }
 
 #[test]
-fn a_path_too_long_for_the_screen_loses_its_front() {
+fn a_part_of_a_path_wider_than_the_keys_widens_the_box_just_enough() {
     // Expected box computed by the same separate Python script: 50 cells is too narrow for two columns, so
-    // the keys stack as in `a_narrow_screen_stacks_the_columns`; inside the box there is room for 50 − 2 − 3
-    // = 45 cells, minus indent 4, label 9 and the note 12 = 20 for the path: `...` + its last 17 cells.
-    // No config file path (no HOME): no line for it
+    // the keys stack as in `a_narrow_screen_stacks_the_columns` (30 cells inside); after the label there is
+    // room for 30 − 3 − 13 = 14 cells, but the last part 「tasks.md（還沒建立）」 is 20 (the note stays with
+    // the file name), so the lines take 20 and the box widens to 13 + 20 + 3 = 36 inside. No config file
+    // path (no HOME): no line for it
     let app = app_with_files(Some("/nonexistent/roh-cal/tasks.md"), None);
     let (area, rows, _) = draw_app(app, 50, 30, Help::default());
-    assert_eq!(area, Rect::new(0, 2, 50, 26));
+    assert_eq!(area, Rect::new(6, 1, 38, 28));
     assert_eq!(
-        rows[..6],
+        rows[..8],
         [
-            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ─────────────────────────╮",
-            "│                                                │",
-            "│  檔案                                          │",
-            "│    任務檔   .../roh-cal/tasks.md（還沒建立）   │",
-            "│                                                │",
-            "│  月曆                                          │",
+            "╭ roh-cal ∙ 按鍵 ∙ 月曆 ─────────────╮",
+            "│                                    │",
+            "│  檔案                              │",
+            "│    任務檔   /nonexistent/          │",
+            "│             roh-cal/               │",
+            "│             tasks.md（還沒建立）   │",
+            "│                                    │",
+            "│  月曆                              │",
         ]
+    );
+}
+
+#[test]
+fn wrap_path_breaks_after_a_slash_or_anywhere_in_a_part_too_wide() {
+    // Lines put together are the path again
+    assert_eq!(
+        wrap_path("~/notes/52.51 roh-cal/tasks.md", 22),
+        ["~/notes/52.51 roh-cal/", "tasks.md"]
+    );
+    assert_eq!(
+        wrap_path("~/notes/52.51 roh-cal/tasks.md", 30),
+        ["~/notes/52.51 roh-cal/tasks.md"]
+    );
+    // 「52.51 roh-cal/」 is 14 cells, wider than 10: broken inside
+    assert_eq!(
+        wrap_path("~/52.51 roh-cal/a.md", 10),
+        ["~/", "52.51 roh-", "cal/a.md"]
+    );
+    // Wide characters count 2 cells each
+    assert_eq!(wrap_path("~/日曆/任務.md", 7), ["~/日曆/", "任務.md"]);
+    assert_eq!(
+        wrap_path("~/日曆/任務.md", 6),
+        ["~/", "日曆/", "任務.m", "d"]
     );
 }
 
