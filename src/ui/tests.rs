@@ -627,7 +627,7 @@ fn unchecked_calendars_hide_their_items() {
 #[test]
 fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
     // testdata/archived.md: Work > Payments API v2, Tokyo trip (with Packing list inside it) and 2025 holidays
-    // are archived: under the rule 「─ 已封存 ─」 and unchecked, so their items (10/2 Release v2.3) are not
+    // are archived: under the rule 「─── 已封存 ───」, unchecked, so their items (10/2 Release v2.3) are not
     // listed; Payments API v2 sits inside a running calendar, so it starts at the left of the archive part
     let mut app = App::new(
         Lang::ZhTw,
@@ -648,7 +648,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "│ ☑\u{a0}Work            1 ││       43 │ 19  20⠂ 21⠂ 22  23  24  25  ││ 10/21 10:00 Design review                                   │",
             "│   ☑\u{a0}Search revamp 2 ││       44 │ 26  27  28  29  30  31      ││                                                             │",
             "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
-            "│─ 已封存 ────────────││  11月 44 │                          1  ││                                                             │",
+            "│────── 已封存 ───────││  11月 44 │                          1  ││                                                             │",
             "│ ☐\u{a0}Payments API v2 2 ││       45 │  2   3   4   5   6   7   8  ││                                                             │",
             "│ ☐\u{a0}Tokyo trip      1 ││       46 │  9  10  11  12  13  14  15  ││                                                             │",
             "│   ☐\u{a0}Packing list  0 ││       47 │ 16  17  18  19  20  21  22  ││                                                             │",
@@ -661,13 +661,16 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             " 123 版型  hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
         ]
     );
-    // The rule is a line with the name in the title color
+    // The rule (y 9) is a line with the muted name in the middle of the 21 cells inside the box: 6 `─`
+    // (x 1-6), 「 已封存 」 (x 7-14), 7 `─` (x 15-21)
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
     assert_eq!(cell(1, 9), ("─", theme.line));
-    assert_eq!(cell(3, 9), ("已", theme.label));
-    assert_eq!(cell(20, 9), ("─", theme.line));
+    assert_eq!(cell(6, 9), ("─", theme.line));
+    assert_eq!(cell(8, 9), ("已", theme.muted));
+    assert_eq!(cell(15, 9), ("─", theme.line));
+    assert_eq!(cell(21, 9), ("─", theme.line));
     // Clicks: the rule hits nothing, the rows under it the archived calendars (3 = the first archived one in
     // `App::groups`), the blank rows below them nothing
     assert_eq!(click_at(&app, 5, 8), Some(Click::Group(2)));
@@ -691,7 +694,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "│ ☑\u{a0}Work            1 ││       43 │ 19  20⠂ 21⠂ 22  23  24  25  ││ 10/20 Ship the v2.4 release                                 │",
             "│   ☑\u{a0}Search revamp 2 ││       44 │ 26  27  28  29  30  31      ││ 10/21 10:00 Design review                                   │",
             "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
-            "│─ Archived ──────────││   Nov 44 │                          1  ││                                                             │",
+            "│───── Archived ──────││   Nov 44 │                          1  ││                                                             │",
             "│ ☑\u{a0}Payments API v2 2 ││       45 │  2   3   4   5   6   7   8  ││                                                             │",
             "│ ☐\u{a0}Tokyo trip      1 ││       46 │  9  10  11  12  13  14  15  ││                                                             │",
             "│   ☐\u{a0}Packing list  0 ││       47 │ 16  17  18  19  20  21  22  ││                                                             │",
@@ -748,7 +751,7 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     assert_eq!(thumb.first(), Some(&6));
     let terminal = draw_app(&mut app, 121, 45);
     let rule = &area_rows(terminal.backend().buffer(), Rect::new(0, 36, 22, 1))[0];
-    assert!(rule.starts_with("│─ 已封存 ──"), "{rule}");
+    assert_eq!(rule, "│────── 已封存 ──────│");
     let (rows, thumb) = names(&mut app, 37, 6);
     assert_eq!(rows, numbered("a", 1..=6));
     assert_eq!(thumb.first(), Some(&37));
@@ -758,8 +761,10 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     assert_eq!(rows, numbered("a", 5..=10));
     assert_eq!(thumb.last(), Some(&42));
     assert_eq!(names(&mut app, 6, 30).0, numbered("r", 1..=30));
-    // A click on the archive part's first row hits a05 (33 running ones come before it in `App::groups`)
+    // A click on the archive part's first row hits a05 (33 running ones come before it in `App::groups`); the
+    // rule hits nothing
     assert_eq!(click_at(&app, 5, 37), Some(Click::Group(33 + 4)));
+    assert_eq!(click_at(&app, 5, 36), None);
     // The last running one (r33): the running part scrolls (r04-r33), the archive part stays
     app.side_row = SideRow::Calendar(32);
     assert_eq!(names(&mut app, 6, 30).0, numbered("r", 4..=33));
@@ -768,6 +773,14 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     app.handle_key(KeyEvent::from(KeyCode::Char('j')));
     assert_eq!(app.side_row, SideRow::Calendar(33));
     assert_eq!(names(&mut app, 37, 6).0, numbered("a", 1..=6));
+    // A short box (121 × 12: 4 rows under the switches): the running part keeps 2 rows (still scrolled to r04),
+    // then the rule and 1 archived row (a01, chosen)
+    let terminal = draw_app(&mut app, 121, 12);
+    let rows = area_rows(terminal.backend().buffer(), Rect::new(0, 6, 22, 4));
+    assert!(rows[0].starts_with("│ ☑\u{a0}r04 "), "{}", rows[0]);
+    assert!(rows[1].starts_with("│ ☑\u{a0}r05 "), "{}", rows[1]);
+    assert_eq!(rows[2], "│────── 已封存 ──────│");
+    assert!(rows[3].starts_with("│ ☐\u{a0}a01 "), "{}", rows[3]);
     // Without archived calendars there is no rule and no 30-row cap: all 33 fit in the 37 rows
     let mut app = App::new(
         Lang::ZhTw,

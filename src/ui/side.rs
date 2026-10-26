@@ -81,7 +81,7 @@ struct Areas {
     switches: Option<[Rect; 3]>,
     /// The running calendars' rows (every calendar's when there is no archive part)
     running: Rect,
-    /// The archive part: the rule 「─ 已封存 ───」 and the archived calendars' rows under it; `None` without
+    /// The archive part: the rule 「─── 已封存 ───」 and the archived calendars' rows under it; `None` without
     /// archived calendars or in a box too short for it (then they follow the others in `running`)
     archive: Option<[Rect; 2]>,
 }
@@ -203,7 +203,7 @@ fn scrolled(part: &Part, chosen: SideRow, first: bool) -> usize {
 /// Draws the side menu: the header 「日曆」, the 「 ☐ 隱藏全部」 and 「 ☐ 隱藏做完的」 switches
 /// (`[calendar_list] hide_done`) and a rule, then one calendar per row, e.g. 「 ☑ Work            12 」; a
 /// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」. Archived calendars come
-/// last, under a rule 「─ 已封存 ───」 of their own; the running calendars above it take at most
+/// last, under a rule 「─── 已封存 ───」 of their own; the running calendars above it take at most
 /// `RUNNING_MAX_ROWS`
 ///
 /// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long for the box (see
@@ -247,15 +247,19 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     for part in parts(&areas, app) {
         render_part(frame, area, app, &part);
     }
-    // The archive part's rule: 「─ 已封存 ───」, the name like a title
+    // The archive part's rule: 「─── 已封存 ───」, the name in the middle (one more `─` on the right when the
+    // two sides cannot be equal) and muted
     if let Some([archive_rule, _]) = areas.archive {
         let label = format!(" {} ", texts.archived);
-        let rest = usize::from(archive_rule.width).saturating_sub(1 + Span::raw(&label).width());
+        let dashes = usize::from(archive_rule.width).saturating_sub(Span::raw(&label).width());
+        let dash = |count: usize| {
+            Span::styled(line::HORIZONTAL.repeat(count), Style::new().fg(theme.line))
+        };
         frame.render_widget(
             Line::from(vec![
-                Span::styled(line::HORIZONTAL, Style::new().fg(theme.line)),
-                Span::styled(label, Style::new().fg(theme.label)),
-                Span::styled(line::HORIZONTAL.repeat(rest), Style::new().fg(theme.line)),
+                dash(dashes / 2),
+                Span::styled(label, Style::new().fg(theme.muted)),
+                dash(dashes - dashes / 2),
             ]),
             archive_rule,
         );

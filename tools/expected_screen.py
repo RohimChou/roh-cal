@@ -320,10 +320,12 @@ def side_lines(t, h, groups):
     room = h - 3 - len(rows)  # rows left in the box for the calendars
     if running < len(groups) and room >= 3:
         # The running calendars (at most RUNNING_MAX, and leaving room for the archive part's rule and a row),
-        # then the rule 「─ 已封存 ───」 and the archived calendars (no scrolling here)
+        # then the rule 「─── 已封存 ───」 with the name in the middle (the extra `─` on the right) and the
+        # archived calendars (no scrolling here)
         rows += [calendar_row(i) for i in range(min(running, RUNNING_MAX, room - 2))]
         label = f" {t['archived']} "
-        rows.append("─" + label + "─" * (iw - 1 - width(label)))
+        left = (iw - width(label)) // 2
+        rows.append("─" * left + label + "─" * (iw - width(label) - left))
         rows += [calendar_row(i) for i in range(running, len(groups))]
     else:
         rows += [calendar_row(i) for i in range(len(groups))]
