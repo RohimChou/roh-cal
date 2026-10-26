@@ -520,8 +520,8 @@ fn side_menu_keys_choose_and_check_calendars() {
     press(&mut app, KeyCode::Char(' '));
     assert!(!app.groups[1].shown);
     assert_eq!(app.agenda().len(), 2);
-    // Enter checks it again
-    press(&mut app, KeyCode::Enter);
+    // Space again checks it again
+    press(&mut app, KeyCode::Char(' '));
     assert!(app.groups[1].shown);
     // Down past the last calendar: stays there; up past the first one: the switch rows above the list,
     // 「隱藏做完的」 and then 「隱藏全部」, where it stops; Space switches 「隱藏做完的」; arrow keys and the
@@ -566,6 +566,65 @@ fn side_menu_keys_choose_and_check_calendars() {
     press(&mut app, KeyCode::Esc);
     assert_eq!(app.focus, Focus::Calendar);
     assert!(!app.should_quit);
+}
+
+#[test]
+fn enter_shows_only_the_chosen_calendar_and_enter_on_it_again_puts_the_checks_back() {
+    let mut app = wide_app_with(
+        "- a @2026-10-10\n# Personal\n- b @2026-10-17\n# Work\n- c @2026-10-20\n## Project A\n\
+         - d @2026-10-21\n## Old archived:2026-10-01\n- e @2026-10-22\n",
+    );
+    app.focus = Focus::Side;
+    let names: Vec<_> = app
+        .groups
+        .iter()
+        .map(|group| group.path().join(" > "))
+        .collect();
+    assert_eq!(
+        names,
+        ["", "Personal", "Work", "Work > Project A", "Work > Old"]
+    );
+    let checks = |app: &App| -> Vec<bool> { app.groups.iter().map(|group| group.shown).collect() };
+    // Before: Personal unchecked with Space (the archived Old starts unchecked)
+    app.side_row = SideRow::Calendar(1);
+    press(&mut app, KeyCode::Char(' '));
+    let before = vec![true, false, true, true, false];
+    assert_eq!(checks(&app), before);
+    // Enter on Work: only Work and Project A inside it (the archived Old inside it keeps its own check, as
+    // with Space); only Work's items are shown
+    app.side_row = SideRow::Calendar(2);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), [false, false, true, true, false]);
+    let shown: Vec<_> = app
+        .items
+        .iter()
+        .filter(|item| app.is_shown(item))
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(shown, ["c", "d"]);
+    // Enter on Project A meanwhile: only Project A
+    app.side_row = SideRow::Calendar(3);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), [false, false, false, true, false]);
+    // Space meanwhile still checks (a too) …
+    app.side_row = SideRow::Calendar(0);
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(checks(&app), [true, false, false, true, false]);
+    // … and Enter on Project A again puts back the checks from before the first Enter (not from before
+    // Enter on Project A)
+    app.side_row = SideRow::Calendar(3);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), before);
+    // An archived calendar can be shown alone too, and put back the same way
+    app.side_row = SideRow::Calendar(4);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), [false, false, false, false, true]);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), before);
+    // On a switch row, Enter flips the switch like Space: 「隱藏全部」 unchecks every calendar
+    app.side_row = SideRow::HideAll;
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(checks(&app), [false; 5]);
 }
 
 #[test]

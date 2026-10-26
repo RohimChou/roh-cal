@@ -118,12 +118,12 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    gg / G   第一個 / 最後一個     2        大月曆        │",
             "│    [ / ]    上 / 下一個最外層     3        任務頁        │",
             "│    Space    勾選                  s        日曆清單      │",
-            "│    a / A    新增 / 新增子日曆     .        隱藏做完的    │",
-            "│    e        改名                  Tab      換框          │",
-            "│    d        刪除                                         │",
-            "│    L / H    往內 / 往外一層     系統                     │",
-            "│    z        封存 / 取消封存       ?        說明          │",
-            "│                                   ,        設定          │",
+            "│    Enter    只看這個 / 還原       .        隱藏做完的    │",
+            "│    a / A    新增 / 新增子日曆     Tab      換框          │",
+            "│    e        改名                                         │",
+            "│    d        刪除                系統                     │",
+            "│    L / H    往內 / 往外一層       ?        說明          │",
+            "│    z        封存 / 取消封存       ,        設定          │",
             "│                                   q        離開          │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵  q/Esc 關閉 ──────────────────────────────╯",
@@ -323,14 +323,14 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
         let (area, rows, _) = draw(
             lang,
             100,
-            44,
+            45,
             Help {
                 full: true,
                 scroll: 0,
             },
         );
-        // The longer column (right) is 40 lines + padding 2 + border 2: it just fits, no scrolling
-        assert_eq!(area.height, 44, "{lang:?}");
+        // The longer column (right) is 41 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 45, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);

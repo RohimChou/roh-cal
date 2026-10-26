@@ -124,6 +124,16 @@ pub enum SideRow {
     Calendar(usize),
 }
 
+/// 「Only this one」 (`Enter` in the side menu): which calendar is shown alone, and every calendar's check from
+/// before, to put back
+#[derive(Debug)]
+struct Solo {
+    /// The path of the calendar shown alone (`Group::path`)
+    path: Vec<String>,
+    /// Every calendar's path and whether it was checked, before the first `Enter`
+    checked: Vec<(Vec<String>, bool)>,
+}
+
 /// One calendar in the side menu (= one group in the task file)
 #[derive(Debug)]
 pub struct Group {
@@ -338,6 +348,8 @@ pub struct App {
     pub side_archive_top: usize,
     /// Which pane had the keyboard before `s` called up the side menu when narrow (it goes back there on hide)
     side_back: Focus,
+    /// A calendar shown alone with `Enter` in the side menu, and the checks to put back; `None` = not now
+    solo: Option<Solo>,
     /// The last key was `g` in the side menu or on the tasks page: one more `g` right after it jumps to the
     /// first calendar / item (`gg`)
     pending_g: bool,
@@ -436,6 +448,7 @@ impl App {
             side_top: 0,
             side_archive_top: 0,
             side_back: Focus::Calendar,
+            solo: None,
             pending_g: false,
             items,
             warnings: Vec::new(),
@@ -990,7 +1003,8 @@ impl App {
     /// Keyboard in the side menu: up / down choose a row, `gg` / `G` the first / last row (like vim; the
     /// first row is the 「隱藏全部」 switch, the last one the last calendar), `[` / `]` the previous / next
     /// top-level calendar,
-    /// `Space` / `Enter` check or uncheck it (an unchecked calendar's items are hidden), `a` adds a calendar
+    /// `Space` checks or unchecks it (an unchecked calendar's items are hidden), `Enter` shows only it / puts
+    /// the checks back (`toggle_solo`; on a switch row, `Enter` flips the switch like `Space`), `a` adds a calendar
     /// (`A` inside the chosen one),
     /// `e` renames the chosen one, `d` deletes it, `L` / `H` move it one level in / out, `z` archives it or
     /// brings it back
@@ -1011,7 +1025,11 @@ impl App {
             }
             KeyCode::Char('[') => self.jump_top_calendar(-1),
             KeyCode::Char(']') => self.jump_top_calendar(1),
-            KeyCode::Char(' ') | KeyCode::Enter => self.toggle_group(),
+            KeyCode::Char(' ') => self.toggle_group(),
+            KeyCode::Enter => match self.chosen_side_row() {
+                SideRow::Calendar(_) => self.toggle_solo(),
+                SideRow::HideAll | SideRow::HideDone => self.toggle_group(),
+            },
             KeyCode::Char('a') => self.start_adding_calendar(),
             KeyCode::Char('A') => self.start_adding_subcalendar(),
             KeyCode::Char('e') => self.start_renaming_calendar(),
@@ -1033,25 +1051,68 @@ impl App {
         }
     }
 
-    /// The chosen calendar: checked ⇄ unchecked, and every calendar inside it (any number of levels down)
-    /// gets the same, e.g. checking `Work` checks `Work > SFAP` too; an archived calendar inside a running
-    /// one keeps its own check
+    /// The chosen calendar: checked ⇄ unchecked, and every calendar inside it gets the same
+    /// (`chosen_family`), e.g. checking `Work` checks `Work > SFAP` too
     fn toggle_calendar(&mut self) {
-        let Some(chosen) = self.chosen_group() else {
+        let Some(shown) = self.chosen_group().map(|chosen| !chosen.shown) else {
             return;
         };
-        let shown = !chosen.shown;
-        let affected: Vec<usize> = self
-            .groups
+        for index in self.chosen_family() {
+            self.groups[index].shown = shown;
+        }
+    }
+
+    /// The chosen calendar and the calendars inside it that go along with it (`Space`, `Enter`), as indexes in
+    /// `groups`: every one any number of levels down, except an archived one inside a running calendar (it
+    /// keeps its own check); empty on a switch row
+    fn chosen_family(&self) -> Vec<usize> {
+        let Some(chosen) = self.chosen_group() else {
+            return Vec::new();
+        };
+        self.groups
             .iter()
             .enumerate()
             .filter(|(_, group)| {
                 group.same(chosen) || (group.inside(chosen) && (chosen.archived || !group.archived))
             })
             .map(|(index, _)| index)
-            .collect();
-        for index in affected {
-            self.groups[index].shown = shown;
+            .collect()
+    }
+
+    /// `Enter` on a calendar in the side menu: shows only it, i.e. it and the calendars inside it are checked
+    /// (`chosen_family`, as `Space` would check them) and every other one is unchecked, after remembering
+    /// every calendar's check; `Enter` on it again puts those checks back (`Space` meanwhile changes nothing
+    /// that is put back). `Enter` on another calendar meanwhile shows only that one instead, still
+    /// remembering the checks from before the first `Enter`
+    fn toggle_solo(&mut self) {
+        let Some(path) = self.chosen_group().map(Group::path) else {
+            return;
+        };
+        match self.solo.take() {
+            // On the calendar shown alone: every check back as it was (a calendar added since keeps its own)
+            Some(solo) if solo.path == path => {
+                for group in &mut self.groups {
+                    let path = group.path();
+                    if let Some(&(_, shown)) = solo.checked.iter().find(|(old, _)| *old == path) {
+                        group.shown = shown;
+                    }
+                }
+            }
+            solo => {
+                let checked = match solo {
+                    Some(solo) => solo.checked,
+                    None => self
+                        .groups
+                        .iter()
+                        .map(|group| (group.path(), group.shown))
+                        .collect(),
+                };
+                let family = self.chosen_family();
+                for (index, group) in self.groups.iter_mut().enumerate() {
+                    group.shown = family.contains(&index);
+                }
+                self.solo = Some(Solo { path, checked });
+            }
         }
     }
 
