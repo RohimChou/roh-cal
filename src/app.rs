@@ -1399,8 +1399,8 @@ impl App {
     /// `[` / `]` in the side menu: chooses the previous (`step` = -1) / next (1) top-level calendar,
     /// skipping the calendars inside them, like `[` `]` on the tasks page go to the previous / next
     /// calendar; from a calendar inside one, `[` goes to the top-level calendar before the one it is in.
-    /// On a switch row above the calendars, `]` goes to the first calendar; stays put when there is no
-    /// calendar that way
+    /// With no top-level calendar before, `[` goes up to the 「隱藏全部」 switch (the first row, like `gg`);
+    /// on a switch row, `]` goes to the first calendar; `]` stays put on the last one
     fn jump_top_calendar(&mut self, step: isize) {
         // Index in `groups` of each top-level calendar, in screen order
         let tops: Vec<usize> = self
@@ -1420,8 +1420,11 @@ impl App {
             None if step > 0 => Some(0),
             None => None,
         };
-        if let Some(&index) = target.and_then(|target| tops.get(target)) {
-            self.side_row = SideRow::Calendar(index);
+        match target.and_then(|target| tops.get(target)) {
+            Some(&index) => self.side_row = SideRow::Calendar(index),
+            // Past the first top-level calendar: the 「隱藏全部」 switch
+            None if step < 0 => self.side_row = SideRow::HideAll,
+            None => {}
         }
     }
 

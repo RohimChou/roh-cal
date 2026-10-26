@@ -723,12 +723,16 @@ fn brackets_in_the_side_menu_jump_to_the_previous_or_next_top_level_calendar() {
     assert_eq!(app.side_row, SideRow::Calendar(4));
     press(&mut app, KeyCode::Char(']'));
     assert_eq!(app.side_row, SideRow::Calendar(4));
-    // [ back to Work, then Personal; stays at the first calendar (not up to the switches)
+    // [ back to Work, then Personal, then past the first calendar up to the 「隱藏全部」 switch (the top
+    // row), where it stays
     press(&mut app, KeyCode::Char('['));
     assert_eq!(app.side_row, SideRow::Calendar(1));
     press(&mut app, KeyCode::Char('['));
-    press(&mut app, KeyCode::Char('['));
     assert_eq!(app.side_row, SideRow::Calendar(0));
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::HideAll);
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(app.side_row, SideRow::HideAll);
     // From Bugs (inside Work): ] = Travel, [ = the one before Work (Personal), like on the tasks page
     app.side_row = SideRow::Calendar(3);
     press(&mut app, KeyCode::Char(']'));
@@ -736,10 +740,11 @@ fn brackets_in_the_side_menu_jump_to_the_previous_or_next_top_level_calendar() {
     app.side_row = SideRow::Calendar(3);
     press(&mut app, KeyCode::Char('['));
     assert_eq!(app.side_row, SideRow::Calendar(0));
-    // On a switch row: ] = the first calendar, [ stays
-    app.side_row = SideRow::HideAll;
+    // On 「隱藏做完的」: [ = 「隱藏全部」 above it, ] = the first calendar
+    app.side_row = SideRow::HideDone;
     press(&mut app, KeyCode::Char('['));
     assert_eq!(app.side_row, SideRow::HideAll);
+    app.side_row = SideRow::HideDone;
     press(&mut app, KeyCode::Char(']'));
     assert_eq!(app.side_row, SideRow::Calendar(0));
     // In the side menu they are not months: the selected day did not move
