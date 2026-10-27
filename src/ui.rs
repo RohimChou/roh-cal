@@ -58,6 +58,12 @@ pub fn day_switch_area(app: &App) -> Rect {
     day::switch_area(app, areas(app.screen, app).main)
 }
 
+/// Which arrow on the day popup's top border a mouse click at (`column`, `row`) hits: -1 = the previous
+/// day, 1 = the next (see `day::arrow_at`)
+pub fn day_arrow_at(app: &App, column: u16, row: u16) -> Option<i64> {
+    day::arrow_at(app, areas(app.screen, app).main, column, row)
+}
+
 /// Which item in the popup a mouse click at (`column`, `row`) hits (its index in `App::day_items`)
 pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
     day::item_at(app, areas(app.screen, app).main, column, row)

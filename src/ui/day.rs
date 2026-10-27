@@ -33,16 +33,20 @@ const NARROW: u16 = 30;
 /// Narrowest popup width (incl. border): enough room for the date on the top border
 const MIN_WIDTH: u16 = 30;
 
-/// The top border's two titles: the selected day on the left; on the right, how many of its tasks are not
-/// done yet and done, e.g. 「 未完成 3 / 已完成 2 」 (`None` when the day has no tasks). The open count's color
-/// says how much is left (`open_color`); the done count is always green (`today`, green in most themes)
+/// The top border's two titles: the selected day on the left, between a gray `‹` and `›` (a click shows the
+/// previous / next day, see `arrow_at`), e.g. 「 ‹ 2026/10/17（六） › 」; on the right, how many of its tasks
+/// are not done yet and done, e.g. 「 未完成 3 / 已完成 2 」 (`None` when the day has no tasks). The open count's
+/// color says how much is left (`open_color`); the done count is always green (`today`, green in most
+/// themes)
 fn top_titles(app: &App) -> (Line<'static>, Option<Line<'static>>) {
     let theme = &app.theme;
     let texts = app.lang.texts();
-    let date = Line::styled(
-        format!(" {} ", texts.date_title(app.selected)),
-        Style::new().fg(theme.text),
-    );
+    let arrow = Style::new().fg(theme.muted);
+    let date = Line::from(vec![
+        Span::styled(" ‹ ", arrow),
+        Span::styled(texts.date_title(app.selected), Style::new().fg(theme.text)),
+        Span::styled(" › ", arrow),
+    ]);
     let (open, done) = app.day_counts(app.selected);
     let counts = (open + done > 0).then(|| {
         Line::from(vec![
@@ -111,6 +115,26 @@ pub fn switch_area(app: &App, main: Rect) -> Rect {
         width,
         1,
     )
+}
+
+/// Which arrow on the top border is at (`column`, `row`): the days to step, -1 for `‹` (or the blank cell
+/// before it), 1 for `›` (or the blank cell after it), so each takes a click on 2 cells; `None` elsewhere
+pub fn arrow_at(app: &App, main: Rect, column: u16, row: u16) -> Option<i64> {
+    let area = area(app, main);
+    // The date title starts right after the corner
+    let width = u16::try_from(top_titles(app).0.width()).unwrap_or(u16::MAX);
+    let previous = Rect::new(area.x + 1, area.y, 2, 1);
+    let next = Rect::new((area.x + 1 + width).saturating_sub(2), area.y, 2, 1);
+    let spot = Position::new(column, row);
+    // Cut off with the rest of the title when the box is too narrow for it
+    let inside = Rect::new(area.x + 1, area.y, area.width.saturating_sub(2), 1);
+    if previous.intersection(inside).contains(spot) {
+        Some(-1)
+    } else if next.intersection(inside).contains(spot) {
+        Some(1)
+    } else {
+        None
+    }
 }
 
 /// Blank space between the border and the items when the month grid has room for it: one row above and

@@ -212,8 +212,9 @@ impl App {
     }
 
     /// Left click at time `now` while the popup is open: clicking an item chooses it (and a drag may start
-    /// there, `drag_day`); a double click checks it (like the agenda); clicking the switch on the bottom
-    /// border flips it (like `c`).
+    /// there, `drag_day`); a double click checks it (like the agenda); clicking `‹` / `›` on the top border
+    /// shows the previous / next day (like `h` / `l`); clicking the switch on the bottom border flips it
+    /// (like `c`).
     /// A click outside the box closes the popup (like `Esc`); clicks on the border or empty space are ignored
     pub(super) fn click_day(&mut self, column: u16, row: u16, now: Instant) {
         // A press on a title starts dragging over text from the character under it; anywhere else, no text
@@ -221,6 +222,11 @@ impl App {
             ui::day_text_at(self, column, row, false).map(|anchor| TextDrag { anchor, head: None });
         if !ui::day_area(self).contains(Position::new(column, row)) {
             self.focus = Focus::Calendar;
+            return;
+        }
+        // The arrows around the date on the top border: the previous / next day, like `h` / `l`
+        if let Some(days) = ui::day_arrow_at(self, column, row) {
+            self.step_day(days);
             return;
         }
         if ui::day_switch_area(self).contains(Position::new(column, row)) {
