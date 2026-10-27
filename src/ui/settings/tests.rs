@@ -86,7 +86,7 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells, where the
     // descriptions fit; the key hints on the bottom border are wider (5 groups, 30 cells, + 4 ` | ` + a
     // blank at each end = 44), so the inside is 44 cells;
-    // no blank lines; `[colors]` shows its first 10 colors (13 more below): 30 rows tall
+    // no blank lines; `[colors]` shows its first 10 colors (17 more below): 30 rows tall
     let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
     assert_eq!(area, Rect::new(12, 7, 46, 30));
     assert_eq!(
@@ -277,15 +277,15 @@ fn a_short_screen_scrolls_to_the_chosen_row() {
 #[test]
 fn colors_scroll_inside_their_section() {
     // Expected rows computed by the same Python script as above. 70 × 44 holds the whole box, so the
-    // list itself does not scroll; choosing the 13th color (focus) moves `[colors]` down so it shows one
-    // more color below it: the 5th to the 14th color (label … focus, then checked)
+    // list itself does not scroll; choosing the 14th color (focus) moves `[colors]` down so it shows one
+    // more color below it: the 6th to the 15th color (week_number … focus, then checked)
     let focus = index_of(Row::Color("focus"));
     let (app, area, rows, buffer) = draw(choosing(focus), 44);
     assert_eq!(
         app.settings_page().map(|page| (page.top, page.colors_top)),
-        Some((0, 4))
+        Some((0, 5))
     );
-    assert_eq!(rows[16], "│    label                lavender           │");
+    assert_eq!(rows[16], "│    week_number          yellow             │");
     assert_eq!(rows[25], "│    checked              mauve              │");
     // The scrollbar beside the colors (x 45, rows 16-25): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border

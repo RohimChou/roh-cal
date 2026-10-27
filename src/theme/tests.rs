@@ -67,9 +67,13 @@ fn colors_override_roles_and_must_be_real_roles_and_colors() {
 fn choices_are_the_palette_in_file_order_or_the_16_colors() {
     assert!(choices("no-such-theme").is_empty());
     let mocha = choices("catppuccin-mocha");
-    assert_eq!(mocha.len(), 17);
+    assert_eq!(mocha.len(), 18);
     assert_eq!(mocha[0], ("text".to_string(), Color::Rgb(0xcd, 0xd6, 0xf4)));
     assert_eq!(mocha[16].0, "mid_blue");
+    assert_eq!(
+        mocha[17],
+        ("base".to_string(), Color::Rgb(0x1e, 0x1e, 0x2e))
+    );
     let terminal = choices("terminal");
     assert_eq!(terminal.len(), 16);
     assert_eq!(terminal[12], ("LightBlue".to_string(), Color::LightBlue));
@@ -258,4 +262,42 @@ fn marked_text_shows_on_the_chosen_row_in_every_theme() {
         let theme = Theme::builtin(name).expect("built-in");
         assert_ne!(theme.text_selection, theme.selection, "{name}");
     }
+}
+
+#[test]
+fn mixing_moves_part_of_the_way_and_only_mixes_rgb() {
+    let (black, white) = (Color::Rgb(0, 0, 0), Color::Rgb(255, 255, 255));
+    assert_eq!(mix(black, white, 0.0), black);
+    assert_eq!(mix(black, white, 1.0), white);
+    assert_eq!(mix(black, white, 0.25), Color::Rgb(64, 64, 64));
+    assert_eq!(mix(black, white, 0.5), Color::Rgb(128, 128, 128));
+    // Past either end: stays at that end (not further on toward 255 or 0)
+    let (dark, light) = (Color::Rgb(100, 100, 100), Color::Rgb(200, 200, 200));
+    assert_eq!(mix(dark, light, 2.0), light);
+    assert_eq!(mix(dark, light, -1.0), dark);
+    // A terminal color or `reset` on either side cannot be mixed: the first color as it is
+    assert_eq!(mix(black, Color::Reset, 0.5), black);
+    assert_eq!(mix(Color::Blue, white, 0.5), Color::Blue);
+}
+
+#[test]
+fn the_tab_bar_colors_come_from_focus_selection_and_background() {
+    // nord-bright (computed apart): focus #c69bbe, selection #5c5366, background nord0 #2e3440. The bar is
+    // the focus color 35% of the way to the selection color; the glow runs from the selection color to the
+    // background
+    let theme = Theme::default();
+    assert_eq!(theme.background, Color::Rgb(0x2e, 0x34, 0x40));
+    assert_eq!(theme.tab_bar(), Color::Rgb(161, 130, 159));
+    assert_eq!(theme.tab_glow(0.0), theme.selection);
+    assert_eq!(theme.tab_glow(0.5), Color::Rgb(69, 68, 83));
+    assert_eq!(theme.tab_glow(1.0), theme.background);
+    // Every built-in theme names its background, except the terminal one, which cannot know it (`reset`):
+    // no glow
+    for name in names().into_iter().filter(|&name| name != "terminal") {
+        let theme = Theme::builtin(name).expect(name);
+        assert!(matches!(theme.background, Color::Rgb(..)), "{name}");
+    }
+    let terminal = Theme::builtin("terminal").expect("terminal");
+    assert_eq!(terminal.background, Color::Reset);
+    assert_eq!(terminal.tab_glow(1.0), terminal.selection);
 }

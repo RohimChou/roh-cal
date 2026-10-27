@@ -43,6 +43,8 @@ nord15_dim = "#5c5366"
 # Dragged-over text in the day popup: nord9 (#8cb0d4) and the background (nord0 #2e3440) mixed 4:6. Lighter
 # than the selection background, so it shows on the chosen row too
 nord9_mid = "#54667b"
+# The background the colors above are made for (roh-cal does not paint it)
+nord0 = "#2e3440"
 
 [roles]
 text = "nord4"
@@ -57,6 +59,8 @@ today = "nord14"
 selected = "nord11"
 selection = "nord15_dim"
 text_selection = "nord9_mid"
+# The tab bar's glow fades into the background
+background = "nord0"
 focus = "nord15"
 checked = "nord15"
 notice = "nord13"

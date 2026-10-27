@@ -27,6 +27,8 @@ dim_iris = "#4c425f"
 # Dragged-over text in the day popup: foam (#9ccfd8) and the background (base #191724) mixed 4:6. Lighter than
 # the selection background, so it shows on the chosen row too
 mid_foam = "#4d616c"
+# The background the colors above are made for (roh-cal does not paint it)
+base = "#191724"
 
 [roles]
 text = "text"
@@ -41,6 +43,8 @@ today = "rose"
 selected = "love"
 selection = "dim_iris"
 text_selection = "mid_foam"
+# The tab bar's glow fades into the background
+background = "base"
 focus = "iris"
 checked = "iris"
 notice = "gold"

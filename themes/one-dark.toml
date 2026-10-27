@@ -37,6 +37,8 @@ dim_purple = "#574367"
 # in the other themes (35:65): the text is dimmer here and must stay readable on it; still lighter than the
 # selection background
 mid_blue = "#3c5a75"
+# The background the colors above are made for (roh-cal does not paint it)
+background = "#282c34"
 
 [roles]
 text = "foreground"
@@ -51,6 +53,8 @@ today = "green"
 selected = "red"
 selection = "dim_purple"
 text_selection = "mid_blue"
+# The tab bar's glow fades into the background
+background = "background"
 focus = "purple"
 checked = "purple"
 notice = "yellow"

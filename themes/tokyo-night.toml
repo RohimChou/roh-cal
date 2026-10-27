@@ -30,6 +30,8 @@ dim_magenta = "#4a4165"
 # Dragged-over text in the day popup: blue (#7aa2f7) and the background (bg #1a1b26) mixed 4:6. Lighter than
 # the selection background, so it shows on the chosen row too
 mid_blue = "#40517a"
+# The background the colors above are made for (roh-cal does not paint it)
+bg = "#1a1b26"
 
 [roles]
 text = "fg"
@@ -44,6 +46,8 @@ today = "green"
 selected = "red"
 selection = "dim_magenta"
 text_selection = "mid_blue"
+# The tab bar's glow fades into the background
+background = "bg"
 focus = "magenta"
 checked = "magenta"
 notice = "yellow"

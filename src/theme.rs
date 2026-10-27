@@ -48,6 +48,9 @@ pub struct Theme {
     /// color): the theme's blue mixed with the background, lighter than `selection`, so it shows on the chosen
     /// row too
     pub text_selection: Color,
+    /// The background the theme is made for (roh-cal leaves the terminal's own background alone): the tab bar's
+    /// glow fades into it (`tab_glow`); `reset` = not known, no glow
+    pub background: Color,
     /// The border of the pane that has keyboard focus; the matching characters in the editor's `#` list
     pub focus: Color,
     /// The `☑` of checked calendars in the side menu
@@ -101,6 +104,23 @@ pub const BUILTIN: [(&str, &str); 8] = [
 /// The theme used when none is given
 pub const DEFAULT: &str = "nord-bright";
 
+/// `from` moved `amount` (0 = `from`, 1 = `to`) of the way to `to`, each of red, green and blue; only RGB
+/// colors mix, so with a terminal color name or `reset` on either side, `from` as it is
+fn mix(from: Color, to: Color, amount: f32) -> Color {
+    let (Color::Rgb(from_r, from_g, from_b), Color::Rgb(to_r, to_g, to_b)) = (from, to) else {
+        return from;
+    };
+    let channel = |from: u8, to: u8| {
+        let mixed = f32::from(from) + (f32::from(to) - f32::from(from)) * amount.clamp(0.0, 1.0);
+        mixed.round() as u8
+    };
+    Color::Rgb(
+        channel(from_r, to_r),
+        channel(from_g, to_g),
+        channel(from_b, to_b),
+    )
+}
+
 /// Names of the built-in themes, in `BUILTIN` order
 pub fn names() -> Vec<&'static str> {
     BUILTIN.iter().map(|&(name, _)| name).collect()
@@ -108,7 +128,7 @@ pub fn names() -> Vec<&'static str> {
 
 /// Every role's name, in the order of the `Theme` fields (= the names in a theme file's `[roles]` and the
 /// config file's `[colors]`; pinned by a test)
-pub const ROLES: [&str; 26] = [
+pub const ROLES: [&str; 27] = [
     "text",
     "muted",
     "line",
@@ -121,6 +141,7 @@ pub const ROLES: [&str; 26] = [
     "selected",
     "selection",
     "text_selection",
+    "background",
     "focus",
     "checked",
     "notice",
@@ -300,6 +321,7 @@ impl Theme {
             "selected" => self.selected,
             "selection" => self.selection,
             "text_selection" => self.text_selection,
+            "background" => self.background,
             "focus" => self.focus,
             "checked" => self.checked,
             "notice" => self.notice,
@@ -327,6 +349,18 @@ impl Theme {
             Color::Reset => Style::new().add_modifier(Modifier::DIM),
             color => Style::new().fg(color),
         }
+    }
+
+    /// The bar left of the shown view's tab in the tab bar: `focus`, a little faint (35% of the way to
+    /// `selection`, the background it sits on)
+    pub fn tab_bar(&self) -> Color {
+        mix(self.focus, self.selection, 0.35)
+    }
+
+    /// The shown view's tab background at `share` (0–1) of the way along it: `selection` at its left end,
+    /// fading into `background` at its right end, like a glow from the bar
+    pub fn tab_glow(&self, share: f32) -> Color {
+        mix(self.selection, self.background, share)
     }
 
     /// The color of a priority (`!!!` → `priority_high`…)
