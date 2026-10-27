@@ -1194,7 +1194,8 @@ impl App {
     }
 
     /// Fewer items may be listed now (a reload, hiding done tasks): a choice past the end of the agenda or
-    /// layout 2's popup moves to the last item; with none left, back to the calendar
+    /// layout 2's popup moves to the last item; with none left, the agenda goes back to the calendar (the
+    /// popup stays, saying 「沒有事」)
     fn keep_choice_in_range(&mut self) {
         if self.focus == Focus::Day {
             self.keep_day_choice();
@@ -1484,8 +1485,7 @@ impl App {
         }
         self.focus = back.map_or_else(|| self.home_focus(), |left| left.focus);
         match self.focus {
-            // The day may have no items left (e.g. checked off on the tasks page with done ones hidden): the
-            // popup stays closed
+            // The day may have fewer items now (e.g. checked off on the tasks page with done ones hidden)
             Focus::Day => self.keep_day_choice(),
             // The chosen item may be gone or moved to another day (e.g. edited on the tasks page): back to
             // the calendar

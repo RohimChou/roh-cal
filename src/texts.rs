@@ -75,6 +75,8 @@ pub struct Texts {
     /// The switch on the day popup's bottom border: list the items under their calendar
     /// (`[day_popup] by_calendar`)
     pub by_calendar: &'static str,
+    /// The day popup's only line when the day has no items
+    pub day_empty: &'static str,
     /// The tasks page header
     pub header_tasks: &'static str,
     /// The key hints on the tasks page's bottom row
@@ -218,6 +220,7 @@ const EN: Texts = Texts {
     hide_done: "Hide done",
     archived: "Archived",
     by_calendar: "By calendar",
+    day_empty: "No items",
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  o editor  s calendars  ? help  , settings  q quit",
     hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  c group  Esc close",
@@ -485,6 +488,7 @@ const ZH_TW: Texts = Texts {
     hide_done: "隱藏做完的",
     archived: "已封存",
     by_calendar: "照日曆分組",
+    day_empty: "沒有事",
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s 日曆  ? 說明  , 設定  q 離開",
     hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  c 分組  Esc 關閉",

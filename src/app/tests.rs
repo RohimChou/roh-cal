@@ -473,12 +473,12 @@ fn dot_hides_done_tasks_from_anywhere_and_keeps_the_choice() {
         (app.agenda_index, chosen(&app).as_deref()),
         (0, Some("Pack"))
     );
-    // Layout 2's popup with only done tasks: nothing left, it closes
+    // Layout 2's popup with only done tasks: nothing left, it stays open (it says 「沒有事」)
     let mut app = app_with("- [x] Ship v1 @2026-10-17\n");
     app.view = View::Month;
     app.focus = Focus::Day;
     press(&mut app, KeyCode::Char('.'));
-    assert_eq!(app.focus, Focus::Calendar);
+    assert_eq!((app.focus, app.chosen_item()), (Focus::Day, None));
 }
 
 /// An app 120 cells wide (with a side menu) and `text` as the task file
@@ -1088,12 +1088,12 @@ fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
     press(&mut app, KeyCode::Char('s'));
     press(&mut app, KeyCode::Char('s'));
     assert_eq!((app.focus, app.day_index), (Focus::Day, 1));
-    // Uncheck the only calendar while it is up: the day has no items left, so hiding it goes back to
-    // the calendar
+    // Uncheck the only calendar while it is up: the day has no items left, and hiding it still goes back
+    // to the popup (it says 「沒有事」)
     press(&mut app, KeyCode::Char('s'));
     press(&mut app, KeyCode::Char(' '));
     press(&mut app, KeyCode::Char('s'));
-    assert_eq!(app.focus, Focus::Calendar);
+    assert_eq!((app.focus, app.chosen_item()), (Focus::Day, None));
 }
 
 #[test]
@@ -1303,11 +1303,11 @@ fn enter_on_the_calendar_goes_into_that_days_items() {
         .map(|x| terminal.backend().buffer()[(x, popup.y)].symbol())
         .collect();
     assert!(top.contains("Sat Oct 17, 2026"), "{top}");
-    // A day with no items (10/18): nothing happens
+    // A day with no items (10/18): the popup opens too (it says 「沒有事」), nothing chosen
     let mut app = app_with(ITEMS);
     app.selected = date(2026, 10, 18);
     press(&mut app, KeyCode::Enter);
-    assert_eq!(app.focus, Focus::Calendar);
+    assert_eq!((app.focus, app.chosen_item()), (Focus::Day, None));
     // Layout 2: the layout stays; the day popup opens with the first item (b) chosen
     let mut app = app_with(ITEMS);
     app.view = View::Month;
@@ -1534,8 +1534,8 @@ fn switching_back_finds_a_layout_as_it_was_left() {
     app.focus = Focus::Side;
     press(&mut app, KeyCode::Char('2'));
     assert_eq!((app.selected, app.focus), (date(2026, 10, 20), Focus::Side));
-    // The day's items gone meanwhile (e.g. checked off on the tasks page with done ones hidden): back on
-    // the calendar in both layouts
+    // The day's items gone meanwhile (e.g. checked off on the tasks page with done ones hidden): layout 2's
+    // popup stays open (it says 「沒有事」); layout 1's agenda goes back to the calendar
     let mut app = app_with(ITEMS);
     press(&mut app, KeyCode::Tab);
     press(&mut app, KeyCode::Char('2'));
@@ -1544,7 +1544,7 @@ fn switching_back_finds_a_layout_as_it_was_left() {
     app.items
         .retain(|item| item.date != Some(date(2026, 10, 17)));
     press(&mut app, KeyCode::Char('2'));
-    assert_eq!(app.focus, Focus::Calendar);
+    assert_eq!(app.focus, Focus::Day);
     press(&mut app, KeyCode::Char('1'));
     assert_eq!(app.focus, Focus::Calendar);
 }

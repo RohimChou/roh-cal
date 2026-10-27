@@ -115,11 +115,8 @@ impl App {
         chain
     }
 
-    /// Opens the popup with the first item chosen; does not open if the day has no items
+    /// Opens the popup with the first item chosen (a day with no items too: it says 「沒有事」)
     pub(super) fn open_day_popup(&mut self) {
-        if self.items_on(self.selected).is_empty() {
-            return;
-        }
         self.day_index = 0;
         self.day_top = 0;
         self.day_drag = None;
@@ -241,12 +238,10 @@ impl App {
     }
 
     /// The day has fewer items (after a delete, an undo, or a date change): if the choice is now out of range,
-    /// choose the last item; if no items are left, close the popup
+    /// choose the last item; with no items left the popup stays open, saying 「沒有事」
     pub(super) fn keep_day_choice(&mut self) {
-        match self.day_items().len().checked_sub(1) {
-            Some(last) => self.day_index = self.day_index.min(last),
-            None => self.focus = Focus::Calendar,
-        }
+        let last = self.day_items().len().saturating_sub(1);
+        self.day_index = self.day_index.min(last);
     }
 }
 

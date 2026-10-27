@@ -147,7 +147,7 @@ impl App {
                     return;
                 }
                 // The day popup: set_items already adjusted the chosen
-                // position (closes it if that day has no items left)
+                // position (it says 「沒有事」 if that day has no items left)
                 if in_popup {
                     return;
                 }
@@ -496,7 +496,7 @@ impl App {
     /// If the agenda has fewer items (e.g. the item just added was undone), the keyboard
     /// is in the agenda and the chosen position is out of range: choose the last item;
     /// if no items are left, go back to the calendar;
-    /// layout 2's popup works the same way (see `keep_day_choice`)
+    /// the day popup keeps its choice in range too, and stays open with none left (see `keep_day_choice`)
     pub(crate) fn set_items(
         &mut self,
         Parsed {

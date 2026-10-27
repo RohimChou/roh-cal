@@ -3509,6 +3509,32 @@ fn dragging_over_a_wrapped_title_in_the_day_popup_marks_its_characters() {
 }
 
 #[test]
+fn the_day_popup_opens_on_a_day_with_no_items_too() {
+    // 60 × 21, layout 2, 10/19 has no items: the popup still opens, its only line a gray 「沒有事」; the
+    // narrowest box (30 wide: wider than the date 18 + 2 corners), the padding around the line, 1 + 2 + 2
+    // = 5 rows tall, centered on the month grid (60 × 19 from y 1) → x 15, y 8; no counts on the top border
+    let mut app = month_app(
+        Lang::ZhTw,
+        date(2026, 10, 19),
+        "- [ ] Buy groceries @2026-10-17\n",
+    );
+    app.focus = Focus::Day;
+    let terminal = draw_app(&mut app, 60, 21);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        area_rows(buffer, Rect::new(15, 8, 30, 5)),
+        [
+            "╭ 2026/10/19（一） ──────────╮",
+            "│                            │",
+            "│ 沒有事                     │",
+            "│                            │",
+            "╰────────────── ☑\u{a0}照日曆分組 ╯",
+        ]
+    );
+    assert_eq!(buffer[(17, 10)].fg, Theme::default().muted);
+}
+
+#[test]
 fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // 60 × 21, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19 from y 1);
     // there is room, so a blank row above and below the items and a blank cell left and right:

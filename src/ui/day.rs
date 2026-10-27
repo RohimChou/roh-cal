@@ -312,14 +312,26 @@ struct Piece {
 /// The popup's lines at `width` cells, top to bottom: the rows in `App::day_entries` order (the parents not on
 /// the day gray, see `parent_lines`); grouped by calendar, the calendars as a tree like on the tasks page: a
 /// heading before the first row of each calendar, and before that the headings of the calendars it is inside
-/// that are not on screen yet (none for items outside any calendar, which come first)
+/// that are not on screen yet (none for items outside any calendar, which come first). A day with no items
+/// gets one gray line, 「沒有事」
 fn pieces(app: &App, width: u16) -> Vec<Piece> {
+    let entries = app.day_entries();
+    if entries.is_empty() {
+        return vec![Piece {
+            item: None,
+            lines: vec![Line::styled(
+                app.lang.texts().day_empty,
+                Style::new().fg(app.theme.muted),
+            )],
+            cells: Vec::new(),
+        }];
+    }
     let mut pieces = Vec::new();
     // The calendars of the last row, outermost first: their headings are already on screen
     let mut listed: Vec<&str> = Vec::new();
     // The next item's index in `App::day_items` (the parents not on the day are not in it)
     let mut index = 0;
-    for entry in app.day_entries() {
+    for entry in entries {
         let item = entry.item;
         if app.settings.day_popup.by_calendar {
             let names = calendar_names(item);

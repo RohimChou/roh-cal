@@ -56,10 +56,10 @@ fn enter_opens_the_days_items_and_esc_or_q_closes_them() {
     press(&mut app, KeyCode::Char('q'));
     assert_eq!(app.focus, Focus::Calendar);
     assert!(!app.should_quit);
-    // A day with no items (10/19): does not open
+    // A day with no items (10/19): opens too (it says 「沒有事」), nothing chosen
     app.selected = date(2026, 10, 19);
     press(&mut app, KeyCode::Enter);
-    assert_eq!(app.focus, Focus::Calendar);
+    assert_eq!((app.focus, chosen(&app)), (Focus::Day, None));
 }
 
 #[test]
@@ -330,7 +330,8 @@ fn a_reschedule_that_does_not_happen_goes_back_to_the_same_day() {
 #[test]
 fn layout_1_opens_the_same_popup_and_deleting_keeps_it_open() {
     // Layout 1: Enter on 10/17 opens the popup too; deleting its first item (d, y) keeps the popup open
-    // with the next item chosen (not the agenda); deleting until the day is empty closes it
+    // with the next item chosen (not the agenda); deleting until the day is empty keeps it open too, with
+    // nothing chosen
     let (mut app, path) = app_with_task_file("day-popup-layout-1", DAY);
     app.view = View::Planner;
     app.focus = Focus::Calendar;
@@ -351,7 +352,10 @@ fn layout_1_opens_the_same_popup_and_deleting_keeps_it_open() {
         press(&mut app, KeyCode::Char('d'));
         press(&mut app, KeyCode::Char('y'));
     }
-    assert_eq!((app.view, app.focus), (View::Planner, Focus::Calendar));
+    assert_eq!(
+        (app.view, app.focus, chosen(&app)),
+        (View::Planner, Focus::Day, None)
+    );
     clean_up(&path);
 }
 
@@ -394,7 +398,7 @@ fn deleting_moving_and_adding_from_the_popup() {
         (Focus::Day, Some("File expenses"))
     );
     // d, y deletes "File expenses": chooses the last item ("Trip to NYC"); deleting "Trip to NYC" too
-    // leaves the day empty, so the popup closes, still in layout 2
+    // leaves the day empty: the popup stays open (it says 「沒有事」), still in layout 2
     press(&mut app, KeyCode::Char('d'));
     press(&mut app, KeyCode::Char('y'));
     assert_eq!(
@@ -404,7 +408,7 @@ fn deleting_moving_and_adding_from_the_popup() {
     press(&mut app, KeyCode::Char('d'));
     press(&mut app, KeyCode::Char('y'));
     assert!(!read().contains("Trip to NYC"));
-    assert_eq!((app.view, app.focus), (View::Month, Focus::Calendar));
+    assert_eq!((app.view, app.focus), (View::Month, Focus::Day));
     clean_up(&path);
 }
 
