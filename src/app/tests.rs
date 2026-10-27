@@ -1549,26 +1549,6 @@ fn switching_back_finds_a_layout_as_it_was_left() {
 }
 
 #[test]
-fn clicking_123_on_the_bottom_row_switches_layouts() {
-    // 80 × 24: the bottom row is y 23, `1` `2` `3` are at x 1, 2, 3
-    let mut app = app_with(ITEMS);
-    app.screen = Rect::new(0, 0, 80, 24);
-    let click = |app: &mut App, column| {
-        app.handle_mouse(mouse_event(
-            MouseEventKind::Down(MouseButton::Left),
-            column,
-            23,
-        ));
-    };
-    click(&mut app, 3);
-    assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
-    click(&mut app, 2);
-    assert_eq!((app.view, app.focus), (View::Month, Focus::Calendar));
-    click(&mut app, 1);
-    assert_eq!(app.view, View::Planner);
-}
-
-#[test]
 fn tab_skips_the_agenda_in_the_month_view() {
     // Month grid: calendar → side menu → calendar; when narrow (no side menu), Tab does nothing
     let mut app = wide_app_with(GROUPS);

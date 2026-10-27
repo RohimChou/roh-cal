@@ -41,7 +41,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色；`background` 角色是 theme 配的背景色（rcal 不畫背景，只拿來讓分頁列的光淡進去），`theme::mix` 把兩個 RGB 顏色照比例混（有一邊不是 RGB 就不混）；`Theme::dimmed` = 用不到的東西（設定頁的列、說明頁的段落）變暗的樣式：`other_month` 的顏色，是 `reset` 時改用 terminal 自己的 faint 字（SGR 2；terminal 那套只有 16 色，沒辦法把字和背景混一半） | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord-bright`（預設，`theme::DEFAULT`；Nord 每個顏色亮一點、鮮一點，色相不變；從背景混出來的照同樣比例重算）、`one-dark`、`rose-pine`、`terminal`（只用 terminal 的 16 色）；每套都寫了它配的背景色 `background`（`terminal` 那套不知道底下是什麼顏色，寫 `reset`：分頁列沒有光）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
-| `src/ui.rs` | 把畫面切成最上面的分頁列（`tabs.rs`）、side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（每組鍵中間一條 `line` 色的 `|`，比字暗：`texts.rs` 的字照樣用兩個空格分組，畫的時候 `hint_spans` 照兩個空格切開、插 `hint_separator`；跳窗下框的按鍵提示（說明頁、編輯框和它的 `#` 清單、設定頁、選顏色）也一樣，用 `border_hints`（兩邊各空一格），照提示寬度撐開的框也照這一行的寬度算；月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線（設定檔 `cross_out_done = false` 不畫，只剩灰色）；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
+| `src/ui.rs` | 把畫面切成最上面的分頁列（`tabs.rs`）、side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（每組鍵中間一條 `line` 色的 `|`，比字暗：`texts.rs` 的字照樣用兩個空格分組，畫的時候 `hint_spans` 照兩個空格切開、插 `hint_separator`；跳窗下框的按鍵提示（說明頁、編輯框和它的 `#` 清單、設定頁、選顏色）也一樣，用 `border_hints`（兩邊各空一格），照提示寬度撐開的框也照這一行的寬度算；鍵盤在跳窗、side menu 時換成它們自己的說明）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線（設定檔 `cross_out_done = false` 不畫，只剩灰色）；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
 | `src/ui/tabs.rs` | 最上面的分頁列：三個版型 ` 1 calendar ` ` 2 month ` ` 3 tasks `（名字在 `texts.rs` 的 `tabs`），現在的版型左邊一條淡一點的 `focus` 色 `┃`（`Theme::tab_bar`：往 `selection` 混 35%），字是粗體 `focus`，底色從 `selection` 一個字一個字淡到 theme 的背景（`Theme::tab_glow`，像那條線發的光），其他的 `muted`；每個分頁不管有沒有選到都佔一樣寬（`┃` 那格 + 字），換版型時字不動；點分頁 = 按那個數字鍵（`ui::tab_at`，`App::handle_normal_mouse` 最前面就判斷，跳窗、叫出來的 side menu 開著也能點） | ✓ |
 | `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
@@ -142,7 +142,7 @@ App::run 的迴圈
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
 - test 裡還有 17 處就地寫 `MouseEvent { ... }`（`ui/tests.rs` 8 處、`app/write/tests.rs` 5 處等）：可以改用 `test_utils::mouse` / `mouse_event`
 - 任務頁捲動上下留 2 列：點一下靠近上下邊的那列，清單會捲動，第二下就點到別件，所以那幾列 double click 打不了勾（版型 2 的跳窗、side menu 已經改成跑出框外才捲）
-- 操作說明比 80 格寬的：任務頁英文 116 格、中文 107 格，月曆的英文 89 格（`o editor`、`123 view`、每組中間的 ` | ` 都加寬了），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
+- 操作說明比 80 格寬的：任務頁英文 105 格、中文 96 格（`o editor`、每組中間的 ` | ` 都加寬了），窄的 terminal 後面會被切掉；可以放不下時整段拿掉比較不重要的鍵（例：`q`、`,`），不要切在字中間
 - `L`、`A` 縮排一律加 2 格空白：用 tab 縮排的檔（Obsidian 預設）會變成 tab、空白混著；可以改成照上面那件現有子任務的寫法
 - `read_tasks` 和 `read_tasks_for_adding` 只差檔案不存在時怎麼辦：可以合成一個、多一個參數
 - 顏色角色 `other_month` 現在只用在設定頁、說明頁用不到的那幾段（大月曆不再讓其他月份變灰），名字跟用途對不起來；要改名得想清楚使用者設定檔 `[colors]` 裡舊的名字怎麼辦
@@ -151,6 +151,5 @@ App::run 的迴圈
 - `App::tasks_rows()` 每按一個鍵、每畫一次都重算，找子任務是兩層迴圈：事很多時可以先算好每件的子任務
 - 任務頁選到的那件、展開的子任務是用行號記的：在別處改過、重新載入時也用 `edit::line_map` 跟著搬，但它假設只改了一段；別處一次改好幾段（或改到選到的那行、行數又變了）時對不到，會選回第一件
 - `refresh_tasks` 每秒看一次修改時間（`std::fs::metadata`）：很便宜，但不是馬上；要即時可以換成 `notify` crate 監看檔案（多一個 crate、多一條 thread）
-- 最下面一列是通知（例：剛打開時的「任務檔有 1 處寫錯」）時，點最左邊 3 格照樣會換版型：點的那一下先清掉通知，`click_at` 看到的是 `123`；要分得出來得在清掉通知之前記下它
 - 開場動畫的小工具（`noise`、`mix`、`gradient`、`cycle`、braille 的 `Dots`）都放在 `ui/splash.rs`：別的畫面要用（例：其他地方也要漸層色、braille 線）時，搬到 `ui.rs` 或自己一個 module
 - `tools/expected_screen.py` 有 4 種畫面（版型 1、3、任務頁、side menu）擠在一個檔：可以一個版型一個檔，共用的（字寬、讀任務檔）放一起

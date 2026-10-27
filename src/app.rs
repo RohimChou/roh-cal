@@ -1340,7 +1340,6 @@ impl App {
                     Some(Click::TaskRow { row, on_marker }) => {
                         self.click_task(row, on_marker, Instant::now());
                     }
-                    Some(Click::View(view)) => self.set_view(view),
                     None => {}
                 }
             }

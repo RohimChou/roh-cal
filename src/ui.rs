@@ -32,9 +32,6 @@ use ratatui::{
 /// The terminal must be at least this wide to draw the side menu
 const SIDE_MIN_WIDTH: u16 = 120;
 
-/// Column of `1` in the layout keys `123` at the left end of the bottom row (`2` and `3` follow)
-const VIEW_KEYS_X: u16 = 1;
-
 /// Which layout each of the keys `1` `2` `3` switches to
 const VIEW_KEYS: [View; 3] = [View::Planner, View::Month, View::Tasks];
 
@@ -331,22 +328,12 @@ pub enum Click {
     /// A row of the tasks page: its index in `App::tasks_rows()`; `on_marker` = the click was
     /// on `▸` / `▾` (expand / collapse)
     TaskRow { row: usize, on_marker: bool },
-    /// One of the layout keys `123` at the left end of the bottom row: switch to that layout
-    View(View),
 }
 
 /// What a mouse click at terminal cell (`column`, `row`) hits;
 /// `None` when it is not on a day, an item or a calendar
 pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
     let areas = areas(app.screen, app);
-    // The layout keys `123` on the bottom row (not there while the keyboard is in the day popup or the
-    // side menu: the bottom row has their keys instead)
-    if row == areas.hints.y && !matches!(app.focus, Focus::Day | Focus::Side) {
-        return column
-            .checked_sub(VIEW_KEYS_X)
-            .and_then(|index| VIEW_KEYS.get(usize::from(index)))
-            .map(|view| Click::View(*view));
-    }
     // side menu: on the far left when wide enough; when narrow, called up over the left side
     let side = side_overlay(app).unwrap_or(areas.side);
     if side.contains(Position::new(column, row)) {
@@ -411,8 +398,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         let line = match app.view {
             _ if app.focus == Focus::Day => hints_line(app, texts.hints_day),
             _ if app.focus == Focus::Side => hints_line(app, texts.hints_side),
-            View::Tasks => view_keys_line(app, texts.hints_tasks),
-            View::Planner | View::Month => view_keys_line(app, texts.hints),
+            View::Tasks => hints_line(app, texts.hints_tasks),
+            View::Planner | View::Month => hints_line(app, texts.hints),
         };
         frame.render_widget(line, hints);
     }
@@ -509,26 +496,6 @@ fn border_hints(app: &App, hints: &'static str) -> Line<'static> {
     let mut spans = vec![Span::raw(" ")];
     spans.extend(hint_spans(app, hints));
     spans.push(Span::raw(" "));
-    Line::from(spans)
-}
-
-/// The bottom row that starts with the layout keys, ` 123 view | ` + `hints`: the key of the layout shown now
-/// is lit up (like a tab), and clicking a key switches to that layout (`click_at`)
-fn view_keys_line(app: &App, hints: &'static str) -> Line<'static> {
-    let theme = &app.theme;
-    let muted = Style::new().fg(theme.muted);
-    let mut spans = vec![Span::styled(" ".repeat(usize::from(VIEW_KEYS_X)), muted)];
-    for (key, view) in ('1'..).zip(VIEW_KEYS) {
-        let style = if view == app.view {
-            Style::new().fg(theme.focus).add_modifier(Modifier::BOLD)
-        } else {
-            muted
-        };
-        spans.push(Span::styled(key.to_string(), style));
-    }
-    spans.push(Span::styled(format!(" {}", app.lang.texts().views), muted));
-    spans.push(hint_separator(app));
-    spans.extend(hint_spans(app, hints));
     Line::from(spans)
 }
 

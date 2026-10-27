@@ -53,11 +53,9 @@ impl Lang {
 pub struct Texts {
     /// Which language this set is in (needed to write years / months)
     lang: Lang,
-    /// The key hints on the bottom row, after `123` and `views` (`s` = side menu: hides / shows it when wide
-    /// enough, otherwise opens it over the left side)
+    /// The key hints on the bottom row (`s` = side menu: hides / shows it when wide enough, otherwise opens it
+    /// over the left side)
     pub hints: &'static str,
-    /// After the layout keys `123` at the left end of the bottom row (calendar views and the tasks page)
-    pub views: &'static str,
     /// The tab bar at the top: the names of the views `1` `2` `3` switch to, in that order
     pub tabs: [&'static str; 3],
     /// Calendar header: the week number column (4 cells wide)
@@ -79,7 +77,7 @@ pub struct Texts {
     pub by_calendar: &'static str,
     /// The tasks page header
     pub header_tasks: &'static str,
-    /// The key hints on the tasks page's bottom row, after `123` and `views`
+    /// The key hints on the tasks page's bottom row
     pub hints_tasks: &'static str,
     /// The key hints on the bottom row while layout 2's day popup is open
     pub hints_day: &'static str,
@@ -211,7 +209,6 @@ impl HelpSection {
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
-    views: "view",
     tabs: ["calendar", "month", "tasks"],
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
@@ -479,7 +476,6 @@ const EN: Texts = Texts {
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
-    views: "版型",
     tabs: ["月曆", "大月曆", "任務"],
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
