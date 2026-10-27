@@ -1350,8 +1350,8 @@ fn only_a_double_click_goes_into_the_day_in_layout_1() {
 
 #[test]
 fn number_keys_switch_layouts() {
-    // 2 switches to the month grid, 1 switches back; switching scrolls layout 1's calendar to the selected
-    // month and puts the selected week (Sat 10/17: from Mon 10/12) on layout 2's row 2 (10/5 on top)
+    // 2 switches to the month grid, 1 switches back; the first switch to layout 2 puts the selected week
+    // (Sat 10/17: from Mon 10/12) on its row 2 (10/5 on top); layout 1's scroll is its own and stays
     let mut app = app_with(ITEMS);
     app.calendar_top = Some(5);
     app.month_top = Some(date(2026, 1, 5));
@@ -1359,7 +1359,7 @@ fn number_keys_switch_layouts() {
     assert_eq!(app.view, View::Month);
     assert_eq!(
         (app.calendar_top, app.month_top),
-        (None, Some(date(2026, 10, 5)))
+        (Some(5), Some(date(2026, 10, 5)))
     );
     press(&mut app, KeyCode::Char('1'));
     assert_eq!(app.view, View::Planner);
@@ -1373,6 +1373,62 @@ fn number_keys_switch_layouts() {
     app.focus = Focus::Side;
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(app.focus, Focus::Side);
+}
+
+#[test]
+fn switching_back_finds_a_layout_as_it_was_left() {
+    let title = |app: &App| app.chosen_item().map(|item| item.title.clone());
+    // Layout 2: the popup open on 10/17 with c chosen, scrolled by hand (9/28 on top); after the tasks page,
+    // the popup is still open on c and the scroll stays
+    let mut app = app_with(ITEMS);
+    press(&mut app, KeyCode::Char('2'));
+    app.month_top = Some(date(2026, 9, 28));
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!((app.focus, title(&app).as_deref()), (Focus::Day, Some("c")));
+    press(&mut app, KeyCode::Char('3'));
+    assert_eq!(app.focus, Focus::Tasks);
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(
+        (app.focus, title(&app).as_deref(), app.month_top),
+        (Focus::Day, Some("c"), Some(date(2026, 9, 28)))
+    );
+    // Layout 1: the keyboard on the agenda's c, scrolled by hand; the same after the tasks page
+    press(&mut app, KeyCode::Char('1'));
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('j'));
+    app.calendar_top = Some(3);
+    press(&mut app, KeyCode::Char('3'));
+    press(&mut app, KeyCode::Char('1'));
+    assert_eq!(
+        (app.focus, title(&app).as_deref(), app.calendar_top),
+        (Focus::Agenda, Some("c"), Some(3))
+    );
+    // Another day selected in layout 1 (Sun 10/18): layout 2's popup stays closed and that week (from Mon
+    // 10/12) goes on row 2; back in layout 1, its month goes on top
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(
+        (app.focus, app.month_top),
+        (Focus::Calendar, Some(date(2026, 10, 5)))
+    );
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('1'));
+    assert_eq!((app.focus, app.calendar_top), (Focus::Calendar, None));
+    // The day's items gone meanwhile (e.g. checked off on the tasks page with done ones hidden): back on
+    // the calendar in both layouts
+    let mut app = app_with(ITEMS);
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('2'));
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('3'));
+    app.items
+        .retain(|item| item.date != Some(date(2026, 10, 17)));
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(app.focus, Focus::Calendar);
+    press(&mut app, KeyCode::Char('1'));
+    assert_eq!(app.focus, Focus::Calendar);
 }
 
 #[test]

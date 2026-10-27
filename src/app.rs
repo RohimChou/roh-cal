@@ -35,7 +35,7 @@ use ratatui::{
     },
     layout::{Position, Rect},
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -102,7 +102,7 @@ struct SideDrag {
 }
 
 /// Which layout is shown (number keys switch)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum View {
     /// Layout 1 (`1`): calendar on the left; on the right, each month's items line up with that month
     Planner,
@@ -110,6 +110,15 @@ pub enum View {
     Month,
     /// Tasks page (`3`): the whole task file listed by calendar, subtasks as a tree, undated items included
     Tasks,
+}
+
+/// How a layout was left for another one (`App::set_view`)
+#[derive(Debug, Clone, Copy)]
+struct Left {
+    /// The selected day then
+    selected: Date,
+    /// The pane that had the keyboard then (`Focus::Day` = the day popup was open)
+    focus: Focus,
 }
 
 /// A row of the side menu the keyboard can be on, top to bottom: the two switches above the calendars, then
@@ -357,6 +366,8 @@ pub struct App {
     pub focus: Focus,
     /// Which layout is shown
     pub view: View,
+    /// How each layout was last left (`set_view`): coming back with the same day selected finds it as it was
+    left: HashMap<View, Left>,
     /// Which item is chosen in the agenda (index in `agenda()`); used only when the keyboard is there
     pub agenda_index: usize,
     /// Which item is chosen in layout 2's popup (index in `day_items()`);
@@ -455,6 +466,7 @@ impl App {
             headings: Vec::new(),
             focus: Focus::Calendar,
             view: View::Planner,
+            left: HashMap::new(),
             agenda_index: 0,
             day_index: 0,
             day_top: 0,
@@ -1418,24 +1430,57 @@ impl App {
         }
     }
 
-    /// Switches layout: layout 1's calendar scrolls the selected day's month to the top, layout 2 puts the
-    /// selected week on row 2; layout 2 has no agenda, so a keyboard there goes back to the calendar
+    /// Switches layout. A layout left with the same day selected as now comes back as it was: the same pane
+    /// has the keyboard (the day popup still open, the same agenda item chosen) and the scroll stays.
+    /// The first time, or with another day selected since (in the other layout), the keyboard goes to its
+    /// main pane and it scrolls to the selected day: layout 1's calendar puts its month on top, layout 2 its
+    /// week on row 2. The side menu keeps the keyboard
     fn set_view(&mut self, view: View) {
+        // The side menu is the same in every layout: a layout left from it comes back on its main pane
+        let focus = match self.focus {
+            Focus::Side => self.home_focus(),
+            focus => focus,
+        };
+        let selected = self.selected;
+        self.left.insert(self.view, Left { selected, focus });
         self.view = view;
-        self.scroll_to_month();
-        self.selected_week_on_row_2();
-        // The side menu stays; other panes go to this layout's main pane (layout 2 has no agenda, the tasks
-        // page has no calendar)
-        if self.focus != Focus::Side {
-            self.focus = match (view, self.focus) {
-                (View::Planner, Focus::Agenda) => Focus::Agenda,
-                _ => self.home_focus(),
-            };
+        let back = self
+            .left
+            .get(&view)
+            .filter(|left| left.selected == selected)
+            .map(|left| left.focus);
+        if back.is_none() {
+            match view {
+                View::Planner => self.calendar_top = None,
+                View::Month => self.selected_week_on_row_2(),
+                View::Tasks => {}
+            }
+        }
+        if self.focus == Focus::Side {
+            return;
+        }
+        self.focus = back.unwrap_or_else(|| self.home_focus());
+        match self.focus {
+            // The day may have no items left (e.g. checked off on the tasks page with done ones hidden): the
+            // popup stays closed
+            Focus::Day => self.keep_day_choice(),
+            // The chosen item may be gone or moved to another day (e.g. edited on the tasks page): back to
+            // the calendar
+            Focus::Agenda => {
+                let still_there = self
+                    .agenda()
+                    .get(self.agenda_index)
+                    .is_some_and(|entry| entry.is_on(selected));
+                if !still_there {
+                    self.focus = Focus::Calendar;
+                }
+            }
+            _ => {}
         }
     }
 
-    /// `t`: selects today and scrolls like switching layouts (`set_view`): layout 1's calendar puts today's
-    /// month on top, layout 2 today's week on row 2
+    /// `t`: selects today and scrolls to it: layout 1's calendar puts today's month on top, layout 2 today's
+    /// week on row 2
     fn go_today(&mut self) {
         self.selected = self.today;
         self.scroll_to_month();
