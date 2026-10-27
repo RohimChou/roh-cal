@@ -275,9 +275,12 @@ fn mixing_moves_part_of_the_way_and_only_mixes_rgb() {
     let (dark, light) = (Color::Rgb(100, 100, 100), Color::Rgb(200, 200, 200));
     assert_eq!(mix(dark, light, 2.0), light);
     assert_eq!(mix(dark, light, -1.0), dark);
-    // A terminal color or `reset` on either side cannot be mixed: the first color as it is
-    assert_eq!(mix(black, Color::Reset, 0.5), black);
-    assert_eq!(mix(Color::Blue, white, 0.5), Color::Blue);
+    // A terminal color or `reset` on either side cannot be mixed: the first color before halfway, the second
+    // from halfway on
+    assert_eq!(mix(black, Color::Reset, 0.25), black);
+    assert_eq!(mix(black, Color::Reset, 0.5), Color::Reset);
+    assert_eq!(mix(Color::Blue, white, 0.4), Color::Blue);
+    assert_eq!(mix(Color::Blue, white, 0.6), white);
 }
 
 #[test]

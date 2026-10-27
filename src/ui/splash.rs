@@ -7,7 +7,7 @@
 //! looks the same
 
 use crate::app::App;
-use crate::theme::Theme;
+use crate::theme::{Theme, mix};
 use ratatui::{
     Frame,
     buffer::Buffer,
@@ -461,22 +461,6 @@ fn above(since: f64, drop: f64, height: f64) -> f64 {
 /// How high the letters in `column` of the logo bounce: 1 to 3 rows, different from column to column
 fn bounce_height(column: i32) -> f64 {
     1.0 + (noise(column as u32, 7) * 3.0).floor().min(2.0)
-}
-
-/// `from` blended toward `to` by `amount` (0..1); themes with RGB colors blend smoothly, others jump at
-/// halfway
-fn mix(from: Color, to: Color, amount: f64) -> Color {
-    let amount = amount.clamp(0.0, 1.0);
-    match (from, to) {
-        (Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) => {
-            let blend = |from: u8, to: u8| {
-                (f64::from(from) + (f64::from(to) - f64::from(from)) * amount).round() as u8
-            };
-            Color::Rgb(blend(r1, r2), blend(g1, g2), blend(b1, b2))
-        }
-        _ if amount < 0.5 => from,
-        _ => to,
-    }
 }
 
 /// A color along `colors` from the first (`position` 0) to the last (1)

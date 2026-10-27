@@ -105,21 +105,20 @@ pub const BUILTIN: [(&str, &str); 8] = [
 /// The theme used when none is given
 pub const DEFAULT: &str = "nord-bright";
 
-/// `from` moved `amount` (0 = `from`, 1 = `to`) of the way to `to`, each of red, green and blue; only RGB
-/// colors mix, so with a terminal color name or `reset` on either side, `from` as it is
-fn mix(from: Color, to: Color, amount: f32) -> Color {
-    let (Color::Rgb(from_r, from_g, from_b), Color::Rgb(to_r, to_g, to_b)) = (from, to) else {
-        return from;
-    };
-    let channel = |from: u8, to: u8| {
-        let mixed = f32::from(from) + (f32::from(to) - f32::from(from)) * amount.clamp(0.0, 1.0);
-        mixed.round() as u8
-    };
-    Color::Rgb(
-        channel(from_r, to_r),
-        channel(from_g, to_g),
-        channel(from_b, to_b),
-    )
+/// `from` blended toward `to` by `amount` (0..1); themes with RGB colors blend smoothly, others jump at
+/// halfway. The intro's colors and the tab bar's both come from here
+pub fn mix(from: Color, to: Color, amount: f64) -> Color {
+    let amount = amount.clamp(0.0, 1.0);
+    match (from, to) {
+        (Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) => {
+            let blend = |from: u8, to: u8| {
+                (f64::from(from) + (f64::from(to) - f64::from(from)) * amount).round() as u8
+            };
+            Color::Rgb(blend(r1, r2), blend(g1, g2), blend(b1, b2))
+        }
+        _ if amount < 0.5 => from,
+        _ => to,
+    }
 }
 
 /// Names of the built-in themes, in `BUILTIN` order
