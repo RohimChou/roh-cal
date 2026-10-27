@@ -41,7 +41,8 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 | `src/texts.rs` | 畫面上的字（英文 / 繁中） | |
 | `src/theme.rs` | 顏色：每個角色配一個顏色（`Theme`，角色名 = `ROLES`）；一套 theme 是一個 TOML 檔（`[palette]` 色票 + `[roles]` 每個角色用哪個），內建的在 `themes/`、用 `include_str!` 編進執行檔；`Theme::build` = theme + 設定檔 `[colors]` 蓋掉的顏色；`Theme::dimmed` = 用不到的東西（設定頁的列、說明頁的段落）變暗的樣式：`other_month` 的顏色，是 `reset` 時改用 terminal 自己的 faint 字（SGR 2；terminal 那套只有 16 色，沒辦法把字和背景混一半） | |
 | `themes/` | 內建的 theme 檔：`catppuccin-mocha`、`gruvbox-dark`、`tokyo-night`、`dracula`、`nord-bright`（預設，`theme::DEFAULT`；Nord 每個顏色亮一點、鮮一點，色相不變；從背景混出來的照同樣比例重算）、`one-dark`、`rose-pine`、`terminal`（只用 terminal 的 16 色）；加一套 = 加一個檔 + `theme::BUILTIN` 加一筆（`--help`、設定頁跟著有；README 的清單、test 的抽查要自己加） | |
-| `src/ui.rs` | 把畫面切成 side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（每組鍵中間一條 `line` 色的 `|`，比字暗：`texts.rs` 的字照樣用兩個空格分組，畫的時候 `hint_spans` 照兩個空格切開、插 `hint_separator`；跳窗下框的按鍵提示（說明頁、編輯框和它的 `#` 清單、設定頁、選顏色）也一樣，用 `border_hints`（兩邊各空一格），照提示寬度撐開的框也照這一行的寬度算；月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線（設定檔 `cross_out_done = false` 不畫，只剩灰色）；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
+| `src/ui.rs` | 把畫面切成最上面的分頁列（`tabs.rs`）、side menu（terminal 至少 120 格寬才有；不夠寬時鍵盤在 side menu = 蓋在主畫面左邊，`side_overlay`）、月曆、事項、下面的操作說明（每組鍵中間一條 `line` 色的 `|`，比字暗：`texts.rs` 的字照樣用兩個空格分組，畫的時候 `hint_spans` 照兩個空格切開、插 `hint_separator`；跳窗下框的按鍵提示（說明頁、編輯框和它的 `#` 清單、設定頁、選顏色）也一樣，用 `border_hints`（兩邊各空一格），照提示寬度撐開的框也照這一行的寬度算；月曆和任務頁的最左邊是版型的鍵 `123`：現在的版型那個字亮起來（`focus` 色、粗體），點一下換版型，`Click::View`；鍵盤在跳窗、side menu 時換成它們自己的說明，沒有 `123`）；滑鼠點到什麼；事的標題 `title_span`（每個畫面共用：做完刪除線（設定檔 `cross_out_done = false` 不畫，只剩灰色）；進行中粗體、前面加 🚧，emoji 固定 2 格寬、自帶顏色）；右下角的提示（`App::toast`）蓋在最下面一列的最右邊，前後各空一格，`notice` 色 | ✓ |
+| `src/ui/tabs.rs` | 最上面的分頁列：三個版型 ` 1 calendar ` ` 2 month ` ` 3 tasks `（名字在 `texts.rs` 的 `tabs`），現在的版型左邊一條 `focus` 色的 `┃`、`selection` 底色，其他的 `muted`；每個分頁不管有沒有選到都佔一樣寬（`┃` 那格 + 字），換版型時字不動；點分頁 = 按那個數字鍵（`ui::tab_at`，`App::handle_normal_mouse` 最前面就判斷，跳窗、叫出來的 side menu 開著也能點） | ✓ |
 | `src/ui/tests.rs` | 畫面 test（大部分；說明頁、設定頁的在 `ui/help/tests.rs`、`ui/settings/tests.rs`）：預期畫面由 `tools/regen_ui_screens.py` 重算、寫回這個檔 | |
 | `src/ui/months.rs` | 版型 1 的排版：每個月幾列、列號、捲到哪（只算數字） | |
 | `src/ui/planner.rs` | 畫版型 1 的左右兩個框；月曆一天 `DAY_WIDTH` = 4 格（空格、靠右的日期 2 格、日期後面 1 格），寬度、標題列、滑鼠換算都從它算。日期後面那格是點點（`dots`：那天幾件事，數 `App::items_on`，跟著日曆勾選、隱藏做完的；點字 `⠂ ⠒ ⠖ ⠶`，最多 4 個；4 個點是同一個字、只能一個顏色，用那天還沒做完的事裡最急的那件的顏色（`dots_color`：最高的優先度，沒有就看有沒有假日的藍，都沒有就 `muted`；做完的、過去的行程不算）；設定檔 `[calendar] dots = false` 時那格空白、月曆寬度不變）；選到的那天沒點點是 `[17]`，有點點是 `[17⠒]`（`]` 放進下一天的第一個空格，週日放進最後多的那格）；右邊事項欄選到的那件只墊底色，不加括號 | ✓ |
@@ -56,6 +57,7 @@ App::run 的迴圈
  ├─ App::refresh_tasks   任務檔在別處改過（修改時間變了、內容跟畫面的不一樣）就重新載入，每個版型都跟著變
  ├─ 記下 terminal 大小（app.screen）
  ├─ ui::render
+ │   ├─ 最上面一列：分頁列 tabs::render
  │   ├─ 主畫面：planner::render（版型 1）/ month::render（版型 2，見下面「版型 2」）/ tasks::render（任務頁）
  │   │   版型 1：
  │   │   ├─ Months::window_for    選取的那個月，右邊在月份裡捲到哪 → app.agenda_window
@@ -102,7 +104,7 @@ App::run 的迴圈
 ## 改了畫面之後
 1. 改 Rust，跑 `cargo test`：失敗的就是畫面變了的 test
 2. 預期畫面**不要從 Rust 畫出來的結果抄**：照新的規格改 `tools/expected_screen.py`（它是另外寫的一份，兩邊一樣才算對），再跑 `python3 tools/regen_ui_screens.py`，用 `git diff src/ui/tests.rs` 看預期畫面變了哪裡、是不是你要的
-3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆；版型 2 的畫面加環境變數 `LAYOUT=2`、任務頁 `LAYOUT=3`（參數見 `expected_screen.py` 開頭）
+3. 新增畫面 test：在 `tools/regen_ui_screens.py` 的 `PLAN` 加一筆（畫面最上面一列是分頁列，`expected_screen.py` 的高度把它算在內）；版型 2 的畫面加環境變數 `LAYOUT=2`、任務頁 `LAYOUT=3`（參數見 `expected_screen.py` 開頭）
 4. 顏色不在 Python 裡：用 test 量關鍵格子的顏色（例：`colors_by_role`）
 
 ## 寫法規矩

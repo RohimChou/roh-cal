@@ -1277,6 +1277,14 @@ impl App {
     /// the day popup goes over its text, and letting go copies it; dragging the side menu's right border
     /// changes its width
     fn handle_normal_mouse(&mut self, mouse: MouseEvent) {
+        // A tab in the tab bar at the top: like pressing its number key, so also while the day popup or the
+        // side menu called up when narrow is open
+        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind
+            && let Some(view) = ui::tab_at(self, mouse.column, mouse.row)
+        {
+            self.set_view(view);
+            return;
+        }
         match mouse.kind {
             // Scroll down (to see later ones), scroll up
             MouseEventKind::ScrollDown => self.scroll(1),

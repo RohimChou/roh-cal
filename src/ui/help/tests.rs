@@ -75,8 +75,10 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
     assert_eq!(buffer[(10, 6)].fg, theme.help_section);
     assert_eq!(buffer[(12, 7)].fg, theme.help_key);
     assert_eq!(buffer[(20, 7)].fg, theme.text);
-    // Outside the box is still the calendar underneath (layout 1's top-left corner)
-    assert_eq!(buffer[(0, 0)].symbol(), "╭");
+    // Outside the box is still the screen underneath: the tab bar on top (layout 1's tab lit), layout 1's
+    // top-left corner below it
+    assert_eq!(buffer[(1, 0)].symbol(), "┃");
+    assert_eq!(buffer[(0, 1)].symbol(), "╭");
 }
 
 #[test]

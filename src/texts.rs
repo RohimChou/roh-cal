@@ -58,6 +58,8 @@ pub struct Texts {
     pub hints: &'static str,
     /// After the layout keys `123` at the left end of the bottom row (calendar views and the tasks page)
     pub views: &'static str,
+    /// The tab bar at the top: the names of the views `1` `2` `3` switch to, in that order
+    pub tabs: [&'static str; 3],
     /// Calendar header: the week number column (4 cells wide)
     pub header_week: &'static str,
     /// Monday to Sunday in the calendar header: each exactly 2 cells wide
@@ -210,6 +212,7 @@ const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
     views: "view",
+    tabs: ["calendar", "month", "tasks"],
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
@@ -477,6 +480,7 @@ const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
     views: "版型",
+    tabs: ["月曆", "大月曆", "任務"],
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",

@@ -79,6 +79,8 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | `2` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once (bars stacked on lines next to each other take turns between two shades, `range` and `range_alt`); an in-progress item leaves its time out of the cell (the popup shows it); a month's edge is a staircase line in the border color, a year's edge a thick one, and the week of a 1st has the month (and in January the year) under its week number; `Enter` opens a popup with all of that day's items, each after its check box (`∙` for an event; only a multi-day item writes its dates, e.g. `10/16~18`), a subtask under its parent and 2 cells further in (a parent not on that day is listed too, gray and without a check box, so you can tell whose subtasks they are), grouped under their calendars as a tree like the tasks page (e.g. `Work`, and under it `SFAP` 2 cells further in for `Work > SFAP`; with `[day_popup] by_calendar = false`, one list with the outermost calendar's name at each item's right end); in one list the bottom border shows the chosen item's whole calendar path, and the top border's right end counts the day's tasks, e.g. `3 open / 2 done` (the open count is red when more than half is left, orange from a third, yellow from a fifth; the done count is green) |
 | `3` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; a long title wraps onto the next lines; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red and underlined |
 
+The top row is a tab bar: the views and their keys, the shown one lit; click a tab to switch.
+
 Views 1 and 2 share the selected day, except that a view left with its popup open comes back on that day with the popup; a view left with the same day selected as now keeps its chosen item and scroll too.
 
 A terminal at least 120 columns wide also shows the calendar list on the left; narrower, `s` calls it up.
@@ -100,7 +102,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 
 | Key | Action |
 | :- | :- |
-| `1` / `2` / `3` | Switch to the calendar + agenda / the month grid / the tasks page; the month grid opens with the selected week on the 2nd row. The bottom row starts with `123`, the shown layout's key lit up; clicking a key there switches too |
+| `1` / `2` / `3` | Switch to the calendar + agenda / the month grid / the tasks page; the month grid opens with the selected week on the 2nd row. The tab bar at the top lists them, the shown one lit, and the bottom row starts with `123`; clicking a tab or a key there switches too |
 | `Tab` / `Shift+Tab` | Switch to the next / previous pane: the calendar, the agenda and the calendar list when it is on screen (the focused pane's border lights up); does nothing while layout 2's day popup is open |
 | `s` | Hide / show the calendar list on the left (the task file's `#` groups) when the terminal is at least 120 columns wide; narrower, `s` calls it up over the left of the screen with the keyboard in it, and `s`, `Esc`, `q` or clicking outside put it away, back to the pane you were in |
 | `.` | Hide / show done tasks everywhere (not their open subtasks; the tasks page keeps a done task with one under it), like the calendar list's `Hide done` switch; saved to the config file right away |
@@ -170,7 +172,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | Action | Effect |
 | :- | :- |
 | Wheel | Move one week (in the agenda, the day popup and on the tasks page: one item, in the calendar list: one calendar); on the month grid (`2`) it only scrolls the weeks and the selected day stays, until a key moves it back into view |
-| Click | Select a day, an item or a calendar; double-click a day to go into its items, a task to check it off (a single click never checks one off); click a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
+| Click | Select a day, an item or a calendar, or a view in the tab bar at the top; double-click a day to go into its items, a task to check it off (a single click never checks one off); click a selected calendar again to check / uncheck it. Hold `Shift` to select text in the terminal |
 | Right-click | On a tasks page item's `▸`: its whole subtree, every level under it. On a calendar in the calendar list: chooses it and does what `Enter` does there (only that calendar; on the one shown alone, every check back) |
 | Drag | In the day popup: marks the item titles it goes over (color: `text_selection`); letting go copies that text to the clipboard, one item per line, and the bottom right says how many characters. The calendar list's right border: sets its width, which stays fixed (saved to the config file on letting go); double-click that border, or `r` on its settings row, to go back to auto |
 

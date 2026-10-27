@@ -77,6 +77,7 @@ fn calendar_from_this_month_down_with_a_thick_line_between_years() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  │",
             "│──────────┼─────────────────────────────│",
@@ -100,7 +101,6 @@ fn calendar_from_this_month_down_with_a_thick_line_between_years() {
             "│       53 │ 28  29  30  31              │",
             "│━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│",
             "│2027年  1 │                  1   2   3  │",
-            "│   1月  2 │  4   5   6   7   8   9  10  │",
             "╰────────────────────────────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
@@ -113,6 +113,7 @@ fn calendar_in_english() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  │",
             "│──────────┼─────────────────────────────│",
@@ -121,7 +122,6 @@ fn calendar_in_english() {
             "│       42 │ 12  13  14  15  16 [17] 18  │",
             "│       43 │ 19  20  21  22  23  24  25  │",
             "│       44 │ 26  27  28  29  30  31      │",
-            "│──────────┼─────────────────────────────│",
             "╰────────────────────────────────────────╯",
             " 123 view | hjkl[] move | Tab pane | t tod",
         ]
@@ -132,10 +132,11 @@ fn calendar_in_english() {
 fn selection_brackets_and_the_month_on_top() {
     // Another month selected: that month goes on top; no January on
     // screen, so the header shows the year; brackets hug a one-digit date
-    let terminal = draw(Lang::En, 42, 8, date(2026, 11, 2));
+    let terminal = draw(Lang::En, 42, 9, date(2026, 11, 2));
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  │",
             "│──────────┼─────────────────────────────│",
@@ -148,10 +149,11 @@ fn selection_brackets_and_the_month_on_top() {
     );
     // Sunday: `]` goes in the extra cell at the end; the calendar has only 3 rows and must keep 1 row of
     // margin, so it scrolls up one more row (the thick year line)
-    let terminal = draw(Lang::ZhTw, 42, 8, date(2027, 1, 3));
+    let terminal = draw(Lang::ZhTw, 42, 9, date(2027, 1, 3));
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮",
             "│2027年 週 │ 一  二  三  四  五  六  日  │",
             "│──────────┼─────────────────────────────│",
@@ -169,16 +171,17 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
     // The calendar has 6 rows: 10/17 → 10/24 → 10/31 → 11/7 going down; the selected row keeps at least 2
     // rows from the bottom edge and scrolls only when it can't
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-    draw_app(&mut app, 42, 11);
+    draw_app(&mut app, 42, 12);
     for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
         app.selected = day;
-        draw_app(&mut app, 42, 11);
+        draw_app(&mut app, 42, 12);
     }
     // October's first 4 rows have scrolled off the top;
     // no January on screen, so the header shows the year
     assert_eq!(
-        text_rows(draw_app(&mut app, 42, 11).backend().buffer()),
+        text_rows(draw_app(&mut app, 42, 12).backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  │",
             "│──────────┼─────────────────────────────│",
@@ -195,8 +198,9 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
     // One week back: the selected row keeps at least 2 rows from the top edge, so it scrolls up 2 rows
     app.selected = date(2026, 10, 31);
     assert_eq!(
-        text_rows(draw_app(&mut app, 42, 11).backend().buffer()),
+        text_rows(draw_app(&mut app, 42, 12).backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  │",
             "│──────────┼─────────────────────────────│",
@@ -222,6 +226,7 @@ fn calendar_scrolls_up_into_earlier_months() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 11).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  │",
             "│──────────┼─────────────────────────────│",
@@ -230,7 +235,6 @@ fn calendar_scrolls_up_into_earlier_months() {
             "│       41 │  5   6   7   8   9 [10] 11  │",
             "│       42 │ 12  13  14  15  16  17  18  │",
             "│       43 │ 19  20  21  22  23  24  25  │",
-            "│       44 │ 26  27  28  29  30  31      │",
             "╰────────────────────────────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今",
         ]
@@ -262,32 +266,32 @@ fn selection_always_stays_two_rows_from_the_edges() {
 
 #[test]
 fn click_positions_map_to_the_dates_on_screen() {
-    // 47 × 26, October on top (screen: see
+    // 47 × 27, October on top (screen: see
     // `calendar_from_this_month_down_with_a_thick_line_between_years`)
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
-    app.screen = Rect::new(0, 0, 47, 26);
-    draw_app(&mut app, 47, 26);
+    app.screen = Rect::new(0, 0, 47, 27);
+    draw_app(&mut app, 47, 27);
     // A day is 4 cells wide from x 12 (border, year/month, week number, │), and the blanks before and after
     // its date count as that day: the 16th (Friday, the 5th day) is x 28-31
-    assert_eq!(date_at(&app, 28, 5), Some(date(2026, 10, 16)));
-    assert_eq!(date_at(&app, 31, 5), Some(date(2026, 10, 16)));
-    assert_eq!(date_at(&app, 32, 5), Some(date(2026, 10, 17)));
-    assert_eq!(date_at(&app, 39, 5), Some(date(2026, 10, 18)));
+    assert_eq!(date_at(&app, 28, 6), Some(date(2026, 10, 16)));
+    assert_eq!(date_at(&app, 31, 6), Some(date(2026, 10, 16)));
+    assert_eq!(date_at(&app, 32, 6), Some(date(2026, 10, 17)));
+    assert_eq!(date_at(&app, 39, 6), Some(date(2026, 10, 18)));
     // 11/1 is in the last cell of November's first row (its `1` at x 38); 12/31 is a Thursday (x 24-27)
-    assert_eq!(date_at(&app, 38, 9), Some(date(2026, 11, 1)));
-    assert_eq!(date_at(&app, 25, 20), Some(date(2026, 12, 31)));
+    assert_eq!(date_at(&app, 38, 10), Some(date(2026, 11, 1)));
+    assert_eq!(date_at(&app, 25, 21), Some(date(2026, 12, 31)));
     // No date: the extra cell at the end, the blanks before 10/1, the line between months, the year/month
     // column, the week-number column, the header, the border, the key hints, the blank space on the right
     for (x, y) in [
-        (40, 5),
-        (13, 3),
-        (20, 8),
-        (5, 5),
-        (9, 5),
-        (20, 1),
-        (0, 5),
-        (20, 25),
-        (44, 5),
+        (40, 6),
+        (13, 4),
+        (20, 9),
+        (5, 6),
+        (9, 6),
+        (20, 2),
+        (0, 6),
+        (20, 26),
+        (44, 6),
     ] {
         assert_eq!(date_at(&app, x, y), None, "({x}, {y})");
     }
@@ -298,17 +302,17 @@ fn click_positions_follow_the_scroll() {
     // Scrolled to 11/7 (screen: see
     // `calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom`)
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-    app.screen = Rect::new(0, 0, 47, 11);
-    draw_app(&mut app, 47, 11);
+    app.screen = Rect::new(0, 0, 47, 12);
+    draw_app(&mut app, 47, 12);
     for day in [date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7)] {
         app.selected = day;
-        draw_app(&mut app, 47, 11);
+        draw_app(&mut app, 47, 12);
     }
     // The top row is the week of 10/26, then a line, then 11/1 (Sunday, x 36-39), then the week of 11/2
-    assert_eq!(date_at(&app, 13, 3), Some(date(2026, 10, 26)));
-    assert_eq!(date_at(&app, 13, 4), None);
-    assert_eq!(date_at(&app, 38, 5), Some(date(2026, 11, 1)));
-    assert_eq!(date_at(&app, 13, 6), Some(date(2026, 11, 2)));
+    assert_eq!(date_at(&app, 13, 4), Some(date(2026, 10, 26)));
+    assert_eq!(date_at(&app, 13, 5), None);
+    assert_eq!(date_at(&app, 38, 6), Some(date(2026, 11, 1)));
+    assert_eq!(date_at(&app, 13, 7), Some(date(2026, 11, 2)));
 }
 
 /// Task file for the agenda tests (`tools/expected_screen.py`
@@ -356,8 +360,8 @@ fn a_one_row_terminal_with_the_side_menu_does_not_panic() {
 
 #[test]
 fn a_long_calendar_list_scrolls_to_the_chosen_one() {
-    // 121 × 13: the side menu fits 5 calendars (y 6-10; above them the 「隱藏全部」 and 「隱藏做完的」 rows
-    // and a rule, y 3-5), and there are 12 (c01-c12, 1 item each)
+    // 121 × 14: the side menu fits 5 calendars (y 7-11; above them the 「隱藏全部」 and 「隱藏做完的」 rows
+    // and a rule, y 4-6), and there are 12 (c01-c12, 1 item each)
     let text: String = (1..=12)
         .map(|n| format!("# c{n:02}\n- a @2026-10-{n:02}\n"))
         .collect();
@@ -366,13 +370,13 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         date(2026, 10, 17),
         crate::tasks::parse(&text).items,
     );
-    app.screen = Rect::new(0, 0, 121, 13);
+    app.screen = Rect::new(0, 0, 121, 14);
     app.focus = Focus::Side;
     let names = |app: &mut App| {
-        let terminal = draw_app(app, 121, 13);
+        let terminal = draw_app(app, 121, 14);
         let buffer = terminal.backend().buffer();
-        let rows = area_rows(buffer, Rect::new(0, 6, 21, 5));
-        let thumb: Vec<u16> = (6..11)
+        let rows = area_rows(buffer, Rect::new(0, 7, 21, 5));
+        let thumb: Vec<u16> = (7..12)
             .filter(|&y| buffer[(21, y)].symbol() == "┃")
             .collect();
         // Split each row 「│ ☑ c01 … 1」 on whitespace; the 3rd part is the name
@@ -382,18 +386,18 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         (names.collect::<Vec<_>>(), thumb)
     };
     // The two switches and their rule above the list (not scrolled with it); clicks hit the switches
-    let terminal = draw_app(&mut app, 121, 13);
-    let top = area_rows(terminal.backend().buffer(), Rect::new(0, 3, 22, 3));
+    let terminal = draw_app(&mut app, 121, 14);
+    let top = area_rows(terminal.backend().buffer(), Rect::new(0, 4, 22, 3));
     assert!(top[0].starts_with("│ ☐\u{a0}隱藏全部"), "{}", top[0]);
     assert!(top[1].starts_with("│ ☐\u{a0}隱藏做完的"), "{}", top[1]);
     assert_eq!(top[2], "│────────────────────│");
-    assert_eq!(click_at(&app, 5, 3), Some(Click::HideAll));
-    assert_eq!(click_at(&app, 5, 4), Some(Click::HideDone));
-    assert_eq!(click_at(&app, 5, 5), None);
+    assert_eq!(click_at(&app, 5, 4), Some(Click::HideAll));
+    assert_eq!(click_at(&app, 5, 5), Some(Click::HideDone));
+    assert_eq!(click_at(&app, 5, 6), None);
     // Choose the 1st: no scroll, the scrollbar is at the top
     let (rows, thumb) = names(&mut app);
     assert_eq!(rows, ["c01", "c02", "c03", "c04", "c05"]);
-    assert_eq!(thumb.first(), Some(&6));
+    assert_eq!(thumb.first(), Some(&7));
     // Choose the 9th: scroll only once it leaves the box,
     // just enough to put it on the last row (c05 on top)
     app.side_row = SideRow::Calendar(8);
@@ -402,14 +406,14 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
     app.side_row = SideRow::Calendar(11);
     let (rows, thumb) = names(&mut app);
     assert_eq!(rows, ["c08", "c09", "c10", "c11", "c12"]);
-    assert_eq!(thumb.last(), Some(&10));
+    assert_eq!(thumb.last(), Some(&11));
     // Back to the 8th: still visible, no scroll; the 6th: scroll so it is just on the first row (c06 on
     // top); clicking the first row = c06
     app.side_row = SideRow::Calendar(7);
     assert_eq!(names(&mut app).0, ["c08", "c09", "c10", "c11", "c12"]);
     app.side_row = SideRow::Calendar(5);
     assert_eq!(names(&mut app).0, ["c06", "c07", "c08", "c09", "c10"]);
-    assert_eq!(click_at(&app, 5, 6), Some(Click::Group(5)));
+    assert_eq!(click_at(&app, 5, 7), Some(Click::Group(5)));
     // Click the last row (c10): it gets chosen and does not scroll away; clicking the same
     // spot again = the same calendar, which unchecks it
     let click = |app: &mut App| {
@@ -417,7 +421,7 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: 5,
-            row: 10,
+            row: 11,
             modifiers: KeyModifiers::NONE,
         });
     };
@@ -433,7 +437,7 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
 
 #[test]
 fn a_narrow_side_menu_covers_the_left_of_the_screen() {
-    // 60 × 14, keyboard in the side menu (after s): the side menu is 22 cells
+    // 60 × 15, keyboard in the side menu (after s): the side menu is 22 cells
     // wide, over the calendar's left side, and the calendar does not shrink
     // (x 22 is still the calendar's top border); the number = how many items in
     // that calendar have a date (c in Personal has no date, so it does not count)
@@ -444,10 +448,10 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
         crate::tasks::parse(text).items,
     );
     app.focus = Focus::Side;
-    let terminal = draw_app(&mut app, 60, 14);
+    let terminal = draw_app(&mut app, 60, 15);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(0, 0, 22, 9)),
+        area_rows(buffer, Rect::new(0, 1, 22, 9)),
         [
             "╭────────────────────╮",
             "│ 日曆               │",
@@ -460,21 +464,21 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
             "│                    │",
         ]
     );
-    assert_eq!(buffer[(21, 13 - 1)].symbol(), "╯");
-    assert_eq!(buffer[(22, 0)].symbol(), "─");
+    assert_eq!(buffer[(21, 14 - 1)].symbol(), "╯");
+    assert_eq!(buffer[(22, 1)].symbol(), "─");
     // Keyboard in the side menu: the key hints are the calendar list's
     assert_eq!(
-        text_rows(buffer)[13].trim_end(),
+        text_rows(buffer)[14].trim_end(),
         " jk 移動 | Space 勾選 | Enter 只看這個 | a/A 新增日曆 | e 改"
     );
     // Keyboard not in the side menu: not drawn; the key hints have s even when narrow (60 cells wide,
     // the end is cut off)
     app.focus = Focus::Calendar;
-    let terminal = draw_app(&mut app, 60, 14);
-    assert_eq!(terminal.backend().buffer()[(0, 3)].symbol(), "│");
-    assert_ne!(terminal.backend().buffer()[(4, 3)].symbol(), "W");
+    let terminal = draw_app(&mut app, 60, 15);
+    assert_eq!(terminal.backend().buffer()[(0, 4)].symbol(), "│");
+    assert_ne!(terminal.backend().buffer()[(4, 4)].symbol(), "W");
     assert!(
-        text_rows(terminal.backend().buffer())[13]
+        text_rows(terminal.backend().buffer())[14]
             .starts_with(" 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆")
     );
 }
@@ -533,10 +537,11 @@ fn side_menu_lists_the_calendars_when_wide() {
     // width (`CalendarListSettings::AUTO_MAX_WIDTH`), so it is cut; the key hints gain an `s`. The agenda has room for one column only and October's 8 items
     // do not fit: it scrolls 1 row, leaving one row after the selected day's (10/17) items
     let mut app = agenda_app(Lang::ZhTw);
-    let terminal = draw_app(&mut app, 128, 14);
+    let terminal = draw_app(&mut app, 128, 15);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ 日曆                               ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                    2026/10/17（六） │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
@@ -558,19 +563,20 @@ fn side_menu_lists_the_calendars_when_wide() {
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 6), ("☑", theme.checked));
-    assert_eq!(cell(4, 7), ("P", theme.text));
-    assert_eq!(cell(35, 7), ("5", theme.muted));
-    assert_eq!(cell(2, 3), ("☐", theme.muted));
-    assert_eq!(cell(4, 3), ("隱", theme.text));
-    assert_eq!(cell(2, 1), ("日", theme.text));
-    assert_eq!(cell(0, 0), ("╭", theme.line));
+    assert_eq!(cell(2, 7), ("☑", theme.checked));
+    assert_eq!(cell(4, 8), ("P", theme.text));
+    assert_eq!(cell(35, 8), ("5", theme.muted));
+    assert_eq!(cell(2, 4), ("☐", theme.muted));
+    assert_eq!(cell(4, 4), ("隱", theme.text));
+    assert_eq!(cell(2, 2), ("日", theme.text));
+    assert_eq!(cell(0, 1), ("╭", theme.line));
     // `s` hides it: the calendar moves back to the far left,
     // and the key hints still have `s` (press it again to open)
     app.side_hidden = true;
     assert_eq!(
-        text_rows(draw_app(&mut app, 128, 14).backend().buffer()),
+        text_rows(draw_app(&mut app, 128, 15).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                                                          2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
@@ -594,10 +600,11 @@ fn unchecked_calendars_hide_their_items() {
     // Personal unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed
     let mut app = agenda_app(Lang::En);
     app.groups[1].shown = false;
-    let terminal = draw_app(&mut app, 128, 14);
+    let terminal = draw_app(&mut app, 128, 15);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ Calendars                          ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                      Sat Oct 17, 2026 │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
@@ -617,14 +624,14 @@ fn unchecked_calendars_hide_their_items() {
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 7), ("☐", theme.muted));
-    assert_eq!(cell(4, 7), ("P", theme.muted));
-    assert_eq!(cell(2, 6), ("☑", theme.checked));
+    assert_eq!(cell(2, 8), ("☐", theme.muted));
+    assert_eq!(cell(4, 8), ("P", theme.muted));
+    assert_eq!(cell(2, 7), ("☑", theme.checked));
     // Dates keep their usual colors whatever items they have: 10/5 (Monday), 10/16 (Friday, an
     // ungrouped item) normal, 10/10 (Saturday) weekend blue
-    assert_eq!(cell(52, 4), ("5", theme.text));
-    assert_eq!(cell(72, 4), ("0", theme.weekend));
-    assert_eq!(cell(68, 5), ("6", theme.text));
+    assert_eq!(cell(52, 5), ("5", theme.text));
+    assert_eq!(cell(72, 5), ("0", theme.weekend));
+    assert_eq!(cell(68, 6), ("6", theme.text));
 }
 
 #[test]
@@ -637,11 +644,12 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
         date(2026, 10, 17),
         crate::tasks::parse(ARCHIVED_TASKS).items,
     );
-    app.screen = Rect::new(0, 0, 128, 20);
-    let terminal = draw_app(&mut app, 128, 20);
+    app.screen = Rect::new(0, 0, 128, 21);
+    let terminal = draw_app(&mut app, 128, 21);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ 日曆                ││2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項                                   2026/10/17（六） │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
@@ -664,30 +672,31 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
-    // The rule (y 9) is a line with the muted name in the middle of the 21 cells inside the box: 6 `─`
+    // The rule (y 10) is a line with the muted name in the middle of the 21 cells inside the box: 6 `─`
     // (x 1-6), 「 已封存 」 (x 7-14), 7 `─` (x 15-21)
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(1, 9), ("─", theme.line));
-    assert_eq!(cell(6, 9), ("─", theme.line));
-    assert_eq!(cell(8, 9), ("已", theme.muted));
-    assert_eq!(cell(15, 9), ("─", theme.line));
-    assert_eq!(cell(21, 9), ("─", theme.line));
+    assert_eq!(cell(1, 10), ("─", theme.line));
+    assert_eq!(cell(6, 10), ("─", theme.line));
+    assert_eq!(cell(8, 10), ("已", theme.muted));
+    assert_eq!(cell(15, 10), ("─", theme.line));
+    assert_eq!(cell(21, 10), ("─", theme.line));
     // Clicks: the rule hits nothing, the rows under it the archived calendars (3 = the first archived one in
     // `App::groups`), the blank rows below them nothing
-    assert_eq!(click_at(&app, 5, 8), Some(Click::Group(2)));
-    assert_eq!(click_at(&app, 5, 9), None);
-    assert_eq!(click_at(&app, 5, 10), Some(Click::Group(3)));
-    assert_eq!(click_at(&app, 5, 13), Some(Click::Group(6)));
-    assert_eq!(click_at(&app, 5, 14), None);
+    assert_eq!(click_at(&app, 5, 9), Some(Click::Group(2)));
+    assert_eq!(click_at(&app, 5, 10), None);
+    assert_eq!(click_at(&app, 5, 11), Some(Click::Group(3)));
+    assert_eq!(click_at(&app, 5, 14), Some(Click::Group(6)));
+    assert_eq!(click_at(&app, 5, 15), None);
     // Payments API v2 checked: its item is back
     app.lang = Lang::En;
     app.groups[3].shown = true;
-    let terminal = draw_app(&mut app, 128, 20);
+    let terminal = draw_app(&mut app, 128, 21);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ Calendars           ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                                     Sat Oct 17, 2026 │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
@@ -715,9 +724,9 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
 #[test]
 fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
-    // 121 × 45: under the switches the calendars get 37 rows (y 6-42). 33 running calendars r01-r33 and 10
-    // archived ones a01-a10 (1 item each): the running ones take 30 rows (y 6-35) and scroll, the rule is
-    // on y 36, the archived ones get the 6 rows left (y 37-42) and scroll on their own
+    // 121 × 46: under the switches the calendars get 37 rows (y 7-43). 33 running calendars r01-r33 and 10
+    // archived ones a01-a10 (1 item each): the running ones take 30 rows (y 7-36) and scroll, the rule is
+    // on y 37, the archived ones get the 6 rows left (y 38-43) and scroll on their own
     let running: String = (1..=33)
         .map(|n| format!("# r{n:02}\n- a @2026-10-01\n"))
         .collect();
@@ -729,12 +738,12 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
         date(2026, 10, 17),
         crate::tasks::parse(&format!("{running}{archived}")).items,
     );
-    app.screen = Rect::new(0, 0, 121, 45);
+    app.screen = Rect::new(0, 0, 121, 46);
     app.focus = Focus::Side;
     // The names on rows `y` to `y + height - 1` (split 「│ ☑ r01 … 1」 on whitespace: the 3rd part), and
     // the rows among them with the scrollbar's thumb on the right border
     let names = |app: &mut App, y: u16, height: u16| {
-        let terminal = draw_app(app, 121, 45);
+        let terminal = draw_app(app, 121, 46);
         let buffer = terminal.backend().buffer();
         let names: Vec<String> = area_rows(buffer, Rect::new(0, y, 21, height))
             .iter()
@@ -749,37 +758,37 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
         numbers.map(|n| format!("{prefix}{n:02}")).collect()
     };
     // At start: r01-r30 with the thumb at the top, the rule, a01-a06 with their own thumb at the top
-    let (rows, thumb) = names(&mut app, 6, 30);
+    let (rows, thumb) = names(&mut app, 7, 30);
     assert_eq!(rows, numbered("r", 1..=30));
-    assert_eq!(thumb.first(), Some(&6));
-    let terminal = draw_app(&mut app, 121, 45);
-    let rule = &area_rows(terminal.backend().buffer(), Rect::new(0, 36, 22, 1))[0];
+    assert_eq!(thumb.first(), Some(&7));
+    let terminal = draw_app(&mut app, 121, 46);
+    let rule = &area_rows(terminal.backend().buffer(), Rect::new(0, 37, 22, 1))[0];
     assert_eq!(rule, "│────── 已封存 ──────│");
-    let (rows, thumb) = names(&mut app, 37, 6);
+    let (rows, thumb) = names(&mut app, 38, 6);
     assert_eq!(rows, numbered("a", 1..=6));
-    assert_eq!(thumb.first(), Some(&37));
+    assert_eq!(thumb.first(), Some(&38));
     // G to the last archived one: only the archive part scrolls (a05-a10, its thumb at the bottom)
     app.handle_key(KeyEvent::from(KeyCode::Char('G')));
-    let (rows, thumb) = names(&mut app, 37, 6);
+    let (rows, thumb) = names(&mut app, 38, 6);
     assert_eq!(rows, numbered("a", 5..=10));
-    assert_eq!(thumb.last(), Some(&42));
-    assert_eq!(names(&mut app, 6, 30).0, numbered("r", 1..=30));
+    assert_eq!(thumb.last(), Some(&43));
+    assert_eq!(names(&mut app, 7, 30).0, numbered("r", 1..=30));
     // A click on the archive part's first row hits a05 (33 running ones come before it in `App::groups`); the
     // rule hits nothing
-    assert_eq!(click_at(&app, 5, 37), Some(Click::Group(33 + 4)));
-    assert_eq!(click_at(&app, 5, 36), None);
+    assert_eq!(click_at(&app, 5, 38), Some(Click::Group(33 + 4)));
+    assert_eq!(click_at(&app, 5, 37), None);
     // The last running one (r33): the running part scrolls (r04-r33), the archive part stays
     app.side_row = SideRow::Calendar(32);
-    assert_eq!(names(&mut app, 6, 30).0, numbered("r", 4..=33));
-    assert_eq!(names(&mut app, 37, 6).0, numbered("a", 5..=10));
+    assert_eq!(names(&mut app, 7, 30).0, numbered("r", 4..=33));
+    assert_eq!(names(&mut app, 38, 6).0, numbered("a", 5..=10));
     // j from there goes on into the archive part: a01, which scrolls it back up
     app.handle_key(KeyEvent::from(KeyCode::Char('j')));
     assert_eq!(app.side_row, SideRow::Calendar(33));
-    assert_eq!(names(&mut app, 37, 6).0, numbered("a", 1..=6));
-    // A short box (121 × 12: 4 rows under the switches): the running part keeps 2 rows (still scrolled to r04),
+    assert_eq!(names(&mut app, 38, 6).0, numbered("a", 1..=6));
+    // A short box (121 × 13: 4 rows under the switches): the running part keeps 2 rows (still scrolled to r04),
     // then the rule and 1 archived row (a01, chosen)
-    let terminal = draw_app(&mut app, 121, 12);
-    let rows = area_rows(terminal.backend().buffer(), Rect::new(0, 6, 22, 4));
+    let terminal = draw_app(&mut app, 121, 13);
+    let rows = area_rows(terminal.backend().buffer(), Rect::new(0, 7, 22, 4));
     assert!(rows[0].starts_with("│ ☑\u{a0}r04 "), "{}", rows[0]);
     assert!(rows[1].starts_with("│ ☑\u{a0}r05 "), "{}", rows[1]);
     assert_eq!(rows[2], "│────── 已封存 ──────│");
@@ -790,7 +799,7 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
         date(2026, 10, 17),
         crate::tasks::parse(&running).items,
     );
-    let (rows, thumb) = names(&mut app, 6, 37);
+    let (rows, thumb) = names(&mut app, 7, 37);
     assert_eq!(rows[..33], numbered("r", 1..=33));
     assert!(rows[33..].iter().all(String::is_empty));
     assert!(thumb.is_empty());
@@ -805,10 +814,10 @@ fn a_checked_calendar_inside_an_unchecked_one_still_shows() {
         "# Work\n## SFAP\n- a @2026-10-10\n# Personal\n- b @2026-10-11\n",
     ));
     app.groups[0].shown = false;
-    let terminal = draw_app(&mut app, 121, 14);
+    let terminal = draw_app(&mut app, 121, 15);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(0, 6, 22, 3)),
+        area_rows(buffer, Rect::new(0, 7, 22, 3)),
         [
             "│ ☐\u{a0}Work           0 │",
             "│   ☑\u{a0}SFAP         1 │",
@@ -817,10 +826,10 @@ fn a_checked_calendar_inside_an_unchecked_one_still_shows() {
     );
     let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 6), ("☐", theme.muted));
-    assert_eq!(cell(4, 7), ("☑", theme.checked));
-    assert_eq!(cell(6, 7), ("S", theme.text));
-    assert_eq!(cell(2, 8), ("☑", theme.checked));
+    assert_eq!(cell(2, 7), ("☐", theme.muted));
+    assert_eq!(cell(4, 8), ("☑", theme.checked));
+    assert_eq!(cell(6, 8), ("S", theme.text));
+    assert_eq!(cell(2, 9), ("☑", theme.checked));
     let titles: Vec<&str> = app
         .agenda()
         .iter()
@@ -836,48 +845,48 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
     let mut app = agenda_app(Lang::ZhTw);
     app.focus = Focus::Side;
     app.side_row = SideRow::Calendar(1);
-    let terminal = draw_app(&mut app, 121, 14);
+    let terminal = draw_app(&mut app, 121, 15);
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(0, 0)].fg, theme.focus);
-    assert_eq!(buffer[(38, 0)].fg, theme.line);
+    assert_eq!(buffer[(0, 1)].fg, theme.focus);
+    assert_eq!(buffer[(38, 1)].fg, theme.line);
     for x in 1..37 {
-        assert_eq!(buffer[(x, 7)].bg, theme.selection, "x = {x}");
-        assert_ne!(buffer[(x, 6)].bg, theme.selection, "x = {x}");
+        assert_eq!(buffer[(x, 8)].bg, theme.selection, "x = {x}");
+        assert_ne!(buffer[(x, 7)].bg, theme.selection, "x = {x}");
     }
     assert_eq!(
-        (buffer[(2, 7)].symbol(), buffer[(2, 7)].fg),
+        (buffer[(2, 8)].symbol(), buffer[(2, 8)].fg),
         ("☑", theme.checked)
     );
     // The 「隱藏全部」 row chosen: it gets the background, the calendars do not
     app.side_row = SideRow::HideAll;
-    let terminal = draw_app(&mut app, 121, 14);
+    let terminal = draw_app(&mut app, 121, 15);
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(1, 3)].bg, theme.selection);
-    assert_ne!(buffer[(1, 4)].bg, theme.selection);
-    assert_ne!(buffer[(1, 7)].bg, theme.selection);
+    assert_eq!(buffer[(1, 4)].bg, theme.selection);
+    assert_ne!(buffer[(1, 5)].bg, theme.selection);
+    assert_ne!(buffer[(1, 8)].bg, theme.selection);
 }
 
 #[test]
 fn click_positions_in_the_side_menu() {
-    // 121 × 14 (screen: see `side_menu_lists_the_calendars_when_wide`): the switches at y 3 and 4, a
-    // rule, then the calendars from y 6, one per row
+    // 121 × 15 (screen: see `side_menu_lists_the_calendars_when_wide`): the switches at y 4 and 5, a
+    // rule, then the calendars from y 7, one per row
     let mut app = agenda_app(Lang::ZhTw);
-    app.screen = Rect::new(0, 0, 121, 14);
-    draw_app(&mut app, 121, 14);
-    assert_eq!(click_at(&app, 5, 3), Some(Click::HideAll));
-    assert_eq!(click_at(&app, 30, 4), Some(Click::HideDone));
-    assert_eq!(click_at(&app, 5, 6), Some(Click::Group(0)));
-    assert_eq!(click_at(&app, 1, 9), Some(Click::Group(3)));
-    assert_eq!(click_at(&app, 20, 7), Some(Click::Group(1)));
+    app.screen = Rect::new(0, 0, 121, 15);
+    draw_app(&mut app, 121, 15);
+    assert_eq!(click_at(&app, 5, 4), Some(Click::HideAll));
+    assert_eq!(click_at(&app, 30, 5), Some(Click::HideDone));
+    assert_eq!(click_at(&app, 5, 7), Some(Click::Group(0)));
+    assert_eq!(click_at(&app, 1, 10), Some(Click::Group(3)));
+    assert_eq!(click_at(&app, 20, 8), Some(Click::Group(1)));
     // No calendar: the blank space below, the header, the header line, the switches' rule, the left and
     // right borders, the key hints
-    for (x, y) in [(5, 10), (5, 1), (5, 2), (5, 5), (0, 6), (37, 6), (5, 13)] {
+    for (x, y) in [(5, 11), (5, 2), (5, 3), (5, 6), (0, 7), (37, 7), (5, 14)] {
         assert_eq!(click_at(&app, x, y), None, "({x}, {y})");
     }
     // The calendar moved 38 cells right: the 16th is at x 66-69
-    assert_eq!(date_at(&app, 66, 5), Some(date(2026, 10, 16)));
-    assert_eq!(date_at(&app, 70, 5), Some(date(2026, 10, 17)));
+    assert_eq!(date_at(&app, 66, 6), Some(date(2026, 10, 16)));
+    assert_eq!(date_at(&app, 70, 6), Some(date(2026, 10, 17)));
 }
 
 #[test]
@@ -889,6 +898,7 @@ fn agenda_lists_each_months_items_next_to_it() {
     assert_eq!(
         text_rows(draw_app(&mut app, 77, 23).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -909,7 +919,6 @@ fn agenda_lists_each_months_items_next_to_it() {
             "│       49 │ 30                          ││                                 │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
-            "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
@@ -925,6 +934,7 @@ fn the_calendar_without_dots() {
     assert_eq!(
         text_rows(draw_app(&mut app, 77, 23).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -945,7 +955,6 @@ fn the_calendar_without_dots() {
             "│       49 │ 30                          ││                                 │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
             "│  12月 49 │      1   2   3   4   5   6  ││ 12/31 23:00 New Year's Eve count│",
-            "│       50 │  7   8   9  10  11  12  13  ││                                 │",
             "╰────────────────────────────────────────╯╰─────────────────────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離",
         ]
@@ -961,6 +970,7 @@ fn the_agenda_stays_one_column_when_wide() {
     assert_eq!(
         text_rows(draw_app(&mut app, 102, 15).backend().buffer()),
         [
+            " ┃ 1 calendar   2 month   3 tasks",
             "╭────────────────────────────────────────╮╭──────────────────────────────────────────────────────────╮",
             "│  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                                  Sat Oct 17, 2026 │",
             "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
@@ -973,7 +983,6 @@ fn the_agenda_stays_one_column_when_wide() {
             "│──────────┼─────────────────────────────││───────────────────────────────────────────────── 1 more ─│",
             "│   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                                 │",
             "│       45 │  2   3⠂  4   5   6   7   8  ││                                                          │",
-            "│       46 │  9  10  11  12  13  14  15  ││                                                          │",
             "╰────────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯",
             " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
         ]
@@ -985,27 +994,27 @@ fn clicking_an_item_selects_its_day() {
     // One column (screen: see `agenda_lists_each_months_items_next_to_it`):
     // the inside of the agenda box starts at x 43
     let mut app = agenda_app(Lang::ZhTw);
-    app.screen = Rect::new(0, 0, 77, 23);
-    draw_app(&mut app, 77, 23);
-    assert_eq!(date_at(&app, 47, 3), Some(date(2026, 10, 5)));
-    assert_eq!(date_at(&app, 75, 8), Some(date(2026, 10, 17)));
-    assert_eq!(date_at(&app, 47, 12), Some(date(2026, 11, 3)));
+    app.screen = Rect::new(0, 0, 77, 24);
+    draw_app(&mut app, 77, 24);
+    assert_eq!(date_at(&app, 47, 4), Some(date(2026, 10, 5)));
+    assert_eq!(date_at(&app, 75, 9), Some(date(2026, 10, 17)));
+    assert_eq!(date_at(&app, 47, 13), Some(date(2026, 11, 3)));
     // Agenda rows without an item, and the header; on the
     // left, the rows that exist only for items have no date
-    assert_eq!(date_at(&app, 47, 13), None);
-    assert_eq!(date_at(&app, 47, 1), None);
-    assert_eq!(date_at(&app, 20, 8), None);
+    assert_eq!(date_at(&app, 47, 14), None);
+    assert_eq!(date_at(&app, 47, 2), None);
+    assert_eq!(date_at(&app, 20, 9), None);
     // Which agenda item was clicked (in `App::agenda()` order)
-    assert_eq!(click_at(&app, 47, 3), Some(Click::Item(0)));
-    assert_eq!(click_at(&app, 20, 5), Some(Click::Day(date(2026, 10, 14))));
+    assert_eq!(click_at(&app, 47, 4), Some(Click::Item(0)));
+    assert_eq!(click_at(&app, 20, 6), Some(Click::Day(date(2026, 10, 14))));
     // Wide, still one column (screen: see `the_agenda_stays_one_column_when_wide`, scrolled one row): a
-    // row is one item all the way across, the 2nd item (10/10) at y 3, the 7th (10/18) at y 8
+    // row is one item all the way across, the 2nd item (10/10) at y 4, the 7th (10/18) at y 9
     let mut app = agenda_app(Lang::En);
-    app.screen = Rect::new(0, 0, 102, 15);
-    draw_app(&mut app, 102, 15);
-    assert_eq!(date_at(&app, 47, 3), Some(date(2026, 10, 10)));
-    assert_eq!(date_at(&app, 98, 3), Some(date(2026, 10, 10)));
-    assert_eq!(date_at(&app, 47, 8), Some(date(2026, 10, 18)));
+    app.screen = Rect::new(0, 0, 102, 16);
+    draw_app(&mut app, 102, 16);
+    assert_eq!(date_at(&app, 47, 4), Some(date(2026, 10, 10)));
+    assert_eq!(date_at(&app, 98, 4), Some(date(2026, 10, 10)));
+    assert_eq!(date_at(&app, 47, 9), Some(date(2026, 10, 18)));
 }
 
 #[test]
@@ -1060,7 +1069,7 @@ fn item_colors_follow_the_item() {
     // Screen: see `agenda_lists_each_months_items_next_to_it`;
     // the inside of the agenda box starts at x 43
     let mut app = agenda_app(Lang::ZhTw);
-    let terminal = draw_app(&mut app, 77, 23);
+    let terminal = draw_app(&mut app, 77, 24);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is struck through
@@ -1074,44 +1083,44 @@ fn item_colors_follow_the_item() {
     };
     // Agenda header: 「重要事項」 and the selected day on the right both in the normal color (2026/10/17
     // starts at x 59)
-    assert_eq!(cell(44, 1), ("重", theme.text, false));
-    assert_eq!(cell(59, 1), ("2", theme.text, false));
+    assert_eq!(cell(44, 2), ("重", theme.text, false));
+    assert_eq!(cell(59, 2), ("2", theme.text, false));
     // 10/5 has an unfinished item: date and title in the normal color
-    assert_eq!(cell(45, 3), ("1", theme.text, false));
-    assert_eq!(cell(50, 3), ("P", theme.text, false));
+    assert_eq!(cell(45, 4), ("1", theme.text, false));
+    assert_eq!(cell(50, 4), ("P", theme.text, false));
     // 10/15's finished item: the whole line is gray (the date too), the title struck through
-    assert_eq!(cell(44, 5), ("1", theme.muted, false));
-    assert_eq!(cell(50, 5), ("F", theme.muted, true));
+    assert_eq!(cell(44, 6), ("1", theme.muted, false));
+    assert_eq!(cell(50, 6), ("F", theme.muted, true));
     // 10/17 is today and 10/18 a Sunday, but the line follows the item, not its day: the normal color;
     // the time is muted
-    assert_eq!(cell(50, 7), ("D", theme.text, false));
-    assert_eq!(cell(50, 8), ("0", theme.muted, false));
-    assert_eq!(cell(56, 8), ("C", theme.text, false));
-    assert_eq!(cell(56, 9), ("G", theme.text, false));
+    assert_eq!(cell(50, 8), ("D", theme.text, false));
+    assert_eq!(cell(50, 9), ("0", theme.muted, false));
+    assert_eq!(cell(56, 9), ("C", theme.text, false));
+    assert_eq!(cell(56, 10), ("G", theme.text, false));
 }
 
 #[test]
 fn the_selected_week_row_has_a_background() {
-    // The week of 10/17 is at y 5: that whole row in the calendar box (x 1-40) gets the highlight
+    // The week of 10/17 is at y 6: that whole row in the calendar box (x 1-40) gets the highlight
     // background; the rows above and below, and the same row in the agenda, do not
     let mut app = agenda_app(Lang::ZhTw);
     let theme = Theme::default();
     let bg =
         |terminal: &Terminal<TestBackend>, x: u16, y: u16| terminal.backend().buffer()[(x, y)].bg;
-    let terminal = draw_app(&mut app, 77, 23);
+    let terminal = draw_app(&mut app, 77, 24);
     for x in 1..=40 {
-        assert_eq!(bg(&terminal, x, 5), theme.selection, "x {x}");
+        assert_eq!(bg(&terminal, x, 6), theme.selection, "x {x}");
     }
-    assert_eq!(bg(&terminal, 0, 5), Color::Reset);
-    assert_eq!(bg(&terminal, 20, 4), Color::Reset);
-    assert_eq!(bg(&terminal, 20, 6), Color::Reset);
-    assert_eq!(bg(&terminal, 47, 5), Color::Reset);
+    assert_eq!(bg(&terminal, 0, 6), Color::Reset);
+    assert_eq!(bg(&terminal, 20, 5), Color::Reset);
+    assert_eq!(bg(&terminal, 20, 7), Color::Reset);
+    assert_eq!(bg(&terminal, 47, 6), Color::Reset);
     // The week that crosses months is split into two rows: with 10/31 selected, only the October half
-    // (y 7) gets the highlight, the November half (y 12) does not
+    // (y 8) gets the highlight, the November half (y 13) does not
     app.selected = date(2026, 10, 31);
-    let terminal = draw_app(&mut app, 77, 23);
-    assert_eq!(bg(&terminal, 20, 7), theme.selection);
-    assert_eq!(bg(&terminal, 20, 12), Color::Reset);
+    let terminal = draw_app(&mut app, 77, 24);
+    assert_eq!(bg(&terminal, 20, 8), theme.selection);
+    assert_eq!(bg(&terminal, 20, 13), Color::Reset);
 }
 
 #[test]
@@ -1120,10 +1129,11 @@ fn agenda_focus_highlights_the_chosen_item() {
     let mut app = agenda_app(Lang::ZhTw);
     app.focus = Focus::Agenda;
     app.agenda_index = 5;
-    let terminal = draw_app(&mut app, 77, 23);
+    let terminal = draw_app(&mut app, 77, 24);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1152,23 +1162,23 @@ fn agenda_focus_highlights_the_chosen_item() {
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The agenda's border lights up, and the calendar box's goes back to a normal line
-    assert_eq!(buffer[(42, 0)].fg, theme.focus);
-    assert_eq!(buffer[(0, 0)].fg, theme.line);
+    assert_eq!(buffer[(42, 1)].fg, theme.focus);
+    assert_eq!(buffer[(0, 1)].fg, theme.line);
     // Its date keeps the line's color (no bracket in the selected color); the chosen item gets the
     // highlight across the whole column (x 43-75), the items above and below do not
     assert_eq!(
-        (buffer[(44, 8)].symbol(), buffer[(44, 8)].fg),
+        (buffer[(44, 9)].symbol(), buffer[(44, 9)].fg),
         ("1", theme.text)
     );
     // The second half of a wide (CJK) character is not sent to the terminal, so skip it (on a real
     // terminal the background covers both cells)
     let mut x = 43;
     while x <= 75 {
-        assert_eq!(buffer[(x, 8)].bg, theme.selection, "x {x}");
-        x += u16::try_from(Span::raw(buffer[(x, 8)].symbol()).width().max(1)).unwrap();
+        assert_eq!(buffer[(x, 9)].bg, theme.selection, "x {x}");
+        x += u16::try_from(Span::raw(buffer[(x, 9)].symbol()).width().max(1)).unwrap();
     }
-    assert_eq!(buffer[(47, 7)].bg, Color::Reset);
-    assert_eq!(buffer[(47, 9)].bg, Color::Reset);
+    assert_eq!(buffer[(47, 8)].bg, Color::Reset);
+    assert_eq!(buffer[(47, 10)].bg, Color::Reset);
 }
 
 #[test]
@@ -1220,14 +1230,15 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
     // only 5 of October's 8 items fit. Keyboard in the agenda, the 8th item chosen (10/20): October's
     // agenda scrolls 3 rows, the calendar does not move
     let mut app = agenda_app(Lang::ZhTw);
-    app.screen = Rect::new(0, 0, 70, 11);
+    app.screen = Rect::new(0, 0, 70, 12);
     app.focus = Focus::Agenda;
     app.agenda_index = 7;
     app.selected = date(2026, 10, 20);
-    let terminal = draw_app(&mut app, 77, 11);
+    let terminal = draw_app(&mut app, 77, 12);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1245,14 +1256,14 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
     assert_eq!(app.calendar_top, Some(0));
     // The scrollbar thumb has the same color as the border (keyboard in the agenda: focus color)
     let theme = Theme::default();
-    let cell = &terminal.backend().buffer()[(76, 5)];
+    let cell = &terminal.backend().buffer()[(76, 6)];
     assert_eq!((cell.symbol(), cell.fg), ("┃", theme.focus));
     // Clicks match the screen: the agenda's first row is the 4th item (10/16 Send the weekly update)
-    assert_eq!(click_at(&app, 47, 3), Some(Click::Item(3)));
+    assert_eq!(click_at(&app, 47, 4), Some(Click::Item(3)));
     // Back to the 1st item (10/5): the agenda scrolls back to the top
     app.agenda_index = 0;
     app.selected = date(2026, 10, 5);
-    draw_app(&mut app, 77, 11);
+    draw_app(&mut app, 77, 12);
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 0)));
 }
 
@@ -1261,12 +1272,13 @@ fn the_agenda_follows_the_calendar() {
     // Keyboard in the calendar, only 5 of October's items fit: select 10/20, and the agenda scrolls until
     // the 10/20 item is visible; the calendar does not move
     let mut app = agenda_app(Lang::ZhTw);
-    draw_app(&mut app, 77, 11);
+    draw_app(&mut app, 77, 12);
     app.selected = date(2026, 10, 20);
-    let terminal = draw_app(&mut app, 77, 11);
+    let terminal = draw_app(&mut app, 77, 12);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1286,15 +1298,15 @@ fn the_agenda_follows_the_calendar() {
     // its week on the calendar); other days' items do not
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
-    assert_eq!(buffer[(47, 7)].bg, theme.selection);
-    assert_eq!(buffer[(47, 6)].bg, Color::Reset);
+    assert_eq!(buffer[(47, 8)].bg, theme.selection);
+    assert_eq!(buffer[(47, 7)].bg, Color::Reset);
     // Select 10/19, which has no items: the agenda does not scroll (no jumping up and down)
     app.selected = date(2026, 10, 19);
-    draw_app(&mut app, 77, 11);
+    draw_app(&mut app, 77, 12);
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 3)));
     // Select 10/5: the agenda scrolls back to the top
     app.selected = date(2026, 10, 5);
-    draw_app(&mut app, 77, 11);
+    draw_app(&mut app, 77, 12);
     assert_eq!(app.agenda_window, Some((date(2026, 10, 1), 0)));
 }
 
@@ -1304,17 +1316,17 @@ fn the_year_in_the_corner_is_the_top_weeks() {
     // the December week → the top-left corner shows 2026年
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.selected = date(2026, 12, 28);
-    draw_app(&mut app, 42, 11);
+    draw_app(&mut app, 42, 12);
     app.selected = date(2027, 1, 4);
-    let rows = text_rows(draw_app(&mut app, 42, 11).backend().buffer());
-    assert_eq!(rows[1], "│2026年 週 │ 一  二  三  四  五  六  日  │");
-    assert_eq!(rows[3], "│       53 │ 28  29  30  31              │");
+    let rows = text_rows(draw_app(&mut app, 42, 12).backend().buffer());
+    assert_eq!(rows[2], "│2026年 週 │ 一  二  三  四  五  六  日  │");
+    assert_eq!(rows[4], "│       53 │ 28  29  30  31              │");
 }
 
 #[test]
 fn a_busy_month_stops_at_16_rows_on_a_tall_screen() {
-    // 50 × 40: the calendar has 35 rows, 2/3 of them is 23, but a month takes at most 16; October's 20
-    // items need 20, so October's block is rows 3 to 18 and the line under it is at y 19
+    // 50 × 41: the calendar has 35 rows, 2/3 of them is 23, but a month takes at most 16; October's 20
+    // items need 20, so October's block is rows 4 to 19 and the line under it is at y 20
     let text: String = (1..=20)
         .map(|day| format!("- [ ] Item {day} @2026-10-{day:02}\n"))
         .collect();
@@ -1323,24 +1335,24 @@ fn a_busy_month_stops_at_16_rows_on_a_tall_screen() {
         date(2026, 10, 17),
         crate::tasks::parse(&text).items,
     );
-    let rows = text_rows(draw_app(&mut app, 50, 40).backend().buffer());
-    let lines: Vec<usize> = (3..rows.len())
+    let rows = text_rows(draw_app(&mut app, 50, 41).backend().buffer());
+    let lines: Vec<usize> = (4..rows.len())
         .filter(|&y| rows[y].starts_with("│──────────┼"))
         .collect();
-    assert_eq!(lines.first(), Some(&19), "{rows:#?}");
+    assert_eq!(lines.first(), Some(&20), "{rows:#?}");
 }
 
 #[test]
 fn a_busy_month_takes_at_most_two_thirds() {
-    // Sample task file, 70 × 24: the calendar has 19 rows and October has many items → it
+    // Sample task file, 70 × 25: the calendar has 19 rows and October has many items → it
     // takes 19 × 2 / 3 = 12 rows, and a few weeks of November show below
     let mut app = App::new(
         Lang::ZhTw,
         date(2026, 10, 17),
         crate::tasks::parse(include_str!("../../testdata/tasks.md")).items,
     );
-    let rows = text_rows(draw_app(&mut app, 70, 24).backend().buffer());
-    let body = &rows[3..rows.len() - 2];
+    let rows = text_rows(draw_app(&mut app, 70, 25).backend().buffer());
+    let body = &rows[4..rows.len() - 2];
     assert_eq!(body.len(), 19);
     let separator = body.iter().position(|row| row.contains('┼'));
     assert_eq!(separator, Some(12));
@@ -1352,10 +1364,11 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
     // Just opened (today 10/17 selected), only 5 of October's items fit: the agenda scrolls 2 rows to
     // show 10/17's items, and the line under October says 「還有 1 件」 (the 10/20 item)
     let mut app = agenda_app(Lang::ZhTw);
-    let terminal = draw_app(&mut app, 77, 11);
+    let terminal = draw_app(&mut app, 77, 12);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1374,15 +1387,15 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     assert_eq!(
-        (buffer[(65, 8)].symbol(), buffer[(65, 8)].fg),
+        (buffer[(65, 9)].symbol(), buffer[(65, 9)].fg),
         ("還", theme.muted)
     );
     assert_eq!(
-        (buffer[(47, 8)].symbol(), buffer[(47, 8)].fg),
+        (buffer[(47, 9)].symbol(), buffer[(47, 9)].fg),
         ("─", theme.line)
     );
     assert_eq!(
-        (buffer[(75, 8)].symbol(), buffer[(75, 8)].fg),
+        (buffer[(75, 9)].symbol(), buffer[(75, 9)].fg),
         ("─", theme.line)
     );
 }
@@ -1398,13 +1411,14 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     );
     app.handle_key(KeyEvent::from(KeyCode::Tab));
     app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-    // 70 × 12 (main view 70 × 11): the edit box is in the middle, 2 cells from each side (x 2-67), as tall as
-    // what is in it: the typed text, a blank row, what it reads as (title, date), a blank row, the hint row;
-    // with a blank row above and below and the border, 10 tall at y (11 − 10) / 2 = 0
-    app.screen = Rect::new(0, 0, 70, 12);
-    let mut terminal = draw_app(&mut app, 70, 12);
+    // 70 × 13 (main view 70 × 11, under the tab bar): the edit box is in the middle, 2 cells from each
+    // side (x 2-67), as tall as what is in it: the typed text, a blank row, what it reads as (title,
+    // date), a blank row, the hint row; with a blank row above and below and the border, 10 tall at
+    // y 1 + (11 − 10) / 2 = 1
+    app.screen = Rect::new(0, 0, 70, 13);
+    let mut terminal = draw_app(&mut app, 70, 13);
     let area = editor_area(&app);
-    assert_eq!(area, Rect::new(2, 0, 66, 10));
+    assert_eq!(area, Rect::new(2, 1, 66, 10));
     let rows = area_rows(terminal.backend().buffer(), area);
     let trimmed = |row: &String| row.trim_end_matches([' ', '│']).to_string();
     assert!(rows[0].starts_with("╭ 編輯事項 ─"), "{}", rows[0]);
@@ -1433,14 +1447,14 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     // 1 + padding 1 + space 1 + 「- [ ] Pick up the cake 🎂 @17:30」 32 cells (31 chars)
     assert_eq!(
         terminal.get_cursor_position().expect("cursor"),
-        Position::new(37, 2)
+        Position::new(37, 3)
     );
     // Labels muted, values in the text color (the title row: 標 at x 5, the value at x 5 + 4 + 2)
     let theme = Theme::default();
-    assert_eq!(terminal.backend().buffer()[(5, 4)].fg, theme.muted);
-    assert_eq!(terminal.backend().buffer()[(11, 4)].fg, theme.text);
+    assert_eq!(terminal.backend().buffer()[(5, 5)].fg, theme.muted);
+    assert_eq!(terminal.backend().buffer()[(11, 5)].fg, theme.text);
     // A time that does not exist: it stays in the title as text, and a red row says what is wrong; the
-    // box grows by that row (11 tall, y 0)
+    // box grows by that row (11 tall, y 1)
     for code in [
         KeyCode::Backspace,
         KeyCode::Backspace,
@@ -1449,16 +1463,16 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     ] {
         app.handle_key(KeyEvent::from(code));
     }
-    let terminal = draw_app(&mut app, 70, 12);
+    let terminal = draw_app(&mut app, 70, 13);
     let area = editor_area(&app);
-    assert_eq!(area, Rect::new(2, 0, 66, 11));
+    assert_eq!(area, Rect::new(2, 1, 66, 11));
     let rows = area_rows(terminal.backend().buffer(), area);
     assert_eq!(trimmed(&rows[4]), "│  標題  Pick up the cake 🎂 17:99");
     assert_eq!(trimmed(&rows[6]), "│  17:99：沒有這個時間");
-    assert_eq!(terminal.backend().buffer()[(5, 6)].fg, theme.error);
+    assert_eq!(terminal.backend().buffer()[(5, 7)].fg, theme.error);
     // Adding: the calendar it goes into (日曆), the title field blank; the hint row wraps (it
     // does not fit 62 cells), the next line under the first thing; too tall for the blank rows above and
-    // below: 10 tall at y 0
+    // below: 10 tall at y 1
     let mut app = App::new(
         Lang::ZhTw,
         date(2026, 10, 17),
@@ -1466,10 +1480,10 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
     );
     app.handle_key(KeyEvent::from(KeyCode::Tab));
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
-    app.screen = Rect::new(0, 0, 70, 12);
-    let terminal = draw_app(&mut app, 70, 12);
+    app.screen = Rect::new(0, 0, 70, 13);
+    let terminal = draw_app(&mut app, 70, 13);
     let area = editor_area(&app);
-    assert_eq!(area, Rect::new(2, 0, 66, 10));
+    assert_eq!(area, Rect::new(2, 1, 66, 10));
     let rows = area_rows(terminal.backend().buffer(), area);
     assert!(rows[0].starts_with("╭ 新增事項 ─"), "{}", rows[0]);
     assert_eq!(
@@ -1490,8 +1504,8 @@ fn the_editor_shows_the_line_and_what_it_reads_as() {
 #[test]
 fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
-    // Adding at 80 × 24 with a priority: the box is (2, 6, 76, 11) (title, date, priority, then the hint row),
-    // the typed text on row 8 from x 5; the fields on rows 10-12, the hint row on row 14
+    // Adding at 80 × 25 with a priority: the box is (2, 7, 76, 11) (title, date, priority, then the hint row),
+    // the typed text on row 9 from x 5; the fields on rows 11-13, the hint row on row 15
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     let type_text = |app: &mut App, text: &str| {
@@ -1509,30 +1523,30 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
     };
     // No title yet (it cannot be saved), but `!!!` already: the typed text is red
     type_text(&mut app, "!!!");
-    let terminal = draw_app(&mut app, 80, 24);
-    assert_eq!(terminal.backend().buffer()[(5, 8)].symbol(), "-");
-    assert_eq!(terminal.backend().buffer()[(5, 8)].fg, theme.priority_high);
+    let terminal = draw_app(&mut app, 80, 25);
+    assert_eq!(terminal.backend().buffer()[(5, 9)].symbol(), "-");
+    assert_eq!(terminal.backend().buffer()[(5, 9)].fg, theme.priority_high);
     // With a title: the priority field says 高 in red, its label muted; the title in the text color
     type_text(&mut app, " Pay the fine");
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(5, 8)].fg, theme.priority_high);
-    assert_eq!(color_of(buffer, 12, "高"), Some(theme.priority_high));
-    assert_eq!(color_of(buffer, 12, "優"), Some(theme.muted));
-    assert_eq!(color_of(buffer, 10, "P"), Some(theme.text));
+    assert_eq!(buffer[(5, 9)].fg, theme.priority_high);
+    assert_eq!(color_of(buffer, 13, "高"), Some(theme.priority_high));
+    assert_eq!(color_of(buffer, 13, "優"), Some(theme.muted));
+    assert_eq!(color_of(buffer, 11, "P"), Some(theme.text));
     // In the typed text, `!!!` is in italics, the title is not
-    let italic_on_8 = |symbol: &str| {
+    let italic_on_9 = |symbol: &str| {
         (0..80)
-            .map(|x| &buffer[(x, 8)])
+            .map(|x| &buffer[(x, 9)])
             .find(|cell| cell.symbol() == symbol)
             .map(|cell| cell.modifier.contains(Modifier::ITALIC))
     };
-    assert_eq!(italic_on_8("!"), Some(true));
-    assert_eq!(italic_on_8("P"), Some(false));
+    assert_eq!(italic_on_9("!"), Some(true));
+    assert_eq!(italic_on_9("P"), Some(false));
     // The hint row: `! !! !!!` each in its priority's color, what to type in blue (the help page's section color), the labels
     // muted, a `|` in the dimmer line color between two
     let marks: Vec<Color> = (0..80)
-        .map(|x| &buffer[(x, 14)])
+        .map(|x| &buffer[(x, 15)])
         .filter(|cell| cell.symbol() == "!")
         .map(|cell| cell.fg)
         .collect();
@@ -1542,27 +1556,27 @@ fn typing_a_priority_colors_the_line_and_its_word_in_the_preview_right_away() {
         theme.priority_high,
     );
     assert_eq!(marks, [low, medium, medium, high, high, high]);
-    assert_eq!(color_of(buffer, 14, "@"), Some(theme.help_section));
-    assert_eq!(color_of(buffer, 14, "日"), Some(theme.muted));
-    assert_eq!(color_of(buffer, 14, "|"), Some(theme.line));
+    assert_eq!(color_of(buffer, 15, "@"), Some(theme.help_section));
+    assert_eq!(color_of(buffer, 15, "日"), Some(theme.muted));
+    assert_eq!(color_of(buffer, 15, "|"), Some(theme.line));
     // `!!` instead: orange; no `!`: the normal text color, no priority field (the box is a row shorter: the
-    // fields on rows 10-11, the hint row on row 13)
+    // fields on rows 11-12, the hint row on row 14)
     app.handle_key(KeyEvent::from(KeyCode::Home));
     for _ in 0..6 {
         app.handle_key(KeyEvent::from(KeyCode::Right));
     }
     app.handle_key(KeyEvent::from(KeyCode::Delete));
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(5, 8)].fg, theme.priority_medium);
-    assert_eq!(color_of(buffer, 12, "中"), Some(theme.priority_medium));
+    assert_eq!(buffer[(5, 9)].fg, theme.priority_medium);
+    assert_eq!(color_of(buffer, 13, "中"), Some(theme.priority_medium));
     for _ in 0..2 {
         app.handle_key(KeyEvent::from(KeyCode::Delete));
     }
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(5, 8)].fg, theme.text);
-    assert!((10..13).all(|row| color_of(buffer, row, "優").is_none()));
+    assert_eq!(buffer[(5, 9)].fg, theme.text);
+    assert!((11..14).all(|row| color_of(buffer, row, "優").is_none()));
 }
 
 #[test]
@@ -1597,17 +1611,17 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
     // A in the calendar list on Work > SFAP: the fields say the name (a gray hint until it is typed) and the
     // calendar it goes inside; the hint row: type:holiday, archived: and today, and `#` and a name picks
     // where it goes.
-    // 80 × 24: the box is (2, 6, 76, 10)
+    // 80 × 25: the box is (2, 7, 76, 10)
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
         "# Work\n## SFAP\n- [ ] Fix the login bug\n",
     ));
     app.focus = Focus::Side;
     app.side_row = SideRow::Calendar(1);
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     app.handle_key(KeyEvent::from(KeyCode::Char('A')));
-    let terminal = draw_app(&mut app, 80, 24);
-    assert_eq!(editor_area(&app), Rect::new(2, 6, 76, 10));
+    let terminal = draw_app(&mut app, 80, 25);
+    assert_eq!(editor_area(&app), Rect::new(2, 7, 76, 10));
     let rows = area_rows(terminal.backend().buffer(), editor_area(&app));
     let trimmed: Vec<String> = rows
         .iter()
@@ -1631,7 +1645,7 @@ fn the_calendar_editor_says_where_a_new_calendar_goes() {
     // a on the top level: 「最外層」
     app.handle_key(KeyEvent::from(KeyCode::Esc));
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let rows = area_rows(terminal.backend().buffer(), editor_area(&app));
     assert_eq!(rows[5].trim_end_matches([' ', '│']), "│  上層日曆  最外層");
 }
@@ -1689,19 +1703,22 @@ fn the_editor_sits_in_the_middle_like_the_day_popup_and_a_click_outside_cancels(
         app.screen = Rect::new(0, 0, width, height);
         editor_area(app)
     };
-    // In the middle of the main view (above the key hints), like the day popup; inside: the typed text, a
-    // blank row, title and date, a blank row, the hint row. 80 × 24 (main view 80 × 23): 76 wide (2 cells
-    // from each side), 10 tall with the blank rows above and below, top at (23 − 10) / 2 = 6
-    assert_eq!(at(&mut app, 80, 24), Rect::new(2, 6, 76, 10));
-    // With the side menu (122 × 30: 22 cells wide), in the middle of what is right of it: the main view is
-    // 100 × 29 from x 22 → x 22 + (100 − 80) / 2 = 32, y (29 − 10) / 2 = 9; 200 × 50: at most 80 wide
-    assert_eq!(at(&mut app, 122, 30), Rect::new(32, 9, 80, 10));
-    assert_eq!(at(&mut app, 200, 50), Rect::new(71, 19, 80, 10));
+    // In the middle of the main view (below the tab bar, above the key hints), like the day popup;
+    // inside: the typed text, a blank row, title and date, a blank row, the hint row. 80 × 25 (main view
+    // 80 × 23 from y 1): 76 wide (2 cells from each side), 10 tall with the blank rows above and below, top
+    // at 1 + (23 − 10) / 2 = 7
+    assert_eq!(at(&mut app, 80, 25), Rect::new(2, 7, 76, 10));
+    // With the side menu (122 × 31: 22 cells wide), in the middle of what is right of it: the main view is
+    // 100 × 29 from (22, 1) → x 22 + (100 − 80) / 2 = 32, y 1 + (29 − 10) / 2 = 10; 200 × 51: at most 80
+    // wide
+    assert_eq!(at(&mut app, 122, 31), Rect::new(32, 10, 80, 10));
+    assert_eq!(at(&mut app, 200, 51), Rect::new(71, 20, 80, 10));
     // Narrower than 30: the whole width, the hint row wraps onto 3 lines (27 cells inside): 12 tall;
-    // too short for the blank rows above and below (80 × 6: 5 rows above the key hints): 5 tall
-    assert_eq!(at(&mut app, 29, 24), Rect::new(0, 5, 29, 12));
-    assert_eq!(at(&mut app, 80, 6), Rect::new(2, 0, 76, 5));
-    app.screen = Rect::new(0, 0, 80, 24);
+    // too short for the blank rows above and below (80 × 7: 5 rows between the tab bar and the key
+    // hints): 5 tall
+    assert_eq!(at(&mut app, 29, 25), Rect::new(0, 6, 29, 12));
+    assert_eq!(at(&mut app, 80, 7), Rect::new(2, 1, 76, 5));
+    app.screen = Rect::new(0, 0, 80, 25);
     let click = |app: &mut App, column: u16, row: u16| {
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
@@ -1711,27 +1728,27 @@ fn the_editor_sits_in_the_middle_like_the_day_popup_and_a_click_outside_cancels(
         });
     };
     // Inside the box (its corners and the blank rows too): stays open
-    for (column, row) in [(2, 6), (77, 15), (40, 7)] {
+    for (column, row) in [(2, 7), (77, 16), (40, 8)] {
         click(&mut app, column, row);
         assert!(app.editor().is_some(), "({column}, {row})");
     }
     // Below it (where the box is not): cancels
-    click(&mut app, 40, 20);
+    click(&mut app, 40, 21);
     assert!(app.editor().is_none());
     // Narrower than 30: no blank cell left of the text (one blank in front of the typed text, which
     // scrolls so the cursor at its end shows: 26 cells for 「- [ ] Send the weekly update」 28 chars
-    // and the cursor → 3 chars scrolled away); 29 × 12 is too short for the blank rows above and below
-    // too, so the text is on the row below the border, as at 80 × 6
+    // and the cursor → 3 chars scrolled away); 29 × 13 is too short for the blank rows above and below
+    // too, so the text is on the row below the border, as at 80 × 7
     app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-    let terminal = draw_app(&mut app, 29, 12);
-    let rows = area_rows(terminal.backend().buffer(), at(&mut app, 29, 12));
+    let terminal = draw_app(&mut app, 29, 13);
+    let rows = area_rows(terminal.backend().buffer(), at(&mut app, 29, 13));
     assert!(
         rows[1].starts_with("│  ] Send the weekly update"),
         "{}",
         rows[1]
     );
-    let terminal = draw_app(&mut app, 80, 6);
-    let rows = area_rows(terminal.backend().buffer(), at(&mut app, 80, 6));
+    let terminal = draw_app(&mut app, 80, 7);
+    let rows = area_rows(terminal.backend().buffer(), at(&mut app, 80, 7));
     assert!(
         rows[1].starts_with("│  - [ ] Send the weekly"),
         "{}",
@@ -1751,7 +1768,7 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     let theme = Theme::default();
     let type_text = |app: &mut App, text: &str| {
         for c in text.chars() {
@@ -1767,15 +1784,15 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         });
     };
     let click = MouseEventKind::Down(MouseButton::Left);
-    // 80 × 24: the typed text starts at x 5 (box 2 + border + padding + a blank), so the `#` after
-    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 8: the hint row takes
+    // 80 × 25: the typed text starts at x 5 (box 2 + border + padding + a blank), so the `#` after
+    // 「- [ ] 」 is at x 11 and the list's left border at x 10, right under the text (y 9: the hint row takes
     // two lines here, so the box is a row taller and starts a row higher). 26 wide: the keys on its bottom
     // border (24, with a `|` between them) and the borders; 4 calendars + borders = 6 tall
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     type_text(&mut app, "#");
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 8, 26, 6);
+    let list = Rect::new(10, 9, 26, 6);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 0))
@@ -1793,24 +1810,24 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     );
     // The chosen row (the first) on the selection background, across the box
     for x in 11..35 {
-        assert_eq!(buffer[(x, 9)].bg, theme.selection, "x {x}");
+        assert_eq!(buffer[(x, 10)].bg, theme.selection, "x {x}");
     }
-    assert_ne!(buffer[(11, 10)].bg, theme.selection);
+    assert_ne!(buffer[(11, 11)].bg, theme.selection);
     // `sf`: only Work > SFAP; its S and F (characters 7 and 8 of the name, after a blank at x 11) in the
     // focus color and bold, the rest in the text color
     type_text(&mut app, "sf");
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    let list = Rect::new(10, 8, 26, 3);
+    let list = Rect::new(10, 9, 26, 3);
     assert_eq!(area_rows(buffer, list)[1], "│ Work > SFAP            │");
     for x in [19, 20] {
-        assert_eq!(buffer[(x, 9)].fg, theme.focus, "x {x}");
-        assert!(buffer[(x, 9)].modifier.contains(Modifier::BOLD));
+        assert_eq!(buffer[(x, 10)].fg, theme.focus, "x {x}");
+        assert!(buffer[(x, 10)].modifier.contains(Modifier::BOLD));
     }
-    assert_eq!(buffer[(18, 9)].fg, theme.text);
-    assert!(!buffer[(18, 9)].modifier.contains(Modifier::BOLD));
+    assert_eq!(buffer[(18, 10)].fg, theme.text);
+    assert!(!buffer[(18, 10)].modifier.contains(Modifier::BOLD));
     // A click on it picks it
-    mouse(&mut app, click, 15, 9);
+    mouse(&mut app, click, 15, 10);
     let editor = app.editor().expect("editor");
     assert_eq!(
         editor.calendar().map(|path| path.join(" > ")).as_deref(),
@@ -1821,18 +1838,18 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     // The wheel moves the chosen row; a click on the top border does nothing; a click outside the list
     // and the box cancels
     type_text(&mut app, "#");
-    mouse(&mut app, MouseEventKind::ScrollDown, 40, 20);
-    mouse(&mut app, MouseEventKind::ScrollDown, 40, 20);
-    mouse(&mut app, MouseEventKind::ScrollUp, 40, 20);
+    mouse(&mut app, MouseEventKind::ScrollDown, 40, 21);
+    mouse(&mut app, MouseEventKind::ScrollDown, 40, 21);
+    mouse(&mut app, MouseEventKind::ScrollUp, 40, 21);
     assert_eq!(app.editor().map(|editor| editor.hash_list.index), Some(1));
-    mouse(&mut app, click, 20, 8);
+    mouse(&mut app, click, 20, 9);
     assert!(app.editor().and_then(Editor::suggestions).is_some());
-    mouse(&mut app, click, 40, 20);
+    mouse(&mut app, click, 40, 21);
     assert!(app.editor().is_none());
     // Editing an item: the fields name its calendar, the hint row (on two lines) says `#name` picks another
     app.handle_key(KeyEvent::from(KeyCode::Tab));
     app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let rows = area_rows(terminal.backend().buffer(), editor_area(&app));
     assert!(rows[0].starts_with("╭ Edit item ─"), "{}", rows[0]);
     assert_eq!(rows[6].trim_end_matches([' ', '│']), "│  Calendar  Work");
@@ -1852,14 +1869,14 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
         date(2026, 10, 17),
         crate::tasks::parse(&text).items,
     );
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     app.handle_key(KeyEvent::from(KeyCode::Char('a')));
     type_text(&mut app, "#");
     for _ in 0..9 {
         app.handle_key(KeyEvent::from(KeyCode::Down));
     }
-    let terminal = draw_app(&mut app, 80, 24);
-    let list = Rect::new(10, 8, 26, 10);
+    let terminal = draw_app(&mut app, 80, 25);
+    let list = Rect::new(10, 9, 26, 10);
     assert_eq!(
         app.editor().and_then(|editor| hash_list_area(&app, editor)),
         Some((list, 2))
@@ -1867,7 +1884,7 @@ fn the_hash_list_opens_under_the_hash_and_takes_clicks() {
     let rows = area_rows(terminal.backend().buffer(), list);
     assert_eq!(rows[1], "│ C2                     │");
     assert_eq!(rows[8], "│ C9                     │");
-    assert_eq!(terminal.backend().buffer()[(11, 16)].bg, theme.selection);
+    assert_eq!(terminal.backend().buffer()[(11, 17)].bg, theme.selection);
 }
 
 #[test]
@@ -1887,29 +1904,29 @@ fn popups_have_a_blank_ring_around_them() {
     let blank = |buffer: &Buffer, cells: &[(u16, u16)]| {
         cells.iter().all(|&cell| buffer[cell].symbol() == " ")
     };
-    // The editor over layout 1 (80 × 24, the sample file): the ring around it
+    // The editor over layout 1 (80 × 25, the sample file): the ring around it
     // is blank, the calendar and agenda show again right outside it
     let parsed = crate::tasks::parse(include_str!("../../testdata/tasks.md"));
     let mut app = App::new(Lang::En, date(2026, 10, 17), parsed.items);
     app.handle_key(KeyEvent::from(KeyCode::Tab));
     app.handle_key(KeyEvent::from(KeyCode::Char('e')));
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     let editor = editor_area(&app);
     assert!(blank(buffer, &ring(editor, 1)));
     assert!(!blank(buffer, &ring(editor, 2)));
-    // The day popup over the month grid (60 × 20): the box is (9, 5, 42, 8) (see
+    // The day popup over the month grid (60 × 21): the box is (9, 6, 42, 8) (see
     // `the_day_popup_lists_every_item_of_the_day_over_the_big_calendar`)
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
     app.focus = Focus::Day;
-    let terminal = draw_app(&mut app, 60, 20);
+    let terminal = draw_app(&mut app, 60, 21);
     let buffer = terminal.backend().buffer();
-    app.screen = Rect::new(0, 0, 60, 20);
+    app.screen = Rect::new(0, 0, 60, 21);
     let popup = day_area(&app);
-    assert_eq!(popup, Rect::new(9, 5, 42, 8));
+    assert_eq!(popup, Rect::new(9, 6, 42, 8));
     assert!(blank(buffer, &ring(popup, 1)));
     assert!(!blank(buffer, &ring(popup, 2)));
 }
@@ -1945,7 +1962,7 @@ fn a_notice_replaces_the_key_hints_until_the_next_key() {
 
 #[test]
 fn colors_by_role() {
-    let terminal = draw(Lang::ZhTw, 47, 26, date(2026, 10, 17));
+    let terminal = draw(Lang::ZhTw, 47, 27, date(2026, 10, 17));
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is bold
@@ -1959,46 +1976,46 @@ fn colors_by_role() {
     };
     // The key hints are muted, with a `|` in the dimmer line color between two groups; of the layout keys
     // `123` at the left end, the shown layout's (1) is lit up
-    assert_eq!(cell(1, 25), ("1", theme.focus, true));
-    assert_eq!(cell(2, 25), ("2", theme.muted, false));
-    assert_eq!(cell(10, 25), ("|", theme.line, false));
-    assert_eq!(cell(12, 25), ("h", theme.muted, false));
-    assert_eq!(cell(24, 25), ("|", theme.line, false));
+    assert_eq!(cell(1, 26), ("1", theme.focus, true));
+    assert_eq!(cell(2, 26), ("2", theme.muted, false));
+    assert_eq!(cell(10, 26), ("|", theme.line, false));
+    assert_eq!(cell(12, 26), ("h", theme.muted, false));
+    assert_eq!(cell(24, 26), ("|", theme.line, false));
     // Keyboard in the calendar: the calendar box's border uses the focus color
-    assert_eq!(cell(0, 0), ("╭", theme.focus, false));
+    assert_eq!(cell(0, 1), ("╭", theme.focus, false));
     // Header: weekdays in the normal text color, Sat and Sun in the weekend color, vertical line
     // The year in the top-left corner (2026年, shown even when January is on screen)
-    assert_eq!(cell(5, 1), ("年", theme.text, false));
-    assert_eq!(cell(13, 1), ("一", theme.text, false));
-    assert_eq!(cell(33, 1), ("六", theme.weekend, false));
-    assert_eq!(cell(37, 1), ("日", theme.weekend, false));
-    assert_eq!(cell(11, 1), ("│", theme.line, false));
+    assert_eq!(cell(5, 2), ("年", theme.text, false));
+    assert_eq!(cell(13, 2), ("一", theme.text, false));
+    assert_eq!(cell(33, 2), ("六", theme.weekend, false));
+    assert_eq!(cell(37, 2), ("日", theme.weekend, false));
+    assert_eq!(cell(11, 2), ("│", theme.line, false));
     // The line between months, the thick line between years
-    assert_eq!(cell(11, 2), ("┼", theme.line, false));
-    assert_eq!(cell(5, 21), ("━", theme.year_line, false));
-    assert_eq!(cell(11, 21), ("┿", theme.year_line, false));
+    assert_eq!(cell(11, 3), ("┼", theme.line, false));
+    assert_eq!(cell(5, 22), ("━", theme.year_line, false));
+    assert_eq!(cell(11, 22), ("┿", theme.year_line, false));
     // Month (10月), January's year (2027年), week numbers
-    assert_eq!(cell(3, 3), ("1", theme.label, false));
-    assert_eq!(cell(1, 22), ("2", theme.label, false));
+    assert_eq!(cell(3, 4), ("1", theme.label, false));
+    assert_eq!(cell(1, 23), ("2", theme.label, false));
     // Week numbers: the selected week (42) bright, other weeks (41) dim
-    assert_eq!(cell(8, 5), ("4", theme.week_number, false));
-    assert_eq!(cell(8, 4), ("4", theme.week_number_dim, false));
+    assert_eq!(cell(8, 6), ("4", theme.week_number, false));
+    assert_eq!(cell(8, 5), ("4", theme.week_number_dim, false));
     // 10/16 (Fri) normal; 10/17 (Sat) is today: today's color wins
     // over the weekend color, and it is bold; 10/18 (Sun) weekend
-    assert_eq!(cell(29, 5), ("1", theme.text, false));
-    assert_eq!(cell(34, 5), ("7", theme.today, true));
-    assert_eq!(cell(38, 5), ("8", theme.weekend, false));
+    assert_eq!(cell(29, 6), ("1", theme.text, false));
+    assert_eq!(cell(34, 6), ("7", theme.today, true));
+    assert_eq!(cell(38, 6), ("8", theme.weekend, false));
     // The selection brackets
-    assert_eq!(cell(32, 5), ("[", theme.selected, true));
-    assert_eq!(cell(35, 5), ("]", theme.selected, true));
+    assert_eq!(cell(32, 6), ("[", theme.selected, true));
+    assert_eq!(cell(35, 6), ("]", theme.selected, true));
 }
 
 #[test]
 fn year_hint_in_the_header_is_normal_text() {
     // No January on screen: 2026 is shown left of the header's `Wk`,
     // in the header's normal text color (screen: see `calendar_in_english`)
-    let terminal = draw(Lang::En, 40, 11, date(2026, 10, 17));
-    let cell = &terminal.backend().buffer()[(3, 1)];
+    let terminal = draw(Lang::En, 40, 12, date(2026, 10, 17));
+    let cell = &terminal.backend().buffer()[(3, 2)];
     assert_eq!((cell.symbol(), cell.fg), ("2", Theme::default().text));
 }
 
@@ -2016,10 +2033,11 @@ fn multi_day_items_are_listed_once_per_month() {
         date(2026, 10, 17),
         crate::tasks::parse(RANGE_TASKS).items,
     );
-    let terminal = draw_app(&mut app, 77, 30);
+    let terminal = draw_app(&mut app, 77, 31);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -2058,13 +2076,13 @@ fn multi_day_items_are_listed_once_per_month() {
     let buffer = terminal.backend().buffer();
     let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
     // 10/19 (Mon) x 13-14, 10/20 (Tue) x 17-18, 10/25
-    // (Sun) x 37-38 are at y 6; 10/26 (Mon) x 13-14 and 10/28 (Wed) x 21-22 at y 7
-    assert!(!underlined(14, 6));
-    assert!(underlined(18, 6) && underlined(38, 6));
-    assert!(!underlined(14, 7) && underlined(22, 7));
+    // (Sun) x 37-38 are at y 7; 10/26 (Mon) x 13-14 and 10/28 (Wed) x 21-22 at y 8
+    assert!(!underlined(14, 7));
+    assert!(underlined(18, 7) && underlined(38, 7));
+    assert!(!underlined(14, 8) && underlined(22, 8));
     let theme = Theme::default();
-    assert_eq!(buffer[(18, 6)].fg, theme.text);
-    assert_eq!(buffer[(22, 6)].fg, theme.text);
+    assert_eq!(buffer[(18, 7)].fg, theme.text);
+    assert_eq!(buffer[(22, 7)].fg, theme.text);
     // Keyboard in the agenda, Manager OOO chosen on November's line (Tab from 11/2); November is on top (the week of 11/2 is November's 2nd row and must stay 2 rows from
     // the top edge, so it scrolls up one more row and shows the line under October)
     let mut app = App::new(
@@ -2076,8 +2094,9 @@ fn multi_day_items_are_listed_once_per_month() {
     app.agenda_index = 4;
     app.selected = date(2026, 11, 2);
     assert_eq!(
-        text_rows(draw_app(&mut app, 77, 30).backend().buffer()),
+        text_rows(draw_app(&mut app, 77, 31).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項        2026/11/2（一） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -2122,13 +2141,13 @@ fn a_multi_day_item_belongs_to_every_day_it_covers() {
         crate::tasks::parse(RANGE_TASKS).items,
     );
     app.selected = date(2026, 10, 22);
-    let terminal = draw_app(&mut app, 77, 30);
+    let terminal = draw_app(&mut app, 77, 31);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
-    assert_eq!(buffer[(47, 3)].bg, Color::Reset);
-    assert_eq!(buffer[(47, 4)].bg, theme.selection);
+    assert_eq!(buffer[(47, 4)].bg, Color::Reset);
     assert_eq!(buffer[(47, 5)].bg, theme.selection);
-    assert_eq!(buffer[(47, 6)].bg, Color::Reset);
+    assert_eq!(buffer[(47, 6)].bg, theme.selection);
+    assert_eq!(buffer[(47, 7)].bg, Color::Reset);
 }
 
 #[test]
@@ -2144,27 +2163,27 @@ fn holidays_are_days_off() {
     );
     let theme = Theme::default();
     let fg = |app: &mut App, x: u16, y: u16| {
-        let terminal = draw_app(app, 77, 23);
+        let terminal = draw_app(app, 77, 24);
         let cell = &terminal.backend().buffer()[(x, y)];
         (cell.symbol().to_string(), cell.fg)
     };
-    // 10/10 (Sat) x 34, 10/11 (Sun) x 38 at y 4; 10/12 (Mon) x 14 at y 5;
-    // 10/31 (Sat) x 34 at y 7; 10/9 (Fri) x 30 at y 4 is not a holiday
-    assert_eq!(fg(&mut app, 34, 4), ("0".into(), theme.weekend));
-    assert_eq!(fg(&mut app, 38, 4), ("1".into(), theme.weekend));
-    assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.weekend));
-    assert_eq!(fg(&mut app, 34, 7), ("1".into(), theme.weekend));
-    assert_eq!(fg(&mut app, 30, 4), ("9".into(), theme.text));
+    // 10/10 (Sat) x 34, 10/11 (Sun) x 38 at y 5; 10/12 (Mon) x 14 at y 6;
+    // 10/31 (Sat) x 34 at y 8; 10/9 (Fri) x 30 at y 5 is not a holiday
+    assert_eq!(fg(&mut app, 34, 5), ("0".into(), theme.weekend));
+    assert_eq!(fg(&mut app, 38, 5), ("1".into(), theme.weekend));
+    assert_eq!(fg(&mut app, 14, 6), ("2".into(), theme.weekend));
+    assert_eq!(fg(&mut app, 34, 8), ("1".into(), theme.weekend));
+    assert_eq!(fg(&mut app, 30, 5), ("9".into(), theme.text));
     // If today is a holiday, today's green comes first
     app.today = date(2026, 10, 10);
-    assert_eq!(fg(&mut app, 34, 4), ("0".into(), theme.today));
+    assert_eq!(fg(&mut app, 34, 5), ("0".into(), theme.today));
     app.today = date(2026, 10, 17);
     // The name in the side menu leaves out type:holiday; unchecked: no longer holidays (10/12, a
     // Monday, back to normal; 10/10 a Saturday, still a weekend)
     assert_eq!(app.groups[0].name.as_deref(), Some("US holidays"));
     app.groups[0].shown = false;
-    assert_eq!(fg(&mut app, 14, 5), ("2".into(), theme.text));
-    assert_eq!(fg(&mut app, 34, 4), ("0".into(), theme.weekend));
+    assert_eq!(fg(&mut app, 14, 6), ("2".into(), theme.text));
+    assert_eq!(fg(&mut app, 34, 5), ("0".into(), theme.weekend));
 }
 
 #[test]
@@ -2282,7 +2301,7 @@ fn events_gray_out_once_their_day_is_past() {
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    let terminal = draw_app(&mut app, 77, 23);
+    let terminal = draw_app(&mut app, 77, 24);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let cell = |x: u16, y: u16| {
@@ -2293,16 +2312,16 @@ fn events_gray_out_once_their_day_is_past() {
             cell.modifier.contains(Modifier::CROSSED_OUT),
         )
     };
-    // Calendar: 10/9 (Fri) x 30, 10/10 (Sat) x 34 at y 4; 10/18 (Sun) x 38 at y 5
-    assert_eq!(cell(30, 4), ("9", theme.text, false));
-    assert_eq!(cell(34, 4), ("0", theme.weekend, false));
-    assert_eq!(cell(38, 5), ("8", theme.weekend, false));
+    // Calendar: 10/9 (Fri) x 30, 10/10 (Sat) x 34 at y 5; 10/18 (Sun) x 38 at y 6
+    assert_eq!(cell(30, 5), ("9", theme.text, false));
+    assert_eq!(cell(34, 5), ("0", theme.weekend, false));
+    assert_eq!(cell(38, 6), ("8", theme.weekend, false));
     // Agenda (starts at x 43, one item per row): titles
     // at x 50; Go hiking has a time in front, so it is at x 56
-    assert_eq!(cell(50, 3), ("S", theme.text, false));
-    assert_eq!(cell(50, 4), ("F", theme.muted, false));
-    assert_eq!(cell(45, 4), ("0", theme.muted, false));
-    assert_eq!(cell(56, 5), ("G", theme.text, false));
+    assert_eq!(cell(50, 4), ("S", theme.text, false));
+    assert_eq!(cell(50, 5), ("F", theme.muted, false));
+    assert_eq!(cell(45, 5), ("0", theme.muted, false));
+    assert_eq!(cell(56, 6), ("G", theme.text, false));
 }
 
 #[test]
@@ -2316,10 +2335,10 @@ fn items_do_not_change_the_date_color() {
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    let terminal = draw_app(&mut app, 47, 26);
+    let terminal = draw_app(&mut app, 47, 27);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
-    let fg = |x: u16| (buffer[(x, 5)].symbol(), buffer[(x, 5)].fg);
+    let fg = |x: u16| (buffer[(x, 6)].symbol(), buffer[(x, 6)].fg);
     assert_eq!(fg(22), ("4", theme.text));
     assert_eq!(fg(26), ("5", theme.text));
     assert_eq!(fg(30), ("6", theme.text));
@@ -2344,6 +2363,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭───────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││  2026/10/17（六） │",
             "│──────────┼─────────────────────────────││───────────────────│",
@@ -2351,7 +2371,6 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
             "│       41 │  5   6   7   8   9  10  11  ││                   │",
             "│       42 │ 12  13  14  15  16 [17] 18  ││                   │",
             "│       43 │ 19  20  21  22  23  24  25  ││                   │",
-            "│       44 │ 26  27  28  29  30  31      ││                   │",
             "╰────────────────────────────────────────╯╰───────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 |",
         ]
@@ -2360,6 +2379,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮╭────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││   2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────│",
@@ -2367,7 +2387,6 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
             "│       41 │  5   6   7   8   9  10  11  ││                    │",
             "│       42 │ 12  13  14  15  16 [17] 18  ││                    │",
             "│       43 │ 19  20  21  22  23  24  25  ││                    │",
-            "│       44 │ 26  27  28  29  30  31      ││                    │",
             "╰────────────────────────────────────────╯╰────────────────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 |",
         ]
@@ -2385,6 +2404,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2411,8 +2431,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
             "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
             "│     │          │          │          │         │         │         │         │",
             "│     │          │          │          │         │         │         │         │",
-            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
-            "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
+            "│     │          │          │          │         │         │         │         │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
@@ -2422,32 +2441,32 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 28).backend().buffer()),
         [
+            "   1 calendar ┃ 2 month   3 tasks",
             "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
             "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
             "│  40 │ 28       │ 29       │ 30       │ 1 Oct   │ 2       │ 3       │ 4       │",
             "│ Oct │          │          │          │         │         │         │         │",
-            "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  41 │ 5        │ 6        │ 7        │ 8       │ 9       │ 10      │ 11      │",
-            "│     │          │          │          │         │         │         │         │",
             "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  42 │ 12       │ 13       │ 14       │ 15      │ 16      │ 17      │ 18      │",
             "│     │          │          │          │         │         │         │         │",
-            "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  43 │ 19       │ 20       │ 21       │ 22      │ 23      │ 24      │ 25      │",
-            "│     │          │          │          │         │         │         │         │",
             "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  44 │ 26       │ 27       │ 28       │ 29      │ 30      │ 31      │ 1 Nov   │",
             "│ Nov │          │          │          │         │         │         │         │",
-            "│     │          │          │          │         │         │         │         │",
             "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
             "│  45 │ 2        │ 3        │ 4        │ 5       │ 6       │ 7       │ 8       │",
             "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  46 │ 9        │ 10       │ 11       │ 12      │ 13      │ 14      │ 15      │",
             "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  47 │ 16       │ 17       │ 18       │ 19      │ 20      │ 21      │ 22      │",
             "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
             " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
@@ -2460,7 +2479,7 @@ const MONTH_TASKS: &str = include_str!("../../testdata/month.md");
 
 #[test]
 fn month_view_lists_each_days_items_in_its_cell() {
-    // 80 × 30, 3 rows per week: 2 items listed under the date; on the same day, items
+    // 80 × 31, 3 rows per week: 2 items listed under the date; on the same day, items
     // without a time first (like layout 1); 10/16 has 4 items that do not fit: 1 is listed
     // and the last line says 「+3」; items on other months' days (9/25, 11/1) are listed
     // too. A title that is too long borrows the next cells to the right (only a day with
@@ -2470,8 +2489,9 @@ fn month_view_lists_each_days_items_in_its_cell() {
     // 2nd line borrows 10/18's empty 2nd line (its background shows whose text it is)
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 31).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2504,11 +2524,12 @@ fn month_view_lists_each_days_items_in_its_cell() {
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
-    // 80 × 24, 2 rows per week: only 1 item fits; with 2 or more it just shows 「+N」
+    // 80 × 25, 2 rows per week: only 1 item fits; with 2 or more it just shows 「+N」
     let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 24).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 25).backend().buffer()),
         [
+            "   1 calendar ┃ 2 month   3 tasks",
             "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
             "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2535,12 +2556,13 @@ fn month_view_lists_each_days_items_in_its_cell() {
             " 123 view | hjkl[] move | Tab pane | t today | s calendars | ? help | , settings",
         ]
     );
-    // 80 × 16, only 1 row per week: no items listed, dots after
+    // 80 × 17, only 1 row per week: no items listed, dots after
     // the date instead (1 item ⠂, 2 items ⠒, 4 or more ⠶)
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2563,10 +2585,10 @@ fn month_view_lists_each_days_items_in_its_cell() {
 
 #[test]
 fn month_view_item_colors() {
-    // 80 × 30 (screen: see `month_view_lists_each_days_items_in_its_cell`): cells start at x 7, 18, 29,
-    // 40, 50, 60, 70; weeks 1, 3 and 4 are at y 3, 11 and 15
+    // 80 × 31 (screen: see `month_view_lists_each_days_items_in_its_cell`): cells start at x 7, 18, 29,
+    // 40, 50, 60, 70; weeks 1, 3 and 4 are at y 4, 12 and 16
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is struck through
@@ -2579,33 +2601,33 @@ fn month_view_item_colors() {
         )
     };
     // 10/12 (Mon) unfinished item: time muted, title in the normal color
-    assert_eq!(cell(8, 12), ("1", theme.muted, false));
-    assert_eq!(cell(14, 12), ("C", theme.text, false));
+    assert_eq!(cell(8, 13), ("1", theme.muted, false));
+    assert_eq!(cell(14, 13), ("C", theme.text, false));
     // 10/15 (Thu) finished item: whole line gray, title struck through
-    assert_eq!(cell(41, 12), ("F", theme.muted, true));
+    assert_eq!(cell(41, 13), ("F", theme.muted, true));
     // 10/17 (Sat) is today: its item is still in the normal color (only the date is green)
-    assert_eq!(cell(61, 12), ("D", theme.text, false));
+    assert_eq!(cell(61, 13), ("D", theme.text, false));
     // 10/16 (Fri) overflows: 「+3」 is muted
-    assert_eq!(cell(52, 13), ("3", theme.muted, false));
+    assert_eq!(cell(52, 14), ("3", theme.muted, false));
     // 9/29 (Tue, in the top week 9/28-10/4) is in another month: not grayed out, the normal color
-    assert_eq!(cell(19, 4), ("B", theme.text, false));
-    assert_eq!(cell(20, 4), ("a", theme.text, false));
+    assert_eq!(cell(19, 5), ("B", theme.text, false));
+    assert_eq!(cell(20, 5), ("a", theme.text, false));
     // 10/20 (Tue)'s long title borrows cells up to 10/23 (Fri): text over the grid lines keeps its own
     // color (x 49 was a vertical line); the grid lines after the text keep the grid color
-    assert_eq!(cell(49, 16), ("s", theme.text, false));
-    assert_eq!(buffer[(59, 16)].symbol(), "│");
-    assert_eq!(buffer[(59, 16)].fg, theme.grid);
+    assert_eq!(cell(49, 17), ("s", theme.text, false));
+    assert_eq!(buffer[(59, 17)].symbol(), "│");
+    assert_eq!(buffer[(59, 17)].fg, theme.grid);
     // Only 1 row per week: the dots follow the day's color (10/16, a Friday: normal); all done (10/15)
     // is muted
-    let terminal = draw_app(&mut app, 80, 16);
+    let terminal = draw_app(&mut app, 80, 17);
     let buffer = terminal.backend().buffer();
-    // 80 × 16: week 3 is at y 7; 10/16 is 「 16 ⠶」, 10/15 is 「 15 ⠂」
+    // 80 × 17: week 3 is at y 8; 10/16 is 「 16 ⠶」, 10/15 is 「 15 ⠂」
     assert_eq!(
-        (buffer[(54, 7)].symbol(), buffer[(54, 7)].fg),
+        (buffer[(54, 8)].symbol(), buffer[(54, 8)].fg),
         ("⠶", theme.text)
     );
     assert_eq!(
-        (buffer[(44, 7)].symbol(), buffer[(44, 7)].fg),
+        (buffer[(44, 8)].symbol(), buffer[(44, 8)].fg),
         ("⠂", theme.muted)
     );
 }
@@ -2614,10 +2636,11 @@ fn month_view_item_colors() {
 fn month_view_with_the_side_menu_hides_unchecked_calendars() {
     // 121 cells wide: the side menu on the far left, the month grid takes all the rest
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 121, 22);
+    let terminal = draw_app(&mut app, 121, 23);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
@@ -2644,10 +2667,11 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
     );
     // Personal unchecked: its items leave the cells (10/18 stays weekend blue either way)
     app.groups[1].shown = false;
-    let terminal = draw_app(&mut app, 121, 22);
+    let terminal = draw_app(&mut app, 121, 23);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
@@ -2672,10 +2696,10 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
-    // 10/18 (Sun): the month grid starts at x 22, the Sunday column at x 108, week 3 at y 9 (2 rows per
+    // 10/18 (Sun): the month grid starts at x 22, the Sunday column at x 108, week 3 at y 10 (2 rows per
     // week); the 「1」 of 「 18」 is at x 109
     let theme = Theme::default();
-    let cell = &terminal.backend().buffer()[(109, 9)];
+    let cell = &terminal.backend().buffer()[(109, 10)];
     assert_eq!((cell.symbol(), cell.fg), ("1", theme.weekend));
 }
 
@@ -2683,14 +2707,15 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
 fn month_view_without_grid_lines_gives_the_cells_more_room() {
     // Config `[month] grid_lines = false`: no grid lines, the cells touch, and no line under the header
     // either; only where a month ends, its edge (a row after the first week for September's, a row
-    // above and below the week of 10/26 for October's); 80 × 24: day width 78 − 5 = 73 (Mon-Wed 11
+    // above and below the week of 10/26 for October's); 80 × 25: day width 78 − 5 = 73 (Mon-Wed 11
     // cells, the others 10), each week (21 − 1 − 3) ÷ 6 = 2 rows
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), MONTH_TASKS);
     app.settings.month.grid_lines = false;
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 24).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 25).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週  一         二         三         四        五        六        日       │",
             "│  40  28         29         30        │1 10月    2         3         4        │",
@@ -2718,11 +2743,11 @@ fn month_view_without_grid_lines_gives_the_cells_more_room() {
         ]
     );
     // Mouse: the cells without grid lines can be clicked too. Tuesday is x 17-27, week 2 (the week of
-    // 10/5) is y 5-6, below September's edge at y 4 (nothing to click there)
-    assert_eq!(click_at(&app, 17, 5), Some(Click::Day(date(2026, 10, 6))));
-    assert_eq!(click_at(&app, 27, 6), Some(Click::Day(date(2026, 10, 6))));
-    assert_eq!(click_at(&app, 28, 6), Some(Click::Day(date(2026, 10, 7))));
-    assert_eq!(click_at(&app, 20, 4), None);
+    // 10/5) is y 6-7, below September's edge at y 5 (nothing to click there)
+    assert_eq!(click_at(&app, 17, 6), Some(Click::Day(date(2026, 10, 6))));
+    assert_eq!(click_at(&app, 27, 7), Some(Click::Day(date(2026, 10, 6))));
+    assert_eq!(click_at(&app, 28, 7), Some(Click::Day(date(2026, 10, 7))));
+    assert_eq!(click_at(&app, 20, 5), None);
 }
 
 #[test]
@@ -2770,8 +2795,9 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
     app.settings.month.center_cursor = true;
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2794,8 +2820,9 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
     // the 6 weeks): the whole screen scrolls down one week with it
     app.selected = date(2026, 11, 2);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/11/2（一） ───────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2824,8 +2851,9 @@ fn relative_week_numbers_in_both_layouts() {
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.settings.calendar.relative_weeks = true;
     assert_eq!(
-        text_rows(draw_app(&mut app, 42, 14).backend().buffer()),
+        text_rows(draw_app(&mut app, 42, 15).backend().buffer()),
         [
+            " ┃ 1 月曆   2 大月曆   3 任務",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  │",
             "│──────────┼─────────────────────────────│",
@@ -2845,8 +2873,9 @@ fn relative_week_numbers_in_both_layouts() {
     // Same in layout 2
     app.view = View::Month;
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2875,10 +2904,11 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
     // November starts (between 10/31 and 11/1)
     // and at the end of the week, and each part writes the title again
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), RANGE_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2911,32 +2941,32 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
             " 123 版型 | hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
-    // Dates in a range are underlined: 10/20 (Tue) 「 20」 at x 19-20, y 15; 10/19 (Mon) at x 8-9 is not
+    // Dates in a range are underlined: 10/20 (Tue) 「 20」 at x 19-20, y 16; 10/19 (Mon) at x 8-9 is not
     let buffer = terminal.backend().buffer();
     let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
-    assert!(underlined(20, 15));
-    assert!(!underlined(9, 15));
-    // The bar (y 16) has the range background from Tuesday's left edge (x 18) to Sunday's right edge
+    assert!(underlined(20, 16));
+    assert!(!underlined(9, 16));
+    // The bar (y 17) has the range background from Tuesday's left edge (x 18) to Sunday's right edge
     // (x 78), the grid lines between too (x 28, 39); not the grid line left of it, nor the next line
     let theme = Theme::default();
     for x in [18, 28, 39, 60, 78] {
-        assert_eq!(buffer[(x, 16)].bg, theme.range, "x {x}");
+        assert_eq!(buffer[(x, 17)].bg, theme.range, "x {x}");
     }
-    assert_eq!(buffer[(17, 16)].symbol(), "│");
-    assert_ne!(buffer[(17, 16)].bg, theme.range);
-    assert_ne!(buffer[(18, 17)].bg, theme.range);
+    assert_eq!(buffer[(17, 17)].symbol(), "│");
+    assert_ne!(buffer[(17, 17)].bg, theme.range);
+    assert_ne!(buffer[(18, 18)].bg, theme.range);
     // The title is normal text (not over yet), not the day's color
     assert_eq!(
-        (buffer[(19, 16)].symbol(), buffer[(19, 16)].fg),
+        (buffer[(19, 17)].symbol(), buffer[(19, 17)].fg),
         ("B", theme.text)
     );
-    // Manager OOO (y 20): the grid line between 10/31 and 11/1 (x 69) is not covered; November's part
+    // Manager OOO (y 21): the grid line between 10/31 and 11/1 (x 69) is not covered; November's part
     // has the background again, and its title the normal color (other months are not grayed out)
-    assert_eq!(buffer[(69, 20)].symbol(), "│");
-    assert_ne!(buffer[(69, 20)].bg, theme.range);
-    assert_eq!(buffer[(70, 20)].bg, theme.range);
+    assert_eq!(buffer[(69, 21)].symbol(), "│");
+    assert_ne!(buffer[(69, 21)].bg, theme.range);
+    assert_eq!(buffer[(70, 21)].bg, theme.range);
     assert_eq!(
-        (buffer[(71, 20)].symbol(), buffer[(71, 20)].fg),
+        (buffer[(71, 21)].symbol(), buffer[(71, 21)].fg),
         ("M", theme.text)
     );
 }
@@ -3002,6 +3032,7 @@ fn tasks_page_with_collapsed_calendars() {
     assert_eq!(
         text_rows(draw_app(&mut app, 60, 22).backend().buffer()),
         [
+            "   1 calendar   2 month ┃ 3 tasks",
             "╭──────────────────────────────────────────────────────────╮",
             "│ Tasks                                                    │",
             "│──────────────────────────────────────────────────────────│",
@@ -3013,7 +3044,6 @@ fn tasks_page_with_collapsed_calendars() {
             "│ ▾ Work                                                   │",
             "│     ∙ Team sync                              10/19 10:00 │",
             "│   Someday                                                │",
-            "│                                                          │",
             "│                                                          │",
             "│                                                          │",
             "│                                                          │",
@@ -3039,10 +3069,11 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
         "../../testdata/calendars.md"
     )));
     (app.view, app.focus) = (View::Tasks, Focus::Tasks);
-    app.screen = Rect::new(0, 0, 60, 22);
+    app.screen = Rect::new(0, 0, 60, 23);
     assert_eq!(
-        text_rows(draw_app(&mut app, 60, 22).backend().buffer()),
+        text_rows(draw_app(&mut app, 60, 23).backend().buffer()),
         [
+            "   1 calendar   2 month ┃ 3 tasks",
             "╭──────────────────────────────────────────────────────────╮",
             "│ Tasks                                                    │",
             "│──────────────────────────────────────────────────────────│",
@@ -3068,39 +3099,39 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
         ]
     );
     // `▸` of the first item (under SFAP's heading, which is 1 level in): x = 1 + 1 + 2 × 2 = 6 on the
-    // screen, row 5
+    // screen, row 6
     assert_eq!(
-        click_at(&app, 6, 5),
+        click_at(&app, 6, 6),
         Some(Click::TaskRow {
             row: 2,
             on_marker: true
         })
     );
     assert_eq!(
-        click_at(&app, 2, 5),
+        click_at(&app, 2, 6),
         Some(Click::TaskRow {
             row: 2,
             on_marker: false
         })
     );
-    // A calendar heading's `▾` (Work, row 3: x = 1 + 1) is a marker too; the rest of the row only chooses it;
-    // an empty calendar (Someday, row 17) has no marker
+    // A calendar heading's `▾` (Work, row 4: x = 1 + 1) is a marker too; the rest of the row only chooses it;
+    // an empty calendar (Someday, row 18) has no marker
     assert_eq!(
-        click_at(&app, 2, 3),
+        click_at(&app, 2, 4),
         Some(Click::TaskRow {
             row: 0,
             on_marker: true
         })
     );
     assert_eq!(
-        click_at(&app, 5, 3),
+        click_at(&app, 5, 4),
         Some(Click::TaskRow {
             row: 0,
             on_marker: false
         })
     );
     assert!(matches!(
-        click_at(&app, 2, 17),
+        click_at(&app, 2, 18),
         Some(Click::TaskRow {
             on_marker: false,
             ..
@@ -3112,7 +3143,7 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Right),
             column: 6,
-            row: 5,
+            row: 6,
             modifiers: KeyModifiers::NONE,
         });
     };
@@ -3138,6 +3169,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
     assert_eq!(
         text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
         [
+            "   1 月曆   2 大月曆 ┃ 3 任務",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3163,7 +3195,6 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│     ☐\u{a0}🚧 Draft the release notes                       10/16       │",
             "│     ∙ Team happy hour                                  10/16 18:30 │",
             "│     ∙ Requirements meeting with PM                      10/8 14:00 │",
-            "│     ∙ Engineering all-hands                             10/8 16:00 │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
             "╰────────────────────────────────────────────────────────────────────╯",
@@ -3178,10 +3209,10 @@ fn tasks_page_lists_the_file_as_a_tree() {
     assert_eq!(
         text_rows(draw_app(&mut app, 70, 16).backend().buffer()),
         [
+            "   1 calendar   2 month ┃ 3 tasks",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ Tasks                                                 1 mistake(s) │",
             "│────────────────────────────────────────────────────────────────────│",
-            "│     ∙ Halloween 🎃                                     10/31       │",
             "│ ▾ Learning Rust 🦀                                                 │",
             "│     ☑\u{a0}Finish chapter 4 of The Book (ownership)          10/3       │",
             "│     ☐\u{a0}Read the Ratatui layout docs                                 │",
@@ -3211,15 +3242,15 @@ fn tasks_page_colors_and_clicks() {
     );
     app.view = View::Tasks;
     app.focus = Focus::Tasks;
-    app.screen = Rect::new(0, 0, 40, 14);
-    let terminal = draw_app(&mut app, 40, 14);
+    app.screen = Rect::new(0, 0, 40, 15);
+    let terminal = draw_app(&mut app, 40, 15);
     let rows = text_rows(terminal.backend().buffer());
     // At 40 wide 「Send the weekly update」 does not fit before its date: 「update」 wraps onto the next line,
     // under the title; the rows below move down one line (expected rows from tools/expected_screen.py)
-    assert_eq!(rows[3], "│ ▾ Work                               │");
-    assert_eq!(rows[4], "│     ☐\u{a0}Send the weekly          10/16 │");
-    assert_eq!(rows[5], "│       update                         │");
-    assert_eq!(rows[8], "│   ▸ ∙ Trip to Tokyo  0/1    2027/1/2 │");
+    assert_eq!(rows[4], "│ ▾ Work                               │");
+    assert_eq!(rows[5], "│     ☐\u{a0}Send the weekly          10/16 │");
+    assert_eq!(rows[6], "│       update                         │");
+    assert_eq!(rows[9], "│   ▸ ∙ Trip to Tokyo  0/1    2027/1/2 │");
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let cell = |x: u16, y: u16| {
@@ -3231,30 +3262,30 @@ fn tasks_page_colors_and_clicks() {
         )
     };
     // Header 「 任務」 (the border at x 0, a blank at x 1): normal text
-    assert_eq!(cell(2, 1), ("任", theme.text, false));
+    assert_eq!(cell(2, 2), ("任", theme.text, false));
     // Heading: ▾ muted, Work in the label color, not bold
-    assert_eq!(cell(2, 3), ("▾", theme.muted, false));
-    assert_eq!(buffer[(4, 3)].fg, theme.label);
-    assert!(!buffer[(4, 3)].modifier.contains(Modifier::BOLD));
-    // Send the weekly update (y 4-5): not done → ☐ and the title in normal text, also on the wrapped line;
+    assert_eq!(cell(2, 4), ("▾", theme.muted, false));
+    assert_eq!(buffer[(4, 4)].fg, theme.label);
+    assert!(!buffer[(4, 4)].modifier.contains(Modifier::BOLD));
+    // Send the weekly update (y 5-6): not done → ☐ and the title in normal text, also on the wrapped line;
     // date (x 33-37) in its day's color (normal); the chosen item gets the highlight across both of its
     // lines
-    assert_eq!(cell(6, 4), ("☐", theme.text, false));
-    assert_eq!(cell(8, 4), ("S", theme.text, false));
-    assert_eq!(cell(8, 5), ("u", theme.text, false));
-    assert_eq!(cell(34, 4), ("0", theme.text, false));
-    assert_eq!(buffer[(1, 4)].bg, theme.selection);
-    assert_eq!(buffer[(37, 5)].bg, theme.selection);
-    assert_eq!(buffer[(1, 6)].bg, Color::Reset);
-    // Fix the login bug (y 6): done → ☑ gray, the title gray and struck through; Hackathon (y 7): past
+    assert_eq!(cell(6, 5), ("☐", theme.text, false));
+    assert_eq!(cell(8, 5), ("S", theme.text, false));
+    assert_eq!(cell(8, 6), ("u", theme.text, false));
+    assert_eq!(cell(34, 5), ("0", theme.text, false));
+    assert_eq!(buffer[(1, 5)].bg, theme.selection);
+    assert_eq!(buffer[(37, 6)].bg, theme.selection);
+    assert_eq!(buffer[(1, 7)].bg, Color::Reset);
+    // Fix the login bug (y 7): done → ☑ gray, the title gray and struck through; Hackathon (y 8): past
     // event → ∙ and the title gray, not struck through
-    assert_eq!(cell(6, 6), ("☑", theme.muted, false));
-    assert_eq!(cell(8, 6), ("F", theme.muted, true));
-    assert_eq!(cell(6, 7), ("∙", theme.muted, false));
-    assert_eq!(cell(8, 7), ("H", theme.muted, false));
+    assert_eq!(cell(6, 7), ("☑", theme.muted, false));
+    assert_eq!(cell(8, 7), ("F", theme.muted, true));
+    assert_eq!(cell(6, 8), ("∙", theme.muted, false));
+    assert_eq!(cell(8, 8), ("H", theme.muted, false));
     // ▸ is muted
-    assert_eq!(cell(4, 8), ("▸", theme.muted, false));
-    // Click the Trip to Tokyo row (y 8): it gets chosen; click ▸ (x 4): it expands
+    assert_eq!(cell(4, 9), ("▸", theme.muted, false));
+    // Click the Trip to Tokyo row (y 9): it gets chosen; click ▸ (x 4): it expands
     let click = |app: &mut App, column, row| {
         use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
         app.handle_mouse(MouseEvent {
@@ -3264,22 +3295,22 @@ fn tasks_page_colors_and_clicks() {
             modifiers: KeyModifiers::NONE,
         });
     };
-    click(&mut app, 10, 8);
+    click(&mut app, 10, 9);
     assert_eq!(
         app.tasks_chosen().map(|item| item.title.as_str()),
         Some("Trip to Tokyo")
     );
     assert!(app.expanded.is_empty());
-    click(&mut app, 4, 8);
+    click(&mut app, 4, 9);
     assert!(app.expanded.contains(&5));
     // Clicking a heading row: ignored
-    click(&mut app, 5, 3);
+    click(&mut app, 5, 4);
     assert_eq!(
         app.tasks_chosen().map(|item| item.title.as_str()),
         Some("Trip to Tokyo")
     );
-    // Clicking the wrapped line of an item (y 5): that item
-    click(&mut app, 20, 5);
+    // Clicking the wrapped line of an item (y 6): that item
+    click(&mut app, 20, 6);
     assert_eq!(
         app.tasks_chosen().map(|item| item.title.as_str()),
         Some("Send the weekly update")
@@ -3288,7 +3319,7 @@ fn tasks_page_colors_and_clicks() {
 
 #[test]
 fn a_wrapped_item_is_kept_on_screen_whole() {
-    // 40 × 14 (7 lines for the list): the last item takes 4 lines; choosing it scrolls so all 4 show,
+    // 40 × 15 (7 lines for the list): the last item takes 4 lines; choosing it scrolls so all 4 show,
     // not only its first line and the margin below it (expected rows from tools/expected_screen.py)
     let text = "# Work\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n- [ ] one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen\n";
     let mut app = App::new(
@@ -3299,9 +3330,9 @@ fn a_wrapped_item_is_kept_on_screen_whole() {
     app.view = View::Tasks;
     app.focus = Focus::Tasks;
     app.tasks_line = Some(7);
-    let terminal = draw_app(&mut app, 40, 14);
+    let terminal = draw_app(&mut app, 40, 15);
     assert_eq!(
-        text_rows(terminal.backend().buffer())[3..10],
+        text_rows(terminal.backend().buffer())[4..11],
         [
             "│     ☐\u{a0}c                              │",
             "│     ☐\u{a0}d                              │",
@@ -3320,10 +3351,11 @@ fn tasks_page_points_at_format_mistakes() {
     // @2026-13-01): the bottom row says what is wrong instead, and the title is red
     let mut app = tasks_app(Lang::ZhTw);
     app.tasks_line = Some(43);
-    let terminal = draw_app(&mut app, 70, 16);
+    let terminal = draw_app(&mut app, 70, 17);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 月曆   2 大月曆 ┃ 3 任務",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3345,16 +3377,16 @@ fn tasks_page_points_at_format_mistakes() {
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The header's 「1 處寫錯」 and the bottom row are both red
-    assert_eq!(buffer[(60, 1)].fg, theme.error);
-    assert_eq!(buffer[(2, 13)].fg, theme.error);
-    // The title in the Pay property tax row (y 9) is red and underlined, so it does not look like a
+    assert_eq!(buffer[(60, 2)].fg, theme.error);
+    assert_eq!(buffer[(2, 14)].fg, theme.error);
+    // The title in the Pay property tax row (y 10) is red and underlined, so it does not look like a
     // `!!!` title (titles start at x 8); other rows are neither
     let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
-    assert_eq!(buffer[(8, 9)].fg, theme.error);
+    assert_eq!(buffer[(8, 10)].fg, theme.error);
     // Its last character (28 characters: x 8-35), and not the blank after it
-    assert!(underlined(8, 9) && underlined(35, 9) && !underlined(36, 9));
-    assert_eq!(buffer[(8, 8)].fg, theme.text);
-    assert!(!underlined(8, 8));
+    assert!(underlined(8, 10) && underlined(35, 10) && !underlined(36, 10));
+    assert_eq!(buffer[(8, 9)].fg, theme.text);
+    assert!(!underlined(8, 9));
 }
 
 #[test]
@@ -3365,8 +3397,9 @@ fn tasks_page_with_the_side_menu() {
     app.groups[0].shown = false;
     app.groups[1].shown = false;
     assert_eq!(
-        text_rows(draw_app(&mut app, 121, 15).backend().buffer()),
+        text_rows(draw_app(&mut app, 121, 16).backend().buffer()),
         [
+            "   1 月曆   2 大月曆 ┃ 3 任務",
             "╭──────────────────────╮╭───────────────────────────────────────────────────────────────────────────────────────────────╮",
             "│ 日曆                 ││ 任務                                                                                 1 處寫錯 │",
             "│──────────────────────││───────────────────────────────────────────────────────────────────────────────────────────────│",
@@ -3388,21 +3421,21 @@ fn tasks_page_with_the_side_menu() {
 
 #[test]
 fn a_long_title_wraps_in_the_day_popup() {
-    // 60 × 20, layout 2: the long title makes the popup as wide as it gets, the month grid less 2 cells on
+    // 60 × 21, layout 2: the long title makes the popup as wide as it gets, the month grid less 2 cells on
     // each side (56, x 2; too wide for blank cells left and right inside); inside the border 54 cells, a
     // single-day item has no date, just one blank cell and its check box in front, and one blank stays at
     // the end, so the title wraps at 50 cells (expected lines from the Python `wrap` in
     // tools/expected_screen.py), the second line under the title (not under the box, so it does not look
-    // like the next item); 3 lines + border + a blank row above and below = 7 tall → y 6, the lines at
-    // y 8-10
+    // like the next item); 3 lines + border + a blank row above and below = 7 tall → y 7, the lines at
+    // y 9-11
     let text = "- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n- [ ] Pack @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.focus = Focus::Day;
-    app.screen = Rect::new(0, 0, 60, 20);
-    let terminal = draw_app(&mut app, 60, 20);
+    app.screen = Rect::new(0, 0, 60, 21);
+    let terminal = draw_app(&mut app, 60, 21);
     let buffer = terminal.backend().buffer();
-    assert_eq!(day_area(&app), Rect::new(2, 6, 56, 7));
-    let rows: Vec<String> = area_rows(buffer, Rect::new(3, 8, 54, 3))
+    assert_eq!(day_area(&app), Rect::new(2, 7, 56, 7));
+    let rows: Vec<String> = area_rows(buffer, Rect::new(3, 9, 54, 3))
         .iter()
         .map(|row| row.trim_end().to_string())
         .collect();
@@ -3416,28 +3449,28 @@ fn a_long_title_wraps_in_the_day_popup() {
     );
     // The chosen (first) item: both lines have the selection background from border to border
     let theme = Theme::default();
-    assert_eq!(buffer[(3, 9)].bg, theme.selection);
-    assert_eq!(buffer[(56, 9)].bg, theme.selection);
-    assert_eq!(buffer[(3, 10)].bg, Color::Reset);
+    assert_eq!(buffer[(3, 10)].bg, theme.selection);
+    assert_eq!(buffer[(56, 10)].bg, theme.selection);
+    assert_eq!(buffer[(3, 11)].bg, Color::Reset);
     // The 2 cells left of the box: a blank ring cell, then the month grid's own left border
-    assert_eq!(buffer[(1, 9)].symbol(), " ");
-    assert_eq!(buffer[(0, 9)].symbol(), "│");
+    assert_eq!(buffer[(1, 10)].symbol(), " ");
+    assert_eq!(buffer[(0, 10)].symbol(), "│");
     // A click on the wrapped line is the first item; on the next line, the second
-    assert_eq!(day_item_at(&app, 20, 9), Some(0));
-    assert_eq!(day_item_at(&app, 20, 10), Some(1));
-    // Too short (60 × 8, month grid 7 rows: 5 lines inside the border, no blank rows): 4 short items and
+    assert_eq!(day_item_at(&app, 20, 10), Some(0));
+    assert_eq!(day_item_at(&app, 20, 11), Some(1));
+    // Too short (60 × 9, month grid 7 rows: 5 lines inside the border, no blank rows): 4 short items and
     // the long one last take 6 lines; choosing the long one scrolls one line so both its lines show
     let text = "- [ ] a @2026-10-17\n- [ ] b @2026-10-17\n- [ ] c @2026-10-17\n- [ ] d @2026-10-17\n- [ ] A really long title that just keeps going and going and going past the edge of the box @2026-10-17\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
     app.focus = Focus::Day;
     app.day_index = 4;
-    let terminal = draw_app(&mut app, 60, 8);
+    let terminal = draw_app(&mut app, 60, 9);
     let rows = text_rows(terminal.backend().buffer());
     assert!(
-        rows[5].contains("│   going and going past the edge of the box "),
+        rows[6].contains("│   going and going past the edge of the box "),
         "{rows:#?}"
     );
-    assert!(rows[1].contains("│ ☐\u{a0}b "), "{rows:#?}");
+    assert!(rows[2].contains("│ ☐\u{a0}b "), "{rows:#?}");
 }
 
 #[test]
@@ -3505,21 +3538,21 @@ fn dragging_over_a_wrapped_title_in_the_day_popup_marks_its_characters() {
 
 #[test]
 fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
-    // 60 × 20, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19);
+    // 60 × 21, layout 2, 10/17 has 4 items: the popup is centered on the month grid (60 × 19 from y 1);
     // there is room, so a blank row above and below the items and a blank cell left and right:
     // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32, but the top border needs more: the
     // date 18 + 「 未完成 1 / 已完成 1 」 21 + one line cell + 2 corners = 42 wide, 4 + 2 + 2 = 8 rows tall
-    // → x 9, y 5; the top border shows the date, one item per row (like layout 1's agenda, but each item
+    // → x 9, y 6; the top border shows the date, one item per row (like layout 1's agenda, but each item
     // starts with its check box, ☑ once done, or `∙` for an event, and only the multi-day item writes its
     // dates), the first item is chosen; the bottom row switches to the popup's keys
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), text);
     app.focus = Focus::Day;
-    let terminal = draw_app(&mut app, 60, 20);
+    let terminal = draw_app(&mut app, 60, 21);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(9, 5, 42, 8)),
+        area_rows(buffer, Rect::new(9, 6, 42, 8)),
         [
             "╭ 2026/10/17（六） ─ 未完成 1 / 已完成 1 ╮",
             "│                                        │",
@@ -3534,57 +3567,57 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // The bottom border's right end: the switch for grouping by calendar (on by default). The key hints
     // are 77 cells, so at 60 cells wide 「c 分組 | Esc 關閉」 is cut
     assert_eq!(
-        text_rows(buffer)[19],
+        text_rows(buffer)[20],
         " jk 移動 | Space 打勾 | e 編輯 | a 新增 | r 改期 | d 刪除 |"
     );
-    // The border has the color of where the keyboard is; the chosen row (y 7) has the selection
+    // The border has the color of where the keyboard is; the chosen row (y 8) has the selection
     // background from border to border (x 10-49, the padding cells too), the others none; its dates are
     // in the line's color, like the title; its `∙` (x 12) is colored like a time: muted
     let theme = Theme::default();
-    assert_eq!(buffer[(9, 5)].fg, theme.focus);
-    assert_eq!(buffer[(12, 7)].symbol(), "∙");
-    assert_eq!(buffer[(12, 7)].fg, theme.muted);
-    assert_eq!(buffer[(14, 7)].fg, theme.text);
-    assert_eq!(buffer[(10, 7)].bg, theme.selection);
-    assert_eq!(buffer[(49, 7)].bg, theme.selection);
-    assert_eq!(buffer[(50, 7)].bg, Color::Reset);
-    assert_eq!(buffer[(11, 8)].bg, Color::Reset);
-    // Too short (60 × 6, month grid 5 rows): no rows of padding (the cells left and right stay), the
+    assert_eq!(buffer[(9, 6)].fg, theme.focus);
+    assert_eq!(buffer[(12, 8)].symbol(), "∙");
+    assert_eq!(buffer[(12, 8)].fg, theme.muted);
+    assert_eq!(buffer[(14, 8)].fg, theme.text);
+    assert_eq!(buffer[(10, 8)].bg, theme.selection);
+    assert_eq!(buffer[(49, 8)].bg, theme.selection);
+    assert_eq!(buffer[(50, 8)].bg, Color::Reset);
+    assert_eq!(buffer[(11, 9)].bg, Color::Reset);
+    // Too short (60 × 7, month grid 5 rows): no rows of padding (the cells left and right stay), the
     // box holds 3 items, and choosing the last one scrolls down one item; a scrollbar on the right
     // border
     app.day_index = 3;
-    let terminal = draw_app(&mut app, 60, 6);
+    let terminal = draw_app(&mut app, 60, 7);
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        area_rows(buffer, Rect::new(9, 1, 41, 3)),
+        area_rows(buffer, Rect::new(9, 2, 41, 3)),
         [
             "│  ☑\u{a0}Clean the garage                    ",
             "│  ∙ 10:00 Farmers market                ",
             "│  ☐\u{a0}17:30 Buy groceries                 ",
         ]
     );
-    assert!((1..4).any(|y| buffer[(50, y)].symbol() == "┃"));
+    assert!((2..5).any(|y| buffer[(50, y)].symbol() == "┃"));
     // Click the top row (Clean the garage): it gets chosen, the scroll stays; clicking the same spot
     // again right away (a double click) is still it (no task file, so checking it off writes nothing)
-    app.screen = Rect::new(0, 0, 60, 6);
+    app.screen = Rect::new(0, 0, 60, 7);
     let click = |app: &mut App| {
         use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
         app.handle_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: 12,
-            row: 1,
+            row: 2,
             modifiers: KeyModifiers::NONE,
         });
     };
     click(&mut app);
     assert_eq!(app.day_index, 1);
-    let terminal = draw_app(&mut app, 60, 6);
+    let terminal = draw_app(&mut app, 60, 7);
     assert_eq!(
-        area_rows(terminal.backend().buffer(), Rect::new(9, 1, 41, 1)),
+        area_rows(terminal.backend().buffer(), Rect::new(9, 2, 41, 1)),
         ["│  ☑\u{a0}Clean the garage                    "]
     );
     assert_eq!(
-        terminal.backend().buffer()[(10, 1)].bg,
+        terminal.backend().buffer()[(10, 2)].bg,
         Theme::default().selection
     );
     click(&mut app);
@@ -3593,16 +3626,17 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
 
 #[test]
 fn month_view_scrolls_a_row_at_a_time() {
-    // 80 × 16: 1 line per week. Right after opening the top week is the one with 10/1 (9/28-10/4);
+    // 80 × 17: 1 line per week. Right after opening the top week is the one with 10/1 (9/28-10/4);
     // selecting 11/16 → its week is two weeks below the last one (11/2-8), so the grid scrolls down two
     // weeks and the top becomes 10/12
     let mut app = month_app(Lang::En, date(2026, 10, 17), "");
-    draw_app(&mut app, 80, 16);
+    draw_app(&mut app, 80, 17);
     assert_eq!(app.month_top, Some(date(2026, 9, 28)));
     app.selected = date(2026, 11, 16);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 calendar ┃ 2 month   3 tasks",
             "╭────────────────────────────── Mon Nov 16, 2026 ──────────────────────────────╮",
             "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -3627,8 +3661,9 @@ fn month_view_scrolls_a_row_at_a_time() {
     app.lang = Lang::ZhTw;
     app.selected = date(2026, 9, 20);
     assert_eq!(
-        text_rows(draw_app(&mut app, 80, 16).backend().buffer()),
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭────────────────────────────── 2026/9/20（日） ───────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -3650,197 +3685,198 @@ fn month_view_scrolls_a_row_at_a_time() {
     assert_eq!(app.month_top, Some(date(2026, 9, 14)));
     // Moving within the 6 weeks (10/18 is in the last one, 10/12-18): no scrolling
     app.selected = date(2026, 10, 18);
-    draw_app(&mut app, 80, 16);
+    draw_app(&mut app, 80, 17);
     assert_eq!(app.month_top, Some(date(2026, 9, 14)));
 }
 
 #[test]
 fn month_view_click_positions_map_to_the_cells() {
-    // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7-16, Tue x 18-27,
-    // Thu x 40-48, Sat x 60-68, Sun x 70-78; weeks at y 3-5, 7-9, …, 23-25. The top week is 9/28-10/4,
-    // the 6th 11/2-8; the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27)
+    // 80 × 31 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7-16, Tue x 18-27,
+    // Thu x 40-48, Sat x 60-68, Sun x 70-78; weeks at y 4-6, 8-10, …, 24-26. The top week is 9/28-10/4,
+    // the 6th 11/2-8; the 3 rows left over show the line (y 27) and the first row of 11/9-15 (y 28)
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 17), "");
-    app.screen = Rect::new(0, 0, 80, 30);
-    draw_app(&mut app, 80, 30);
+    app.screen = Rect::new(0, 0, 80, 31);
+    draw_app(&mut app, 80, 31);
     // Any cell in a day's box counts as that day (not just the date on the first line); a week holding
     // two months has a day in every cell
-    assert_eq!(date_at(&app, 7, 3), Some(date(2026, 9, 28)));
-    assert_eq!(date_at(&app, 16, 5), Some(date(2026, 9, 28)));
-    assert_eq!(date_at(&app, 40, 3), Some(date(2026, 10, 1)));
-    assert_eq!(date_at(&app, 68, 25), Some(date(2026, 11, 7)));
-    assert_eq!(date_at(&app, 78, 25), Some(date(2026, 11, 8)));
+    assert_eq!(date_at(&app, 7, 4), Some(date(2026, 9, 28)));
+    assert_eq!(date_at(&app, 16, 6), Some(date(2026, 9, 28)));
+    assert_eq!(date_at(&app, 40, 4), Some(date(2026, 10, 1)));
+    assert_eq!(date_at(&app, 68, 26), Some(date(2026, 11, 7)));
+    assert_eq!(date_at(&app, 78, 26), Some(date(2026, 11, 8)));
     // The cut-off 7th week can be clicked too
-    assert_eq!(date_at(&app, 10, 27), Some(date(2026, 11, 9)));
+    assert_eq!(date_at(&app, 10, 28), Some(date(2026, 11, 9)));
     // No date: vertical lines, horizontal lines, the week-number column, the header, the bottom border,
     // the left border, the key hints
     for (x, y) in [
-        (17, 3),
-        (10, 6),
-        (10, 26),
-        (3, 3),
-        (10, 1),
-        (10, 28),
-        (0, 3),
+        (17, 4),
+        (10, 7),
+        (10, 27),
+        (3, 4),
+        (10, 2),
         (10, 29),
+        (0, 4),
+        (10, 30),
     ] {
         assert_eq!(date_at(&app, x, y), None, "({x}, {y})");
     }
-    // 80 × 29: only 1 row left over, no room for the next week: that row counts as the 6th week
-    app.screen = Rect::new(0, 0, 80, 29);
-    draw_app(&mut app, 80, 29);
-    assert_eq!(date_at(&app, 10, 26), Some(date(2026, 11, 2)));
+    // 80 × 30: only 1 row left over, no room for the next week: that row counts as the 6th week
+    app.screen = Rect::new(0, 0, 80, 30);
+    draw_app(&mut app, 80, 30);
+    assert_eq!(date_at(&app, 10, 27), Some(date(2026, 11, 2)));
 }
 
 #[test]
 fn t_in_the_month_view_draws_todays_week_on_row_2() {
-    // 80 × 30: the weeks start at y 3, 7, 11 (3 rows each + a grid line). Today is 10/17 (week 42);
+    // 80 × 31: the weeks start at y 4, 8, 12 (3 rows each + a grid line). Today is 10/17 (week 42);
     // from far away, `t` draws week 41 on top and week 42 below it
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
     let mut app = month_app(Lang::En, date(2027, 3, 1), "");
     app.month_top = Some(date(2027, 2, 22));
     app.handle_key(KeyEvent::from(KeyCode::Char('t')));
-    let rows = text_rows(draw_app(&mut app, 80, 30).backend().buffer());
-    assert!(rows[3].starts_with("│  41 │ 5 "), "{}", rows[3]);
-    assert!(rows[7].starts_with("│  42 │ 12 "), "{}", rows[7]);
+    let rows = text_rows(draw_app(&mut app, 80, 31).backend().buffer());
+    assert!(rows[4].starts_with("│  41 │ 5 "), "{}", rows[4]);
+    assert!(rows[8].starts_with("│  42 │ 12 "), "{}", rows[8]);
     // With `[month] center_cursor = true` it stays on row 3 as usual
     app.settings.month.center_cursor = true;
     app.selected = date(2027, 3, 1);
     app.handle_key(KeyEvent::from(KeyCode::Char('t')));
-    let rows = text_rows(draw_app(&mut app, 80, 30).backend().buffer());
-    assert!(rows[11].starts_with("│  42 │ 12 "), "{}", rows[11]);
+    let rows = text_rows(draw_app(&mut app, 80, 31).backend().buffer());
+    assert!(rows[12].starts_with("│  42 │ 12 "), "{}", rows[12]);
 }
 
 #[test]
 fn switching_to_the_month_view_draws_the_selected_week_on_row_2() {
-    // 80 × 30, from layout 1 with Thu 12/24 selected: its week (12/21, week 52) on row 2 (y 7), the week
-    // before (12/14, week 51) on top (y 3), not the week of 12/1
+    // 80 × 31, from layout 1 with Thu 12/24 selected: its week (12/21, week 52) on row 2 (y 8), the week
+    // before (12/14, week 51) on top (y 4), not the week of 12/1
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.selected = date(2026, 12, 24);
     app.handle_key(KeyEvent::from(KeyCode::Char('2')));
-    let rows = text_rows(draw_app(&mut app, 80, 30).backend().buffer());
-    assert!(rows[3].starts_with("│  51 │ 14 "), "{}", rows[3]);
-    assert!(rows[7].starts_with("│  52 │ 21 "), "{}", rows[7]);
+    let rows = text_rows(draw_app(&mut app, 80, 31).backend().buffer());
+    assert!(rows[4].starts_with("│  51 │ 14 "), "{}", rows[4]);
+    assert!(rows[8].starts_with("│  52 │ 21 "), "{}", rows[8]);
 }
 
 #[test]
 fn a_long_title_does_not_borrow_into_the_next_month() {
     // 10/31 (Sat) has a long title and 11/1 (Sun) next to it is empty: the title stops at the grid
-    // line between them (x 69) instead of running into November. 80 × 30: the week of 10/26 is at y 19
+    // line between them (x 69) instead of running into November. 80 × 31: the week of 10/26 is at y 20
     let mut app = month_app(
         Lang::En,
         date(2026, 10, 17),
         "- [ ] Return the rental car keys @2026-10-31\n",
     );
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
-    let text: String = (60..79).map(|x| buffer[(x, 20)].symbol()).collect();
+    let text: String = (60..79).map(|x| buffer[(x, 21)].symbol()).collect();
     assert_eq!(text, " Return t│         ");
 }
 
 #[test]
 fn the_selected_days_background_follows_its_long_title() {
-    // 80 × 30: 10/20 (Tue) is x 18-27, y 15-17; its long title (37 cells, x 18-54) borrows the empty
+    // 80 × 31: 10/20 (Tue) is x 18-27, y 16-18; its long title (37 cells, x 18-54) borrows the empty
     // days up to Sunday. Selected, the background follows the title into them, up to one cell past it
     // (x 55), over the grid line it covers (x 28); the rest of those cells stays plain
     let mut app = month_app(Lang::En, date(2026, 10, 20), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
     let theme = &app.theme;
     let bg = |x: u16, y: u16| buffer[(x, y)].bg;
-    for (x, y) in [(18, 15), (27, 17), (28, 16), (40, 16), (54, 16), (55, 16)] {
+    for (x, y) in [(18, 16), (27, 18), (28, 17), (40, 17), (54, 17), (55, 17)] {
         assert_eq!(bg(x, y), theme.selection, "({x}, {y})");
     }
-    for (x, y) in [(56, 16), (59, 16), (78, 16), (28, 15), (29, 15), (29, 17)] {
+    for (x, y) in [(56, 17), (59, 17), (78, 17), (28, 16), (29, 16), (29, 18)] {
         assert_ne!(bg(x, y), theme.selection, "({x}, {y})");
     }
     // Another day selected (10/19): the same title has no background
     let mut app = month_app(Lang::En, date(2026, 10, 19), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(7, 16)].bg, app.theme.selection);
+    assert_eq!(buffer[(7, 17)].bg, app.theme.selection);
     for x in [28, 40, 55] {
-        assert_ne!(buffer[(x, 16)].bg, app.theme.selection, "x {x}");
+        assert_ne!(buffer[(x, 17)].bg, app.theme.selection, "x {x}");
     }
 }
 
 #[test]
 fn the_selected_day_also_borrows_an_empty_line_next_to_items() {
-    // 80 × 30: 10/17 (Sat, x 60-68) has 「 08:00 Coffee chat」 (18 cells) on its 2nd line (y 13); 10/18
-    // (Sun, x 70-78) has its own item on the 1st line (y 12), its 2nd line is empty. Selected, 10/17
+    // 80 × 31: 10/17 (Sat, x 60-68) has 「 08:00 Coffee chat」 (18 cells) on its 2nd line (y 14); 10/18
+    // (Sun, x 70-78) has its own item on the 1st line (y 13), its 2nd line is empty. Selected, 10/17
     // borrows it: the text runs to x 77, the background up to x 78, over the grid line (x 69)
     let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
     let theme = &app.theme;
-    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    let text: String = (60..79).map(|x| buffer[(x, 14)].symbol()).collect();
     assert_eq!(text, " 08:00 Coffee chat ");
     for x in [69, 77, 78] {
-        assert_eq!(buffer[(x, 13)].bg, theme.selection, "x {x}");
+        assert_eq!(buffer[(x, 14)].bg, theme.selection, "x {x}");
     }
     // 10/18's own line keeps its own (plain) background
     for x in [70, 78] {
-        assert_ne!(buffer[(x, 12)].bg, theme.selection, "x {x}");
+        assert_ne!(buffer[(x, 13)].bg, theme.selection, "x {x}");
     }
     // Not selected (10/16 is): the title stays in its cell, cut at the grid line
     let mut app = month_app(Lang::En, date(2026, 10, 16), MONTH_TASKS);
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
-    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    let text: String = (60..79).map(|x| buffer[(x, 14)].symbol()).collect();
     assert_eq!(text, " 08:00 Co│         ");
 }
 
 #[test]
 fn with_overflow_off_every_title_stays_in_its_cell() {
-    // `[month] overflow = false`, 80 × 30, 10/17 selected: 10/20's long title (x 18-27, y 16) is cut at
+    // `[month] overflow = false`, 80 × 31, 10/17 selected: 10/20's long title (x 18-27, y 17) is cut at
     // the grid line (x 28) although the days after it are empty; the selected day's 「 08:00 Coffee chat」
-    // (y 13) is cut too, with no background past its cell
+    // (y 14) is cut too, with no background past its cell
     let mut app = month_app(Lang::En, date(2026, 10, 17), MONTH_TASKS);
     app.settings.month.overflow = false;
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
-    let text: String = (18..40).map(|x| buffer[(x, 16)].symbol()).collect();
+    let text: String = (18..40).map(|x| buffer[(x, 17)].symbol()).collect();
     assert_eq!(text, " A really │          │");
-    let text: String = (60..79).map(|x| buffer[(x, 13)].symbol()).collect();
+    let text: String = (60..79).map(|x| buffer[(x, 14)].symbol()).collect();
     assert_eq!(text, " 08:00 Co│         ");
-    assert_ne!(buffer[(69, 13)].bg, app.theme.selection);
+    assert_ne!(buffer[(69, 14)].bg, app.theme.selection);
 }
 
 #[test]
 fn the_cut_off_week_at_the_bottom_stays_inside_the_box() {
-    // 80 × 30: the 3 rows left over show the line (y 26) and the first row of 11/9-15 (y 27). The bar
-    // of 11/10-12 would go on the next row, the bottom border (y 28): it is left out, the border stays
+    // 80 × 31: the 3 rows left over show the line (y 27) and the first row of 11/9-15 (y 28). The bar
+    // of 11/10-12 would go on the next row, the bottom border (y 29): it is left out, the border stays
     let mut app = month_app(
         Lang::En,
         date(2026, 10, 17),
         "- Trip @2026-11-10..2026-11-12\n",
     );
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
     assert!(
-        text_rows(buffer)[27].starts_with("│  46 │ 9        │ 10       │ 11  "),
+        text_rows(buffer)[28].starts_with("│  46 │ 9        │ 10       │ 11  "),
         "{}",
-        text_rows(buffer)[27]
+        text_rows(buffer)[28]
     );
-    let border: String = (17..50).map(|x| buffer[(x, 28)].symbol()).collect();
+    let border: String = (17..50).map(|x| buffer[(x, 29)].symbol()).collect();
     assert_eq!(
         border,
         format!("┴{}┴{}┴{}┴", "─".repeat(10), "─".repeat(10), "─".repeat(9))
     );
     let theme = Theme::default();
-    assert_ne!(buffer[(20, 28)].bg, theme.range);
+    assert_ne!(buffer[(20, 29)].bg, theme.range);
 }
 
 #[test]
 fn month_view_puts_the_week_across_the_new_year_on_one_row() {
     // 2027/1/1 (Fri) selected: the top week is 12/28-1/3, one row with days of both years; its week
     // number comes from the selected month's days (week 1 of 2027). The year's edge is a thick staircase
-    // in the year color: between 12/31 and 1/1 (x 49), then under 12/28-31 (y 6)
+    // in the year color: between 12/31 and 1/1 (x 49), then under 12/28-31 (y 7)
     let mut app = month_app(Lang::En, date(2027, 1, 1), "");
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 calendar ┃ 2 month   3 tasks",
             "╭────────────────────────────── Fri Jan 1, 2027 ───────────────────────────────╮",
             "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┰─────────┬─────────┬─────────┤",
@@ -3876,40 +3912,41 @@ fn month_view_puts_the_week_across_the_new_year_on_one_row() {
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(49, 4), ("┃", theme.year_line));
-    assert_eq!(cell(49, 2), ("┰", theme.year_line));
-    assert_eq!(cell(20, 6), ("━", theme.year_line));
-    assert_eq!(cell(3, 6), ("━", theme.year_line));
-    assert_eq!(cell(17, 6), ("┿", theme.year_line));
-    assert_eq!(cell(49, 6), ("╃", theme.year_line));
-    assert_eq!(cell(55, 6), ("─", theme.grid));
-    assert_eq!(cell(0, 6), ("┝", theme.focus));
-    assert_eq!(cell(79, 6), ("┤", theme.focus));
+    assert_eq!(cell(49, 5), ("┃", theme.year_line));
+    assert_eq!(cell(49, 3), ("┰", theme.year_line));
+    assert_eq!(cell(20, 7), ("━", theme.year_line));
+    assert_eq!(cell(3, 7), ("━", theme.year_line));
+    assert_eq!(cell(17, 7), ("┿", theme.year_line));
+    assert_eq!(cell(49, 7), ("╃", theme.year_line));
+    assert_eq!(cell(55, 7), ("─", theme.grid));
+    assert_eq!(cell(0, 7), ("┝", theme.focus));
+    assert_eq!(cell(79, 7), ("┤", theme.focus));
     // The week with 1/1: the month and the year under its week number, in the label color
-    assert_eq!(cell(2, 4), ("J", theme.label));
-    assert_eq!(cell(2, 5), ("2", theme.label));
-    // February starts on a Monday: the line above 2/1 (y 22) is straight, all in the border color
-    assert_eq!(cell(20, 22), ("─", theme.line));
-    assert_eq!(cell(75, 22), ("─", theme.line));
-    assert_eq!(cell(49, 22), ("┼", theme.line));
-    assert_eq!(cell(49, 24), ("│", theme.grid));
+    assert_eq!(cell(2, 5), ("J", theme.label));
+    assert_eq!(cell(2, 6), ("2", theme.label));
+    // February starts on a Monday: the line above 2/1 (y 23) is straight, all in the border color
+    assert_eq!(cell(20, 23), ("─", theme.line));
+    assert_eq!(cell(75, 23), ("─", theme.line));
+    assert_eq!(cell(49, 23), ("┼", theme.line));
+    assert_eq!(cell(49, 25), ("│", theme.grid));
     // Selecting 12/31 in the same week: the row stays, and its week number is week 53 of 2026
     app.selected = date(2026, 12, 31);
-    let row = text_rows(draw_app(&mut app, 80, 30).backend().buffer())[3].clone();
+    let row = text_rows(draw_app(&mut app, 80, 31).backend().buffer())[4].clone();
     assert!(row.starts_with("│  53 │ 28 "), "{row}");
 }
 
 #[test]
 fn month_view_without_grid_lines_draws_only_the_months_edges() {
-    // 80 × 24 without grid lines, 2027/1/1 selected: no grid, only where a month ends: the year's edge
+    // 80 × 25 without grid lines, 2027/1/1 selected: no grid, only where a month ends: the year's edge
     // thick (between 12/31 and 1/1 in the first column of 1/1's cell, x 49; under 12/28-31 on its own
-    // row, y 5), February's straight (2/1 is a Monday; y 18); rows are 3 tall (21 − header 1 − 2 = 18)
+    // row, y 6), February's straight (2/1 is a Monday; y 19); rows are 3 tall (21 − header 1 − 2 = 18)
     let mut app = month_app(Lang::ZhTw, date(2027, 1, 1), "");
     app.settings.month.grid_lines = false;
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
+            "   1 月曆 ┃ 2 大月曆   3 任務",
             "╭─────────────────────────────── 2027/1/1（五） ───────────────────────────────╮",
             "│  週  一         二         三         四        五        六        日       │",
             "│   1  28         29         30         31       ┃1 1月     2         3        │",
@@ -3939,31 +3976,31 @@ fn month_view_without_grid_lines_draws_only_the_months_edges() {
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(49, 3), ("┃", theme.year_line));
-    assert_eq!(cell(49, 5), ("┛", theme.year_line));
-    assert_eq!(cell(20, 5), ("━", theme.year_line));
-    assert_eq!(cell(3, 5), ("━", theme.year_line));
-    assert_eq!(cell(0, 5), ("┝", theme.focus));
-    assert_eq!(cell(60, 5).0, " ");
-    assert_eq!(cell(79, 5).0, "│");
-    assert_eq!(cell(20, 18), ("─", theme.line));
-    assert_eq!(cell(0, 18), ("├", theme.focus));
-    assert_eq!(cell(79, 18), ("┤", theme.focus));
+    assert_eq!(cell(49, 4), ("┃", theme.year_line));
+    assert_eq!(cell(49, 6), ("┛", theme.year_line));
+    assert_eq!(cell(20, 6), ("━", theme.year_line));
+    assert_eq!(cell(3, 6), ("━", theme.year_line));
+    assert_eq!(cell(0, 6), ("┝", theme.focus));
+    assert_eq!(cell(60, 6).0, " ");
+    assert_eq!(cell(79, 6).0, "│");
+    assert_eq!(cell(20, 19), ("─", theme.line));
+    assert_eq!(cell(0, 19), ("├", theme.focus));
+    assert_eq!(cell(79, 19), ("┤", theme.focus));
     // Between other weeks there is no line: the week of 1/11 comes right after the week of 1/4
-    assert_eq!(cell(20, 8).0, " ");
+    assert_eq!(cell(20, 9).0, " ");
 }
 
 #[test]
 fn month_view_colors_by_role() {
-    // 80 × 30 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7, Tue x 18,
-    // Wed x 29, Thu x 40, Fri x 50, Sat x 60, Sun x 70; weeks 1-6 at y 3, 7, 11, 15, 19, 23. 10/16 (Fri)
+    // 80 × 31 (screen: see `month_view_fills_the_space_with_six_equal_weeks`): Mon x 7, Tue x 18,
+    // Wed x 29, Thu x 40, Fri x 50, Sat x 60, Sun x 70; weeks 1-6 at y 4, 8, 12, 16, 20, 24. 10/16 (Fri)
     // selected, 10/15 (Thu) has an unfinished item
     let mut app = month_app(
         Lang::ZhTw,
         date(2026, 10, 16),
         "- [ ] Send the weekly update @2026-10-15\n",
     );
-    let terminal = draw_app(&mut app, 80, 30);
+    let terminal = draw_app(&mut app, 80, 31);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     // The (x, y) cell: symbol, foreground color, whether it is bold
@@ -3977,74 +4014,74 @@ fn month_view_colors_by_role() {
     };
     // The selected day has no brackets; the date has that day's color (normal on a weekday), and dates
     // in the selected month are bold
-    assert_eq!(cell(50, 11).0, " ");
-    assert_eq!(cell(52, 11), ("6", theme.text, true));
-    assert_eq!(cell(53, 11).0, " ");
-    // Its whole cell (x 50-58, y 11-13) has the cursor-line background, from the top-left to the
+    assert_eq!(cell(50, 12).0, " ");
+    assert_eq!(cell(52, 12), ("6", theme.text, true));
+    assert_eq!(cell(53, 12).0, " ");
+    // Its whole cell (x 50-58, y 12-14) has the cursor-line background, from the top-left to the
     // bottom-right; the grid lines around it and the neighbor cells do not
     let bg = |x: u16, y: u16| buffer[(x, y)].bg;
-    for (x, y) in [(50, 11), (58, 11), (50, 13), (58, 13), (54, 12)] {
+    for (x, y) in [(50, 12), (58, 12), (50, 14), (58, 14), (54, 13)] {
         assert_eq!(bg(x, y), theme.selection, "({x}, {y})");
     }
-    for (x, y) in [(49, 11), (59, 11), (50, 10), (50, 14), (48, 11), (60, 11)] {
+    for (x, y) in [(49, 12), (59, 12), (50, 11), (50, 15), (48, 12), (60, 12)] {
         assert_ne!(bg(x, y), theme.selection, "({x}, {y})");
     }
     // 10/15's long title does not borrow into the selected cell: it stops at the grid line
-    assert_eq!(cell(41, 12).0, "S");
-    assert_eq!(cell(50, 12).0, " ");
+    assert_eq!(cell(41, 13).0, "S");
+    assert_eq!(cell(50, 13).0, " ");
     // Today green, weekends blue, other days normal (10/15 has an unfinished item: no different)
-    assert_eq!(cell(62, 11), ("7", theme.today, true));
-    assert_eq!(cell(42, 11), ("5", theme.text, true));
-    assert_eq!(cell(72, 11), ("8", theme.weekend, true));
+    assert_eq!(cell(62, 12), ("7", theme.today, true));
+    assert_eq!(cell(42, 12), ("5", theme.text, true));
+    assert_eq!(cell(72, 12), ("8", theme.weekend, true));
     // Dates in other months: not grayed out (the day's color, 9/28 a Monday: normal), only not bold;
     // 10/1's month (same row) is in the label color
-    assert_eq!(cell(9, 3), ("8", theme.text, false));
-    assert_eq!(cell(43, 3), ("1", theme.label, false));
+    assert_eq!(cell(9, 4), ("8", theme.text, false));
+    assert_eq!(cell(43, 4), ("1", theme.label, false));
     // Week numbers: the selected row (week 42) bright, other rows (week 40) dim
-    assert_eq!(cell(3, 11), ("4", theme.week_number, false));
-    assert_eq!(cell(3, 3), ("4", theme.week_number_dim, false));
+    assert_eq!(cell(3, 12), ("4", theme.week_number, false));
+    assert_eq!(cell(3, 4), ("4", theme.week_number_dim, false));
     // Header: weekdays in the normal text color, Sat and Sun in the weekend color
-    assert_eq!(cell(8, 1), ("一", theme.text, false));
-    assert_eq!(cell(61, 1), ("六", theme.weekend, false));
+    assert_eq!(cell(8, 2), ("一", theme.text, false));
+    assert_eq!(cell(61, 2), ("六", theme.weekend, false));
     // Grid lines are faint within a month; the joints where they meet the outer border
     // have the border's color (keyboard in the calendar: focus color)
-    assert_eq!(cell(6, 2), ("┬", theme.grid, false));
-    assert_eq!(cell(6, 3), ("│", theme.grid, false));
-    assert_eq!(cell(6, 10), ("┼", theme.grid, false));
-    assert_eq!(cell(45, 6), ("─", theme.grid, false));
+    assert_eq!(cell(6, 3), ("┬", theme.grid, false));
+    assert_eq!(cell(6, 4), ("│", theme.grid, false));
+    assert_eq!(cell(6, 11), ("┼", theme.grid, false));
+    assert_eq!(cell(45, 7), ("─", theme.grid, false));
     // Where September ends, a staircase in the border color, like layout 1's month lines: the
     // vertical stretch between 9/30 (Wed) and 10/1 (Thu) at x 39, then the line under 9/28-30 and the
-    // week-number column (y 6); its crossings take that color too
-    assert_eq!(cell(39, 4), ("│", theme.line, false));
-    assert_eq!(cell(39, 2), ("┬", theme.line, false));
-    assert_eq!(cell(39, 6), ("┼", theme.line, false));
-    assert_eq!(cell(6, 6), ("┼", theme.line, false));
-    assert_eq!(cell(10, 6), ("─", theme.line, false));
-    assert_eq!(cell(3, 6), ("─", theme.line, false));
-    assert_eq!(cell(49, 6), ("┼", theme.grid, false));
-    // Where October ends (11/1 is a Sunday): the line above 11/1 (y 18, x 70-78), the vertical stretch
-    // between 10/31 and 11/1 (x 69, y 19-21), the line under 10/26-31 (y 22)
-    assert_eq!(cell(74, 18), ("─", theme.line, false));
-    assert_eq!(cell(65, 18), ("─", theme.grid, false));
-    assert_eq!(cell(69, 20), ("│", theme.line, false));
-    assert_eq!(cell(65, 22), ("─", theme.line, false));
-    assert_eq!(cell(74, 22), ("─", theme.grid, false));
-    // The rows left over under the 6th week: the line before the next week (y 26) and that week cut
+    // week-number column (y 7); its crossings take that color too
+    assert_eq!(cell(39, 5), ("│", theme.line, false));
+    assert_eq!(cell(39, 3), ("┬", theme.line, false));
+    assert_eq!(cell(39, 7), ("┼", theme.line, false));
+    assert_eq!(cell(6, 7), ("┼", theme.line, false));
+    assert_eq!(cell(10, 7), ("─", theme.line, false));
+    assert_eq!(cell(3, 7), ("─", theme.line, false));
+    assert_eq!(cell(49, 7), ("┼", theme.grid, false));
+    // Where October ends (11/1 is a Sunday): the line above 11/1 (y 19, x 70-78), the vertical stretch
+    // between 10/31 and 11/1 (x 69, y 20-22), the line under 10/26-31 (y 23)
+    assert_eq!(cell(74, 19), ("─", theme.line, false));
+    assert_eq!(cell(65, 19), ("─", theme.grid, false));
+    assert_eq!(cell(69, 21), ("│", theme.line, false));
+    assert_eq!(cell(65, 23), ("─", theme.line, false));
+    assert_eq!(cell(74, 23), ("─", theme.grid, false));
+    // The rows left over under the 6th week: the line before the next week (y 27) and that week cut
     // off; the vertical lines reach the bottom border, which joins them as ┴ (in the border color)
-    assert_eq!(cell(6, 26), ("┼", theme.grid, false));
-    assert_eq!(cell(6, 27), ("│", theme.grid, false));
-    assert_eq!(cell(6, 28), ("┴", theme.focus, false));
-    assert_eq!(cell(0, 6), ("├", theme.focus, false));
-    assert_eq!(cell(79, 6), ("┤", theme.focus, false));
+    assert_eq!(cell(6, 27), ("┼", theme.grid, false));
+    assert_eq!(cell(6, 28), ("│", theme.grid, false));
+    assert_eq!(cell(6, 29), ("┴", theme.focus, false));
+    assert_eq!(cell(0, 7), ("├", theme.focus, false));
+    assert_eq!(cell(79, 7), ("┤", theme.focus, false));
     // The date in the middle of the top border is in the normal color: 18 cells wide in a 78-cell
     // border → starts at 1 + (78 - 18) / 2 = 31, so its 「2」 is at x 32
-    assert_eq!(cell(32, 0), ("2", theme.text, false));
+    assert_eq!(cell(32, 1), ("2", theme.text, false));
 }
 
 #[test]
 fn selected_day_is_bold_in_its_own_color() {
     // Select 10/16 (Fri): the number is in the normal color and bold; today 10/17 keeps today's color
-    let terminal = draw(Lang::ZhTw, 47, 26, date(2026, 10, 16));
+    let terminal = draw(Lang::ZhTw, 47, 27, date(2026, 10, 16));
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let cell = |x: u16, y: u16| {
@@ -4055,15 +4092,15 @@ fn selected_day_is_bold_in_its_own_color() {
             cell.modifier.contains(Modifier::BOLD),
         )
     };
-    assert_eq!(cell(28, 5), ("[", theme.selected, true));
-    assert_eq!(cell(30, 5), ("6", theme.text, true));
-    assert_eq!(cell(31, 5), ("]", theme.selected, true));
-    assert_eq!(cell(34, 5), ("7", theme.today, true));
+    assert_eq!(cell(28, 6), ("[", theme.selected, true));
+    assert_eq!(cell(30, 6), ("6", theme.text, true));
+    assert_eq!(cell(31, 6), ("]", theme.selected, true));
+    assert_eq!(cell(34, 6), ("7", theme.today, true));
 }
 
 #[test]
 fn dots_right_of_each_date_count_its_items() {
-    // The week of 10/12 at y 5; day k's dots cell is at x 12 + 4k + 3 (border, year/month, week number, │,
+    // The week of 10/12 at y 6; day k's dots cell is at x 12 + 4k + 3 (border, year/month, week number, │,
     // then a blank and the date before it): 10/13 has 2 items (one in Errands), 10/14 2, 10/15 3 (one done),
     // 10/16 5 (Trip and 4 more: still 4 dots), 10/17 and 10/18 only Trip (a multi-day item counts on every
     // day it covers); 10/12 none
@@ -4078,10 +4115,10 @@ fn dots_right_of_each_date_count_its_items() {
     );
     let theme = Theme::default();
     let cells = |app: &mut App| {
-        let terminal = draw_app(app, 47, 26);
+        let terminal = draw_app(app, 47, 27);
         let buffer = terminal.backend().buffer();
         [15, 19, 23, 27, 31, 35, 39]
-            .map(|x| (buffer[(x, 5)].symbol().to_string(), buffer[(x, 5)].fg))
+            .map(|x| (buffer[(x, 6)].symbol().to_string(), buffer[(x, 6)].fg))
     };
     let dot = |symbol: &str| (symbol.to_string(), theme.muted);
     // 10/17 is selected and has a dot: its `]` comes after the dot (x 36)
@@ -4097,8 +4134,8 @@ fn dots_right_of_each_date_count_its_items() {
             dot("⠂")
         ]
     );
-    let terminal = draw_app(&mut app, 47, 26);
-    assert_eq!(terminal.backend().buffer()[(36, 5)].symbol(), "]");
+    let terminal = draw_app(&mut app, 47, 27);
+    assert_eq!(terminal.backend().buffer()[(36, 6)].symbol(), "]");
     // An unchecked calendar's items are not counted (10/13 loses Shop), nor are done tasks hidden by
     // 「Hide done」 (10/15 loses Pay)
     let errands = app
@@ -4124,7 +4161,7 @@ fn dots_right_of_each_date_count_its_items() {
 
 #[test]
 fn dots_take_the_color_of_the_days_most_urgent_open_item() {
-    // The week of 10/12 at y 5 (day k's dots at x 12 + 4k + 3), today 10/17: 10/12 a plain task (muted),
+    // The week of 10/12 at y 6 (day k's dots at x 12 + 4k + 3), today 10/17: 10/12 a plain task (muted),
     // 10/13 `!!!` among `!` and none (red), 10/14 `!!` and `!` (orange), 10/15 a done `!!!` and an open `!`
     // (yellow: done tasks do not count), 10/16 a done `!!!` and a past `!!!` event (muted), 10/17 a holiday
     // (blue), 10/18 a holiday and a `!` (yellow: a priority beats the holiday)
@@ -4139,10 +4176,10 @@ fn dots_take_the_color_of_the_days_most_urgent_open_item() {
         crate::tasks::parse(text).items,
     );
     let theme = Theme::default();
-    let terminal = draw_app(&mut app, 47, 26);
+    let terminal = draw_app(&mut app, 47, 27);
     let buffer = terminal.backend().buffer();
     let cells = [15, 19, 23, 27, 31, 35, 39]
-        .map(|x| (buffer[(x, 5)].symbol().to_string(), buffer[(x, 5)].fg));
+        .map(|x| (buffer[(x, 6)].symbol().to_string(), buffer[(x, 6)].fg));
     let dot = |symbol: &str, color| (symbol.to_string(), color);
     assert_eq!(
         cells,
@@ -4161,63 +4198,63 @@ fn dots_take_the_color_of_the_days_most_urgent_open_item() {
 #[test]
 fn a_multi_day_items_underline_runs_on_between_its_days() {
     // A (10/13-14), B (10/15-16) right after it, Trip (10/17-20) into the next week. Day k's date is at
-    // x 12 + 4k + 1..2 and the cell after it (its dots) at 12 + 4k + 3; the week of 10/12 at y 5, of 10/19
-    // at y 6
+    // x 12 + 4k + 1..2 and the cell after it (its dots) at 12 + 4k + 3; the week of 10/12 at y 6, of 10/19
+    // at y 7
     let text = "- A @2026-10-13..2026-10-14\n- B @2026-10-15..2026-10-16\n- Trip @2026-10-17..2026-10-20\n";
     let mut app = App::new(
         Lang::En,
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    let terminal = draw_app(&mut app, 47, 26);
+    let terminal = draw_app(&mut app, 47, 27);
     let buffer = terminal.backend().buffer();
     let underlined = |x: u16, y: u16| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED);
     // Between the days of one item: 13-14 (A), 15-16 (B), 17-18 (Trip: 17's dot, then the `]` in 18's
     // blank), 19-20 (Trip, next week)
     for (x, y) in [
-        (19, 5),
-        (20, 5),
-        (27, 5),
-        (28, 5),
-        (35, 5),
-        (36, 5),
-        (15, 6),
-        (16, 6),
+        (19, 6),
+        (20, 6),
+        (27, 6),
+        (28, 6),
+        (35, 6),
+        (36, 6),
+        (15, 7),
+        (16, 7),
     ] {
         assert!(underlined(x, y), "({x}, {y})");
     }
     // Between two items (14-15, 16-17 at the `[`), before the first day (12-13), after Sunday (18) and
     // after the last day (20-21): not
     for (x, y) in [
-        (16, 5),
-        (23, 5),
-        (24, 5),
-        (31, 5),
-        (32, 5),
-        (39, 5),
-        (19, 6),
-        (20, 6),
+        (16, 6),
+        (23, 6),
+        (24, 6),
+        (31, 6),
+        (32, 6),
+        (39, 6),
+        (19, 7),
+        (20, 7),
     ] {
         assert!(!underlined(x, y), "({x}, {y})");
     }
     // The cells between two days take the first day's color: 13 the normal color, 17 today's
     let theme = Theme::default();
-    assert_eq!(buffer[(20, 5)].underline_color, theme.text);
-    assert_eq!(buffer[(36, 5)].underline_color, theme.today);
+    assert_eq!(buffer[(20, 6)].underline_color, theme.text);
+    assert_eq!(buffer[(36, 6)].underline_color, theme.today);
 }
 
 #[test]
 fn overlapping_multi_day_items_underline_in_their_own_color() {
     // C (10/13-16) and D (10/15-18) overlap on 10/15-16: those dates and the cells between them take
     // `range_overlap`; the rest take their day's color as usual (cells between two days: the earlier
-    // day's). The week of 10/12 at y 5, day k's date at x 12 + 4k + 1..2
+    // day's). The week of 10/12 at y 6, day k's date at x 12 + 4k + 1..2
     let text = "- C @2026-10-13..2026-10-16\n- D @2026-10-15..2026-10-18\n";
     let mut app = App::new(
         Lang::En,
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
-    let terminal = draw_app(&mut app, 47, 26);
+    let terminal = draw_app(&mut app, 47, 27);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
     let expected = [
@@ -4232,7 +4269,7 @@ fn overlapping_multi_day_items_underline_in_their_own_color() {
         (38, theme.weekend),       // 18 (Sunday): D
     ];
     for (x, color) in expected {
-        let cell = &buffer[(x, 5)];
+        let cell = &buffer[(x, 6)];
         assert!(cell.modifier.contains(Modifier::UNDERLINED), "x {x}");
         assert_eq!(cell.underline_color, color, "x {x}");
     }
@@ -4492,9 +4529,9 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
     let text = "# Trip\n- [ ] Plan the trip\n  - [ ] Book flights @2026-10-17 09:00\n\
                 \x20   - [ ] Compare prices @2026-10-17\n- Fly out @2026-10-17 07:40\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
-    app.screen = Rect::new(0, 0, 80, 24);
+    app.screen = Rect::new(0, 0, 80, 25);
     app.focus = Focus::Day;
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
     // Grouped by calendar: the parent not on the day where a check box would be, gray, with no box of its
@@ -4528,7 +4565,7 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
     // Not grouped: the same tree, starting at the left, each item's calendar at the right end (none for
     // the parent), the chosen one's path on the bottom border
     app.settings.day_popup.by_calendar = false;
-    let terminal = draw_app(&mut app, 80, 24);
+    let terminal = draw_app(&mut app, 80, 25);
     assert_eq!(
         area_rows(terminal.backend().buffer(), day_area(&app)),
         [
@@ -4542,16 +4579,16 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
             "╰ Trip ─────────────── ☐\u{a0}By calendar ╯",
         ]
     );
-    // Too short (60 × 6: 3 lines inside the box): after scrolling down to Fly out, choosing Book flights
+    // Too short (60 × 7: 3 lines inside the box): after scrolling down to Fly out, choosing Book flights
     // again brings both headings above it back into view (the calendar's and the parent's)
     app.settings.day_popup.by_calendar = true;
-    app.screen = Rect::new(0, 0, 60, 6);
+    app.screen = Rect::new(0, 0, 60, 7);
     app.day_index = 2;
-    let terminal = draw_app(&mut app, 60, 6);
+    let terminal = draw_app(&mut app, 60, 7);
     let rows = area_rows(terminal.backend().buffer(), day_area(&app));
     assert!(rows[3].starts_with("│    ∙ 07:40 Fly out "), "{rows:#?}");
     app.day_index = 0;
-    let terminal = draw_app(&mut app, 60, 6);
+    let terminal = draw_app(&mut app, 60, 7);
     let rows = area_rows(terminal.backend().buffer(), day_area(&app));
     assert!(rows[1].starts_with("│  Trip "), "{rows:#?}");
     assert!(rows[2].starts_with("│    Plan the trip "), "{rows:#?}");
@@ -4691,4 +4728,45 @@ fn the_day_popups_top_border_counts_the_days_tasks_on_the_right() {
     assert_eq!(buffer[(x_of("2 open"), area.y)].fg, theme.priority_high);
     assert_eq!(buffer[(x_of("/ 1"), area.y)].fg, theme.muted);
     assert_eq!(buffer[(x_of("1 done"), area.y)].fg, theme.today);
+}
+
+#[test]
+fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
+    // The top row: a cell for the bar (┃ on the shown view), then 「 N name 」 for each view; the names stay
+    // where they are whichever view is shown (expected rows from `tab_row` in tools/expected_screen.py)
+    let top =
+        |app: &mut App, width| text_rows(draw_app(app, width, 12).backend().buffer())[0].clone();
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    assert_eq!(top(&mut app, 60), " ┃ 1 calendar   2 month   3 tasks");
+    app.view = View::Tasks;
+    app.focus = Focus::Tasks;
+    assert_eq!(top(&mut app, 60), "   1 calendar   2 month ┃ 3 tasks");
+    app.view = View::Month;
+    app.focus = Focus::Calendar;
+    assert_eq!(top(&mut app, 60), "   1 calendar ┃ 2 month   3 tasks");
+    // Colors (layout 2 shown: its bar at x 14, 「 2 month 」 at x 15-23): the bar and the text in the focus
+    // color on the selection background, the text bold; the other tabs muted, on no background
+    let terminal = draw_app(&mut app, 60, 12);
+    let buffer = terminal.backend().buffer();
+    let theme = Theme::default();
+    let cell = |x: u16| {
+        let cell = &buffer[(x, 0)];
+        (
+            cell.symbol(),
+            cell.fg,
+            cell.bg,
+            cell.modifier.contains(Modifier::BOLD),
+        )
+    };
+    assert_eq!(cell(14), ("┃", theme.focus, theme.selection, false));
+    assert_eq!(cell(16), ("2", theme.focus, theme.selection, true));
+    assert_eq!(cell(23), (" ", theme.focus, theme.selection, true));
+    assert_eq!(cell(13).2, Color::Reset);
+    assert_eq!(cell(24).2, Color::Reset);
+    assert_eq!(cell(3), ("1", theme.muted, Color::Reset, false));
+    assert_eq!(cell(26), ("3", theme.muted, Color::Reset, false));
+    // In Chinese; on a narrow screen the end is cut off
+    let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
+    assert_eq!(top(&mut app, 60), " ┃ 1 月曆   2 大月曆   3 任務");
+    assert_eq!(top(&mut app, 25), " ┃ 1 月曆   2 大月曆   3");
 }

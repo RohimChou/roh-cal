@@ -30,6 +30,7 @@ NO_DOTS = layout 1's calendar draws no dots right of the dates (`[calendar] dots
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
 are not shown (not given = the archived calendars, unchecked at start); COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
 `Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page
+The top row is always the tab bar (the views `1` `2` `3`, the one LAYOUT draws lit); HEIGHT counts it.
 Today is always 2026-10-17.
 """
 import calendar
@@ -129,6 +130,14 @@ def cut(s, n):
             break
         out += c
     return out
+
+
+def tab_row(lang, w, shown):
+    """The tab bar on the top row: 「 ┃ 1 calendar   2 month   3 tasks」 with view `shown` (1, 2 or 3) lit.
+    Every tab is a cell for the bar (┃ on the shown one, else blank) and then 「 N name 」"""
+    names = {"en": ["calendar", "month", "tasks"], "zh": ["月曆", "大月曆", "任務"]}[lang]
+    row = " " + "".join(("┃" if n == shown else " ") + f" {n} {name} " for n, name in enumerate(names, 1))
+    return ljust(cut(row, w), w)
 
 
 def week_number(d, selected=None):
@@ -1007,6 +1016,9 @@ groups = read_groups(text)
 ARCHIVED = archived_calendars(text)
 if "HIDDEN" not in os.environ:
     HIDDEN = {i for i, (path, _) in enumerate(groups) if path in ARCHIVED}
+# The top row is the tab bar; the rest of the screen is drawn one row shorter below it
+shown = {"2": 2, "3": 3}.get(os.environ.get("LAYOUT"), 1)
+h -= 1
 if os.environ.get("LAYOUT") == "3":
     out = tasks_screen(lang, w, h, text, groups)
 elif os.environ.get("LAYOUT") == "2":
@@ -1021,6 +1033,7 @@ else:
     else:
         first, skip = (selected.year, selected.month), 0
     out = screen(lang, w, h, selected, first, skip, items, groups)
+out = [tab_row(lang, w, shown)] + out
 for line in out:
     assert width(line) == w, (width(line), line)
     # The no-break space after a check box is written as `\u{a0}`, so the Rust test shows where it is

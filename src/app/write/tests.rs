@@ -106,7 +106,7 @@ fn toggle_without_a_task_file_does_nothing() {
 
 #[test]
 fn a_notice_from_a_click_stays_after_the_button_is_released() {
-    // 77 × 23, October at the top: the agenda's first row (y 3, from x 43) is the event on 10/10;
+    // 77 × 23, October at the top: the agenda's first row (y 4, from x 43) is the event on 10/10;
     // a double click = trying to check it off, and events cannot be checked off
     let text = "- Team sync @2026-10-10\n";
     let (mut app, path) = app_with_task_file("click-notice", text);
@@ -116,7 +116,7 @@ fn a_notice_from_a_click_stays_after_the_button_is_released() {
     let mouse = |kind, column| MouseEvent {
         kind,
         column,
-        row: 3,
+        row: 4,
         modifiers: KeyModifiers::NONE,
     };
     let down = MouseEventKind::Down(MouseButton::Left);
@@ -138,7 +138,7 @@ fn a_notice_from_a_click_stays_after_the_button_is_released() {
 
 #[test]
 fn only_a_double_click_checks_an_item_off() {
-    // 77 × 23, October at the top: the agenda's first row (y 3, from x 43) is 10/10's "Review PRs"
+    // 77 × 23, October at the top: the agenda's first row (y 4, from x 43) is 10/10's "Review PRs"
     let text = "- [ ] Review PRs @2026-10-10\n";
     let (mut app, path) = app_with_task_file("click", text);
     app.focus = Focus::Calendar;
@@ -147,7 +147,7 @@ fn only_a_double_click_checks_an_item_off() {
     let click = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 47,
-        row: 3,
+        row: 4,
         modifiers: KeyModifiers::NONE,
     };
     let read = || std::fs::read_to_string(&path).expect("read");

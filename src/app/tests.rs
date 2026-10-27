@@ -39,16 +39,16 @@ fn wheel_moves_a_week() {
 
 #[test]
 fn left_click_on_a_date_selects_it() {
-    // 47 × 26 screen, October at the top: the 16th is at (28-31, 5), the 17th at (32-35, 5); see the screen
+    // 47 × 26 screen, October at the top: the 16th is at (28-31, 6), the 17th at (32-35, 6); see the screen
     // tests in ui/tests.rs
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.screen = Rect::new(0, 0, 47, 26);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 6));
     assert_eq!(app.selected, date(2026, 10, 16));
     // Right click, click on the header: ignored
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Right), 33, 5));
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 1));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Right), 33, 6));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 2));
     assert_eq!(app.selected, date(2026, 10, 16));
 }
 
@@ -244,11 +244,11 @@ fn wheel_in_the_agenda_moves_an_item() {
 #[test]
 fn clicking_an_item_moves_the_keyboard_there() {
     // 77 × 23, October at the top: the agenda's first row is 10/10 a (the inside of the agenda box starts
-    // at x 43, y 3)
+    // at x 43, y 4)
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 77, 23);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 47, 3));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 47, 4));
     assert_eq!(app.focus, Focus::Agenda);
     assert_eq!(
         app.chosen().map(|entry| entry.item.title.as_str()),
@@ -256,7 +256,7 @@ fn clicking_an_item_moves_the_keyboard_there() {
     );
     assert_eq!(app.selected, date(2026, 10, 10));
     // Then click a date on the calendar: the keyboard goes back to the calendar
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 5));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 6));
     assert_eq!(app.focus, Focus::Calendar);
     assert_eq!(app.selected, date(2026, 10, 16));
 }
@@ -966,46 +966,46 @@ fn the_keyboard_leaves_the_side_menu_when_it_is_hidden_but_not_when_narrowed() {
 
 #[test]
 fn clicking_a_calendar_selects_it_then_toggles_it() {
-    // 120 × 30: inside the side menu, 「隱藏全部」 at y 3, 「隱藏做完的」 y 4, a rule, then one calendar per
-    // row from y 6 (screen in ui/tests.rs's `side_menu_lists_the_calendars_when_wide`)
+    // 120 × 30: inside the side menu, 「隱藏全部」 at y 4, 「隱藏做完的」 y 5, a rule, then one calendar per
+    // row from y 7 (screen in ui/tests.rs's `side_menu_lists_the_calendars_when_wide`)
     let mut app = wide_app_with(GROUPS);
     let click = |app: &mut App, row| {
         app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 5, row));
     };
     // First click: chooses "Personal", the keyboard moves to the side menu, not toggled yet
-    click(&mut app, 7);
+    click(&mut app, 8);
     assert_eq!(
         (app.focus, app.side_row),
         (Focus::Side, SideRow::Calendar(1))
     );
     assert!(app.groups[1].shown);
     // Click again: unchecks it; once more: checks it again
-    click(&mut app, 7);
+    click(&mut app, 8);
     assert!(!app.groups[1].shown);
-    click(&mut app, 7);
+    click(&mut app, 8);
     assert!(app.groups[1].shown);
     // Click another calendar: only chooses, does not toggle
-    click(&mut app, 8);
+    click(&mut app, 9);
     assert_eq!(app.side_row, SideRow::Calendar(2));
     assert!(app.groups[2].shown);
     // When the keyboard is not in the side menu, clicking the chosen one also just chooses it
     // (back to the side menu)
     app.focus = Focus::Calendar;
-    click(&mut app, 8);
+    click(&mut app, 9);
     assert_eq!(app.focus, Focus::Side);
     assert!(app.groups[2].shown);
     // 「隱藏全部」 switches on the first click (like 「隱藏做完的」) and gets chosen: all unchecked; again:
     // all checked
-    click(&mut app, 3);
+    click(&mut app, 4);
     assert_eq!(app.side_row, SideRow::HideAll);
     assert!(app.all_hidden());
-    click(&mut app, 3);
+    click(&mut app, 4);
     assert!(app.groups.iter().all(|group| group.shown));
 }
 
 #[test]
 fn right_clicking_a_calendar_shows_only_it_and_again_puts_the_checks_back() {
-    // Same rows as `clicking_a_calendar_selects_it_then_toggles_it`: "Personal" at y 7, "Work" y 8
+    // Same rows as `clicking_a_calendar_selects_it_then_toggles_it`: "Personal" at y 8, "Work" y 9
     let mut app = wide_app_with(GROUPS);
     let right_click = |app: &mut App, row| {
         app.handle_mouse(mouse_event(
@@ -1016,19 +1016,19 @@ fn right_clicking_a_calendar_shows_only_it_and_again_puts_the_checks_back() {
     };
     let checks = |app: &App| -> Vec<bool> { app.groups.iter().map(|group| group.shown).collect() };
     // From the calendar: chooses "Work" (the keyboard moves to the side menu) and shows only it, like Enter
-    right_click(&mut app, 8);
+    right_click(&mut app, 9);
     assert_eq!(
         (app.focus, app.side_row),
         (Focus::Side, SideRow::Calendar(2))
     );
     assert_eq!(checks(&app), [false, false, true]);
     // Another calendar meanwhile: only that one; on it again: every check back
-    right_click(&mut app, 7);
+    right_click(&mut app, 8);
     assert_eq!(checks(&app), [false, true, false]);
-    right_click(&mut app, 7);
+    right_click(&mut app, 8);
     assert_eq!(checks(&app), [true, true, true]);
     // A right click on the switch rows does nothing
-    right_click(&mut app, 3);
+    right_click(&mut app, 4);
     assert_eq!(checks(&app), [true, true, true]);
     assert_eq!(app.side_row, SideRow::Calendar(1));
 }
@@ -1098,30 +1098,30 @@ fn putting_the_narrow_side_menu_away_goes_back_to_the_pane_before() {
 #[test]
 fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     // 60 × 20: s calls it up over the left side (after the border, header, line, the two switches and
-    // their rule, one calendar per row: ungrouped y 6, Personal y 7)
+    // their rule, one calendar per row: ungrouped y 7, Personal y 8)
     let mut app = app_with(GROUPS);
     app.screen = Rect::new(0, 0, 60, 20);
     press(&mut app, KeyCode::Char('s'));
     let area = ui::side_overlay(&app).expect("overlay");
-    assert_eq!(area, Rect::new(0, 0, 22, 19));
+    assert_eq!(area, Rect::new(0, 1, 22, 18));
     // Click Personal: chooses it; click again: unchecks it
     let left = MouseEventKind::Down(MouseButton::Left);
-    app.handle_mouse(mouse_event(left, 3, 7));
+    app.handle_mouse(mouse_event(left, 3, 8));
     assert_eq!(
         (app.focus, app.side_row),
         (Focus::Side, SideRow::Calendar(1))
     );
-    app.handle_mouse(mouse_event(left, 3, 7));
+    app.handle_mouse(mouse_event(left, 3, 8));
     assert!(!app.groups[1].shown);
-    // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 5):
+    // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 6):
     // only hides it, the selected day stays
     app.calendar_top = Some(0);
     let selected = app.selected;
     assert_eq!(
-        ui::click_at(&app, 29, 5),
+        ui::click_at(&app, 29, 6),
         Some(Click::Day(date(2026, 10, 16)))
     );
-    app.handle_mouse(mouse_event(left, 29, 5));
+    app.handle_mouse(mouse_event(left, 29, 6));
     assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
     assert_eq!(ui::side_overlay(&app), None);
 }
@@ -1403,6 +1403,44 @@ fn t_and_brackets_scroll_only_the_layout_shown() {
         (app.calendar_top, app.month_top),
         (None, Some(date(2026, 9, 28)))
     );
+}
+
+#[test]
+fn clicking_a_tab_switches_like_its_number_key() {
+    // The tab bar on the top row (80 × 24): ` ┃ 1 calendar   2 month   3 tasks`; tab 1 at x 1-13 (its bar's
+    // cell, then 「 1 calendar 」), tab 2 at x 14-23, tab 3 at x 24-33; the blank before and after are no tab
+    let mut app = app_with(ITEMS);
+    app.screen = Rect::new(0, 0, 80, 24);
+    let click = |app: &mut App, column| {
+        app.handle_mouse(mouse_event(
+            MouseEventKind::Down(MouseButton::Left),
+            column,
+            0,
+        ));
+    };
+    for (column, view) in [
+        (14, View::Month),
+        (33, View::Tasks),
+        (13, View::Planner),
+        (23, View::Month),
+        (24, View::Tasks),
+        (1, View::Planner),
+    ] {
+        click(&mut app, column);
+        assert_eq!(app.view, view, "x {column}");
+    }
+    click(&mut app, 23);
+    for column in [0, 34] {
+        click(&mut app, column);
+        assert_eq!(app.view, View::Month, "x {column}");
+    }
+    // With the day popup open too (like the keys): switching away and back finds it open
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.focus, Focus::Day);
+    click(&mut app, 30);
+    assert_eq!((app.view, app.focus), (View::Tasks, Focus::Tasks));
+    click(&mut app, 20);
+    assert_eq!((app.view, app.focus), (View::Month, Focus::Day));
 }
 
 #[test]

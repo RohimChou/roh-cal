@@ -13,6 +13,7 @@ mod planner;
 mod settings;
 mod side;
 mod splash;
+mod tabs;
 mod tasks;
 
 use crate::app::{App, Editor, Focus, Mode, TextSpot, View};
@@ -259,9 +260,11 @@ pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
 
 /// Where each part of the screen is
 struct Areas {
+    /// Top row: the tab bar (the views `1` `2` `3` switch to)
+    tabs: Rect,
     /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
     side: Rect,
-    /// The whole block right of the side menu and above the key
+    /// The whole block right of the side menu, below the tab bar and above the key
     /// hints: layout 2's month grid and the tasks page are drawn here
     main: Rect,
     /// Left side of layout 1: the calendar box
@@ -279,8 +282,12 @@ struct Areas {
 /// The side menu is there only when the terminal is wide enough
 /// and `s` has not hidden it; its width follows the calendar names
 fn areas(screen: Rect, app: &App) -> Areas {
-    let [main, hints] =
-        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(screen);
+    let [tabs, main, hints] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+    ])
+    .areas(screen);
     let side_width = if side_fits(screen) && !app.side_hidden {
         side::width(app)
     } else {
@@ -294,12 +301,18 @@ fn areas(screen: Rect, app: &App) -> Areas {
     ])
     .areas(main);
     Areas {
+        tabs,
         side,
         main,
         calendar,
         agenda,
         hints,
     }
+}
+
+/// Which view's tab in the tab bar terminal cell (`column`, `row`) is on; `None` = not on a tab
+pub fn tab_at(app: &App, column: u16, row: u16) -> Option<View> {
+    tabs::view_at(areas(app.screen, app).tabs, app, column, row)
 }
 
 /// What a mouse click hit
@@ -354,6 +367,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let texts = app.lang.texts();
     let theme = &app.theme;
     let Areas {
+        tabs: tabs_area,
         side: side_area,
         main: main_area,
         calendar: calendar_area,
@@ -414,6 +428,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             hints,
         );
     }
+    tabs::render(frame, tabs_area, app);
     if side_area.width > 0 {
         side::render(frame, side_area, app);
     }
