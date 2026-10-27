@@ -119,6 +119,10 @@ struct Left {
     selected: Date,
     /// The pane that had the keyboard then (`Focus::Day` = the day popup was open)
     focus: Focus,
+    /// The popup's chosen item and scroll then (`App::day_index`, `App::day_top`): layouts 1 and 2 each keep
+    /// their own
+    day_index: usize,
+    day_top: usize,
 }
 
 /// A row of the side menu the keyboard can be on, top to bottom: the two switches above the calendars, then
@@ -1430,36 +1434,48 @@ impl App {
         }
     }
 
-    /// Switches layout. A layout left with the same day selected as now comes back as it was: the same pane
-    /// has the keyboard (the day popup still open, the same agenda item chosen) and the scroll stays.
-    /// The first time, or with another day selected since (in the other layout), the keyboard goes to its
-    /// main pane and it scrolls to the selected day: layout 1's calendar puts its month on top, layout 2 its
-    /// week on row 2. The side menu keeps the keyboard
+    /// Switches layout. Layouts 1 and 2 share the selected day, except that one left with the day popup open
+    /// comes back on that day, the popup open as it was (even if the other layout selected another day since).
+    /// A layout left with the same day selected as now comes back as it was too: the same pane has the
+    /// keyboard (e.g. the same agenda item chosen) and the scroll stays. Otherwise (the first time, or another
+    /// day selected since in the other layout) the keyboard goes to its main pane and it scrolls to the
+    /// selected day: layout 1's calendar puts its month on top, layout 2 its week on row 2. The side menu
+    /// keeps the keyboard (so no popup opens)
     fn set_view(&mut self, view: View) {
         // The side menu is the same in every layout: a layout left from it comes back on its main pane
         let focus = match self.focus {
             Focus::Side => self.home_focus(),
             focus => focus,
         };
-        let selected = self.selected;
-        self.left.insert(self.view, Left { selected, focus });
+        let left = Left {
+            selected: self.selected,
+            focus,
+            day_index: self.day_index,
+            day_top: self.day_top,
+        };
+        self.left.insert(self.view, left);
         self.view = view;
-        let back = self
-            .left
-            .get(&view)
-            .filter(|left| left.selected == selected)
-            .map(|left| left.focus);
-        if back.is_none() {
-            match view {
+        let side = self.focus == Focus::Side;
+        let back =
+            self.left.get(&view).copied().filter(|left| {
+                left.selected == self.selected || (left.focus == Focus::Day && !side)
+            });
+        match back {
+            Some(left) => {
+                self.selected = left.selected;
+                self.day_index = left.day_index;
+                self.day_top = left.day_top;
+            }
+            None => match view {
                 View::Planner => self.calendar_top = None,
                 View::Month => self.selected_week_on_row_2(),
                 View::Tasks => {}
-            }
+            },
         }
-        if self.focus == Focus::Side {
+        if side {
             return;
         }
-        self.focus = back.unwrap_or_else(|| self.home_focus());
+        self.focus = back.map_or_else(|| self.home_focus(), |left| left.focus);
         match self.focus {
             // The day may have no items left (e.g. checked off on the tasks page with done ones hidden): the
             // popup stays closed
@@ -1470,7 +1486,7 @@ impl App {
                 let still_there = self
                     .agenda()
                     .get(self.agenda_index)
-                    .is_some_and(|entry| entry.is_on(selected));
+                    .is_some_and(|entry| entry.is_on(self.selected));
                 if !still_there {
                     self.focus = Focus::Calendar;
                 }

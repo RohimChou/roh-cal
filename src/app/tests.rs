@@ -1434,18 +1434,67 @@ fn switching_back_finds_a_layout_as_it_was_left() {
         (app.focus, title(&app).as_deref(), app.calendar_top),
         (Focus::Agenda, Some("c"), Some(3))
     );
-    // Another day selected in layout 1 (Sun 10/18): layout 2's popup stays closed and that week (from Mon
-    // 10/12) goes on row 2; back in layout 1, its month goes on top
+    // Layout 1 moves to 10/20 and opens its own popup (d). Layout 2 was left with its popup open, so it goes
+    // back to 10/17 with c chosen and its scroll; then layout 1 back to 10/20 with d
     press(&mut app, KeyCode::Esc);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('l'));
+    }
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(title(&app).as_deref(), Some("d"));
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(
+        (
+            app.selected,
+            app.focus,
+            title(&app).as_deref(),
+            app.month_top
+        ),
+        (
+            date(2026, 10, 17),
+            Focus::Day,
+            Some("c"),
+            Some(date(2026, 9, 28))
+        )
+    );
+    press(&mut app, KeyCode::Char('1'));
+    assert_eq!(
+        (app.selected, app.focus, title(&app).as_deref()),
+        (date(2026, 10, 20), Focus::Day, Some("d"))
+    );
+    // Left without the popup, the layouts share the selected day. Layout 1 closes its popup; layout 2 closes
+    // its popup and moves to 10/24: layout 1 follows, its month on top
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('2'));
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('1'));
+    assert_eq!(
+        (app.selected, app.focus, app.calendar_top),
+        (date(2026, 10, 24), Focus::Calendar, None)
+    );
+    // Layout 1 moves to Sun 10/25: layout 2 follows, that week (from Mon 10/19) on row 2
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(
-        (app.focus, app.month_top),
-        (Focus::Calendar, Some(date(2026, 10, 5)))
+        (app.selected, app.focus, app.month_top),
+        (
+            date(2026, 10, 25),
+            Focus::Calendar,
+            Some(date(2026, 10, 12))
+        )
     );
-    press(&mut app, KeyCode::Char('l'));
+    // With the keyboard in the side menu no popup opens, so the day is shared even from a popup left open
+    let mut app = wide_app_with(ITEMS);
+    press(&mut app, KeyCode::Char('2'));
+    press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('1'));
-    assert_eq!((app.focus, app.calendar_top), (Focus::Calendar, None));
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('l'));
+    }
+    app.focus = Focus::Side;
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!((app.selected, app.focus), (date(2026, 10, 20), Focus::Side));
     // The day's items gone meanwhile (e.g. checked off on the tasks page with done ones hidden): back on
     // the calendar in both layouts
     let mut app = app_with(ITEMS);
