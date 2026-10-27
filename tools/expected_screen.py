@@ -16,7 +16,8 @@ python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TAS
 opened: the week with the selected month's 1st; scroll if the selected week is not within the 6 weeks)
 Tasks page (env var LAYOUT=3):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
-(the tasks page does not use SELECTED_DAY, but it must still be given);
+(the tasks page does not use SELECTED_DAY, but it must still be given; events before today are left out, unless an
+open task is under them);
 EXPANDED = line numbers of the items whose subtasks are expanded, comma-separated;
 CHOSEN_LINE = line number of the chosen item (not given = the first item)
 Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in the agenda);
@@ -40,6 +41,7 @@ import re
 import sys
 import unicodedata
 
+TODAY = datetime.date(2026, 10, 17)
 TEXTS = {
     "en": dict(hints_tasks=" jk move | hl fold | Space check | e edit | a add | o editor | s calendars | ? help | , settings | q quit",
                tasks=" Tasks", detail=lambda n, t: f" Line {n}  {t}", mistakes=lambda n: f"{n} mistake(s) ",
@@ -831,6 +833,24 @@ def tasks_screen(lang, w, h, text, groups):
     t = TEXTS[lang]
     items, mistakes = read_tree(text)
     hidden = {groups[i][0] for i in HIDDEN}
+
+    def ancestors(k):
+        # k, its parent, its parent's parent, ...
+        while k is not None:
+            yield k
+            k = items[k]["parent"]
+
+    def past(k):
+        # An event whose last day is before today (an undated one never is), with no open task anywhere
+        # under it
+        it = items[k]
+        if it["task"] or it["date"] is None or (it["end"] or it["date"]) >= TODAY:
+            return False
+        return not any(o["task"] and not o["done"] and k in ancestors(o["parent"]) for o in items)
+
+    def gone(k):
+        # Not listed: it, or an item it is under, is a past event
+        return any(past(a) for a in ancestors(k))
     paths, heading_lines = calendar_paths(text)
     expanded = {int(n) for n in os.environ.get("EXPANDED", "").split(",") if n}
     collapsed = {tuple(p.split(" > ")) for p in os.environ.get("COLLAPSED", "").split(",") if p}
@@ -838,8 +858,9 @@ def tasks_screen(lang, w, h, text, groups):
     def inside_count(own):
         # After a collapsed calendar's name: its top-level items and those of every calendar inside it,
         # dated or not, not in an unchecked calendar
-        return sum(1 for it in items if it["parent"] is None and paths[it["line"]]
-                   and paths[it["line"]][:len(own)] == own and not is_hidden(paths[it["line"]], hidden))
+        return sum(1 for k, it in enumerate(items) if it["parent"] is None and paths[it["line"]]
+                   and paths[it["line"]][:len(own)] == own and not is_hidden(paths[it["line"]], hidden)
+                   and not gone(k))
     # Calendars with anything inside: every calendar an item is in or inside, every calendar another one is
     # inside
     filled = set()
@@ -894,7 +915,7 @@ def tasks_screen(lang, w, h, text, groups):
                 heading(path)
                 last = path
             continue
-        if is_hidden(path, hidden) or not visible(k) or (path and collapsed_away(path)):
+        if is_hidden(path, hidden) or not visible(k) or gone(k) or (path and collapsed_away(path)):
             continue
         if path != last:
             heading(path)

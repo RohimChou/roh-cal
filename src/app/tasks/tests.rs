@@ -178,6 +178,34 @@ fn a_done_task_with_an_open_task_under_it_stays_when_done_tasks_are_hidden() {
 }
 
 #[test]
+fn past_events_are_not_listed() {
+    // Today is 10/17. Gone: Standup (yesterday), Conference (its last day, 10/16, has passed) and Sprint
+    // review with its done subtask. Listed: Lunch (today), Trip (still on until 10/18), Book club (no date:
+    // never past), Retro (past, but the open Send notes under it keeps its place in the tree) and tasks,
+    // however old
+    let mut app = tasks_app(
+        "- Standup @2026-10-16\n- Lunch @2026-10-17\n- Conference @2026-10-13..2026-10-16\n\
+         - Trip @2026-10-16..2026-10-18\n- Book club\n- Sprint review @2026-10-09\n  - [x] Share slides\n\
+         - Retro @2026-10-10\n  - [ ] Send notes\n- [ ] Pay rent @2026-10-01\n",
+    );
+    press(&mut app, KeyCode::Char('='));
+    assert_eq!(
+        shape(&app),
+        [
+            "#",
+            "Lunch",
+            "Trip",
+            "Book club",
+            "-Retro",
+            "  Send notes",
+            "Pay rent"
+        ]
+    );
+    // A collapsed calendar counts only what is listed: Lunch, Trip, Book club, Retro, Pay rent
+    assert_eq!(app.calendar_item_count(&[]), 5);
+}
+
+#[test]
 fn calendars_inside_calendars_list_their_outer_calendars_first() {
     // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
     let app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");

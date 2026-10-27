@@ -3157,14 +3157,14 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│       https://wiki.example.com/payments/runbook                    │",
             "│     ∙ Release v2.3                                     10/27 09:30 │",
             "│ ▾ Recurring                                                        │",
-            "│     ∙ Team sync                                        10/12 10:00 │",
             "│     ∙ Team sync                                        10/19 10:00 │",
             "│     ∙ Team sync                                        10/26 10:00 │",
             "│     ☐\u{a0}Send the weekly update                           10/16 17:30 │",
             "│     ☐\u{a0}Clean up this week's notes                       10/16       │",
             "│     ☐\u{a0}🚧 Draft the release notes                       10/16       │",
-            "│     ∙ Team happy hour                                  10/16 18:30 │",
-            "│     ∙ Requirements meeting with PM                      10/8 14:00 │",
+            "│     ∙ Team offsite                                     10/29       │",
+            "│     ☐\u{a0}Send the weekly update                           10/23 17:30 │",
+            "│     ☑\u{a0}Renew the VPN certificate                         10/5       │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
             "╰────────────────────────────────────────────────────────────────────╯",
@@ -3190,7 +3190,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│     ▾ ☐\u{a0}Write a test for every rule  0/1                           │",
             "│         ☐\u{a0}Test that `@Rukis` is not a date                         │",
             "│     ∙ RustConf livestream @Rukis                       10/29 23:00 │",
-            "│     ∙ Rust async study group                           10/14 19:30 │",
+            "│ ▾ Tokyo trip                                                       │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ Line 61  - [ ] Test that `@Rukis` is not a date                    │",
             "╰────────────────────────────────────────────────────────────────────╯",
@@ -3201,10 +3201,11 @@ fn tasks_page_lists_the_file_as_a_tree() {
 
 #[test]
 fn tasks_page_colors_and_clicks() {
-    // Dates not in this year get the year in front; done tasks gray and struck through; past events gray,
-    // not struck through; dates in that day's color; the chosen row gets the highlight background
+    // Dates not in this year get the year in front; done tasks gray and struck through; past events (listed
+    // only with an open task under them) gray, not struck through; dates in that day's color; the chosen
+    // row gets the highlight background
     let text = "# Work\n- [ ] Send the weekly update @2026-10-16\n- [x] Fix the login bug @2026-10-15\n\
-                    - Hackathon @2026-10-10\n- Trip to Tokyo @2027-01-02\n  - [ ] Book flights\n";
+                    - Hackathon @2026-10-10\n  - [ ] Write it up\n- Trip to Tokyo @2027-01-02\n  - [ ] Book flights\n";
     let mut app = App::new(
         Lang::ZhTw,
         date(2026, 10, 17),
@@ -3220,6 +3221,7 @@ fn tasks_page_colors_and_clicks() {
     assert_eq!(rows[4], "│ ▾ Work                               │");
     assert_eq!(rows[5], "│     ☐\u{a0}Send the weekly          10/16 │");
     assert_eq!(rows[6], "│       update                         │");
+    assert_eq!(rows[8], "│   ▸ ∙ Hackathon  0/1           10/10 │");
     assert_eq!(rows[9], "│   ▸ ∙ Trip to Tokyo  0/1    2027/1/2 │");
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
@@ -3272,7 +3274,7 @@ fn tasks_page_colors_and_clicks() {
     );
     assert!(app.expanded.is_empty());
     click(&mut app, 4, 9);
-    assert!(app.expanded.contains(&5));
+    assert!(app.expanded.contains(&6));
     // Clicking a heading row: ignored
     click(&mut app, 5, 4);
     assert_eq!(
@@ -3329,8 +3331,8 @@ fn tasks_page_points_at_format_mistakes() {
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
+            "│ ▾ Personal                                                         │",
             "│     ☐\u{a0}Pay the credit card bill                         10/25       │",
-            "│     ∙ Dentist appointment                              10/14 10:30 │",
             "│     ☐\u{a0}Organize the bookshelf                                       │",
             "│     ☐\u{a0}Buy Mom's birthday gift                           11/2       │",
             "│     ☐\u{a0}Book the annual physical                         10/16       │",
@@ -3375,12 +3377,12 @@ fn tasks_page_with_the_side_menu() {
             "│──────────────────────││───────────────────────────────────────────────────────────────────────────────────────────────│",
             "│ ☐\u{a0}隱藏全部           ││ ▾ Personal                                                                                    │",
             "│ ☐\u{a0}隱藏做完的         ││     ☐\u{a0}Pay the credit card bill                                                    10/25       │",
-            "│──────────────────────││     ∙ Dentist appointment                                                         10/14 10:30 │",
-            "│ ☐\u{a0}Payments API v2 12 ││     ☐\u{a0}Organize the bookshelf                                                                  │",
-            "│ ☐\u{a0}Recurring       14 ││     ☐\u{a0}Buy Mom's birthday gift                                                      11/2       │",
-            "│ ☑\u{a0}Personal         5 ││     ☐\u{a0}Book the annual physical                                                    10/16       │",
-            "│   ☑\u{a0}Moving         4 ││     ∙ Mom's birthday 🎂                                                           10/29       │",
-            "│ ☑\u{a0}US holidays      2 ││     ☐\u{a0}Pay property tax @2026-13-01                                                            │",
+            "│──────────────────────││     ☐\u{a0}Organize the bookshelf                                                                  │",
+            "│ ☐\u{a0}Payments API v2 12 ││     ☐\u{a0}Buy Mom's birthday gift                                                      11/2       │",
+            "│ ☐\u{a0}Recurring       14 ││     ☐\u{a0}Book the annual physical                                                    10/16       │",
+            "│ ☑\u{a0}Personal         5 ││     ∙ Mom's birthday 🎂                                                           10/29       │",
+            "│   ☑\u{a0}Moving         4 ││     ☐\u{a0}Pay property tax @2026-13-01                                                            │",
+            "│ ☑\u{a0}US holidays      2 ││   ▾ Moving                                                                                    │",
             "│ ☑\u{a0}Learning Rust 🦀 4 ││───────────────────────────────────────────────────────────────────────────────────────────────│",
             "│ ☑\u{a0}Tokyo trip       5 ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
             "╰──────────────────────╯╰───────────────────────────────────────────────────────────────────────────────────────────────╯",

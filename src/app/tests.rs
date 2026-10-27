@@ -401,7 +401,8 @@ fn the_agenda_is_one_column_so_h_and_l_keep_the_choice() {
 fn hide_done_hides_done_tasks_but_not_their_open_subtasks() {
     // Only the done task itself is hidden from the agenda and the day's items: its open subtask stays, and
     // the day's open count matches what is listed; the tasks page keeps the done task too, for the tree
-    // (collapsed: the subtask is not a row); open tasks and events stay, past events too
+    // (collapsed: the subtask is not a row); open tasks and events stay, past events too (except on the
+    // tasks page, which never lists them)
     let mut app = app_with(
         "- [x] Ship v1 @2026-10-16\n  - [ ] Write the blog post @2026-10-17\n- [ ] Pack @2026-10-17\n- Farmers market @2026-10-10\n",
     );
@@ -428,7 +429,7 @@ fn hide_done_hides_done_tasks_but_not_their_open_subtasks() {
             TaskRow::Heading { .. } => None,
         })
         .collect();
-    assert_eq!(items, [0, 2, 3]);
+    assert_eq!(items, [0, 2]);
     // Off again: back
     app.settings.calendar_list.hide_done = false;
     assert_eq!(titles(&app).len(), 4);

@@ -1,5 +1,5 @@
 //! Tasks page (`3`): lists the whole task file by calendar (group),
-//! subtasks as a tree (collapsed by default), undated items included;
+//! subtasks as a tree (collapsed by default), undated items included, past events left out;
 //! `j` / `k` up / down, `l` / `h` expand / collapse (`+` / `-`
 //! all), `L` / `H` indent / outdent, `J` / `K` move up / down
 
@@ -111,8 +111,8 @@ impl App {
     }
 
     /// The number after a collapsed calendar's name on the tasks page: how many top-level items (not
-    /// subtasks) would be listed in it and in every calendar inside it, dated or not (unchecked calendars
-    /// and done tasks hidden by 「隱藏做完的」 do not count)
+    /// subtasks) would be listed in it and in every calendar inside it, dated or not (unchecked calendars,
+    /// past events and done tasks hidden by 「隱藏做完的」 do not count)
     pub fn calendar_item_count(&self, path: &[String]) -> usize {
         self.items
             .iter()
@@ -122,10 +122,10 @@ impl App {
             .count()
     }
 
-    /// Whether the tasks page lists the item at `index` in `App::items`: its own calendar is checked, and
-    /// 「隱藏做完的」 does not hide it. Here a done task with an open task anywhere under it stays (gray,
-    /// struck through), so that open task keeps its place in the tree; anything under a hidden done task
-    /// goes with it (e.g. an event)
+    /// Whether the tasks page lists the item at `index` in `App::items`: its own calendar is checked, it is
+    /// not an event whose last day is before today, and 「隱藏做完的」 does not hide it. A past event, or a
+    /// done task, with an open task anywhere under it stays (gray), so that open task keeps its place in the
+    /// tree; anything under a hidden one goes with it (e.g. an event)
     fn listed(&self, index: usize) -> bool {
         let Some(item) = self.items.get(index) else {
             return false;
@@ -133,16 +133,19 @@ impl App {
         if !self.in_checked_calendar(item) {
             return false;
         }
-        if !self.settings.calendar_list.hide_done {
-            return true;
-        }
-        // It and each task it is inside: a done one with nothing open under it hides the whole branch
+        let hide_done = self.settings.calendar_list.hide_done;
+        // It and each item it is inside: a past event, or a done task while 「隱藏做完的」 is on, with
+        // nothing open under it hides the whole branch (an undated event is never past)
         let mut current = Some(index);
         while let Some(each) = current {
             let Some(above) = self.items.get(each) else {
                 break;
             };
-            if above.kind == Kind::Task && above.done && !self.open_under(each) {
+            let over = match above.kind {
+                Kind::Event => above.last_day().is_some_and(|last| last < self.today),
+                Kind::Task => hide_done && above.done,
+            };
+            if over && !self.open_under(each) {
                 return false;
             }
             current = above.parent;
