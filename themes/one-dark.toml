@@ -53,7 +53,7 @@ today = "green"
 selected = "red"
 selection = "dim_purple"
 text_selection = "mid_blue"
-# The tab bar's glow fades into the background
+# The shown tab in the tab bar: the selection color mixed a little with the background
 background = "background"
 focus = "purple"
 checked = "purple"

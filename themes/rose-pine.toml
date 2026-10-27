@@ -43,7 +43,7 @@ today = "rose"
 selected = "love"
 selection = "dim_iris"
 text_selection = "mid_foam"
-# The tab bar's glow fades into the background
+# The shown tab in the tab bar: the selection color mixed a little with the background
 background = "base"
 focus = "iris"
 checked = "iris"

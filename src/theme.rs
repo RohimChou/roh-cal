@@ -48,8 +48,9 @@ pub struct Theme {
     /// color): the theme's blue mixed with the background, lighter than `selection`, so it shows on the chosen
     /// row too
     pub text_selection: Color,
-    /// The background the theme is made for (roh-cal leaves the terminal's own background alone): the tab bar's
-    /// glow fades into it (`tab_glow`); `reset` = not known, no glow
+    /// The background the theme is made for (roh-cal leaves the terminal's own background alone): the shown
+    /// tab's background is `selection` mixed a little with it (`tab_background`); `reset` = not known, so
+    /// that is plain `selection`
     pub background: Color,
     /// The border of the pane that has keyboard focus; the matching characters in the editor's `#` list
     pub focus: Color,
@@ -352,15 +353,15 @@ impl Theme {
     }
 
     /// The bar left of the shown view's tab in the tab bar: `focus`, a little faint (35% of the way to
-    /// `selection`, the background it sits on)
+    /// `selection`)
     pub fn tab_bar(&self) -> Color {
         mix(self.focus, self.selection, 0.35)
     }
 
-    /// The shown view's tab background at `share` (0–1) of the way along it: `selection` at its left end,
-    /// fading into `background` at its right end, like a glow from the bar
-    pub fn tab_glow(&self, share: f32) -> Color {
-        mix(self.selection, self.background, share)
+    /// The background of the shown view's tab in the tab bar: `selection` a little fainter, a quarter of the
+    /// way to `background`
+    pub fn tab_background(&self) -> Color {
+        mix(self.selection, self.background, 0.25)
     }
 
     /// The color of a priority (`!!!` → `priority_high`…)

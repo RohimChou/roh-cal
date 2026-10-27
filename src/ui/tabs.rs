@@ -36,30 +36,26 @@ fn width(text: &str) -> u16 {
     u16::try_from(Span::raw(text).width()).unwrap_or(u16::MAX)
 }
 
-/// Draws the tab bar on `area` (the top row): the shown view's tab has a faint `focus` bar at its left
-/// (`Theme::tab_bar`) on the `selection` background, and its text in bold `focus` on a background that
-/// fades from `selection` into the theme's background toward its right end, like a glow from the bar
-/// (`Theme::tab_glow`); the other tabs are `muted`
+/// Draws the tab bar on `area` (the top row): the shown view's tab is one block on a background a little
+/// fainter than `selection` (`Theme::tab_background`), with a faint `focus` bar at its left
+/// (`Theme::tab_bar`) and its text in bold `focus`; the other tabs are `muted`
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let mut spans = vec![Span::raw(" ")];
     for (view, text, _) in tabs(app) {
         if view == app.view {
+            let background = theme.tab_background();
             spans.push(Span::styled(
                 BAR,
-                Style::new().fg(theme.tab_bar()).bg(theme.selection),
+                Style::new().fg(theme.tab_bar()).bg(background),
             ));
-            // One character at a time, each a step further along the fade (the first on `selection`, the
-            // last on the background)
-            let characters: Vec<char> = text.chars().collect();
-            let steps = characters.len().saturating_sub(1).max(1) as f32;
-            for (step, character) in characters.into_iter().enumerate() {
-                let style = Style::new()
+            spans.push(Span::styled(
+                text,
+                Style::new()
                     .fg(theme.focus)
-                    .bg(theme.tab_glow(step as f32 / steps))
-                    .add_modifier(Modifier::BOLD);
-                spans.push(Span::styled(character.to_string(), style));
-            }
+                    .bg(background)
+                    .add_modifier(Modifier::BOLD),
+            ));
         } else {
             spans.push(Span::styled(
                 format!(" {text}"),

@@ -17,7 +17,7 @@ selected = "red"
 selection = "dark-gray"
 # Dragged-over text in the day popup: blue (also the multi-day bars', which are not in the popup)
 text_selection = "blue"
-# The terminal's background is not known (any color may be under it): the tab bar has no glow
+# The terminal's background is not known (any color may be under it): the shown tab is plain selection
 background = "reset"
 focus = "magenta"
 checked = "magenta"

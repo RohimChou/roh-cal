@@ -4714,10 +4714,10 @@ fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
     app.view = View::Month;
     app.focus = Focus::Calendar;
     assert_eq!(top(&mut app, 60), "   1 calendar ┃ 2 month   3 tasks");
-    // Colors (layout 2 shown: its bar at x 14, 「 2 month 」 at x 15-23; nord-bright, computed apart): the bar
-    // is the focus color #c69bbe a little faint, 35% of the way to the selection background #5c5366 it sits
-    // on; the text is bold in the focus color, on a background fading from the selection color (x 15) to
-    // the theme's background nord0 #2e3440 (x 23), an eighth of the way at x 16, halfway at x 19; the other tabs muted, on no background
+    // Colors (layout 2 shown: its bar at x 14, 「 2 month 」 at x 15-23; nord-bright, computed apart): the
+    // whole tab on one background, the selection color #5c5366 a quarter of the way to the theme's
+    // background nord0 #2e3440; the bar is the focus color #c69bbe a little faint, 35% of the way to the
+    // selection color; the text bold in the focus color; the other tabs muted, on no background
     let terminal = draw_app(&mut app, 60, 12);
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
@@ -4730,23 +4730,22 @@ fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
             cell.modifier.contains(Modifier::BOLD),
         )
     };
-    assert_eq!(
-        cell(14),
-        ("┃", Color::Rgb(161, 130, 159), theme.selection, false)
-    );
-    assert_eq!(cell(15), (" ", theme.focus, theme.selection, true));
-    assert_eq!(cell(16), ("2", theme.focus, Color::Rgb(86, 79, 97), true));
-    assert_eq!(cell(19).2, Color::Rgb(69, 68, 83));
-    assert_eq!(cell(23), (" ", theme.focus, Color::Rgb(46, 52, 64), true));
+    let tab = Color::Rgb(81, 75, 93);
+    assert_eq!(cell(14), ("┃", Color::Rgb(161, 130, 159), tab, false));
+    assert_eq!(cell(16), ("2", theme.focus, tab, true));
+    for x in 15..=23 {
+        let (_, fg, bg, bold) = cell(x);
+        assert_eq!((fg, bg, bold), (theme.focus, tab, true), "x {x}");
+    }
     assert_eq!(cell(13).2, Color::Reset);
     assert_eq!(cell(24).2, Color::Reset);
     assert_eq!(cell(3), ("1", theme.muted, Color::Reset, false));
     assert_eq!(cell(26), ("3", theme.muted, Color::Reset, false));
-    // The terminal theme does not know the background under it: no fade, the whole tab on the selection color
+    // The terminal theme does not know the background under it: the whole tab on the plain selection color
     app.theme = Theme::builtin("terminal").expect("terminal");
     let terminal = draw_app(&mut app, 60, 12);
     let buffer = terminal.backend().buffer();
-    assert!((15..=23).all(|x| buffer[(x, 0)].bg == app.theme.selection));
+    assert!((14..=23).all(|x| buffer[(x, 0)].bg == app.theme.selection));
     // In Chinese; on a narrow screen the end is cut off
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     assert_eq!(top(&mut app, 60), " ┃ 1 月曆   2 大月曆   3 任務");

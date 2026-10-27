@@ -283,21 +283,19 @@ fn mixing_moves_part_of_the_way_and_only_mixes_rgb() {
 #[test]
 fn the_tab_bar_colors_come_from_focus_selection_and_background() {
     // nord-bright (computed apart): focus #c69bbe, selection #5c5366, background nord0 #2e3440. The bar is
-    // the focus color 35% of the way to the selection color; the glow runs from the selection color to the
-    // background
+    // the focus color 35% of the way to the selection color; the shown tab's background is the selection
+    // color a quarter of the way to the background
     let theme = Theme::default();
     assert_eq!(theme.background, Color::Rgb(0x2e, 0x34, 0x40));
     assert_eq!(theme.tab_bar(), Color::Rgb(161, 130, 159));
-    assert_eq!(theme.tab_glow(0.0), theme.selection);
-    assert_eq!(theme.tab_glow(0.5), Color::Rgb(69, 68, 83));
-    assert_eq!(theme.tab_glow(1.0), theme.background);
+    assert_eq!(theme.tab_background(), Color::Rgb(81, 75, 93));
     // Every built-in theme names its background, except the terminal one, which cannot know it (`reset`):
-    // no glow
+    // its tab background is plain selection
     for name in names().into_iter().filter(|&name| name != "terminal") {
         let theme = Theme::builtin(name).expect(name);
         assert!(matches!(theme.background, Color::Rgb(..)), "{name}");
     }
     let terminal = Theme::builtin("terminal").expect("terminal");
     assert_eq!(terminal.background, Color::Reset);
-    assert_eq!(terminal.tab_glow(1.0), terminal.selection);
+    assert_eq!(terminal.tab_background(), terminal.selection);
 }

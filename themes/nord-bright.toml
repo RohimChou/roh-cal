@@ -59,7 +59,7 @@ today = "nord14"
 selected = "nord11"
 selection = "nord15_dim"
 text_selection = "nord9_mid"
-# The tab bar's glow fades into the background
+# The shown tab in the tab bar: the selection color mixed a little with the background
 background = "nord0"
 focus = "nord15"
 checked = "nord15"
