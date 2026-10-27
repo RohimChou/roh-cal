@@ -257,7 +257,7 @@ pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
 
 /// Where each part of the screen is
 struct Areas {
-    /// Top row: the tab bar (the views `1` `2` `3` switch to)
+    /// Top row: the tab bar (the views `1` `2` `3` switch to); height 0 when it is off (`tab_bar = false`)
     tabs: Rect,
     /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
     side: Rect,
@@ -279,8 +279,9 @@ struct Areas {
 /// The side menu is there only when the terminal is wide enough
 /// and `s` has not hidden it; its width follows the calendar names
 fn areas(screen: Rect, app: &App) -> Areas {
+    // The tab bar takes the top row unless `tab_bar = false`
     let [tabs, main, hints] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(u16::from(app.settings.tab_bar)),
         Constraint::Fill(1),
         Constraint::Length(1),
     ])

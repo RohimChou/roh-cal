@@ -4752,3 +4752,32 @@ fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
     assert_eq!(top(&mut app, 60), " ┃ 1 月曆   2 大月曆   3 任務");
     assert_eq!(top(&mut app, 25), " ┃ 1 月曆   2 大月曆   3");
 }
+
+#[test]
+fn with_the_tab_bar_off_the_views_take_the_top_row() {
+    // `tab_bar = false`: no tab bar; each view's screen is the one a row taller with the tab bar, minus
+    // that row (the views start on the top row)
+    for (view, focus) in [
+        (View::Planner, Focus::Calendar),
+        (View::Month, Focus::Calendar),
+        (View::Tasks, Focus::Tasks),
+    ] {
+        let mut with_bar = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+        (with_bar.view, with_bar.focus) = (view, focus);
+        let rows_with_bar = text_rows(draw_app(&mut with_bar, 47, 27).backend().buffer());
+        let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+        (app.view, app.focus) = (view, focus);
+        app.settings.tab_bar = false;
+        let rows = text_rows(draw_app(&mut app, 47, 26).backend().buffer());
+        assert_eq!(rows[..], rows_with_bar[1..], "{view:?}");
+        assert!(rows[0].starts_with('╭'), "{view:?}: {}", rows[0]);
+    }
+    // Clicks: the top row is no tab, and the dates are a row higher than with the tab bar (October on
+    // top: the 16th at x 28-31, y 5)
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.settings.tab_bar = false;
+    app.screen = Rect::new(0, 0, 47, 26);
+    draw_app(&mut app, 47, 26);
+    assert_eq!(tab_at(&app, 3, 0), None);
+    assert_eq!(date_at(&app, 29, 5), Some(date(2026, 10, 16)));
+}

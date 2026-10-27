@@ -7,6 +7,8 @@
 theme = "gruvbox-dark"
 # Done tasks' titles are struck through (default true)
 cross_out_done = false
+# The tab bar on the top row: the views and their keys (default true)
+tab_bar = false
 
 # The calendars (layouts 1 and 2)
 [calendar]

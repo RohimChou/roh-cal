@@ -114,6 +114,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
         Settings {
             theme: "gruvbox-dark".to_string(),
             cross_out_done: false,
+            tab_bar: false,
             calendar: CalendarSettings {
                 relative_weeks: true,
                 dots: false,

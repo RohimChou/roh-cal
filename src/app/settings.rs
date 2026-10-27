@@ -50,6 +50,8 @@ pub enum Row {
     Theme,
     /// The top-level `cross_out_done`
     CrossOutDone,
+    /// The top-level `tab_bar`
+    TabBar,
     /// `[calendar] relative_weeks`
     RelativeWeeks,
     /// `[calendar] dots`
@@ -76,6 +78,7 @@ pub fn rows() -> Vec<Row> {
     let mut rows = vec![
         Row::Theme,
         Row::CrossOutDone,
+        Row::TabBar,
         Row::RelativeWeeks,
         Row::Dots,
         Row::GridLines,
@@ -91,11 +94,11 @@ pub fn rows() -> Vec<Row> {
 
 impl Row {
     /// Which table of the config file this row is in (`[calendar]`, `[month]`, `[colors]`);
-    /// `None` for the top level (`theme`, `cross_out_done`). The settings page is split into sections by this
+    /// `None` for the top level (`theme`, `cross_out_done`, `tab_bar`). The settings page is split into sections by this
     /// too
     pub fn section(self) -> Option<&'static str> {
         match self {
-            Self::Theme | Self::CrossOutDone => None,
+            Self::Theme | Self::CrossOutDone | Self::TabBar => None,
             Self::RelativeWeeks | Self::Dots => Some("calendar"),
             Self::GridLines | Self::CenterCursor | Self::Overflow => Some("month"),
             Self::ListWidth | Self::HideDone => Some("calendar_list"),
@@ -128,7 +131,9 @@ impl Row {
             Self::Color("checked") => Some(&[Place::CalendarList, Place::DayPopup]),
             // Only the day popup's text can be dragged over
             Self::Color("text_selection") => Some(&[Place::DayPopup]),
-            Self::Theme | Self::CrossOutDone | Self::HideDone | Self::Color(_) => None,
+            Self::Theme | Self::CrossOutDone | Self::TabBar | Self::HideDone | Self::Color(_) => {
+                None
+            }
         }
     }
 
@@ -143,6 +148,7 @@ impl Row {
         match self {
             Self::Theme => "theme",
             Self::CrossOutDone => "cross_out_done",
+            Self::TabBar => "tab_bar",
             Self::RelativeWeeks => "relative_weeks",
             Self::Dots => "dots",
             Self::GridLines => "grid_lines",
@@ -161,6 +167,7 @@ impl Row {
         match self {
             Self::Theme | Self::ListWidth | Self::Color(_) => None,
             Self::CrossOutDone => Some(&mut settings.cross_out_done),
+            Self::TabBar => Some(&mut settings.tab_bar),
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
             Self::Dots => Some(&mut settings.calendar.dots),
             Self::GridLines => Some(&mut settings.month.grid_lines),
@@ -189,6 +196,7 @@ impl Row {
                     .map_or_else(|| theme::color_text(color), |(name, _)| name.clone())
             }
             Self::CrossOutDone => on_off(settings.cross_out_done),
+            Self::TabBar => on_off(settings.tab_bar),
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
             Self::Dots => on_off(settings.calendar.dots),
             Self::GridLines => on_off(settings.month.grid_lines),

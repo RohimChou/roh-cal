@@ -79,7 +79,7 @@ The full format is in [docs/task-file-format.md](docs/task-file-format.md).
 | `2` | Month grid: six rows of weeks, each day's items in its cell (`+N` when they don't fit); a multi-day item is one bar across its days, on the same line all the way, with its title written once (bars stacked on lines next to each other take turns between two shades, `range` and `range_alt`); an in-progress item leaves its time out of the cell (the popup shows it); a month's edge is a staircase line in the border color, a year's edge a thick one, and the week of a 1st has the month (and in January the year) under its week number; `Enter` opens a popup with all of that day's items, each after its check box (`∙` for an event; only a multi-day item writes its dates, e.g. `10/16~18`), a subtask under its parent and 2 cells further in (a parent not on that day is listed too, gray and without a check box, so you can tell whose subtasks they are), grouped under their calendars as a tree like the tasks page (e.g. `Work`, and under it `SFAP` 2 cells further in for `Work > SFAP`; with `[day_popup] by_calendar = false`, one list with the outermost calendar's name at each item's right end); in one list the bottom border shows the chosen item's whole calendar path, and the top border's right end counts the day's tasks, e.g. `3 open / 2 done` (the open count is red when more than half is left, orange from a third, yellow from a fifth; the done count is green) |
 | `3` | Tasks page: the whole task file by calendar, undated items too, subtasks as a tree; a long title wraps onto the next lines; the bottom line shows the chosen line as written in the file, and lines with a format mistake are red and underlined |
 
-The top row is a tab bar: the views and their keys, the shown one lit; click a tab to switch.
+The top row is a tab bar: the views and their keys, the shown one lit; click a tab to switch (`tab_bar = false` in the config file hides it).
 
 Views 1 and 2 share the selected day, except that a view left with its popup open comes back on that day with the popup; a view left with the same day selected as now keeps its chosen item and scroll too.
 
@@ -183,6 +183,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | :- | :- | :- |
 | `theme` | `"nord-bright"` | Color theme, same names as `--theme` (the built-in ones are in [themes/](themes/)) |
 | `cross_out_done` | `true` | Strike through done tasks' titles; off, only their gray color sets them apart |
+| `tab_bar` | `true` | The tab bar on the top row (the views and their keys); off, the views take that row too |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
 | `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4), in the color of its most urgent open item |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |

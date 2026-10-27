@@ -19,9 +19,9 @@ use std::io::ErrorKind;
 use std::path::Path;
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
-/// The settings that can change at runtime = the config file's content, with the same structure: `theme` and
-/// `cross_out_done` = the top-level `theme = "..."` and `cross_out_done = ...`, `calendar` = `[calendar]`,
-/// `month` = `[month]`,
+/// The settings that can change at runtime = the config file's content, with the same structure: `theme`,
+/// `cross_out_done` and `tab_bar` = the top-level `theme = "..."`, `cross_out_done = ...` and `tab_bar = ...`,
+/// `calendar` = `[calendar]`, `month` = `[month]`,
 /// `calendar_list` = `[calendar_list]`, `day_popup` = `[day_popup]`, `colors` = `[colors]`
 ///
 /// The names in the config file are the field names (e.g. `grid_lines = false` under `[month]`). serde's
@@ -36,6 +36,9 @@ pub struct Settings {
     /// Done tasks' titles are struck through in every view (see `ui::title_span`); when off, only their
     /// gray color tells them apart (and their `☑` in the day popup and on the tasks page)
     pub cross_out_done: bool,
+    /// The tab bar on the top row (the views `1` `2` `3` switch to, see `ui::tabs`); when off, the views take
+    /// that row too
+    pub tab_bar: bool,
     /// `[calendar]`: switches for the calendars of layouts 1 and 2
     pub calendar: CalendarSettings,
     /// `[month]`: switches for the big month calendar (layout 2)
@@ -72,6 +75,7 @@ impl Default for Settings {
         Self {
             theme: theme::DEFAULT.to_string(),
             cross_out_done: true,
+            tab_bar: true,
             calendar: CalendarSettings::default(),
             month: MonthSettings::default(),
             calendar_list: CalendarListSettings::default(),

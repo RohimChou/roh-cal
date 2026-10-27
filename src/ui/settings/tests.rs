@@ -81,20 +81,21 @@ fn settings_list_theme_switches_and_colors_like_the_config_file() {
     // Expected box computed by a separate Python script (each role's palette name taken from
     // [roles] in themes/catppuccin-mocha.toml):
     // name column = longest name (week_number_dim, 15 cells) + 3; the top-level rows (theme,
-    // cross_out_done) have 2 less indent and a name column 2 wider, so all values share one column;
+    // cross_out_done, tab_bar) have 2 less indent and a name column 2 wider, so all values share one column;
     // the inside is as wide as a row (indent 4 + name column 18 + the longest value, catppuccin-mocha,
     // 16; tokyo-night's terminal_black with its swatch, 17) + 2 blank cells, 41 cells, where the
     // descriptions fit; the key hints on the bottom border are wider (5 groups, 30 cells, + 4 ` | ` + a
     // blank at each end = 44), so the inside is 44 cells;
-    // no blank lines; `[colors]` shows its first 10 colors (17 more below): 30 rows tall
+    // no blank lines; `[colors]` shows its first 10 colors (17 more below): 31 rows tall
     let (_, area, rows, buffer) = draw(SettingsPage::default(), 44);
-    assert_eq!(area, Rect::new(12, 7, 46, 30));
+    assert_eq!(area, Rect::new(12, 7, 46, 31));
     assert_eq!(
         rows,
         [
             "╭ roh-cal ∙ 設定 ────────────────────────────╮",
             "│  theme               catppuccin-mocha      │",
             "│  cross_out_done      on                    │",
+            "│  tab_bar             on                    │",
             "│  [calendar]                                │",
             "│    relative_weeks    off                   │",
             "│    dots              on                    │",
@@ -285,13 +286,13 @@ fn colors_scroll_inside_their_section() {
         app.settings_page().map(|page| (page.top, page.colors_top)),
         Some((0, 5))
     );
-    assert_eq!(rows[16], "│    week_number          yellow             │");
-    assert_eq!(rows[25], "│    checked              mauve              │");
-    // The scrollbar beside the colors (x 45, rows 16-25): its thumb moved down from the top, and the
+    assert_eq!(rows[17], "│    week_number          yellow             │");
+    assert_eq!(rows[26], "│    checked              mauve              │");
+    // The scrollbar beside the colors (x 45, rows 17-26): its thumb moved down from the top, and the
     // rows above `[colors]` keep a plain border
     let border = |dy: u16| cell(&buffer, area, 45, dy).symbol().to_string();
-    assert_eq!(border(16), "│");
-    assert!((17..=25).any(|dy| border(dy) == "┃"));
+    assert_eq!(border(17), "│");
+    assert!((18..=26).any(|dy| border(dy) == "┃"));
     assert_eq!(border(5), "│");
     // Back up to text: `[colors]` scrolls back to its first color; a row above `[colors]` keeps it
     let page = SettingsPage {
@@ -336,9 +337,10 @@ fn clicks_map_to_the_rows() {
     let last = rows()[colors().0 + COLOR_ROWS - 1];
     assert_eq!(click(8, y_of(Row::Theme)), Some(0));
     assert_eq!(click(8, y_of(Row::CrossOutDone)), Some(1));
-    assert_eq!(click(8, y_of(Row::RelativeWeeks)), Some(2));
-    assert_eq!(click(8, y_of(Row::Dots)), Some(3));
-    assert_eq!(click(1, y_of(Row::GridLines)), Some(4));
+    assert_eq!(click(8, y_of(Row::TabBar)), Some(2));
+    assert_eq!(click(8, y_of(Row::RelativeWeeks)), Some(3));
+    assert_eq!(click(8, y_of(Row::Dots)), Some(4));
+    assert_eq!(click(1, y_of(Row::GridLines)), Some(5));
     assert_eq!(
         click(8, y_of(Row::ListWidth)),
         Some(index_of(Row::ListWidth))
@@ -348,7 +350,7 @@ fn clicks_map_to_the_rows() {
     let height = area.height;
     for (dx, dy) in [
         (8, height - 2),
-        (8, y_of(Row::CrossOutDone) + 1),
+        (8, y_of(Row::TabBar) + 1),
         (8, y_of(Row::RelativeWeeks) - 1),
         (8, y_of(Row::ListWidth) - 1),
         (8, y_of(Row::Color("text")) - 1),

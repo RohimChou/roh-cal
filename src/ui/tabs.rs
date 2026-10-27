@@ -71,9 +71,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Which view's tab terminal cell (`column`, `row`) is on, in the tab bar on `area` (the bar's cell counts);
-/// `None` = not on a tab
+/// `None` = not on a tab (or no tab bar: `area` is 0 rows tall)
 pub fn view_at(area: Rect, app: &App, column: u16, row: u16) -> Option<View> {
-    if row != area.y {
+    if !(area.top()..area.bottom()).contains(&row) {
         return None;
     }
     tabs(app)

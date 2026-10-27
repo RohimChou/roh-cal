@@ -1065,6 +1065,8 @@ impl Texts {
             (Lang::ZhTw, Row::Theme) => "顏色：l 換下一套 theme，h 換上一套",
             (Lang::En, Row::CrossOutDone) => "Done tasks: a line through the title",
             (Lang::ZhTw, Row::CrossOutDone) => "做完的任務：標題畫刪除線",
+            (Lang::En, Row::TabBar) => "Top row: a tab for each view",
+            (Lang::ZhTw, Row::TabBar) => "最上面一列：每個版型一個分頁",
             (Lang::En, Row::RelativeWeeks) => "Weeks: count from the selected week",
             (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：其他週寫跟選取那週差幾週",
             (Lang::En, Row::Dots) => "Calendar: a dot per item that day",
