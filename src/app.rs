@@ -1483,8 +1483,10 @@ impl App {
     /// week on row 2
     fn go_today(&mut self) {
         self.selected = self.today;
-        self.scroll_to_month();
-        self.selected_week_on_row_2();
+        match self.view {
+            View::Month => self.selected_week_on_row_2(),
+            _ => self.scroll_to_month(),
+        }
     }
 
     /// Layout 2: the selected week goes on row 2, the week before on top, so the days just past still show
@@ -1503,10 +1505,14 @@ impl App {
         self.month_free = Some(self.selected);
     }
 
-    /// On the next draw, scroll the selected day's month to the top (in both layouts)
+    /// On the next draw, scroll the selected day's month to the top, in the layout shown only (the other
+    /// layout's scroll stays as it was left, see `set_view`)
     fn scroll_to_month(&mut self) {
-        self.calendar_top = None;
-        self.month_top = None;
+        match self.view {
+            View::Planner => self.calendar_top = None,
+            View::Month => self.month_top = None,
+            View::Tasks => {}
+        }
     }
 
     /// `Tab`: calendar → agenda (skipped if there are no items, or in layout 2) → side menu (only if drawn)

@@ -1376,6 +1376,36 @@ fn number_keys_switch_layouts() {
 }
 
 #[test]
+fn t_and_brackets_scroll_only_the_layout_shown() {
+    // Layout 2 scrolled by hand (9/28 on top); in layout 1, `t` (10/17 already selected) leaves it alone, so
+    // back in layout 2 it is where it was
+    let mut app = app_with(ITEMS);
+    press(&mut app, KeyCode::Char('2'));
+    app.month_top = Some(date(2026, 9, 28));
+    press(&mut app, KeyCode::Char('1'));
+    app.calendar_top = Some(3);
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(
+        (app.calendar_top, app.month_top),
+        (None, Some(date(2026, 9, 28)))
+    );
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(app.month_top, Some(date(2026, 9, 28)));
+    // `[` `]` too: in layout 2 they leave layout 1's scroll alone, and the other way round
+    app.calendar_top = Some(3);
+    press(&mut app, KeyCode::Char(']'));
+    assert_eq!((app.calendar_top, app.month_top), (Some(3), None));
+    app.month_top = Some(date(2026, 9, 28));
+    press(&mut app, KeyCode::Char('1'));
+    app.calendar_top = Some(3);
+    press(&mut app, KeyCode::Char('['));
+    assert_eq!(
+        (app.calendar_top, app.month_top),
+        (None, Some(date(2026, 9, 28)))
+    );
+}
+
+#[test]
 fn switching_back_finds_a_layout_as_it_was_left() {
     let title = |app: &App| app.chosen_item().map(|item| item.title.clone());
     // Layout 2: the popup open on 10/17 with c chosen, scrolled by hand (9/28 on top); after the tasks page,
