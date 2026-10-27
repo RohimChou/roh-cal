@@ -118,7 +118,7 @@ In roh-cal, `?` shows the most used keys and `Tab` there shows them all.
 | :- | :- |
 | `h` `j` `k` `l` / arrows | Previous day / next week / previous week / next day |
 | `[` / `]` | First day of the previous / next month |
-| `t` | Jump to today; layout 2 shows its week on the 2nd row |
+| `t` | Jump to today; layout 2 shows its week on the 2nd row. In the day popup it stays open and shows today |
 | `Enter` | Open the selected day's items in a popup over the calendar (both layouts): all of that day's items (long titles wrap), the ones hidden behind `+N` too (a day with no items says `No items`), where the item keys below work, `h` `l` (`←` `→`), or a click on `‹` `›` around the date on its top border, show the previous / next day (the calendar's selected day moves along), and `c` (or clicking the switch at the right end of the bottom border) lists them under their calendars or in one list, saved to the config file right away (`Esc`, `q` or clicking outside close it). With the mouse: double-click a day. `Tab` goes into layout 1's agenda instead |
 | `a` | Add an item on the selected day, in the calendar of that day's first item (or the first calendar that is not a holiday calendar when the day has none); the editor shows the calendar under the line (Calendar); to pick another one, type `#` and part of its name (see `a` / `A` below). With no calendar in the file yet, it goes into a new `# Default` calendar (`# 預設` in Chinese) |
 

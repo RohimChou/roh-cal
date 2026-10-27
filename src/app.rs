@@ -922,10 +922,15 @@ impl App {
             KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_focus(),
             KeyCode::BackTab => self.previous_focus(),
-            // Back to today, scrolled like `go_today` says (the tasks page has no calendar, so ignored)
+            // Back to today, scrolled like `go_today` says (the tasks page has no calendar, so ignored); the
+            // day popup stays open and shows today
             KeyCode::Char('t') if self.view != View::Tasks => {
                 self.go_today();
-                self.focus = Focus::Calendar;
+                if self.focus == Focus::Day {
+                    self.open_day_popup();
+                } else {
+                    self.focus = Focus::Calendar;
+                }
             }
             // Undo the last write (check, edit, …)
             KeyCode::Char('u') => self.undo(),

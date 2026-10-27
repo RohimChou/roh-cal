@@ -287,6 +287,7 @@ const EN: Texts = Texts {
                 title: "Day popup",
                 keys: &[
                     ("h / l", "previous / next day"),
+                    ("t", "today"),
                     ("c", "by calendar on / off"),
                 ],
                 places: &[Focus::Day],
@@ -420,6 +421,7 @@ const EN: Texts = Texts {
                 title: "Day popup",
                 keys: &[
                     ("h / l", "previous / next day"),
+                    ("t", "today"),
                     ("c", "by calendar on / off"),
                 ],
                 places: &[Focus::Day],
@@ -559,7 +561,11 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "那天的事",
-                keys: &[("h / l", "前一天 / 後一天"), ("c", "照日曆分組 開 / 關")],
+                keys: &[
+                    ("h / l", "前一天 / 後一天"),
+                    ("t", "今天"),
+                    ("c", "照日曆分組 開 / 關"),
+                ],
                 places: &[Focus::Day],
             },
             HelpSection {
@@ -689,7 +695,11 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "那天的事",
-                keys: &[("h / l", "前一天 / 後一天"), ("c", "照日曆分組 開 / 關")],
+                keys: &[
+                    ("h / l", "前一天 / 後一天"),
+                    ("t", "今天"),
+                    ("c", "照日曆分組 開 / 關"),
+                ],
                 places: &[Focus::Day],
             },
             HelpSection {
