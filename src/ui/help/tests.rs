@@ -358,14 +358,14 @@ fn full_page_lists_every_section_side_by_side_without_aligning() {
         let (area, rows, _) = draw(
             lang,
             100,
-            45,
+            46,
             Help {
                 full: true,
                 scroll: 0,
             },
         );
-        // The longer column (right) is 41 lines + padding 2 + border 2: it just fits, no scrolling
-        assert_eq!(area.height, 45, "{lang:?}");
+        // The longer column (right) is 42 lines + padding 2 + border 2: it just fits, no scrolling
+        assert_eq!(area.height, 46, "{lang:?}");
         let text = rows.join("\n");
         for section in page.left.iter().chain(page.right) {
             assert!(text.contains(section.title), "{}", section.title);

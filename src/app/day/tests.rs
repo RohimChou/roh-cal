@@ -63,6 +63,64 @@ fn enter_opens_the_days_items_and_esc_or_q_closes_them() {
 }
 
 #[test]
+fn h_and_l_show_the_previous_or_next_day_in_the_popup() {
+    // 10/17's popup with Team sync (the 3rd item) chosen: l = 10/18 (only Trip to NYC); h = back to 10/17,
+    // the first item chosen again; the popup stays open and the calendar's selected day moves along
+    let mut app = month_app();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app).as_deref(), Some("Team sync"));
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        (app.selected, app.focus, chosen(&app).as_deref()),
+        (date(2026, 10, 18), Focus::Day, Some("Trip to NYC"))
+    );
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(
+        (app.selected, chosen(&app).as_deref()),
+        (date(2026, 10, 17), Some("Trip to NYC"))
+    );
+    // → twice = 10/19, no items: still open (it says 「沒有事」), nothing chosen; once more = 10/20; ← back
+    press(&mut app, KeyCode::Right);
+    press(&mut app, KeyCode::Right);
+    assert_eq!(
+        (app.selected, app.focus, chosen(&app)),
+        (date(2026, 10, 19), Focus::Day, None)
+    );
+    press(&mut app, KeyCode::Right);
+    assert_eq!(chosen(&app).as_deref(), Some("Deploy to prod"));
+    press(&mut app, KeyCode::Left);
+    assert_eq!((app.selected, chosen(&app)), (date(2026, 10, 19), None));
+    // The other day's first item gets chosen, not the same position: 10/17's 2nd (Pack) → 10/18's 1st (Fly
+    // out), not its 2nd (Check in)
+    let mut app = App::new(
+        Lang::ZhTw,
+        date(2026, 10, 17),
+        crate::tasks::parse(
+            "- [ ] Shop @2026-10-17\n- [ ] Pack @2026-10-17\n\
+             - [ ] Fly out @2026-10-18\n- [ ] Check in @2026-10-18\n",
+        )
+        .items,
+    );
+    app.view = View::Month;
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app).as_deref(), Some("Pack"));
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(chosen(&app).as_deref(), Some("Fly out"));
+    // Layout 1's popup is the same one
+    let mut app = month_app();
+    app.view = View::Planner;
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        (app.view, app.selected, app.focus),
+        (View::Planner, date(2026, 10, 18), Focus::Day)
+    );
+}
+
+#[test]
 fn only_a_double_click_opens_the_day_from_the_month_grid() {
     let mut app = month_app();
     let start = Instant::now();

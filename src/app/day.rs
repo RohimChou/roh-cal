@@ -171,16 +171,26 @@ impl App {
         }
     }
 
-    /// Keyboard in the popup: `j` / `k` next / previous item, `c` grouped by calendar or not; the rest are
+    /// Keyboard in the popup: `j` / `k` next / previous item, `h` / `l` previous / next day, `c` grouped by
+    /// calendar or not; the rest are
     /// the keys on the chosen item, as in the agenda (`App::handle_item_key`; closing with `Esc` / `q` is in
     /// `handle_normal_key`)
     pub(super) fn handle_day_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.choose_day(1),
             KeyCode::Char('k') | KeyCode::Up => self.choose_day(-1),
+            KeyCode::Char('h') | KeyCode::Left => self.step_day(-1),
+            KeyCode::Char('l') | KeyCode::Right => self.step_day(1),
             KeyCode::Char('c') => self.toggle_by_calendar(),
             _ => self.handle_item_key(code),
         }
+    }
+
+    /// `h` / `l` in the popup: the popup shows the day `days` later (negative = earlier) with its first item
+    /// chosen, and stays open (a day with no items too); the calendar's selected day moves with it
+    fn step_day(&mut self, days: i64) {
+        self.move_by(days);
+        self.open_day_popup();
     }
 
     /// `c` or a click on the switch on the bottom border: `[day_popup] by_calendar` on ⇄ off, saved to the

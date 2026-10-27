@@ -223,7 +223,7 @@ const EN: Texts = Texts {
     day_empty: "No items",
     header_tasks: " Tasks",
     hints_tasks: " jk move  hl fold  Space check  e edit  a add  o editor  s calendars  ? help  , settings  q quit",
-    hints_day: " jk move  Space check  e edit  a add  r reschedule  d delete  c group  Esc close",
+    hints_day: " jk move  hl day  Space check  e edit  a add  r reschedule  d delete  c group  Esc close",
     hints_side: " jk move  Space show / hide  Enter only this  a/A add calendar  e rename  d delete  Esc back",
     hash_list_keys: " Enter pick  Esc close ",
     editor_words: EditorWords {
@@ -285,7 +285,10 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "Day popup",
-                keys: &[("c", "by calendar on / off")],
+                keys: &[
+                    ("h / l", "previous / next day"),
+                    ("c", "by calendar on / off"),
+                ],
                 places: &[Focus::Day],
             },
             HelpSection {
@@ -415,7 +418,10 @@ const EN: Texts = Texts {
             },
             HelpSection {
                 title: "Day popup",
-                keys: &[("c", "by calendar on / off")],
+                keys: &[
+                    ("h / l", "previous / next day"),
+                    ("c", "by calendar on / off"),
+                ],
                 places: &[Focus::Day],
             },
             HelpSection {
@@ -491,7 +497,7 @@ const ZH_TW: Texts = Texts {
     day_empty: "沒有事",
     header_tasks: " 任務",
     hints_tasks: " jk 移動  hl 收合  Space 打勾  e 編輯  a 新增  o 編輯器  s 日曆  ? 說明  , 設定  q 離開",
-    hints_day: " jk 移動  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  c 分組  Esc 關閉",
+    hints_day: " jk 移動  hl 換天  Space 打勾  e 編輯  a 新增  r 改期  d 刪除  c 分組  Esc 關閉",
     hints_side: " jk 移動  Space 勾選  Enter 只看這個  a/A 新增日曆  e 改名  d 刪除  Esc 回去",
     hash_list_keys: " Enter 選定  Esc 收起 ",
     editor_words: EditorWords {
@@ -553,7 +559,7 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "那天的事",
-                keys: &[("c", "照日曆分組 開 / 關")],
+                keys: &[("h / l", "前一天 / 後一天"), ("c", "照日曆分組 開 / 關")],
                 places: &[Focus::Day],
             },
             HelpSection {
@@ -683,7 +689,7 @@ const ZH_TW: Texts = Texts {
             },
             HelpSection {
                 title: "那天的事",
-                keys: &[("c", "照日曆分組 開 / 關")],
+                keys: &[("h / l", "前一天 / 後一天"), ("c", "照日曆分組 開 / 關")],
                 places: &[Focus::Day],
             },
             HelpSection {

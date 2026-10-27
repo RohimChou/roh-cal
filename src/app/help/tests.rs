@@ -88,25 +88,25 @@ fn other_keys_do_nothing_while_it_is_open() {
 
 #[test]
 fn j_and_k_scroll_only_when_it_does_not_fit() {
-    // 100 × 45: the full version fits, so j does nothing
-    let mut app = app_with_help(100, 45);
+    // 100 × 46: the full version fits, so j does nothing
+    let mut app = app_with_help(100, 46);
     press(&mut app, KeyCode::Tab);
     press(&mut app, KeyCode::Char('j'));
     assert_eq!(app.help().map(|help| help.scroll), Some(0));
-    // 100 × 20: full version 41 lines + padding 2 + border 2 = 45 lines; the box is at most 20 tall,
-    // so 16 lines fit inside → it can scroll 25 lines
+    // 100 × 20: full version 42 lines + padding 2 + border 2 = 46 lines; the box is at most 20 tall,
+    // so 16 lines fit inside → it can scroll 26 lines
     let mut app = app_with_help(100, 20);
     press(&mut app, KeyCode::Tab);
-    for _ in 0..26 {
+    for _ in 0..27 {
         press(&mut app, KeyCode::Down);
     }
-    assert_eq!(app.help().map(|help| help.scroll), Some(25));
+    assert_eq!(app.help().map(|help| help.scroll), Some(26));
     press(&mut app, KeyCode::Char('k'));
-    assert_eq!(app.help().map(|help| help.scroll), Some(24));
+    assert_eq!(app.help().map(|help| help.scroll), Some(25));
     // The wheel does the same; the calendar below does not move
     app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 50, 10));
     app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 50, 10));
-    assert_eq!(app.help().map(|help| help.scroll), Some(22));
+    assert_eq!(app.help().map(|help| help.scroll), Some(23));
     assert_eq!(app.selected, date(2026, 10, 17));
     // Tab switches back to the short version: back to the top
     press(&mut app, KeyCode::Tab);

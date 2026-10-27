@@ -3563,10 +3563,10 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
         ]
     );
     // The bottom border's right end: the switch for grouping by calendar (on by default). The key hints
-    // are 77 cells, so at 60 cells wide 「c 分組 | Esc 關閉」 is cut
+    // are 87 cells, so at 60 cells wide 「d 刪除 | c 分組 | Esc 關閉」 is cut
     assert_eq!(
         text_rows(buffer)[20],
-        " jk 移動 | Space 打勾 | e 編輯 | a 新增 | r 改期 | d 刪除 |"
+        " jk 移動 | hl 換天 | Space 打勾 | e 編輯 | a 新增 | r 改期 |"
     );
     // The border has the color of where the keyboard is; the chosen row (y 8) has the selection
     // background from border to border (x 10-49, the padding cells too), the others none; its dates are
@@ -4673,7 +4673,7 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when
 
 #[test]
 fn a_toast_covers_the_right_end_of_the_bottom_row() {
-    // 60 × 20, the popup open: its keys on the bottom row (87 cells, cut at 60), the note over their end
+    // 60 × 20, the popup open: its keys on the bottom row (96 cells, cut at 60), the note over their end
     // with a blank cell on each side, in the notice color (expected row from a separate Python count)
     let mut app = month_app(Lang::En, date(2026, 10, 17), "- [ ] Pack @2026-10-17\n");
     app.focus = Focus::Day;
@@ -4682,7 +4682,7 @@ fn a_toast_covers_the_right_end_of_the_bottom_row() {
     let buffer = terminal.backend().buffer();
     assert_eq!(
         text_rows(buffer)[19],
-        " jk move | Space check | e edit | a add | r Copied 11 chars"
+        " jk move | hl day | Space check | e edit |  Copied 11 chars"
     );
     // (`text_rows` drops blanks at the end: the last cell is the note's blank)
     assert_eq!(buffer[(58, 19)].symbol(), "s");
@@ -4698,7 +4698,7 @@ fn a_toast_covers_the_right_end_of_the_bottom_row() {
     let terminal = draw_app(&mut app, 60, 20);
     assert_eq!(
         text_rows(terminal.backend().buffer())[19],
-        " jk move | Space check | e edit | a add | r reschedule | d d"
+        " jk move | hl day | Space check | e edit | a add | r resched"
     );
 }
 
