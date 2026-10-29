@@ -313,6 +313,8 @@ pub enum Mode {
         /// The color picker (`e` on a color row), open over the settings page
         picker: Option<Picker>,
     },
+    /// After `Space` / `x` on an open task, asking whether to check it off: that task
+    ConfirmCheck(Item),
     /// After `d`, asking whether to delete: the item to delete and how many items that removes (with subtasks)
     ConfirmDelete(Item, usize),
     /// After `d` in the calendar list, asking whether to delete the calendar: its name, its heading lines
@@ -523,6 +525,14 @@ impl App {
     pub fn settings_page(&self) -> Option<SettingsPage> {
         match self.mode {
             Mode::Settings { page, .. } => Some(page),
+            _ => None,
+        }
+    }
+
+    /// If asking whether to check off a task: that task
+    pub fn confirm_check(&self) -> Option<&Item> {
+        match &self.mode {
+            Mode::ConfirmCheck(item) => Some(item),
             _ => None,
         }
     }
@@ -843,6 +853,8 @@ impl App {
             Mode::Help(_) => self.handle_help_key(key),
             // Settings page: only choosing a row, changing a value, resetting, closing
             Mode::Settings { .. } => self.handle_settings_key(key),
+            // Asking whether to check off: `Space` / `x` again or `y` checks it, any other key just cancels
+            Mode::ConfirmCheck(_) => self.answer_check(key),
             // Asking whether to delete: `d` (`dd`) or `y` deletes, any other key just cancels
             Mode::ConfirmDelete(..) => self.answer_delete(key),
             Mode::ConfirmDeleteCalendar { .. } => self.answer_delete_calendar(key),
@@ -1006,11 +1018,11 @@ impl App {
     }
 
     /// Keys on the chosen item, the same in the agenda, the day popup and on the tasks page (all write back
-    /// to the task file): `Space` / `x` check, `/` in progress, `r` reschedule, `e` / `Enter` edit, `a`
+    /// to the task file): `Space` / `x` check (asking first) / uncheck, `/` in progress, `r` reschedule, `e` / `Enter` edit, `a`
     /// add, `A` add a subtask, `d` delete; other keys do nothing
     fn handle_item_key(&mut self, code: KeyCode) {
         match code {
-            KeyCode::Char(' ' | 'x') => self.toggle_chosen(),
+            KeyCode::Char(' ' | 'x') => self.ask_check(),
             KeyCode::Char('/') => self.toggle_chosen_progress(),
             KeyCode::Char('r') => self.start_moving(),
             KeyCode::Char('e') | KeyCode::Enter => self.start_editing(),
@@ -1252,8 +1264,10 @@ impl App {
             Mode::Help(_) => self.handle_help_mouse(mouse),
             // Settings page: the wheel chooses rows, clicks on rows, a click outside closes it
             Mode::Settings { .. } => self.handle_settings_mouse(mouse),
-            // Asking whether to delete: the confirm box's buttons
-            Mode::ConfirmDelete(..) | Mode::ConfirmDeleteCalendar { .. } => {
+            // Asking whether to check off or delete: the confirm box's buttons
+            Mode::ConfirmCheck(_)
+            | Mode::ConfirmDelete(..)
+            | Mode::ConfirmDeleteCalendar { .. } => {
                 self.handle_confirm_mouse(mouse);
             }
             // Editor box: the `#` list takes clicks and the wheel, a click outside = cancel (Esc)

@@ -60,6 +60,32 @@ impl App {
         self.change_chosen_box(edit::toggle);
     }
 
+    /// `Space` / `x`: an open task (in progress too) is checked off only after asking in the confirm box
+    /// (`answer_check`); a done task is unchecked right away, an event gets the notice that it has no box
+    pub(super) fn ask_check(&mut self) {
+        match self.chosen_item() {
+            Some(item) if item.kind == Kind::Task && !item.done => {
+                self.mode = Mode::ConfirmCheck(item.clone());
+            }
+            _ => self.toggle_chosen(),
+        }
+    }
+
+    /// Keys while asking "check off?": `Space` / `x` again (like `dd`) or `y` checks it off, `Ctrl+C` quits,
+    /// any other key just cancels
+    pub(super) fn answer_check(&mut self, key: KeyEvent) {
+        if !matches!(std::mem::take(&mut self.mode), Mode::ConfirmCheck(_)) {
+            return;
+        }
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.should_quit = true;
+        } else if matches!(key.code, KeyCode::Char(' ' | 'x' | 'y')) {
+            // Nothing could move meanwhile (keys and clicks went to the question), so the chosen item is
+            // still the one asked about
+            self.toggle_chosen();
+        }
+    }
+
     /// `/`: marks the chosen task in progress (`[/]`), or back to open if it already is; written back like
     /// `toggle_chosen`
     pub(super) fn toggle_chosen_progress(&mut self) {
@@ -429,13 +455,14 @@ impl App {
     ///
     /// Reads the file only when its modified time changed, and reloads only when the content differs from
     /// what the screen shows (roh-cal's own writes change the time but not that). Waits while an item is
-    /// being worked on (editor, rescheduling, delete question), so it does not change underneath; that
+    /// being worked on (editor, rescheduling, check / delete question), so it does not change underneath; that
     /// write re-reads the file anyway. A file that cannot be read (e.g. deleted) leaves the screen as it is
     pub(super) fn refresh_tasks(&mut self) {
         let busy = match self.mode {
             Mode::Normal | Mode::Help(_) | Mode::Settings { .. } | Mode::Splash { .. } => false,
             Mode::Editor(_)
             | Mode::Moving(_)
+            | Mode::ConfirmCheck(_)
             | Mode::ConfirmDelete(..)
             | Mode::ConfirmDeleteCalendar { .. } => true,
         };

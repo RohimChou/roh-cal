@@ -1,5 +1,5 @@
-//! The confirm box: before deleting an item or a calendar, or resetting every setting, a small box in the
-//! middle of the screen asks first (like yazi's)
+//! The confirm box: before checking off a task, deleting an item or a calendar, or resetting every setting,
+//! a small box in the middle of the screen asks first (like yazi's)
 //!
 //! ```text
 //! ╭────────── 刪除？ ──────────╮
@@ -32,11 +32,13 @@ const INDENT: u16 = 2;
 /// buttons and the buttons
 const FIXED_ROWS: u16 = 6;
 
-/// What the confirm box asks now: deleting an item or a calendar, resetting every setting (`R` on the
-/// settings page); `None` while it is not asking
+/// What the confirm box asks now: checking off a task, deleting an item or a calendar, resetting every
+/// setting (`R` on the settings page); `None` while it is not asking
 pub fn question(app: &App) -> Option<Confirm> {
     let texts = app.lang.texts();
-    if let Some((item, count)) = app.confirm_delete() {
+    if let Some(item) = app.confirm_check() {
+        Some(texts.confirm_check(&item.title))
+    } else if let Some((item, count)) = app.confirm_delete() {
         Some(texts.confirm_delete(&item.title, count))
     } else if let Some((name, count)) = app.confirm_delete_calendar() {
         Some(texts.confirm_delete_calendar(name, count))

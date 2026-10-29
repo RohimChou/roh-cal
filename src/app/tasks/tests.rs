@@ -565,7 +565,9 @@ fn the_writing_keys_work_on_the_tasks_page() {
                     # Personal\n- Go hiking @2026-10-18\n";
     let (mut app, path) = tasks_app_with_file("tasks-keys", text);
     let read = || std::fs::read_to_string(&path).expect("read");
-    // Space: undated items can be checked off too; the same item stays chosen
+    // Space (asks first, Space again checks): undated items can be checked off too; the same item stays
+    // chosen
+    press(&mut app, KeyCode::Char(' '));
     press(&mut app, KeyCode::Char(' '));
     assert!(read().contains("- [x] Design doc\n"));
     assert_eq!(

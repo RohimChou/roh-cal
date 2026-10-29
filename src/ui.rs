@@ -457,12 +457,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             splash::render(frame, app, seconds);
         }
         // Rescheduling: shown on the bottom row (already drawn above); the confirm box: below
-        Mode::ConfirmDelete(..)
+        Mode::ConfirmCheck(_)
+        | Mode::ConfirmDelete(..)
         | Mode::ConfirmDeleteCalendar { .. }
         | Mode::Moving(_)
         | Mode::Normal => {}
     }
-    // The confirm box (asking whether to delete): over everything else
+    // The confirm box (asking whether to check off, delete, reset all settings): over everything else
     if let Some(question) = confirm::question(app) {
         confirm::render(frame, app, &question);
     }

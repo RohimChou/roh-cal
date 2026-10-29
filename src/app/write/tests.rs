@@ -35,9 +35,17 @@ fn space_or_x_checks_the_chosen_item_off_in_the_file() {
     let text = "# Recurring\n- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
     let (mut app, path) = app_with_task_file("toggle", text);
     let read = || std::fs::read_to_string(&path).expect("read");
-    // Choose the second item ("Deploy to staging") and press Space: only that line changes
+    // Choose the second item ("Deploy to staging") and press Space: it asks first, the file is not touched
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char(' '));
+    assert_eq!(
+        app.confirm_check().map(|item| item.title.as_str()),
+        Some("Deploy to staging")
+    );
+    assert_eq!(read(), text);
+    // Space again (like dd): only that line changes
+    press(&mut app, KeyCode::Char(' '));
+    assert_eq!(app.confirm_check(), None);
     assert_eq!(
         read(),
         "# Recurring\n- [ ] Review PRs @2026-10-17 09:00\n- [x] Deploy to staging @2026-10-17 14:00\n"
@@ -46,10 +54,61 @@ fn space_or_x_checks_the_chosen_item_off_in_the_file() {
     assert!(app.items[1].done);
     assert_eq!(app.agenda_index, 1);
     assert_eq!(app.notice, None);
-    // x works too: press it again to uncheck
+    // x on a done task unchecks it right away, without asking
     press(&mut app, KeyCode::Char('x'));
     assert_eq!(read(), text);
     assert!(!app.items[1].done);
+    // x then x, x then y: check it off too
+    for answer in ['x', 'y'] {
+        press(&mut app, KeyCode::Char('x'));
+        press(&mut app, KeyCode::Char(answer));
+        assert!(app.items[1].done, "{answer}");
+        press(&mut app, KeyCode::Char('x'));
+    }
+    assert_eq!(read(), text);
+    clean_up(&path);
+}
+
+#[test]
+fn the_check_question_takes_a_click_on_yes() {
+    // On 70 × 23 the box asking about "Review PRs" has 「[Y] 完成」 on x 22..32, row 13 (see
+    // `ui::confirm`'s tests)
+    let text = "- [ ] Review PRs @2026-10-17 09:00\n";
+    let (mut app, path) = app_with_task_file("check-click", text);
+    app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+    press(&mut app, KeyCode::Char(' '));
+    crate::test_utils::mouse(&mut app, MouseEventKind::Down(MouseButton::Left), 25, 13);
+    assert_eq!(app.confirm_check(), None);
+    assert!(app.items[0].done);
+    clean_up(&path);
+}
+
+#[test]
+fn any_other_key_cancels_the_check_question() {
+    let text = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
+    let (mut app, path) = app_with_task_file("check-cancel", text);
+    for other in [
+        KeyCode::Char('j'),
+        KeyCode::Char('n'),
+        KeyCode::Enter,
+        KeyCode::Esc,
+    ] {
+        press(&mut app, KeyCode::Char(' '));
+        // The key used to cancel only cancels: still in the agenda, still on the first item
+        press(&mut app, other);
+        assert_eq!(app.confirm_check(), None, "{other:?}");
+        assert_eq!(
+            (app.focus, app.agenda_index),
+            (Focus::Agenda, 0),
+            "{other:?}"
+        );
+    }
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
+    // Ctrl+C quits from it, without checking
+    press(&mut app, KeyCode::Char(' '));
+    app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    assert!(app.should_quit);
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), text);
     clean_up(&path);
 }
 
@@ -73,6 +132,7 @@ fn toggle_reloads_instead_of_writing_when_the_file_changed_elsewhere() {
     let edited = "- [ ] Go to the gym @2026-10-17 08:00\n- [ ] Review PRs @2026-10-17 09:00\n";
     std::fs::write(&path, edited).expect("edit");
     press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('y'));
     // File untouched, reloaded (now two items), notice shown
     assert_eq!(std::fs::read_to_string(&path).expect("read"), edited);
     assert_eq!(app.items.len(), 2);
@@ -85,6 +145,7 @@ fn toggle_says_why_when_the_file_is_gone() {
     let (mut app, path) = app_with_task_file("gone", "- [ ] Review PRs @2026-10-17 09:00\n");
     std::fs::remove_file(&path).expect("remove");
     press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('y'));
     assert_eq!(app.notice, Some(Notice::Failed(ErrorKind::NotFound)));
     // No new file was quietly created
     assert!(!path.exists());
@@ -159,9 +220,11 @@ fn only_a_double_click_checks_an_item_off() {
     let later = Instant::now() + Duration::from_millis(900);
     app.click_item(0, later);
     assert_eq!(read(), text);
-    // Another click 0.3 s after that one: a double click, checked off
+    // Another click 0.3 s after that one: a double click, checked off right away (no question: a double
+    // click is hard to do by accident)
     app.click_item(0, later + Duration::from_millis(300));
     assert_eq!(read(), "- [x] Review PRs @2026-10-10\n");
+    assert_eq!(app.confirm_check(), None);
     clean_up(&path);
 }
 
@@ -199,8 +262,8 @@ fn u_undoes_the_last_writes_one_at_a_time_then_has_nothing_left() {
     let text = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Deploy to staging @2026-10-17 14:00\n";
     let (mut app, path) = app_with_task_file("undo", text);
     let read = || std::fs::read_to_string(&path).expect("read");
-    // Check off both items, then go back to the calendar
-    for code in [' ', 'j', ' '].map(KeyCode::Char) {
+    // Check off both items (Space asks, Space again checks), then go back to the calendar
+    for code in [' ', ' ', 'j', ' ', ' '].map(KeyCode::Char) {
         press(&mut app, code);
     }
     press(&mut app, KeyCode::Esc);
@@ -228,9 +291,11 @@ fn u_undoes_the_last_writes_one_at_a_time_then_has_nothing_left() {
 fn u_leaves_the_file_alone_when_it_changed_elsewhere() {
     let (mut app, path) =
         app_with_task_file("undo-changed", "- [ ] Review PRs @2026-10-17 09:00\n");
-    // Check off and uncheck (two steps recorded), then the file is changed again elsewhere
-    press(&mut app, KeyCode::Char(' '));
-    press(&mut app, KeyCode::Char(' '));
+    // Check off (Space asks, Space again checks) and uncheck (two steps recorded), then the file is changed
+    // again elsewhere
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char(' '));
+    }
     let edited = "- [ ] Review PRs @2026-10-17 09:00\n- [ ] Book a haircut @2026-10-17 10:00\n";
     std::fs::write(&path, edited).expect("edit");
     press(&mut app, KeyCode::Char('u'));
@@ -248,7 +313,11 @@ fn undo_keeps_only_the_last_50_steps() {
     let (mut app, path) = app_with_task_file("undo-limit", "- [ ] Review PRs @2026-10-17 09:00\n");
     // Check off / uncheck 51 times (odd count → it ends checked off)
     for _ in 0..=UNDO_LEVELS {
+        // Checking off asks first: x again answers (unchecking does not ask)
         press(&mut app, KeyCode::Char('x'));
+        if app.confirm_check().is_some() {
+            press(&mut app, KeyCode::Char('x'));
+        }
     }
     // Keep pressing u: only 50 undos work (pressing more does not go past that)
     let undone = (0..UNDO_LEVELS + 5)
@@ -604,6 +673,7 @@ fn rewriting_keeps_the_calendars_checked_state() {
     let (mut app, path) = app_with_task_file("groups", text);
     app.groups[1].shown = false;
     press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('y'));
     assert!(app.items[0].done);
     assert!(app.groups[0].shown && !app.groups[1].shown);
     clean_up(&path);
@@ -620,6 +690,7 @@ fn a_change_made_elsewhere_shows_up_without_a_key_but_roh_cals_own_writes_do_not
     assert_eq!(app.notice, None);
     // roh-cal's own write changes the file too, but it is what the screen shows: undo still works
     press(&mut app, KeyCode::Char(' '));
+    press(&mut app, KeyCode::Char('y'));
     app.refresh_tasks();
     press(&mut app, KeyCode::Char('u'));
     assert!(matches!(app.notice, Some(Notice::Undone(_))));
@@ -701,7 +772,9 @@ fn slash_marks_the_chosen_task_in_progress_and_back() {
     assert_eq!(read(), text);
     press(&mut app, KeyCode::Char('u'));
     assert!(app.items[0].in_progress);
-    // Space checks an in-progress task off
+    // Space checks an in-progress task off (it asks first, as for an open one)
+    press(&mut app, KeyCode::Char(' '));
+    assert!(app.confirm_check().is_some());
     press(&mut app, KeyCode::Char(' '));
     assert!(app.items[0].done && !app.items[0].in_progress);
     // An event has no box: the bottom row says so, the file stays
@@ -743,7 +816,8 @@ fn the_chosen_item_stays_chosen_when_space_or_slash_moves_it_within_its_day() {
     press(&mut app, KeyCode::Char('/'));
     assert_eq!(app.agenda_index, 0);
     assert_eq!(chosen(&app), Some(("Estimate 2601RC".into(), 2)));
-    // Space checks it off: back to its place in the file order, still chosen
+    // Space (twice: asks, then checks) checks it off: back to its place in the file order, still chosen
+    press(&mut app, KeyCode::Char(' '));
     press(&mut app, KeyCode::Char(' '));
     assert_eq!(app.agenda_index, 1);
     assert_eq!(chosen(&app), Some(("Estimate 2601RC".into(), 2)));
@@ -763,6 +837,7 @@ fn with_done_tasks_hidden_checking_one_off_leaves_the_next_one_chosen() {
     let (mut app, path) = app_with_task_file("progress-hidden", text);
     app.settings.calendar_list.hide_done = true;
     // Email is checked off and hidden: the next one (Estimate) is chosen, ready for the next Space
+    press(&mut app, KeyCode::Char(' '));
     press(&mut app, KeyCode::Char(' '));
     assert_eq!(app.focus, Focus::Agenda);
     assert_eq!(

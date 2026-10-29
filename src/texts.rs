@@ -1000,6 +1000,20 @@ impl Texts {
         }
     }
 
+    /// After `Space` / `x` on an open task, the confirm box asks whether to check off `title`
+    pub fn confirm_check(&self, title: &str) -> Confirm {
+        let (question, yes) = match self.lang {
+            Lang::En => ("Mark done?", "Done"),
+            Lang::ZhTw => ("標成完成？", "完成"),
+        };
+        Confirm {
+            question,
+            subject: title.to_string(),
+            detail: None,
+            yes,
+        }
+    }
+
     /// After `d`, the confirm box asks whether to delete `title` and the `count` items that removes (with
     /// subtasks), e.g. 「刪除？」 / `Write the design doc` / 「和底下 2 件子任務」
     pub fn confirm_delete(&self, title: &str, count: usize) -> Confirm {

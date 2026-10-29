@@ -1,22 +1,22 @@
 use super::*;
 use crate::app::Mode;
-use crate::tasks;
+use crate::tasks::{self, Item};
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
-/// An app (`width` × `height`, catppuccin-mocha) asking whether to delete the first item of `text`, which
-/// removes `count` items, drawn once; returns it, the box's area and the screen
-fn asking_to_delete(
+/// An app (`width` × `height`, catppuccin-mocha) with the items of `text`, asking what `mode` (given the
+/// first item) asks, drawn once; returns it, the box's area and the screen
+fn asking(
     lang: Lang,
     (width, height): (u16, u16),
     text: &str,
-    count: usize,
+    mode: impl FnOnce(Item) -> Mode,
 ) -> (App, Rect, Buffer) {
     let items = tasks::parse(text).items;
     let mut app = App::new(lang, date(2026, 10, 17), items.clone()).with_theme("catppuccin-mocha");
     app.screen = Rect::new(0, 0, width, height);
-    app.mode = Mode::ConfirmDelete(items[0].clone(), count);
+    app.mode = mode(items[0].clone());
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal
         .draw(|frame| crate::ui::render(frame, &mut app))
@@ -24,6 +24,11 @@ fn asking_to_delete(
     let question = question(&app).expect("asking");
     let (area, _) = layout(&app, app.screen, &question);
     (app, area, terminal.backend().buffer().clone())
+}
+
+/// `asking` whether to delete the first item of `text`, which removes `count` items
+fn asking_to_delete(lang: Lang, size: (u16, u16), text: &str, count: usize) -> (App, Rect, Buffer) {
+    asking(lang, size, text, |item| Mode::ConfirmDelete(item, count))
 }
 
 #[test]
@@ -115,5 +120,49 @@ fn clicks_on_the_buttons_and_outside() {
     assert_eq!(
         (click(34, 14), click(25, 10), click(19, 12)),
         (None, None, None)
+    );
+}
+
+#[test]
+fn checking_off_asks_without_a_gray_line() {
+    // Expected rows from the same Python script: no detail, so one row shorter (7); 70 × 23 → x 19, y 8;
+    // 🦀 is 2 cells wide, so the English subject is 26 cells
+    let (_, area, buffer) = asking(
+        Lang::ZhTw,
+        (70, 23),
+        "- [ ] Review PRs @2026-10-17\n",
+        Mode::ConfirmCheck,
+    );
+    assert_eq!(area, Rect::new(19, 8, 32, 7));
+    assert_eq!(
+        crate::ui::tests::area_rows(&buffer, area),
+        [
+            "╭───────── 標成完成？ ─────────╮",
+            "│                              │",
+            "│  Review PRs                  │",
+            "│                              │",
+            "│──────────────────────────────│",
+            "│   [Y] 完成       (N) 取消    │",
+            "╰──────────────────────────────╯",
+        ]
+    );
+    let (_, area, buffer) = asking(
+        Lang::En,
+        (80, 23),
+        "- [/] Draft the release notes 🦀 @2026-10-17\n",
+        Mode::ConfirmCheck,
+    );
+    assert_eq!(area, Rect::new(24, 8, 32, 7));
+    assert_eq!(
+        crate::ui::tests::area_rows(&buffer, area),
+        [
+            "╭───────── Mark done? ─────────╮",
+            "│                              │",
+            "│  Draft the release notes 🦀  │",
+            "│                              │",
+            "│──────────────────────────────│",
+            "│   [Y] Done      (N) Cancel   │",
+            "╰──────────────────────────────╯",
+        ]
     );
 }
