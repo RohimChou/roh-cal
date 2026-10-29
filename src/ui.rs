@@ -1,8 +1,9 @@
 //! Draws the whole screen: the side menu on the far left (only when wide enough; when narrow, `s` shows it
 //! over the left side), the main view on the right (layout 1's calendar box + agenda, layout 2's month grid,
 //! or the tasks page), the key hints on the bottom row; popups (layout 2's day popup, the edit box, the help
-//! page, the settings page) go on top, and the intro played at start over all of it
+//! page, the settings page) go on top, then the confirm box, and the intro played at start over all of it
 
+mod confirm;
 mod day;
 mod editor;
 mod help;
@@ -72,6 +73,14 @@ pub fn day_item_at(app: &App, column: u16, row: u16) -> Option<usize> {
 /// Which title character in the popup is at (`column`, `row`) (see `day::text_at`)
 pub fn day_text_at(app: &App, column: u16, row: u16, clamp: bool) -> Option<TextSpot> {
     day::text_at(app, areas(app.screen, app).main, column, row, clamp)
+}
+
+/// What a click at (`column`, `row`) means while the confirm box is open: `Some(true)` = its yes button,
+/// `Some(false)` = its no button or outside it (cancel), `None` = elsewhere in it, or no box open (see
+/// `confirm::click`)
+pub fn confirm_click(app: &App, column: u16, row: u16) -> Option<bool> {
+    let question = confirm::question(app)?;
+    confirm::click(app, app.screen, &question, column, row)
 }
 
 /// Where the help page box is on screen (so a mouse click outside it can close it)
@@ -368,25 +377,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         agenda: agenda_area,
         hints,
     } = areas(frame.area(), app);
-    // Bottom row: delete confirmation > rescheduling (which item is moving, how to confirm) > notice (write
-    // failed, reloaded; the next key brings the hints back) > key hints
-    if let Some((item, count)) = app.confirm_delete() {
-        frame.render_widget(
-            Line::styled(
-                texts.confirm_delete(&item.title, count),
-                Style::new().fg(theme.notice),
-            ),
-            hints,
-        );
-    } else if let Some((name, count)) = app.confirm_delete_calendar() {
-        frame.render_widget(
-            Line::styled(
-                texts.confirm_delete_calendar(name, count),
-                Style::new().fg(theme.notice),
-            ),
-            hints,
-        );
-    } else if let Some(moving) = app.moving() {
+    // Bottom row: rescheduling (which item is moving, how to confirm) > notice (write failed, reloaded; the
+    // next key brings the hints back) > key hints
+    if let Some(moving) = app.moving() {
         frame.render_widget(
             Line::styled(
                 texts.moving(&moving.item.title),
@@ -463,11 +456,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             let seconds = opened.elapsed().as_secs_f64();
             splash::render(frame, app, seconds);
         }
-        // Delete confirmation and rescheduling: shown on the bottom row (already drawn above)
+        // Rescheduling: shown on the bottom row (already drawn above); the confirm box: below
         Mode::ConfirmDelete(..)
         | Mode::ConfirmDeleteCalendar { .. }
         | Mode::Moving(_)
         | Mode::Normal => {}
+    }
+    // The confirm box (asking whether to delete): over everything else
+    if let Some(question) = confirm::question(app) {
+        confirm::render(frame, app, &question);
     }
 }
 

@@ -114,10 +114,26 @@ pub struct Texts {
     pub picker_hint: &'static str,
     /// The color picker's last line: a color code can be typed too
     pub picker_typing: &'static str,
+    /// The confirm box's no button: `(N) 取消`
+    pub confirm_no: &'static str,
     /// The line under the logo in the intro played at start (`ui::splash`)
     pub splash_tagline: &'static str,
     /// The hint in the intro's bottom-left corner
     pub splash_skip: &'static str,
+}
+
+/// What a confirm box says (`ui::confirm`), e.g. 「刪除？」 / `Write the design doc` / 「和底下 2 件子任務」
+/// / `[Y] 刪除`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Confirm {
+    /// The question on the top border
+    pub question: &'static str,
+    /// What it is about (an item's title, a calendar's name)
+    pub subject: String,
+    /// A gray line under the subject (what goes with it); `None` = no such line
+    pub detail: Option<String>,
+    /// The yes button's word (after `[Y]`)
+    pub yes: &'static str,
 }
 
 /// The editor's words: the labels of the fields under the typed line (what it reads as), and the hint row
@@ -479,6 +495,7 @@ const EN: Texts = Texts {
     picker_title: "Custom color",
     picker_hint: "jk pick  hl HL change  Enter keep  Esc undo",
     picker_typing: "Or type a color code: a6e3a1",
+    confirm_no: "Cancel",
     splash_tagline: "a simple, keyboard-driven calendar for plain-text tasks",
     splash_skip: "Press any key to skip",
 };
@@ -755,6 +772,7 @@ const ZH_TW: Texts = Texts {
     picker_title: "自訂顏色",
     picker_hint: "jk 選  hl HL 調  Enter 存  Esc 取消",
     picker_typing: "也可以直接打色碼：a6e3a1",
+    confirm_no: "取消",
     splash_tagline: "用純文字記事、全鍵盤操作的 terminal 月曆",
     splash_skip: "按任意鍵跳過",
 };
@@ -986,46 +1004,45 @@ impl Texts {
         }
     }
 
-    /// After `d`, the bottom row asks whether to delete,
-    /// e.g. ` 刪除「Write the design doc」和底下 2 件子任務？d 或 y 刪除，其他鍵取消`
-    pub fn confirm_delete(&self, title: &str, count: usize) -> String {
-        let subtasks = count.saturating_sub(1);
-        match (self.lang, subtasks) {
-            (Lang::En, 0) => format!(" Delete \"{title}\"? d or y deletes, any other key cancels"),
-            (Lang::En, 1) => {
-                format!(
-                    " Delete \"{title}\" and its subtask? d or y deletes, any other key cancels"
-                )
-            }
-            (Lang::En, n) => {
-                format!(
-                    " Delete \"{title}\" and its {n} subtasks? d or y deletes, any other key cancels"
-                )
-            }
-            (Lang::ZhTw, 0) => format!(" 刪除「{title}」？d 或 y 刪除，其他鍵取消"),
-            (Lang::ZhTw, n) => {
-                format!(" 刪除「{title}」和底下 {n} 件子任務？d 或 y 刪除，其他鍵取消")
-            }
+    /// After `d`, the confirm box asks whether to delete `title` and the `count` items that removes (with
+    /// subtasks), e.g. 「刪除？」 / `Write the design doc` / 「和底下 2 件子任務」
+    pub fn confirm_delete(&self, title: &str, count: usize) -> Confirm {
+        let detail = match (self.lang, count.saturating_sub(1)) {
+            (_, 0) => None,
+            (Lang::En, 1) => Some("and its subtask".to_string()),
+            (Lang::En, n) => Some(format!("and its {n} subtasks")),
+            (Lang::ZhTw, n) => Some(format!("和底下 {n} 件子任務")),
+        };
+        let (question, yes) = match self.lang {
+            Lang::En => ("Delete?", "Delete"),
+            Lang::ZhTw => ("刪除？", "刪除"),
+        };
+        Confirm {
+            question,
+            subject: title.to_string(),
+            detail,
+            yes,
         }
     }
 
-    /// After `d` in the calendar list, the bottom row asks whether to delete the calendar,
-    /// e.g. ` 刪除日曆「Moving」和裡面的 4 件事？d 或 y 刪除，其他鍵取消`
-    pub fn confirm_delete_calendar(&self, name: &str, count: usize) -> String {
-        match (self.lang, count) {
-            (Lang::En, 0) => {
-                format!(" Delete the calendar \"{name}\"? d or y deletes, any other key cancels")
-            }
-            (Lang::En, 1) => format!(
-                " Delete the calendar \"{name}\" and its item? d or y deletes, any other key cancels"
-            ),
-            (Lang::En, n) => format!(
-                " Delete the calendar \"{name}\" and its {n} items? d or y deletes, any other key cancels"
-            ),
-            (Lang::ZhTw, 0) => format!(" 刪除日曆「{name}」？d 或 y 刪除，其他鍵取消"),
-            (Lang::ZhTw, n) => {
-                format!(" 刪除日曆「{name}」和裡面的 {n} 件事？d 或 y 刪除，其他鍵取消")
-            }
+    /// After `d` in the calendar list, the confirm box asks whether to delete the calendar `name` and the
+    /// `count` items in it, e.g. 「刪除日曆？」 / `Moving` / 「和裡面的 4 件事」
+    pub fn confirm_delete_calendar(&self, name: &str, count: usize) -> Confirm {
+        let detail = match (self.lang, count) {
+            (_, 0) => None,
+            (Lang::En, 1) => Some("and its item".to_string()),
+            (Lang::En, n) => Some(format!("and its {n} items")),
+            (Lang::ZhTw, n) => Some(format!("和裡面的 {n} 件事")),
+        };
+        let (question, yes) = match self.lang {
+            Lang::En => ("Delete the calendar?", "Delete"),
+            Lang::ZhTw => ("刪除日曆？", "刪除"),
+        };
+        Confirm {
+            question,
+            subject: name.to_string(),
+            detail,
+            yes,
         }
     }
 

@@ -86,38 +86,62 @@ fn when_says_the_date_time_and_range() {
 #[test]
 fn confirm_delete_calendar_counts_the_items() {
     let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
+    let detail = |confirm: Confirm| confirm.detail;
+    // No items: no gray line under the name
     assert_eq!(
         zh.confirm_delete_calendar("Moving", 0),
-        " 刪除日曆「Moving」？d 或 y 刪除，其他鍵取消"
+        Confirm {
+            question: "刪除日曆？",
+            subject: "Moving".into(),
+            detail: None,
+            yes: "刪除",
+        }
     );
     assert_eq!(
-        zh.confirm_delete_calendar("Moving", 4),
-        " 刪除日曆「Moving」和裡面的 4 件事？d 或 y 刪除，其他鍵取消"
+        detail(zh.confirm_delete_calendar("Moving", 4)).as_deref(),
+        Some("和裡面的 4 件事")
     );
     assert_eq!(
-        en.confirm_delete_calendar("Moving", 1),
-        " Delete the calendar \"Moving\" and its item? d or y deletes, any other key cancels"
+        detail(en.confirm_delete_calendar("Moving", 1)).as_deref(),
+        Some("and its item")
     );
     assert_eq!(
         en.confirm_delete_calendar("Moving", 4),
-        " Delete the calendar \"Moving\" and its 4 items? d or y deletes, any other key cancels"
+        Confirm {
+            question: "Delete the calendar?",
+            subject: "Moving".into(),
+            detail: Some("and its 4 items".into()),
+            yes: "Delete",
+        }
     );
 }
 
 #[test]
 fn confirm_delete_counts_the_subtasks() {
-    let zh = Lang::ZhTw.texts();
+    let (en, zh) = (Lang::En.texts(), Lang::ZhTw.texts());
+    // count = the item itself + its subtasks
     assert_eq!(
         zh.confirm_delete("Go to the gym", 1),
-        " 刪除「Go to the gym」？d 或 y 刪除，其他鍵取消"
+        Confirm {
+            question: "刪除？",
+            subject: "Go to the gym".into(),
+            detail: None,
+            yes: "刪除",
+        }
     );
     assert_eq!(
-        zh.confirm_delete("Write the design doc", 3),
-        " 刪除「Write the design doc」和底下 2 件子任務？d 或 y 刪除，其他鍵取消"
+        zh.confirm_delete("Write the design doc", 3)
+            .detail
+            .as_deref(),
+        Some("和底下 2 件子任務")
     );
     assert_eq!(
-        Lang::En.texts().confirm_delete("a", 2),
-        " Delete \"a\" and its subtask? d or y deletes, any other key cancels"
+        en.confirm_delete("a", 2).detail.as_deref(),
+        Some("and its subtask")
+    );
+    assert_eq!(
+        en.confirm_delete("a", 3).detail.as_deref(),
+        Some("and its 2 subtasks")
     );
 }
 

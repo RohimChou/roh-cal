@@ -516,31 +516,42 @@ fn ctrl_c_quits_from_the_delete_question() {
 }
 
 #[test]
-fn a_click_or_the_wheel_cancels_the_delete_question() {
-    // Clicking or scrolling while asking "delete?": it just cancels (like any other
-    // key); that click does nothing else (does not choose or check off what is under it)
+fn the_confirm_box_buttons_delete_or_cancel() {
+    // On 70 × 24 the box asking about "Review PRs" (with 1 subtask) has 「[Y] 刪除」 on x 22..32 and
+    // 「(N) 取消」 on x 37..47, both on row 14 (see `ui::confirm`'s tests)
     let (mut app, path) = app_with_task_file("delete-click", WITH_SUBTASK);
-    app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
+    app.screen = ratatui::layout::Rect::new(0, 0, 70, 24);
     let selected = app.selected;
-    for kind in [
-        MouseEventKind::Down(MouseButton::Left),
-        MouseEventKind::ScrollDown,
+    let click = |app: &mut App, column, row| {
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        });
+    };
+    // Cancel: (N), a click outside the box, the wheel; that event does nothing else (does not choose or
+    // check off what is under it)
+    for (kind, column, row) in [
+        (MouseEventKind::Down(MouseButton::Left), 40, 14),
+        (MouseEventKind::Down(MouseButton::Left), 5, 5),
+        (MouseEventKind::ScrollDown, 5, 5),
     ] {
         press(&mut app, KeyCode::Char('d'));
         app.handle_mouse(MouseEvent {
             kind,
-            column: 5,
-            row: 5,
+            column,
+            row,
             modifiers: KeyModifiers::NONE,
         });
-        assert_eq!(app.confirm_delete(), None, "{kind:?}");
+        assert_eq!(app.confirm_delete(), None, "{kind:?} {column}");
         assert_eq!(
             (app.focus, app.selected),
             (Focus::Agenda, selected),
-            "{kind:?}"
+            "{kind:?} {column}"
         );
     }
-    // Moving the mouse does not count: still asking
+    // Moving the mouse, a click on the box away from the buttons: still asking
     press(&mut app, KeyCode::Char('d'));
     app.handle_mouse(MouseEvent {
         kind: MouseEventKind::Moved,
@@ -548,8 +559,16 @@ fn a_click_or_the_wheel_cancels_the_delete_question() {
         row: 5,
         modifiers: KeyModifiers::NONE,
     });
+    click(&mut app, 25, 10);
     assert!(app.confirm_delete().is_some());
     assert_eq!(std::fs::read_to_string(&path).expect("read"), WITH_SUBTASK);
+    // [Y]: deletes, like pressing y
+    click(&mut app, 25, 14);
+    assert_eq!(app.confirm_delete(), None);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "- [ ] Deploy to staging @2026-10-17 14:00\n"
+    );
     clean_up(&path);
 }
 

@@ -1252,15 +1252,9 @@ impl App {
             Mode::Help(_) => self.handle_help_mouse(mouse),
             // Settings page: the wheel chooses rows, clicks on rows, a click outside closes it
             Mode::Settings { .. } => self.handle_settings_mouse(mouse),
-            // Asking whether to delete: a click or the wheel just cancels (like any key other than `y`);
-            // that event does nothing else
+            // Asking whether to delete: the confirm box's buttons
             Mode::ConfirmDelete(..) | Mode::ConfirmDeleteCalendar { .. } => {
-                if matches!(
-                    mouse.kind,
-                    MouseEventKind::Down(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-                ) {
-                    self.mode = Mode::Normal;
-                }
+                self.handle_confirm_mouse(mouse);
             }
             // Editor box: the `#` list takes clicks and the wheel, a click outside = cancel (Esc)
             Mode::Editor(_) => self.handle_editor_mouse(mouse),
@@ -1270,6 +1264,22 @@ impl App {
             // The intro: skipped above
             Mode::Splash { .. } => {}
             Mode::Normal => self.handle_normal_mouse(mouse),
+        }
+    }
+
+    /// Mouse while the confirm box asks (`ui::confirm`): a click on its yes button = pressing `y`; a click on
+    /// its no button or outside it, or the wheel = cancel (like any other key); a click elsewhere in the box
+    /// does nothing. That event does nothing else
+    fn handle_confirm_mouse(&mut self, mouse: MouseEvent) {
+        let yes = match mouse.kind {
+            MouseEventKind::Down(_) => ui::confirm_click(self, mouse.column, mouse.row),
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => Some(false),
+            _ => None,
+        };
+        match yes {
+            Some(true) => self.handle_key(KeyEvent::from(KeyCode::Char('y'))),
+            Some(false) => self.handle_key(KeyEvent::from(KeyCode::Esc)),
+            None => {}
         }
     }
 

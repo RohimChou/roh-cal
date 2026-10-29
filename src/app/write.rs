@@ -91,7 +91,7 @@ impl App {
     }
 
     /// `d`: first counts how many items deleting the chosen one would remove
-    /// (including subtasks), then asks the user in the bottom row (only `d` again or `y` deletes)
+    /// (including subtasks), then asks the user in the confirm box (only `d` again or `y` deletes)
     pub(super) fn ask_delete(&mut self) {
         let Some(item) = self.chosen_item().cloned() else {
             return;
@@ -169,7 +169,7 @@ impl App {
 
     /// `d` in the calendar list: first counts how many items deleting the chosen calendar (with the calendars
     /// inside it) would remove, then
-    /// asks in the bottom row (only `d` again or `y` deletes); 「Ungrouped」 has no heading, so nothing happens
+    /// asks in the confirm box (only `d` again or `y` deletes); 「Ungrouped」 has no heading, so nothing happens
     pub(super) fn ask_delete_calendar(&mut self) {
         let headings = self.chosen_calendar_headings();
         let Some(name) = headings.first().map(|line| line.heading.name.clone()) else {
