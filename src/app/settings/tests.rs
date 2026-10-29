@@ -516,3 +516,29 @@ fn q_esc_and_comma_close_it_and_other_keys_do_nothing() {
     assert_eq!(app.help(), None);
     assert_eq!(app.settings_page(), Some(SettingsPage::default()));
 }
+
+#[test]
+fn the_reset_question_takes_clicks_on_its_buttons() {
+    use crate::test_utils::mouse;
+    use ratatui::crossterm::event::{MouseButton, MouseEventKind};
+    let click = MouseEventKind::Down(MouseButton::Left);
+    let asking = |app: &App| app.settings_page().map(|page| page.confirm_reset);
+    // On 100 × 30 the confirm box has 「[Y] 還原」 on x 37..47 and 「(N) 取消」 on x 52..62, both on row 17
+    // (from the separate Python script of `ui::confirm`'s tests)
+    let mut app = app_with_settings();
+    press(&mut app, KeyCode::Char('l'));
+    // (N) and a click outside the box: only the question goes, the settings page stays open as it was
+    for column in [55, 5] {
+        press(&mut app, KeyCode::Char('R'));
+        mouse(&mut app, click, column, 17);
+        assert_eq!(asking(&app), Some(false), "{column}");
+        assert_eq!(app.settings.theme, "gruvbox-dark", "{column}");
+    }
+    // A click on the box away from the buttons: still asking; [Y]: resets everything
+    press(&mut app, KeyCode::Char('R'));
+    mouse(&mut app, click, 40, 13);
+    assert_eq!(asking(&app), Some(true));
+    mouse(&mut app, click, 40, 17);
+    assert_eq!(asking(&app), Some(false));
+    assert_eq!(app.settings, Settings::default());
+}

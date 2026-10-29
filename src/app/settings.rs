@@ -4,7 +4,8 @@
 //!
 //! `j` / `k` choose a row, `h` / `l` (`Space`, `Enter`) change that row's
 //! value, `e` on a color row opens the color picker (`picker.rs`), `r` resets that row, `R` resets
-//! everything (press `y` to confirm), `q` / `Esc` / `,` or a click outside the box closes it
+//! everything (after asking in the confirm box: press `y`), `q` / `Esc` / `,` or a click outside the box
+//! closes it
 
 use super::{App, Focus, Mode, Notice, View};
 use crate::config::{self, CalendarListSettings, Settings};
@@ -27,7 +28,7 @@ pub struct SettingsPage {
     /// The first color shown in `[colors]` (0 = `text`): the section shows a few colors at a time and
     /// scrolls inside to the chosen one (see `ui::settings`)
     pub colors_top: usize,
-    /// `R` was pressed and it is asking whether to reset everything (the bottom border becomes the question)
+    /// `R` was pressed and it is asking whether to reset everything (in the confirm box, `ui::confirm`)
     pub confirm_reset: bool,
 }
 
@@ -416,13 +417,19 @@ impl App {
     }
 
     /// Mouse while the settings page is open: the wheel chooses the row above / below; clicking a row =
-    /// choose it, clicking the chosen row again = change its value; clicking outside the box closes it
+    /// choose it, clicking the chosen row again = change its value; clicking outside the box closes it.
+    /// While asking whether to reset everything, the confirm box's buttons instead
     pub(super) fn handle_settings_mouse(&mut self, mouse: MouseEvent) {
         let Some(page) = self.settings_page() else {
             return;
         };
         if self.picker().is_some() {
             self.handle_picker_mouse(mouse);
+            return;
+        }
+        // Asking whether to reset everything: the confirm box's buttons
+        if page.confirm_reset {
+            self.handle_confirm_mouse(mouse);
             return;
         }
         match mouse.kind {

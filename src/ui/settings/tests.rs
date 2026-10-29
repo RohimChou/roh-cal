@@ -309,8 +309,10 @@ fn colors_scroll_inside_their_section() {
 }
 
 #[test]
-fn r_asks_on_the_bottom_border() {
-    let (_, _, rows, _) = draw(
+fn r_asks_in_the_confirm_box() {
+    // The bottom border keeps the key hints; the question is in the confirm box over the middle of the
+    // screen (expected rows from the separate Python script of `ui::confirm`'s tests: 70 × 44 → x 19, y 18)
+    let (_, _, rows, buffer) = draw(
         SettingsPage {
             row: index_of(Row::CenterCursor),
             confirm_reset: true,
@@ -319,12 +321,21 @@ fn r_asks_on_the_bottom_border() {
         44,
     );
     assert_eq!(
-        rows[rows.len() - 3],
-        "│  大月曆：選取的那週固定在正中間            │"
+        rows[rows.len() - 1],
+        "╰ jk 選 | hl 改 | r 還原 | R 全部 | Esc 關閉 ╯"
     );
     assert_eq!(
-        rows[rows.len() - 1],
-        "╰ 全部還原成預設？y 還原，其他鍵取消 ────────╯"
+        crate::ui::tests::area_rows(&buffer, Rect::new(19, 18, 32, 8)),
+        [
+            "╭────── 全部還原成預設？ ──────╮",
+            "│                              │",
+            "│  每一個設定都回到預設值      │",
+            "│  下次打開會再播開場動畫      │",
+            "│                              │",
+            "│──────────────────────────────│",
+            "│   [Y] 還原       (N) 取消    │",
+            "╰──────────────────────────────╯",
+        ]
     );
 }
 

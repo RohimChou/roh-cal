@@ -131,10 +131,8 @@ pub fn area(app: &App, screen: Rect) -> Rect {
         .map(|text| Span::raw(&text).width() + 2)
         .max()
         .unwrap_or(0);
-    // The bottom border fits the key hints and also the question shown after `R`
-    let hint_width = super::border_hints(app, texts.settings_hint)
-        .width()
-        .max(Span::raw(texts.settings_reset_all).width() + 2);
+    // The bottom border fits the key hints
+    let hint_width = super::border_hints(app, texts.settings_hint).width();
     let inside = (row_width.max(description_width) + RIGHT_MARGIN)
         .max(title(app).width())
         .max(hint_width);
@@ -203,20 +201,6 @@ fn title(app: &App) -> Line<'static> {
     ])
 }
 
-/// The bottom border: normally the key hints; while asking whether to reset everything
-/// (`page.confirm_reset`), the question instead, in the notice color
-fn bottom_line(app: &App, page: SettingsPage) -> Line<'static> {
-    let texts = app.lang.texts();
-    if page.confirm_reset {
-        Line::styled(
-            format!(" {} ", texts.settings_reset_all),
-            Style::new().fg(app.theme.notice),
-        )
-    } else {
-        super::border_hints(app, texts.settings_hint)
-    }
-}
-
 /// Draws the settings page: each row is "name value" (top-level indented 2, table rows indented 4,
 /// values aligned in one column; colors have a swatch in front; rows that do nothing on the current view
 /// are dimmed to the other-month gray, a step darker than muted text), the chosen row gets a background color; drawing starts at line `page.top` (scrolled first
@@ -231,7 +215,7 @@ pub fn render(frame: &mut Frame, app: &App, page: SettingsPage) {
         .border_style(Style::new().fg(theme.focus))
         .padding(PADDING)
         .title_top(title(app))
-        .title_bottom(bottom_line(app, page));
+        .title_bottom(super::border_hints(app, texts.settings_hint));
     let rows = rows();
     let chosen = rows[page.row.min(rows.len() - 1)];
     let lines: Vec<Line> = entries(page.colors_top)

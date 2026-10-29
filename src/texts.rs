@@ -106,8 +106,6 @@ pub struct Texts {
     pub settings_title: &'static str,
     /// The key hints on the settings page's bottom border
     pub settings_hint: &'static str,
-    /// After `R` on the settings page: the bottom border switches to this, asking whether to reset everything
-    pub settings_reset_all: &'static str,
     /// The color picker's top border, before the role's name (`自訂顏色 ∙ today`)
     pub picker_title: &'static str,
     /// The color picker's key hints on its bottom border
@@ -491,7 +489,6 @@ const EN: Texts = Texts {
     },
     settings_title: "settings",
     settings_hint: "jk pick  hl change  r/R reset  Esc close",
-    settings_reset_all: "Reset all? y yes, other keys cancel",
     picker_title: "Custom color",
     picker_hint: "jk pick  hl HL change  Enter keep  Esc undo",
     picker_typing: "Or type a color code: a6e3a1",
@@ -768,7 +765,6 @@ const ZH_TW: Texts = Texts {
     },
     settings_title: "設定",
     settings_hint: "jk 選  hl 改  r 還原  R 全部  Esc 關閉",
-    settings_reset_all: "全部還原成預設？y 還原，其他鍵取消",
     picker_title: "自訂顏色",
     picker_hint: "jk 選  hl HL 調  Enter 存  Esc 取消",
     picker_typing: "也可以直接打色碼：a6e3a1",
@@ -1021,6 +1017,30 @@ impl Texts {
             question,
             subject: title.to_string(),
             detail,
+            yes,
+        }
+    }
+
+    /// After `R` on the settings page, the confirm box asks whether to reset every setting
+    pub fn confirm_reset_all(&self) -> Confirm {
+        let (question, subject, detail, yes) = match self.lang {
+            Lang::En => (
+                "Reset all settings?",
+                "Every setting goes back to its default",
+                "The intro plays again on the next start",
+                "Reset",
+            ),
+            Lang::ZhTw => (
+                "全部還原成預設？",
+                "每一個設定都回到預設值",
+                "下次打開會再播開場動畫",
+                "還原",
+            ),
+        };
+        Confirm {
+            question,
+            subject: subject.to_string(),
+            detail: Some(detail.to_string()),
             yes,
         }
     }
