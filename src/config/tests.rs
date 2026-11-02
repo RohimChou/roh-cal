@@ -96,6 +96,10 @@ fn mistakes_are_errors() {
         "[calendar_list]\nmax_width = 38",
         // No such theme
         "theme = \"solarized\"",
+        // The first day of the week is only sunday or monday: another day, a capital letter, a number
+        "[calendar]\nfirst_day_of_week = \"saturday\"",
+        "[calendar]\nfirst_day_of_week = \"Monday\"",
+        "[calendar]\nfirst_day_of_week = 1",
         // Misspelled role name, not a color, terminal has no catppuccin palette names
         "[colors]\ntodya = \"red\"",
         "[colors]\ntoday = \"redd\"",
@@ -117,6 +121,7 @@ fn load_reads_the_sample_and_treats_a_missing_file_as_defaults() {
             tab_bar: false,
             calendar: CalendarSettings {
                 relative_weeks: true,
+                first_day_of_week: FirstDayOfWeek::Monday,
                 dots: false,
             },
             month: MonthSettings {
@@ -313,6 +318,28 @@ fn save_refuses_to_touch_a_broken_file() {
         "[month]\ngrid_line = false\n"
     );
     std::fs::remove_dir_all(&dir).expect("clean up");
+}
+
+#[test]
+fn the_first_day_of_week_is_read_and_written_by_its_name() {
+    // Left out = Sunday; "monday" reads as Monday
+    assert_eq!(
+        parse("").expect("empty").calendar.first_day_of_week,
+        FirstDayOfWeek::Sunday
+    );
+    let monday = parse("[calendar]\nfirst_day_of_week = \"monday\"\n").expect("monday");
+    assert_eq!(monday.calendar.first_day_of_week, FirstDayOfWeek::Monday);
+    // Saving the change from the settings page writes the name, in quotes, under [calendar]
+    assert_eq!(
+        updated_file("", &monday).expect("valid"),
+        "[calendar]\nfirst_day_of_week = \"monday\"\n"
+    );
+    // A wrong value names the line, like a wrong type
+    let error = format!(
+        "{:?}",
+        parse("[calendar]\n\nfirst_day_of_week = \"tuesday\"\n").expect_err("tuesday")
+    );
+    assert!(error.contains("line 3"), "{error}");
 }
 
 #[test]

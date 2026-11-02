@@ -13,6 +13,7 @@ use color_eyre::{
     Result,
     eyre::{WrapErr, bail},
 };
+use jiff::civil::Weekday;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::ErrorKind;
@@ -93,6 +94,9 @@ pub struct CalendarSettings {
     /// Week-number column: the selected week shows its week number, other
     /// weeks show how many weeks they are from it (like vim's relativenumber)
     pub relative_weeks: bool,
+    /// The day each week starts on in the calendars of layouts 1 and 2 (their first column), also for the
+    /// week numbers
+    pub first_day_of_week: FirstDayOfWeek,
     /// Layout 1's calendar: a dot right of each date for each of that day's items; when off, that cell is
     /// blank (the calendar keeps its width)
     pub dots: bool,
@@ -102,7 +106,43 @@ impl Default for CalendarSettings {
     fn default() -> Self {
         Self {
             relative_weeks: false,
+            first_day_of_week: FirstDayOfWeek::Sunday,
             dots: true,
+        }
+    }
+}
+
+/// The day a week starts on (the config file's `[calendar] first_day_of_week`): only `"sunday"` or
+/// `"monday"`; any other value is an error, like a wrong type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FirstDayOfWeek {
+    Sunday,
+    Monday,
+}
+
+impl FirstDayOfWeek {
+    /// That day as a weekday, for the date math (`calendar`)
+    pub fn weekday(self) -> Weekday {
+        match self {
+            Self::Sunday => Weekday::Sunday,
+            Self::Monday => Weekday::Monday,
+        }
+    }
+
+    /// The other one (the settings page switches between the two)
+    pub fn other(self) -> Self {
+        match self {
+            Self::Sunday => Self::Monday,
+            Self::Monday => Self::Sunday,
+        }
+    }
+
+    /// The name in the config file: `sunday` / `monday`
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Sunday => "sunday",
+            Self::Monday => "monday",
         }
     }
 }

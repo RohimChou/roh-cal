@@ -185,6 +185,7 @@ Archived calendars (`archived:<date>` in the heading) are listed last, under an 
 | `cross_out_done` | `true` | Strike through done tasks' titles; off, only their gray color sets them apart |
 | `tab_bar` | `true` | The tab bar on the top row (the views and their keys); off, the views take that row too |
 | `[calendar]` `relative_weeks` | `false` | Week column: the selected week shows its number, the other weeks how far away they are |
+| `[calendar]` `first_day_of_week` | `"sunday"` | The day each week starts on in both calendars and their week numbers: `"sunday"` or `"monday"` |
 | `[calendar]` `dots` | `true` | Dots right of the dates in layout 1's calendar, one per item that day (up to 4), in the color of its most urgent open item |
 | `[month]` `grid_lines` | `true` | Faint lines between the cells of the month grid (layout 2); without them only a month's edge is drawn |
 | `[month]` `center_cursor` | `false` | Keep the selected row in the middle of the month grid's six rows (off: scroll a row at a time when the selection leaves them) |

@@ -1146,6 +1146,8 @@ impl Texts {
             (Lang::ZhTw, Row::TabBar) => "最上面一列：每個版型一個分頁",
             (Lang::En, Row::RelativeWeeks) => "Weeks: count from the selected week",
             (Lang::ZhTw, Row::RelativeWeeks) => "週數欄：其他週寫跟選取那週差幾週",
+            (Lang::En, Row::FirstDayOfWeek) => "Weeks: start on Sunday or Monday",
+            (Lang::ZhTw, Row::FirstDayOfWeek) => "月曆：一週從星期日或星期一開始",
             (Lang::En, Row::Dots) => "Calendar: a dot per item that day",
             (Lang::ZhTw, Row::Dots) => "月曆：日期右邊一件事一個點點",
             (Lang::En, Row::GridLines) => "Month grid: lines between the cells",

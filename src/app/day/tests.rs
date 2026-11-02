@@ -123,7 +123,7 @@ fn h_and_l_show_the_previous_or_next_day_in_the_popup() {
 #[test]
 fn t_in_the_popup_shows_today_and_keeps_it_open() {
     // From 10/20's popup (l three times from 10/17): t = back to today (10/17), the popup still open on its
-    // first item; the grid puts today's week (from Mon 10/12) on row 2 as usual, the week before on top
+    // first item; the grid puts today's week (from Sun 10/11) on row 2 as usual, the week before on top
     let mut app = month_app();
     press(&mut app, KeyCode::Enter);
     for _ in 0..3 {
@@ -135,7 +135,7 @@ fn t_in_the_popup_shows_today_and_keeps_it_open() {
         (app.selected, app.focus, chosen(&app).as_deref()),
         (date(2026, 10, 17), Focus::Day, Some("Trip to NYC"))
     );
-    assert_eq!(app.month_top, Some(date(2026, 10, 5)));
+    assert_eq!(app.month_top, Some(date(2026, 10, 4)));
     // Esc closes it as usual; t on the calendar keeps the keyboard there
     press(&mut app, KeyCode::Esc);
     press(&mut app, KeyCode::Char('t'));

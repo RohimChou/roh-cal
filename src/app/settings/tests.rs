@@ -1,5 +1,5 @@
 use super::*;
-use crate::config::{CalendarSettings, DayPopupSettings, MonthSettings};
+use crate::config::{CalendarSettings, DayPopupSettings, FirstDayOfWeek, MonthSettings};
 use crate::test_utils::press;
 use crate::texts::Lang;
 use crate::theme::Theme;
@@ -38,7 +38,7 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
     assert_eq!(app.notice, None);
     // Ctrl+C saves before quitting too
     press(&mut app, KeyCode::Char(','));
-    for _ in 0..5 {
+    for _ in 0..6 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -70,9 +70,9 @@ fn closing_saves_only_what_changed_and_says_when_it_cannot() {
 #[test]
 fn color_rows_go_through_the_palette_and_keep_only_overrides() {
     let mut app = app_with_settings();
-    // Row 12 is text's color: l switches to the palette's next color
+    // Row 13 is text's color: l switches to the palette's next color
     // (subtext0), records it in [colors], and the screen changes right away
-    for _ in 0..11 {
+    for _ in 0..12 {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
@@ -210,6 +210,17 @@ fn colors_a_view_does_not_draw_are_for_the_other_views() {
 }
 
 #[test]
+fn the_first_day_of_week_is_lit_only_with_a_calendar_on_screen() {
+    // Layouts 1 and 2 have a calendar; the tasks page does not
+    let mut app = app_with_settings();
+    assert!(Row::FirstDayOfWeek.applies_here(&app));
+    app.view = View::Month;
+    assert!(Row::FirstDayOfWeek.applies_here(&app));
+    app.view = View::Tasks;
+    assert!(!Row::FirstDayOfWeek.applies_here(&app));
+}
+
+#[test]
 fn rows_about_the_calendar_list_or_the_day_popup_are_lit_only_while_it_is_on_screen() {
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     let lit = |app: &App| {
@@ -244,10 +255,12 @@ fn every_switch_has_a_row() {
         cross_out_done: _,
         tab_bar: _,
         colors: _,
-        calendar: CalendarSettings {
-            relative_weeks: _,
-            dots: _,
-        },
+        calendar:
+            CalendarSettings {
+                relative_weeks: _,
+                first_day_of_week: _,
+                dots: _,
+            },
         month:
             MonthSettings {
                 grid_lines: _,
@@ -261,7 +274,7 @@ fn every_switch_has_a_row() {
             },
         day_popup: DayPopupSettings { by_calendar: _ },
     } = Settings::default();
-    assert_eq!(rows().len(), 11 + theme::ROLES.len());
+    assert_eq!(rows().len(), 12 + theme::ROLES.len());
 }
 
 #[test]
@@ -326,6 +339,9 @@ fn row_names_are_the_config_file_names() {
             Row::Theme => format!("\"{}\"", changed.theme),
             Row::Color(role) => format!("\"{}\"", changed.colors[role]),
             Row::ListWidth => row.value(&changed, &Theme::catppuccin_mocha()),
+            Row::FirstDayOfWeek => {
+                format!("\"{}\"", row.value(&changed, &Theme::catppuccin_mocha()))
+            }
             _ => (row.value(&changed, &Theme::catppuccin_mocha()) == "on").to_string(),
         };
         let table = row
@@ -380,6 +396,31 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     assert!(app.settings.calendar.relative_weeks);
     press(&mut app, KeyCode::Char('h'));
     assert!(!app.settings.calendar.relative_weeks);
+    // j to first_day_of_week: l switches Sunday (the default) to Monday, and the calendars follow right away;
+    // l again back to Sunday, h too goes to the other one
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        app.settings.calendar.first_day_of_week,
+        FirstDayOfWeek::Monday
+    );
+    assert_eq!(app.first_day_of_week(), jiff::civil::Weekday::Monday);
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        app.settings.calendar.first_day_of_week,
+        FirstDayOfWeek::Sunday
+    );
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(
+        app.settings.calendar.first_day_of_week,
+        FirstDayOfWeek::Monday
+    );
+    // r puts it back to Sunday
+    press(&mut app, KeyCode::Char('r'));
+    assert_eq!(
+        app.settings.calendar.first_day_of_week,
+        FirstDayOfWeek::Sunday
+    );
     // j to dots: l turns it off (on by default)
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char('l'));
@@ -388,7 +429,7 @@ fn comma_opens_it_and_hl_change_the_chosen_row() {
     press(&mut app, KeyCode::Char('j'));
     press(&mut app, KeyCode::Char(' '));
     assert!(!app.settings.month.grid_lines);
-    for _ in 0..6 {
+    for _ in 0..7 {
         press(&mut app, KeyCode::Char('k'));
     }
     assert_eq!(app.settings_page().map(|page| page.row), Some(0));
@@ -411,8 +452,9 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         press(&mut app, KeyCode::Char('j'));
     }
     press(&mut app, KeyCode::Char('l'));
-    press(&mut app, KeyCode::Char('j'));
-    press(&mut app, KeyCode::Char('j'));
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('j'));
+    }
     press(&mut app, KeyCode::Char('l'));
     // r: resets only grid_lines, the rest stays
     press(&mut app, KeyCode::Char('r'));
@@ -430,7 +472,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
         app.settings_page().map(|page| page.confirm_reset),
         Some(false)
     );
-    assert_eq!(app.settings_page().map(|page| page.row), Some(5));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(6));
     assert!(app.settings.calendar.relative_weeks);
     // R then y: resets everything, and the screen colors go back to the default theme
     press(&mut app, KeyCode::Char('R'));
@@ -456,7 +498,7 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
     assert_eq!(app.settings, Settings::default());
     std::fs::remove_dir_all(&dir).expect("clean up");
     // The theme row can also be reset alone with r
-    for _ in 0..5 {
+    for _ in 0..6 {
         press(&mut app, KeyCode::Char('k'));
     }
     press(&mut app, KeyCode::Char('h'));
@@ -467,8 +509,9 @@ fn r_resets_a_row_and_capital_r_then_y_resets_everything() {
 
 #[test]
 fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
-    // 100 × 30: the box (31 tall, cut to 30) starts at row 0; grid_lines is list line 7 (theme,
-    // cross_out_done, tab_bar, [calendar], relative_weeks, dots, [month], grid_lines): border 1 + 7 = 8
+    // 100 × 30: the box (32 tall, cut to 30) starts at row 0; grid_lines is list line 8 (theme,
+    // cross_out_done, tab_bar, [calendar], relative_weeks, first_day_of_week, dots, [month], grid_lines):
+    // border 1 + 8 = 9
     let mut app = app_with_settings();
     let click = |app: &mut App, column, row| {
         app.handle_mouse(MouseEvent {
@@ -478,20 +521,20 @@ fn clicking_chooses_a_row_then_changes_it_and_clicking_outside_closes() {
             modifiers: KeyModifiers::NONE,
         });
     };
-    click(&mut app, 50, 8);
-    assert_eq!(app.settings_page().map(|page| page.row), Some(5));
+    click(&mut app, 50, 9);
+    assert_eq!(app.settings_page().map(|page| page.row), Some(6));
     assert!(app.settings.month.grid_lines);
     // Click the chosen row again: change the value
-    click(&mut app, 50, 8);
+    click(&mut app, 50, 9);
     assert!(!app.settings.month.grid_lines);
     // Wheel: choose the next row
     app.handle_mouse(MouseEvent {
         kind: MouseEventKind::ScrollDown,
         column: 50,
-        row: 8,
+        row: 9,
         modifiers: KeyModifiers::NONE,
     });
-    assert_eq!(app.settings_page().map(|page| page.row), Some(6));
+    assert_eq!(app.settings_page().map(|page| page.row), Some(7));
     // Click outside the box: closes it, and the calendar underneath is not clicked
     click(&mut app, 0, 0);
     assert_eq!(app.settings_page(), None);

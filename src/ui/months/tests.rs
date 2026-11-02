@@ -14,17 +14,19 @@ fn app_with(text: &str) -> App {
 #[test]
 fn row_numbers_count_from_this_month() {
     // Today is in 2026/10: October's first row is row 0;
-    // with no items, each month's block = its weeks + 1 line
+    // with no items, each month's block = its weeks + 1 line (weeks start on Sunday: Sep, Oct, Nov and
+    // Dec have 5 weeks, Aug and Jan 6; counted with Python's calendar.monthcalendar)
     let app = app_with("");
     let months = Months::new(&app, 100);
     assert_eq!(months.block_start(date(2026, 10, 1)), 0);
     assert_eq!(months.block_start(date(2026, 11, 20)), 6);
-    assert_eq!(months.block_start(date(2027, 1, 1)), 19);
+    assert_eq!(months.block_start(date(2027, 1, 1)), 18);
     assert_eq!(months.block_start(date(2027, 2, 1)), 25);
     assert_eq!(months.block_start(date(2026, 9, 1)), -6);
     assert_eq!(months.block_start(date(2026, 8, 1)), -13);
     assert_eq!(months.row_of(date(2026, 10, 17)), 2);
-    assert_eq!(months.row_of(date(2026, 11, 7)), 7);
+    assert_eq!(months.row_of(date(2026, 11, 7)), 6);
+    assert_eq!(months.row_of(date(2027, 1, 2)), 18);
     assert_eq!(months.row_of(date(2027, 1, 3)), 19);
     assert_eq!(months.row_of(date(2026, 9, 26)), -3);
     // Each block's last row is the line: October's line is row 5, September's is row -1
@@ -48,8 +50,8 @@ fn months_grow_with_their_items() {
     assert_eq!(one.month_items(date(2026, 10, 1)).len(), 7);
     assert_eq!(one.block_height(date(2026, 10, 1)), 8);
     assert_eq!(one.block_start(date(2026, 11, 1)), 8);
-    // The selected week is still among the month's top rows
-    assert_eq!(one.row_of(date(2026, 11, 7)), 9);
+    // The selected week is still among the month's top rows (11/7 is in November's first week)
+    assert_eq!(one.row_of(date(2026, 11, 7)), 8);
 }
 
 #[test]
@@ -109,9 +111,9 @@ fn shape(rows: &[Row]) -> String {
 
 #[test]
 fn months_with_more_items_than_weeks_get_rows_without_dates() {
-    // October has 7 items → 5 weeks + 2 item-only rows; November has none → 6 weeks;
+    // October has 7 items → 5 weeks + 2 item-only rows; November has none → 5 weeks;
     // December → 5 weeks; thick line at the new year;
-    // asking for 22 rows still lays out all of the last month, January (5 weeks)
+    // asking for 22 rows still lays out all of the last month, January (6 weeks)
     let text = (1..=7)
         .map(|day| format!("- [ ] x @2026-10-{day:02}\n"))
         .collect::<String>();
@@ -119,7 +121,7 @@ fn months_with_more_items_than_weeks_get_rows_without_dates() {
     let months = Months::new(&app, 100);
     assert_eq!(
         shape(&months.rows(date(2026, 10, 1), 22)),
-        "wwwww..-wwwwww-wwwww=wwwww"
+        "wwwww..-wwwww-wwwww=wwwwww"
     );
 }
 

@@ -83,7 +83,7 @@ fn other_keys_do_nothing_while_moving() {
 
 #[test]
 fn clicking_a_day_picks_it_and_clicking_it_again_moves_there() {
-    // 70 × 23, October at the top: 10/20 (Tue) is at x 15-17, y 7
+    // 70 × 23, October at the top, weeks starting on Sunday: 10/20 (Tue) is at x 20-23, y 7
     let text = "- [ ] Weekly update @2026-10-16\n";
     let (mut app, path) = app_with_task_file("move-click", text);
     app.screen = ratatui::layout::Rect::new(0, 0, 70, 23);
@@ -91,7 +91,7 @@ fn clicking_a_day_picks_it_and_clicking_it_again_moves_there() {
     press(&mut app, KeyCode::Char('r'));
     let click = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: 16,
+        column: 21,
         row: 7,
         modifiers: KeyModifiers::NONE,
     };

@@ -15,6 +15,8 @@ tab_bar = false
 # Week-number column: the selected week shows its week number, other weeks show how many weeks away
 # they are (default false)
 relative_weeks = true
+# The day each week starts on, "sunday" or "monday" (default "sunday")
+first_day_of_week = "monday"
 # Layout 1's calendar: a dot right of each date for each of that day's items (default true)
 dots = false
 

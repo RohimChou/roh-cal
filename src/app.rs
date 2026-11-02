@@ -671,9 +671,9 @@ impl App {
         self.settings.calendar_list.hide_done && item.kind == Kind::Task && item.done
     }
 
-    /// The weekday the calendars' weeks start on (their first column)
+    /// The weekday the calendars' weeks start on (their first column): `[calendar] first_day_of_week`
     pub fn first_day_of_week(&self) -> Weekday {
-        Weekday::Monday
+        self.settings.calendar.first_day_of_week.weekday()
     }
 
     /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)

@@ -39,16 +39,16 @@ fn wheel_moves_a_week() {
 
 #[test]
 fn left_click_on_a_date_selects_it() {
-    // 47 × 26 screen, October at the top: the 16th is at (28-31, 6), the 17th at (32-35, 6); see the screen
-    // tests in ui/tests.rs
+    // 47 × 26 screen, October at the top, weeks starting on Sunday: the 16th is at (32-35, 6), the 17th at
+    // (36-39, 6); see the screen tests in ui/tests.rs
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.screen = Rect::new(0, 0, 47, 26);
     app.calendar_top = Some(0);
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 6));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 6));
     assert_eq!(app.selected, date(2026, 10, 16));
     // Right click, click on the header: ignored
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Right), 33, 6));
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 2));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Right), 37, 6));
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 37, 2));
     assert_eq!(app.selected, date(2026, 10, 16));
 }
 
@@ -255,8 +255,8 @@ fn clicking_an_item_moves_the_keyboard_there() {
         Some("a")
     );
     assert_eq!(app.selected, date(2026, 10, 10));
-    // Then click a date on the calendar: the keyboard goes back to the calendar
-    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 29, 6));
+    // Then click a date on the calendar (10/16 is at x 32-35, y 6): the keyboard goes back to the calendar
+    app.handle_mouse(mouse_event(MouseEventKind::Down(MouseButton::Left), 33, 6));
     assert_eq!(app.focus, Focus::Calendar);
     assert_eq!(app.selected, date(2026, 10, 16));
 }
@@ -1114,15 +1114,15 @@ fn the_narrow_side_menu_takes_clicks_and_a_click_outside_puts_it_away() {
     );
     app.handle_mouse(mouse_event(left, 3, 8));
     assert!(!app.groups[1].shown);
-    // Click outside the box (10/16 on the calendar; with October at the top, it is at x 28-31, y 6):
+    // Click outside the box (10/16 on the calendar; with October at the top, it is at x 32-35, y 6):
     // only hides it, the selected day stays
     app.calendar_top = Some(0);
     let selected = app.selected;
     assert_eq!(
-        ui::click_at(&app, 29, 6),
+        ui::click_at(&app, 33, 6),
         Some(Click::Day(date(2026, 10, 16)))
     );
-    app.handle_mouse(mouse_event(left, 29, 6));
+    app.handle_mouse(mouse_event(left, 33, 6));
     assert_eq!((app.focus, app.selected), (Focus::Calendar, selected));
     assert_eq!(ui::side_overlay(&app), None);
 }
@@ -1352,15 +1352,15 @@ fn only_a_double_click_goes_into_the_day_in_layout_1() {
 #[test]
 fn number_keys_switch_layouts() {
     // 2 switches to the month grid, 1 switches back; the first switch to layout 2 puts the selected week
-    // (Sat 10/17: from Mon 10/12) on its row 2 (10/5 on top); layout 1's scroll is its own and stays
+    // (Sat 10/17: from Sun 10/11) on its row 2 (10/4 on top); layout 1's scroll is its own and stays
     let mut app = app_with(ITEMS);
     app.calendar_top = Some(5);
-    app.month_top = Some(date(2026, 1, 5));
+    app.month_top = Some(date(2026, 1, 4));
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(app.view, View::Month);
     assert_eq!(
         (app.calendar_top, app.month_top),
-        (Some(5), Some(date(2026, 10, 5)))
+        (Some(5), Some(date(2026, 10, 4)))
     );
     press(&mut app, KeyCode::Char('1'));
     assert_eq!(app.view, View::Planner);
@@ -1447,11 +1447,11 @@ fn clicking_a_tab_switches_like_its_number_key() {
 #[test]
 fn switching_back_finds_a_layout_as_it_was_left() {
     let title = |app: &App| app.chosen_item().map(|item| item.title.clone());
-    // Layout 2: the popup open on 10/17 with c chosen, scrolled by hand (9/28 on top); after the tasks page,
+    // Layout 2: the popup open on 10/17 with c chosen, scrolled by hand (9/27 on top); after the tasks page,
     // the popup is still open on c and the scroll stays
     let mut app = app_with(ITEMS);
     press(&mut app, KeyCode::Char('2'));
-    app.month_top = Some(date(2026, 9, 28));
+    app.month_top = Some(date(2026, 9, 27));
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('j'));
     assert_eq!((app.focus, title(&app).as_deref()), (Focus::Day, Some("c")));
@@ -1460,7 +1460,7 @@ fn switching_back_finds_a_layout_as_it_was_left() {
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(
         (app.focus, title(&app).as_deref(), app.month_top),
-        (Focus::Day, Some("c"), Some(date(2026, 9, 28)))
+        (Focus::Day, Some("c"), Some(date(2026, 9, 27)))
     );
     // Layout 1: the keyboard on the agenda's c, scrolled by hand; the same after the tasks page
     press(&mut app, KeyCode::Char('1'));
@@ -1493,7 +1493,7 @@ fn switching_back_finds_a_layout_as_it_was_left() {
             date(2026, 10, 17),
             Focus::Day,
             Some("c"),
-            Some(date(2026, 9, 28))
+            Some(date(2026, 9, 27))
         )
     );
     press(&mut app, KeyCode::Char('1'));
@@ -1512,7 +1512,7 @@ fn switching_back_finds_a_layout_as_it_was_left() {
         (app.selected, app.focus, app.calendar_top),
         (date(2026, 10, 24), Focus::Calendar, None)
     );
-    // Layout 1 moves to Sun 10/25: layout 2 follows, that week (from Mon 10/19) on row 2
+    // Layout 1 moves to Sun 10/25: layout 2 follows, that week (Sunday 10/25 starts it) on row 2
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('2'));
     assert_eq!(
@@ -1520,7 +1520,7 @@ fn switching_back_finds_a_layout_as_it_was_left() {
         (
             date(2026, 10, 25),
             Focus::Calendar,
-            Some(date(2026, 10, 12))
+            Some(date(2026, 10, 18))
         )
     );
     // With the keyboard in the side menu no popup opens, so the day is shared even from a popup left open
@@ -1594,14 +1594,14 @@ fn brackets_put_the_month_on_top_in_the_month_view_too() {
 
 #[test]
 fn t_puts_todays_week_on_row_2_in_the_month_view() {
-    // Today is Sat 10/17: its week starts Mon 10/12, so the week before (10/5) goes on top
+    // Today is Sat 10/17: its week starts Sun 10/11, so the week before (10/4) goes on top
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.view = View::Month;
     app.selected = date(2027, 3, 1);
-    app.month_top = Some(date(2027, 2, 22));
+    app.month_top = Some(date(2027, 2, 21));
     press(&mut app, KeyCode::Char('t'));
     assert_eq!(app.selected, date(2026, 10, 17));
-    assert_eq!(app.month_top, Some(date(2026, 10, 5)));
+    assert_eq!(app.month_top, Some(date(2026, 10, 4)));
 }
 
 #[test]

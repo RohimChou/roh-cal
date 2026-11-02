@@ -182,7 +182,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .month_top
         .unwrap_or_else(|| month_top(app.selected, first));
     let top = if app.month_free == Some(app.selected) {
-        top
+        // Left where the wheel put it, but still from a week's first day (the first day of the week may have
+        // changed on the settings page since)
+        calendar::week_start(top, first)
     } else {
         app.month_free = None;
         scrolled(top, app.selected, app.settings.month.center_cursor, first)

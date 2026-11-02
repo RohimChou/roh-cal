@@ -55,6 +55,8 @@ pub enum Row {
     TabBar,
     /// `[calendar] relative_weeks`
     RelativeWeeks,
+    /// `[calendar] first_day_of_week`: one of two days, not a switch
+    FirstDayOfWeek,
     /// `[calendar] dots`
     Dots,
     /// `[month] grid_lines`
@@ -81,6 +83,7 @@ pub fn rows() -> Vec<Row> {
         Row::CrossOutDone,
         Row::TabBar,
         Row::RelativeWeeks,
+        Row::FirstDayOfWeek,
         Row::Dots,
         Row::GridLines,
         Row::CenterCursor,
@@ -100,7 +103,7 @@ impl Row {
     pub fn section(self) -> Option<&'static str> {
         match self {
             Self::Theme | Self::CrossOutDone | Self::TabBar => None,
-            Self::RelativeWeeks | Self::Dots => Some("calendar"),
+            Self::RelativeWeeks | Self::FirstDayOfWeek | Self::Dots => Some("calendar"),
             Self::GridLines | Self::CenterCursor | Self::Overflow => Some("month"),
             Self::ListWidth | Self::HideDone => Some("calendar_list"),
             Self::ByCalendar => Some("day_popup"),
@@ -115,7 +118,8 @@ impl Row {
         const PLANNER: &[Place] = &[Place::View(View::Planner)];
         const MONTH: &[Place] = &[Place::View(View::Month)];
         match self {
-            Self::RelativeWeeks => Some(CALENDARS),
+            // Both calendars: their columns and week numbers
+            Self::RelativeWeeks | Self::FirstDayOfWeek => Some(CALENDARS),
             // Only layout 1's calendar has dots
             Self::Dots => Some(PLANNER),
             Self::GridLines | Self::CenterCursor | Self::Overflow => Some(MONTH),
@@ -151,6 +155,7 @@ impl Row {
             Self::CrossOutDone => "cross_out_done",
             Self::TabBar => "tab_bar",
             Self::RelativeWeeks => "relative_weeks",
+            Self::FirstDayOfWeek => "first_day_of_week",
             Self::Dots => "dots",
             Self::GridLines => "grid_lines",
             Self::CenterCursor => "center_cursor",
@@ -163,10 +168,10 @@ impl Row {
     }
 
     /// For switch rows, that `bool` in `settings` (`&mut`: for changing
-    /// and resetting); `theme`, the width and colors are not switches, so `None`
+    /// and resetting); `theme`, the first day of the week, the width and colors are not switches, so `None`
     fn switch(self, settings: &mut Settings) -> Option<&mut bool> {
         match self {
-            Self::Theme | Self::ListWidth | Self::Color(_) => None,
+            Self::Theme | Self::FirstDayOfWeek | Self::ListWidth | Self::Color(_) => None,
             Self::CrossOutDone => Some(&mut settings.cross_out_done),
             Self::TabBar => Some(&mut settings.tab_bar),
             Self::RelativeWeeks => Some(&mut settings.calendar.relative_weeks),
@@ -180,9 +185,10 @@ impl Row {
     }
 
     /// The current value (text drawn on the right): switches are `on` / `off`, `theme` is the theme's name,
-    /// the width is a number (the one that counts, see `CalendarListSettings::width`) or `auto`;
-    /// colors are their palette name (a color not in the palette is written as
-    /// itself, e.g. `#010203`). `theme` = the screen colors built from `settings`
+    /// the first day of the week its name in the config file (`sunday` / `monday`), the width is a number
+    /// (the one that counts, see `CalendarListSettings::width`) or `auto`; colors are their palette name (a
+    /// color not in the palette is written as itself, e.g. `#010203`). `theme` = the screen colors built
+    /// from `settings`
     pub fn value(self, settings: &Settings, theme: &Theme) -> String {
         let on_off = |on: bool| if on { "on" } else { "off" }.to_string();
         match self {
@@ -199,6 +205,7 @@ impl Row {
             Self::CrossOutDone => on_off(settings.cross_out_done),
             Self::TabBar => on_off(settings.tab_bar),
             Self::RelativeWeeks => on_off(settings.calendar.relative_weeks),
+            Self::FirstDayOfWeek => settings.calendar.first_day_of_week.name().to_string(),
             Self::Dots => on_off(settings.calendar.dots),
             Self::GridLines => on_off(settings.month.grid_lines),
             Self::CenterCursor => on_off(settings.month.center_cursor),
@@ -221,8 +228,8 @@ impl Row {
         theme.color(role)
     }
 
-    /// Changes this row's value: switches on ⇄ off; `theme` goes to
-    /// the next (`step` = 1) / previous (-1) theme in built-in order;
+    /// Changes this row's value: switches on ⇄ off, the first day of the week sunday ⇄ monday (either
+    /// way); `theme` goes to the next (`step` = 1) / previous (-1) theme in built-in order;
     /// colors go to the next / previous one in the theme's palette
     /// (terminal's 16 colors if there is no palette). Both wrap around.
     /// The width gets 1 cell wider / narrower and fixed, stopping at `MIN_WIDTH` / `MAX_WIDTH` (no
@@ -234,6 +241,10 @@ impl Row {
             return;
         }
         match self {
+            Self::FirstDayOfWeek => {
+                let first = &mut settings.calendar.first_day_of_week;
+                *first = first.other();
+            }
             Self::ListWidth => {
                 let list = &mut settings.calendar_list;
                 let width = list.width().unwrap_or(CalendarListSettings::AUTO_MAX_WIDTH);
@@ -293,6 +304,10 @@ impl Row {
         }
         if self == Self::ListWidth {
             settings.calendar_list.width = defaults.calendar_list.width;
+            return;
+        }
+        if self == Self::FirstDayOfWeek {
+            settings.calendar.first_day_of_week = defaults.calendar.first_day_of_week;
             return;
         }
         // Switch: use the same switch's value from the defaults; the only non-switch left is theme

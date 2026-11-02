@@ -12,7 +12,7 @@ python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_MONTH SKIP
 Example: python3 tools/expected_screen.py zh 70 23 2026-10-17 < testdata/agenda.md
 Layout 2 (env var LAYOUT=2):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TASK_FILE
-(A row is one whole week, Monday to Sunday. TOP_ROW = YYYY-MM-DD of a day in the top week. Not given = just
+(A row is one whole week, from its first day on. TOP_ROW = YYYY-MM-DD of a day in the top week. Not given = just
 opened: the week with the selected month's 1st; scroll if the selected week is not within the 6 weeks)
 Tasks page (env var LAYOUT=3):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
@@ -28,6 +28,8 @@ CENTER = layout 2 keeps the selected row on row 3 (`center_cursor = true`; the t
 RELATIVE = week-number column in layouts 1 and 2: the selected week shows its week number, other weeks show
 how many weeks away they are (`[calendar] relative_weeks = true`);
 NO_DOTS = layout 1's calendar draws no dots right of the dates (`[calendar] dots = false`);
+MONDAY = weeks start on Monday in layouts 1 and 2 (`[calendar] first_day_of_week = "monday"`; not given = on
+Sunday, the default);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
 are not shown (not given = the archived calendars, unchecked at start); COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
 `Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page
@@ -67,6 +69,9 @@ NO_GRID = "NO_GRID" in os.environ
 CENTER = "CENTER" in os.environ
 RELATIVE = "RELATIVE" in os.environ
 NO_DOTS = "NO_DOTS" in os.environ
+# The first day of the week as Python counts weekdays (Monday = 0 … Sunday = 6); `calendar.monthcalendar` follows it
+FIRST = 0 if "MONDAY" in os.environ else 6
+calendar.setfirstweekday(FIRST)
 HIDDEN = {int(i) for i in os.environ.get("HIDDEN", "").split(",") if i}
 ARCHIVED = set()  # paths of the archived calendars (set after reading the task file)
 RUNNING_MAX = 30  # the most rows the running calendars take when archived calendars are listed below them
@@ -142,13 +147,22 @@ def tab_row(lang, w, shown):
     return ljust(cut(row, w), w)
 
 
+def week_start(d):
+    """The first day of `d`'s week (a Sunday, or a Monday with MONDAY)"""
+    return d - datetime.timedelta(days=(d.weekday() - FIRST) % 7)
+
+
+def header_days(t):
+    """The weekday names in column order: `wd` is Monday to Sunday, turned to start from the first day"""
+    return t["wd"][FIRST:] + t["wd"][:FIRST]
+
+
 def week_number(d, selected=None):
-    # A different formula from the Rust code: (Monday of this day's week − Monday of 1/1's week) divided by 7
-    monday = lambda x: x - datetime.timedelta(days=x.weekday())
-    if RELATIVE and selected and monday(d) != monday(selected):
+    # A different formula from the Rust code: (start of this day's week − start of 1/1's week) divided by 7
+    if RELATIVE and selected and week_start(d) != week_start(selected):
         # Relative: how many weeks away from the selected week (before or after alike)
-        return abs((monday(d) - monday(selected)).days) // 7
-    return (monday(d) - monday(datetime.date(d.year, 1, 1))).days // 7 + 1
+        return abs((week_start(d) - week_start(selected)).days) // 7
+    return (week_start(d) - week_start(datetime.date(d.year, 1, 1))).days // 7 + 1
 
 
 def archived_word(word):
@@ -413,7 +427,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
             if i < len(weeks):
                 week = weeks[i]
                 # 4 cells a day: blanks, the date right-aligned in cells 2-3, then its dots (a blank with
-                # NO_DOTS); one more blank after Sunday
+                # NO_DOTS); one more blank after the week's last day
                 def dot_count(d):
                     return 0 if NO_DOTS else on_day(datetime.date(y, m, d))
                 days = list("".join(f"{d:>3}" + DOTS[min(dot_count(d), 4)] if d else "    "
@@ -440,7 +454,7 @@ def screen(lang, w, h, selected, first, skip, items, groups):
     visible = rows[skip:skip + body_h]
     # The top-left corner always shows the year of the top week on screen
     month_header = t["year"](next(year for _, _, year, _ in visible if year is not None))
-    header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d + " " for d in t["wd"]), 29)
+    header_left = rjust(month_header, 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d + " " for d in header_days(t)), 29)
     # Agenda header: 「重要事項」 on the left, the selected day on the right (one space after it);
     # when narrow the date stays whole and 「重要事項」 is cut, with at least one space between them
     date = t["date"](selected) + " "
@@ -505,20 +519,20 @@ def month_screen(lang, w, h, selected, top, items, groups):
     # between weeks; without them 0 (the cells touch)
     gap = 0 if NO_GRID else 1
     # Columns: the week-number column is 5 cells; the days share the rest (minus the 7 vertical lines)
-    # evenly, and the leftover cells go one per column starting from Monday
+    # evenly, and the leftover cells go one per column starting from the first
     days_w = iw - 5 - 7 * gap
     widths = [5] + [days_w // 7 + (1 if k < days_w % 7 else 0) for k in range(7)]
     xs = [0]
     for k in range(1, 8):
         xs.append(xs[k - 1] + widths[k - 1] + gap)
     lines_x = [xs[k] + widths[k] for k in range(7)] if gap else []  # vertical lines: right of each column
-                                                                    # (right of Sunday is the outer border)
+                                                                    # (right of the last is the outer border)
     # The 6 weeks, and after them in the rows left over as many more as start above the bottom border (the
     # line before them, if any, and their first row fit), the last one cut off
-    mondays = [top + datetime.timedelta(weeks=i) for i in range(20)]
+    starts = [top + datetime.timedelta(weeks=i) for i in range(20)]  # each week's first day
     # A month's edge between week i and week i + 1: some day and the same weekday a week later are in
     # different months
-    day_of = lambda i, k: mondays[i] + datetime.timedelta(days=k)
+    day_of = lambda i, k: starts[i] + datetime.timedelta(days=k)
     new_month = lambda a, b: (a.year, a.month) != (b.year, b.month)
     edge_after = [any(new_month(day_of(i, k), day_of(i + 1, k)) for k in range(7)) for i in range(19)]
     # The rows between weeks: with grid lines a line between every two weeks; without, only where a month
@@ -539,7 +553,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
     thick = lambda a, b: a.year != b.year
     # Vertical line j (0: right of the week-number column, never thick; j: between day j-1 and day j)
     v_thick = lambda i, j: j > 0 and thick(day_of(i, j - 1), day_of(i, j))
-    # Horizontal stretch under column k (0: the week-number column, same as Monday) of week i
+    # Horizontal stretch under column k (0: the week-number column, same as the first day) of week i
     h_thick = lambda i, k: thick(day_of(i, max(k, 1) - 1), day_of(i + 1, max(k, 1) - 1))
     if gap:
         for j, x in enumerate(lines_x):
@@ -564,13 +578,13 @@ def month_screen(lang, w, h, selected, top, items, groups):
             right[y] = box(up=False, down=False, left=h_thick(i, 7))
     # Header: 「  週 」, and each day's name at the left edge of its column
     c.put(0, 0, " " + t["hw"], 5)
-    for k, name in enumerate(t["wd"]):
+    for k, name in enumerate(header_days(t)):
         c.put(xs[k + 1], 0, " " + name, widths[k + 1])
     month = (selected.year, selected.month)
-    for i, monday in enumerate(mondays[:weeks]):
-        days = [monday + datetime.timedelta(days=k) for k in range(7)]
-        # Week number: from a day of that week in the selected month; if there is none, from Monday
-        numbered = next((d for d in days if (d.year, d.month) == month), monday)
+    for i, start in enumerate(starts[:weeks]):
+        days = [start + datetime.timedelta(days=k) for k in range(7)]
+        # Week number: from a day of that week in the selected month; if there is none, from its first day
+        numbered = next((d for d in days if (d.year, d.month) == month), start)
         c.put(0, week_y(i), f" {week_number(numbered, selected):>3} ", 5)
         # The week with a 1st: its month on the next line of the week-number column, in January the year
         # on the line after; right-aligned like the week numbers (ending in the 4th cell) when 3 cells or less
@@ -585,7 +599,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
         day_items = [sorted((it for it in items if it[0] <= d <= (it[4] or it[0])), key=lambda it: not it[5])
                      for d in days]
         # Multi-day items get one line each for the whole row: [item, line, first column, last column];
-        # going from Monday, the first one met gets the topmost line that is free on all its days
+        # going from the first day, the first one met gets the topmost line that is free on all its days
         bars = []
         for k in range(7):
             for it in day_items[k]:
@@ -642,7 +656,7 @@ def month_screen(lang, w, h, selected, top, items, groups):
             shown_by_day.append(shown)
         # Except on the first line, text may run right into the next cell as long as that whole cell is
         # empty: nothing that day, only its date (all the way to a day with something, even on another
-        # line, the selected day's cell, a new month, or Sunday). The selected day's own text only needs
+        # line, the selected day's cell, a new month, or the end of the row). The selected day's own text only needs
         # the next cell to have nothing on that line (it may have things above it)
         for k, cell in enumerate(week_cells):
             for r, text in enumerate(cell):
@@ -1010,16 +1024,12 @@ def tasks_screen(lang, w, h, text, groups):
     return [ljust(cut(line, w), w) for line in lines]
 
 
-def monday_of(d):
-    return d - datetime.timedelta(days=d.weekday())
-
-
 def month_top(selected, given):
-    """Monday of the top week: the given day's week if any; if not given, the week with the selected
+    """The first day of the top week: the given day's week if any; if not given, the week with the selected
     month's 1st. If the selected week is not within these 6 weeks, scroll just enough to show it"""
     week = datetime.timedelta(weeks=1)
-    top = monday_of(datetime.date.fromisoformat(given) if given else selected.replace(day=1))
-    row = monday_of(selected)
+    top = week_start(datetime.date.fromisoformat(given) if given else selected.replace(day=1))
+    row = week_start(selected)
     if CENTER:
         # Centered: the selected week is row 3 of the 6 (2 weeks above it)
         return row - 2 * week
