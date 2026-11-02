@@ -27,7 +27,10 @@ use crate::{
     ui::{self, Click},
 };
 use color_eyre::Result;
-use jiff::{ToSpan, civil::Date};
+use jiff::{
+    ToSpan,
+    civil::{Date, Weekday},
+};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{
@@ -395,7 +398,7 @@ pub struct App {
     /// Agenda scroll: (the 1st of which month, which sorted row of that month is at the top); it scrolls only
     /// when a month has too many items to fit
     pub agenda_window: Option<(Date, usize)>,
-    /// Layout 2 scroll: the Monday of the top week (`None` = on the next draw, put the week with the 1st of
+    /// Layout 2 scroll: the first day of the top week (`None` = on the next draw, put the week with the 1st of
     /// the selected month at the top)
     pub month_top: Option<Date>,
     /// Layout 2 was scrolled with the wheel while this day was selected: the 6 weeks stay where the wheel
@@ -666,6 +669,11 @@ impl App {
     /// (`App::listed`)
     fn hidden_as_done(&self, item: &Item) -> bool {
         self.settings.calendar_list.hide_done && item.kind == Kind::Task && item.done
+    }
+
+    /// The weekday the calendars' weeks start on (their first column)
+    pub fn first_day_of_week(&self) -> Weekday {
+        Weekday::Monday
     }
 
     /// Whether `day` is a holiday: an item in a checked holiday calendar (its heading has `type:holiday`)
@@ -1544,15 +1552,16 @@ impl App {
     /// Layout 2: the selected week goes on row 2, the week before on top, so the days just past still show
     /// (with `[month] center_cursor` on, `ui::month::render` puts it on row 3 as usual)
     fn selected_week_on_row_2(&mut self) {
-        self.month_top = Some(calendar::monday_of(self.selected).saturating_sub(1.week()));
+        let week = calendar::week_start(self.selected, self.first_day_of_week());
+        self.month_top = Some(week.saturating_sub(1.week()));
     }
 
     /// Layout 2's wheel: the 6 weeks move a week down (`step` = 1) / up (-1) and the selected day stays, even
     /// off screen; the next key that moves the selection brings it back into view (`ui::month::render`)
     fn scroll_month(&mut self, step: i8) {
-        let top = self
-            .month_top
-            .unwrap_or_else(|| calendar::monday_of(self.selected.first_of_month()));
+        let top = self.month_top.unwrap_or_else(|| {
+            calendar::week_start(self.selected.first_of_month(), self.first_day_of_week())
+        });
         self.month_top = Some(top.saturating_add((7 * i64::from(step)).days()));
         self.month_free = Some(self.selected);
     }

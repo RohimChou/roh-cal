@@ -12,7 +12,6 @@ use crate::{
     app::{App, Focus},
     calendar::{self, WeekRow},
     tasks::Item,
-    texts::Texts,
     theme::Theme,
 };
 use jiff::civil::Date;
@@ -27,7 +26,7 @@ use ratatui::{
 
 /// Cells per day: a blank, the date (right-aligned in 2 cells), and one cell after it
 const DAY_WIDTH: u16 = 4;
-/// The 7 days, plus 1 extra cell at the end for Sunday's `]` when the cell after its date is taken
+/// The 7 days, plus 1 extra cell at the end for the last day's `]` when the cell after its date is taken
 const DAYS_WIDTH: u16 = 7 * DAY_WIDTH + 1;
 /// The four columns in the calendar box: year/month, week number, │, 7 days
 const COLUMNS: [Constraint; 4] = [
@@ -139,7 +138,7 @@ pub fn render(frame: &mut Frame, calendar: Rect, agenda: Rect, app: &mut App) {
             _ => None,
         })
         .unwrap_or(app.selected);
-    render_header(frame, calendar_header, texts, theme, year);
+    render_header(frame, calendar_header, app, year);
     // Agenda header: 「重要事項」 on the left, the selected day on the right (one blank cell after it).
     // Each is drawn in its own area: the date is always complete,
     // 「重要事項」 is cut off if it does not fit (never half a Chinese character), with at least one blank
@@ -266,25 +265,25 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
     }
 }
 
-/// Header: 「2026年  週 │ 一 二 … 日」 in the normal text color; Saturday and Sunday use the weekend color
+/// Header: 「2026年  週 │ 一 二 … 日」 in the normal text color, the weekdays from the first day of the week
+/// (`App::first_day_of_week`) on; Saturday and Sunday use the weekend color
 ///
 /// The year/month column shows the year of `year`, e.g. 「2026年  週」
-fn render_header(frame: &mut Frame, area: Rect, texts: &Texts, theme: &Theme, year: Date) {
+fn render_header(frame: &mut Frame, area: Rect, app: &App, year: Date) {
+    let texts = app.lang.texts();
+    let theme = &app.theme;
     let normal = Style::new().fg(theme.text);
     let month_header = texts.year_label(year);
-    let weekdays: Vec<Span> = texts
-        .weekdays
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            // The 6th and 7th are Saturday and Sunday
-            let style = if i >= 5 {
+    let weekdays: Vec<Span> = calendar::weekdays(app.first_day_of_week())
+        .into_iter()
+        .map(|weekday| {
+            let style = if calendar::is_weekend(weekday) {
                 Style::new().fg(theme.weekend)
             } else {
                 normal
             };
             // Over its date: a blank before, the cell after the date after
-            Span::styled(format!(" {name} "), style)
+            Span::styled(format!(" {} ", texts.weekday(weekday)), style)
         })
         .collect();
     render_cells(
@@ -325,7 +324,10 @@ fn render_week(
     // (a row is always one week)
     let relative = app.settings.calendar.relative_weeks;
     let week = day
-        .map(|day| format!("{:>3} ", calendar::week_label(day, app.selected, relative)))
+        .map(|day| {
+            let label = calendar::week_label(day, app.selected, relative, app.first_day_of_week());
+            format!("{label:>3} ")
+        })
         .unwrap_or_default();
     let week_color = if selected_week {
         theme.week_number
@@ -357,7 +359,7 @@ fn render_week(
 ///
 /// A date has at most 2 digits, so there is always a blank before it: `[` takes the last blank before the
 /// date; `]` takes the cell after the date when it has no dots, else the next day's first blank (for
-/// Sunday, the extra cell at the end)
+/// the week's last day, the extra cell at the end)
 ///
 /// A multi-day item underlines its dates, and the cells between two of its days too, so its days read as
 /// one line (`ranges_on`); two items back to back stay apart; where two or more overlap, the underline is
@@ -475,7 +477,7 @@ pub(super) fn day_color(day: Date, app: &App) -> Color {
     let theme = &app.theme;
     if day == app.today {
         theme.today
-    } else if app.is_holiday(day) || day.weekday().to_monday_zero_offset() >= 5 {
+    } else if app.is_holiday(day) || calendar::is_weekend(day.weekday()) {
         theme.weekend
     } else {
         theme.text

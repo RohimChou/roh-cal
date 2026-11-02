@@ -1,7 +1,8 @@
 //! Layout 2: the month grid (like v1's month view): the whole area right of the side menu, 6 rows of
 //! equal-height cells, each cell listing that day's items
 //!
-//! A row is one whole week, Monday to Sunday: the week holding Sep 30 and Oct 1 is one row with days of
+//! A row is one whole week, from its first day (`App::first_day_of_week`) on: the week holding Sep 30 and
+//! Oct 1 is one row with days of
 //! both months, and with grid lines a staircase line marks where one month ends. 6 weeks at a time; scrolls one week at a time only when the selected day leaves the screen
 //! (with `[month] center_cursor` on in the config file, the selected week stays on row 3). The rows left
 //! over at the bottom show the weeks after, as many as start there, the last one cut off by the border.
@@ -17,7 +18,10 @@ use crate::{
     calendar,
     tasks::Item,
 };
-use jiff::{ToSpan, civil::Date};
+use jiff::{
+    ToSpan,
+    civil::{Date, Weekday},
+};
 use ratatui::{
     Frame,
     buffer::Buffer,
@@ -37,8 +41,8 @@ const WEEK_COLUMN_WIDTH: u16 = 5;
 /// mouse positions, so the two always agree
 #[derive(Debug, PartialEq)]
 struct Grid {
-    /// (x, width) of the week-number column and each of the 7 days: `[週數欄, 一, 二, …, 日]`; with grid
-    /// lines, 1 cell is left between columns for the vertical line
+    /// (x, width) of the week-number column and each of the 7 days in week order: `[週數欄, 一, 二, …, 日]`
+    /// for weeks starting on Monday; with grid lines, 1 cell is left between columns for the vertical line
     columns: [(u16, u16); 8],
     /// The header row (weekday names); with grid lines, the next row is the header's line
     header_y: u16,
@@ -64,7 +68,7 @@ impl Grid {
     /// to draw grid lines (`[month] grid_lines` in the config file)
     ///
     /// Width: the week-number column takes 5 cells; the rest, minus 7 vertical lines, is split evenly over
-    /// 7 days. The leftover cells go one each to the columns starting from Monday.
+    /// 7 days. The leftover cells go one each to the columns starting from the first.
     /// Height: header 1 row + header line 1 row; the rest, minus the 5 lines between weeks, is split evenly
     /// over 6 weeks. Without grid lines only the header and the rows for a month's edge are subtracted
     fn new(inner: Rect, lines: bool, top: Date) -> Self {
@@ -105,7 +109,7 @@ impl Grid {
     }
 
     /// Cells too small to draw the dates (each day needs at least 1 cell of width, each week at least
-    /// 1 row); leftovers go from Monday on, so Sunday is the narrowest
+    /// 1 row); leftovers go from the first column on, so the last is the narrowest
     fn too_small(&self) -> bool {
         self.week_height == 0 || self.columns[7].1 == 0
     }
@@ -116,7 +120,7 @@ impl Grid {
         self.header_y + 1 + self.gap + week * self.week_height + lines
     }
 
-    /// The cell at week `week`, column `column` (0 = week-number column, 1 = Monday … 7 = Sunday); the
+    /// The cell at week `week`, column `column` (0 = week-number column, 1-7 = the week's days); the
     /// cut-off week's cells end at the bottom of the box
     fn cell(&self, week: u16, column: usize) -> Rect {
         let (x, width) = self.columns[column];
@@ -134,23 +138,23 @@ impl Grid {
         self.weeks - 1
     }
 
-    /// x of the vertical lines: right of the week-number column and right of Monday through Saturday
+    /// x of the vertical lines: right of the week-number column and right of the week's first 6 days
     fn vertical_xs(&self) -> impl Iterator<Item = u16> + '_ {
         self.columns[..7].iter().map(|&(x, width)| x + width)
     }
 }
 
-/// Monday of the top week on screen: starting from `top`, scroll only when the selected week leaves the
-/// 6 weeks (one week at a time, like v1). `center` (`[month] center_cursor` in the config file) = ignore
-/// `top`; the selected week stays on row 3 of the 6 (with an even count it leans one row up, so one more
-/// week shows below)
-fn scrolled(top: Date, selected: Date, center: bool) -> Date {
-    let week = calendar::monday_of(selected);
+/// The first day of the top week on screen (weeks start on `first`): starting from `top`, scroll only when
+/// the selected week leaves the 6 weeks (one week at a time, like v1). `center` (`[month] center_cursor` in
+/// the config file) = ignore `top`; the selected week stays on row 3 of the 6 (with an even count it leans
+/// one row up, so one more week shows below)
+fn scrolled(top: Date, selected: Date, center: bool, first: Weekday) -> Date {
+    let week = calendar::week_start(selected, first);
     let last = i64::from(WEEKS - 1);
     if center {
         return week.saturating_sub((last / 2).weeks());
     }
-    let top = calendar::monday_of(top);
+    let top = calendar::week_start(top, first);
     if week < top {
         week
     } else if week > top.saturating_add(last.weeks()) {
@@ -163,8 +167,8 @@ fn scrolled(top: Date, selected: Date, center: bool) -> Date {
 /// The top week after `[` / `]` (`app.month_top` cleared): the week with the 1st of `date`'s month (a
 /// month takes at most 6 weeks, so all of it shows). Switching to layout 2 and `t` set their own instead
 /// (`App::selected_week_on_row_2`)
-fn month_top(date: Date) -> Date {
-    calendar::monday_of(date.first_of_month())
+fn month_top(date: Date, first: Weekday) -> Date {
+    calendar::week_start(date.first_of_month(), first)
 }
 
 /// Draws the month grid: a rounded box (the border lights up when the keyboard is on the calendar) with
@@ -173,12 +177,15 @@ fn month_top(date: Date) -> Date {
 /// First scroll so the selected week is visible (stored in `app.month_top`), then draw; after the wheel
 /// (`app.month_free`) the 6 weeks stay put until the selection changes
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
-    let top = app.month_top.unwrap_or_else(|| month_top(app.selected));
+    let first = app.first_day_of_week();
+    let top = app
+        .month_top
+        .unwrap_or_else(|| month_top(app.selected, first));
     let top = if app.month_free == Some(app.selected) {
         top
     } else {
         app.month_free = None;
-        scrolled(top, app.selected, app.settings.month.center_cursor)
+        scrolled(top, app.selected, app.settings.month.center_cursor, first)
     };
     app.month_top = Some(top);
     // Read-only from here on
@@ -206,7 +213,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 
     // Header, in the normal text color: the week-number column says 「週」; each day's name sits at the far
-    // left of its column, lined up with the dates below; Saturday and Sunday use the weekend color
+    // left of its column, lined up with the dates below, from the first day of the week on; Saturday and
+    // Sunday use the weekend color
     let normal = Style::new().fg(theme.text);
     let header = |column: usize| {
         let (x, width) = grid.columns[column];
@@ -216,28 +224,29 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         Line::styled(format!(" {}", texts.header_week), normal),
         header(0),
     );
-    for (column, name) in (1..).zip(texts.weekdays) {
-        let style = if column >= 6 {
+    for (column, weekday) in (1..).zip(calendar::weekdays(first)) {
+        let style = if calendar::is_weekend(weekday) {
             Style::new().fg(theme.weekend)
         } else {
             normal
         };
+        let name = texts.weekday(weekday);
         frame.render_widget(Line::styled(format!(" {name}"), style), header(column));
     }
 
     // The selected month: days of other months are grayed out
     let month = app.selected.first_of_month();
     for week in 0..grid.weeks {
-        let monday = top.saturating_add(i64::from(week).weeks());
-        let days: Vec<Date> = monday.series(1.day()).take(7).collect();
+        let start = top.saturating_add(i64::from(week).weeks());
+        let days: Vec<Date> = start.series(1.day()).take(7).collect();
         // Week number: from a day of that week in the selected month (only differs for the week across the
-        // new year), from Monday if it has none; the selected week gets the `week_number` color, other
+        // new year), from its first day if it has none; the selected week gets the `week_number` color, other
         // weeks `week_number_dim`. With `[calendar] relative_weeks`, other weeks show the difference in weeks
         let numbered = days
             .iter()
             .find(|day| day.first_of_month() == month)
             .copied()
-            .unwrap_or(monday);
+            .unwrap_or(start);
         let week_color = if days.contains(&app.selected) {
             theme.week_number
         } else {
@@ -252,7 +261,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             Line::styled(
                 format!(
                     " {:>3} ",
-                    calendar::week_label(numbered, app.selected, relative)
+                    calendar::week_label(numbered, app.selected, relative, first)
                 ),
                 Style::new().fg(week_color),
             ),
@@ -323,7 +332,7 @@ enum Slot<'a> {
 }
 
 /// A multi-day item's bar in one row: the line it is on (`lane`; 0 = the first line under the date) and the
-/// columns it covers (0 = Monday)
+/// columns it covers (0 = the week's first day)
 struct Bar<'a> {
     item: &'a Item,
     lane: usize,
@@ -333,7 +342,7 @@ struct Bar<'a> {
     starts: bool,
 }
 
-/// Lays out one row's items (`days` = Monday to Sunday): every multi-day item covering some of the days
+/// Lays out one row's items (`days` = the week's 7 days): every multi-day item covering some of the days
 /// gets a line of its own on all of them (`Bar::lane`), so its days line up into one bar; the earlier it
 /// starts in the row, the higher its line, and a line is used again once free. Each day's one-day items
 /// then fill that day's free lines from the top (in `App::items_on` order: in progress first), then go below
@@ -477,14 +486,15 @@ fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
     Line::from(spans).style(Style::new().bg(background))
 }
 
-/// Draws the 7 cells of one week (`days`, Monday to Sunday), line by line; `selected` = the column
-/// (0 = Monday) of the selected day's cell, if it is in this row, and `selection` its background
+/// Draws the 7 cells of one week (`days`, from its first day on), line by line; `selected` = the column
+/// (0 = the week's first day) of the selected day's cell, if it is in this row, and `selection` its
+/// background
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
 /// (like a spreadsheet): if the neighbor's whole cell is empty (nothing that day, only its date), its
 /// width is borrowed (drawing over the grid line between), and so on until a day with something (even on
 /// another line: text under that day's own items would read as one of them), the selected day's cell
-/// (its background stays clean), a new month, or Sunday; anything longer is cut off.
+/// (its background stays clean), a new month, or the end of the row; anything longer is cut off.
 /// The selected day's text takes its background along into the borrowed cells, up to one cell past the
 /// text (like the blank before it), so it reads as the selected day's; the rest of those cells stays plain.
 /// With that background to tell it apart, the selected day also borrows a neighbor that has nothing on
@@ -699,19 +709,20 @@ impl Rule {
     }
 }
 
-/// The day on weekday `weekday` (0 = Monday) of week `week` (from 0) of the weeks starting on `top`
+/// The day in column `weekday` (0 = the week's first day) of week `week` (from 0) of the weeks starting on
+/// `top`
 fn day_at(top: Date, week: u16, weekday: usize) -> Date {
     top.saturating_add((i64::from(week) * 7 + i64::try_from(weekday).unwrap_or(0)).days())
 }
 
-/// The stretch of line left of weekday `weekday` (1-6 = Tuesday-Sunday) in week `week`: between that day
-/// and the day before
+/// The stretch of line left of the day in column `weekday` (1-6 = the week's 2nd-7th day) in week `week`:
+/// between that day and the day before
 fn rule_left_of(top: Date, week: u16, weekday: usize) -> Rule {
     Rule::between(day_at(top, week, weekday - 1), day_at(top, week, weekday))
 }
 
-/// The stretch under grid column `column` (0 = the week-number column, which goes with Monday; 1-7 =
-/// Monday-Sunday) of week `week`, above the next week
+/// The stretch under grid column `column` (0 = the week-number column, which goes with the week's first
+/// day; 1-7 = the week's days) of week `week`, above the next week
 fn rule_under(top: Date, week: u16, column: usize) -> Rule {
     let weekday = column.max(1) - 1;
     Rule::between(day_at(top, week, weekday), day_at(top, week + 1, weekday))
@@ -741,12 +752,13 @@ fn cross(up: bool, down: bool, left: bool, right: bool) -> &'static str {
 
 /// Draws the grid lines: `│` between columns, `─` below the header and between weeks, crossings where they
 /// meet; horizontal lines meet the outer border as `├` / `┤`, vertical lines meet the bottom border as `┴`
-/// (in the border color). The weeks start on `top` (a Monday)
+/// (in the border color). The weeks start on `top` (a week's first day)
 ///
 /// Each stretch of line is drawn by the two days it lies between (`Rule`): faint within a month, in the
 /// border color where a month ends, thick (`━` `┃`) where a year ends. So a month's edge is a staircase
 /// like the outline of a paper calendar's month: the vertical stretch between the last day and the 1st,
-/// then the line under the last week's days. The stretch under the week-number column goes with Monday's;
+/// then the line under the last week's days. The stretch under the week-number column goes with the
+/// first day's;
 /// a crossing takes the strongest color of its four stretches.
 /// For the leftover rows (empty rows below the last week), vertical lines still run to the bottom border,
 /// so the last week just looks a few rows taller and no two lines stack up
@@ -765,7 +777,7 @@ fn render_grid_lines(
             cell.set_symbol(symbol).set_style(style);
         }
     };
-    // Vertical line `line` (0 = right of the week-number column, 1-6 = right of Monday-Saturday) in week
+    // Vertical line `line` (0 = right of the week-number column, 1-6 = right of the week's 1st-6th day) in week
     // `week`
     let vertical = |week: u16, line: usize| {
         if line == 0 {

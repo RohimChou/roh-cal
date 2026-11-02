@@ -10,7 +10,10 @@ use crate::{
     app::{App, Entry},
     calendar::{self, WeekRow},
 };
-use jiff::{ToSpan, civil::Date};
+use jiff::{
+    ToSpan,
+    civil::{Date, Weekday},
+};
 
 /// What the left column shows
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -56,6 +59,8 @@ pub enum Row<'a> {
 pub struct Months<'a> {
     /// The month that holds row 0 (today's month)
     origin: Date,
+    /// The weekday the weeks start on (`App::first_day_of_week`)
+    first: Weekday,
     /// Every agenda line (`App::agenda()`), sorted by the day it is listed on, then time
     items: Vec<Entry<'a>>,
     /// The most rows a month can take (if fewer than the month's weeks, the week count wins)
@@ -71,6 +76,7 @@ impl<'a> Months<'a> {
     pub fn new(app: &'a App, max_height: usize) -> Self {
         Self {
             origin: app.today,
+            first: app.first_day_of_week(),
             items: app.agenda(),
             max_height,
             window: None,
@@ -98,14 +104,14 @@ impl<'a> Months<'a> {
 
     /// How many rows this month's layout needs (no cap): the larger of the week count and the item count
     fn layout_height(&self, month: Date) -> usize {
-        let weeks = calendar::month_rows(month).len();
+        let weeks = calendar::month_rows(month, self.first).len();
         weeks.max(self.month_items(month).len())
     }
 
     /// Rows in a month's block (not counting the line after it): the layout rows, but at most `max_height`
     /// (never fewer than its weeks)
     fn month_height(&self, month: Date) -> usize {
-        let weeks = calendar::month_rows(month).len();
+        let weeks = calendar::month_rows(month, self.first).len();
         self.layout_height(month).min(weeks.max(self.max_height))
     }
 
@@ -143,7 +149,7 @@ impl<'a> Months<'a> {
     /// The row number of the week containing `date`
     fn row_of(&self, date: Date) -> i64 {
         // Which week of the month this is (from 0); weeks always take the month's top rows
-        let week = calendar::month_rows(date)
+        let week = calendar::month_rows(date, self.first)
             .iter()
             .position(|row| row.contains(&Some(date)))
             .unwrap_or(0);
@@ -181,7 +187,7 @@ impl<'a> Months<'a> {
                 });
             }
             hidden = self.hidden_below(month);
-            let weeks = calendar::month_rows(month);
+            let weeks = calendar::month_rows(month, self.first);
             let items = self.month_items(month);
             let offset = self.offset(month);
             let thumb = thumb_rows(self.layout_height(month), self.month_height(month), offset);

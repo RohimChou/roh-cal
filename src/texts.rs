@@ -3,7 +3,7 @@
 use crate::app::{Focus, Notice, Place, Row, Toast, View};
 use crate::edit::Problem;
 use crate::tasks::{Item, WarningKind};
-use jiff::civil::Date;
+use jiff::civil::{Date, Weekday};
 
 /// Supported languages
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,8 @@ pub struct Texts {
     pub tabs: [&'static str; 3],
     /// Calendar header: the week number column (4 cells wide)
     pub header_week: &'static str,
-    /// Monday to Sunday in the calendar header: each exactly 2 cells wide
+    /// Monday to Sunday (`[0]` is Monday), each exactly 2 cells wide: the calendar header's names (it starts
+    /// from the first day of the week, see `weekday`), and the weekday in Chinese dates
     pub weekdays: [&'static str; 7],
     /// The agenda's header
     pub header_items: &'static str,
@@ -812,6 +813,11 @@ impl Texts {
             Lang::En => date.year().to_string(),
             Lang::ZhTw => format!("{}年", date.year()),
         }
+    }
+
+    /// `weekday`'s name in the calendar header, e.g. `Su` / `日`
+    pub fn weekday(&self, weekday: Weekday) -> &'static str {
+        self.weekdays[weekday.to_monday_zero_offset() as usize]
     }
 
     /// The month in the calendar's left column, e.g. `Oct` / `10月`

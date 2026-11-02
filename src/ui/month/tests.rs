@@ -143,24 +143,53 @@ fn scrolling_moves_a_week_only_when_the_selection_leaves_the_six_weeks() {
     // Top is 9/28: weeks 9/28, 10/5, 10/12, 10/19, 10/26, 11/2 (the week of 9/28 holds 10/1 too, the
     // week of 10/26 holds 11/1); no scrolling inside them
     let top = date(2026, 9, 28);
-    assert_eq!(scrolled(top, date(2026, 9, 28), false), top);
-    assert_eq!(scrolled(top, date(2026, 11, 8), false), top);
+    assert_eq!(
+        scrolled(top, date(2026, 9, 28), false, Weekday::Monday),
+        top
+    );
+    assert_eq!(
+        scrolled(top, date(2026, 11, 8), false, Weekday::Monday),
+        top
+    );
     // One week further down (11/9): the top moves down one week (to 10/5); one week up (9/27, in the
     // week of 9/21): that week becomes the top
-    assert_eq!(scrolled(top, date(2026, 11, 9), false), date(2026, 10, 5));
-    assert_eq!(scrolled(top, date(2026, 9, 27), false), date(2026, 9, 21));
+    assert_eq!(
+        scrolled(top, date(2026, 11, 9), false, Weekday::Monday),
+        date(2026, 10, 5)
+    );
+    assert_eq!(
+        scrolled(top, date(2026, 9, 27), false, Weekday::Monday),
+        date(2026, 9, 21)
+    );
     // A stored top that is not a Monday counts as the week it is in
     assert_eq!(
-        scrolled(date(2026, 10, 3), date(2026, 10, 17), false),
+        scrolled(
+            date(2026, 10, 3),
+            date(2026, 10, 17),
+            false,
+            Weekday::Monday
+        ),
         date(2026, 9, 28)
     );
     // Centered: the selected week (10/12) is always row 3, so the top is two weeks up (9/28)
     for top in [date(2026, 9, 21), date(2026, 10, 12), date(2027, 1, 4)] {
-        assert_eq!(scrolled(top, date(2026, 10, 17), true), date(2026, 9, 28));
+        assert_eq!(
+            scrolled(top, date(2026, 10, 17), true, Weekday::Monday),
+            date(2026, 9, 28)
+        );
     }
     // Just opened: the week with the 1st is at the top (10/1 is a Thursday, so 9/28; 2027/1/1 is a
     // Friday, so 12/28; 2027/2/1 is a Monday, so 2/1 itself)
-    assert_eq!(month_top(date(2026, 10, 17)), date(2026, 9, 28));
-    assert_eq!(month_top(date(2027, 1, 31)), date(2026, 12, 28));
-    assert_eq!(month_top(date(2027, 2, 14)), date(2027, 2, 1));
+    assert_eq!(
+        month_top(date(2026, 10, 17), Weekday::Monday),
+        date(2026, 9, 28)
+    );
+    assert_eq!(
+        month_top(date(2027, 1, 31), Weekday::Monday),
+        date(2026, 12, 28)
+    );
+    assert_eq!(
+        month_top(date(2027, 2, 14), Weekday::Monday),
+        date(2027, 2, 1)
+    );
 }
