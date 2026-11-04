@@ -18,7 +18,7 @@ use ratatui::{
 use std::ops::Range;
 
 /// Side menu width (incl. left and right border): the config file's `[calendar_list] width` when it is
-/// set; otherwise (auto) just enough for the longest calendar, e.g. 「 ☑ Payments API v2 12 」,
+/// set; otherwise (auto) just enough for the longest calendar, e.g. 「 ✓ Payments API v2 12 」,
 /// but at least `CalendarListSettings::MIN_WIDTH` (22) and at most `AUTO_MAX_WIDTH` (38); longer names
 /// get cut off
 pub fn width(app: &App) -> u16 {
@@ -30,14 +30,14 @@ pub fn width(app: &App) -> u16 {
     let longest = app
         .groups
         .iter()
-        // The indent, 「 ☑ 」 3 cells, name, count
+        // The indent, 「 ✓ 」 3 cells, name, count
         .map(|group| {
             indent(app, group).len()
                 + 3
                 + Span::raw(name(group, texts)).width()
                 + count_text(app, group).len()
         })
-        // The switch rows above the calendars: 「 ☐ 」 3 cells + its name + one blank
+        // The switch rows above the calendars: 「 ◌ 」 3 cells + its name + one blank
         .chain([texts.hide_all, texts.hide_done].map(|name| 3 + Span::raw(name).width() + 1))
         .max()
         .unwrap_or(0);
@@ -200,13 +200,13 @@ fn scrolled(part: &Part, chosen: SideRow, first: bool) -> usize {
     usize::try_from(top.min(max).max(0)).unwrap_or(0)
 }
 
-/// Draws the side menu: the header 「日曆」, the 「 ☐ 隱藏全部」 and 「 ☐ 隱藏做完的」 switches
-/// (`[calendar_list] hide_done`) and a rule, then one calendar per row, e.g. 「 ☑ Work            12 」; a
-/// calendar inside another is indented 2 cells per level, e.g. 「   ☑ SFAP  4 」. Archived calendars come
+/// Draws the side menu: the header 「日曆」, the 「 ◌ 隱藏全部」 and 「 ◌ 隱藏做完的」 switches
+/// (`[calendar_list] hide_done`) and a rule, then one calendar per row, e.g. 「 ✓ Work            12 」; a
+/// calendar inside another is indented 2 cells per level, e.g. 「   ✓ SFAP  4 」. Archived calendars come
 /// last, under a rule 「─── 已封存 ───」 of their own; the running calendars above it take at most
 /// `RUNNING_MAX_ROWS`
 ///
-/// Checked is `☑`, unchecked is `☐` (its items are hidden); a name that is too long for the box (see
+/// Checked is `✓`, unchecked is `◌` (its items are hidden); a name that is too long for the box (see
 /// `width`) gets cut off. When a part has too many calendars to fit, first scroll it so the chosen one is
 /// visible (stored in `app.side_top` / `app.side_archive_top`) and draw a scrollbar on the right border next
 /// to it. When the keyboard is on the side menu, the border lights up and the chosen calendar gets a
@@ -264,7 +264,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             archive_rule,
         );
     }
-    // The two switches above a rule: ☑ in the `checked` color when on, ☐ muted when off. 「隱藏全部」 is on
+    // The two switches above a rule: ✓ in the `checked` color when on, ◌ muted when off. 「隱藏全部」 is on
     // while every calendar is unchecked
     if let Some([hide_all, hide_done, switches_rule]) = areas.switches {
         let rows = [
@@ -310,7 +310,7 @@ fn render_part(frame: &mut Frame, area: Rect, app: &App, part: &Part) {
         let [name_area, count_area] =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(count.len() as u16)])
                 .areas(row);
-        // Checked: ☑ in the `checked` color and the name in normal text color; unchecked: ☐ and the name
+        // Checked: ✓ in the `checked` color and the name in normal text color; unchecked: ◌ and the name
         // are both muted. Only its own check counts, not the calendars around it
         let (mark_color, name_color) = if group.shown {
             (theme.checked, theme.text)
@@ -396,17 +396,17 @@ mod tests {
 
     #[test]
     fn auto_width_fits_the_longest_calendar_up_to_38() {
-        // No task file, or a short name (「 ☑ Personal 1 」 needs only 14 cells): the minimum, 22
+        // No task file, or a short name (「 ✓ Personal 1 」 needs only 14 cells): the minimum, 22
         assert_eq!(width(&app_with("")), 22);
         assert_eq!(width(&app_with("# Personal\n- a @2026-10-10\n")), 22);
-        // 「 ☑ Tokyo trip 🗼🍣 1 」: each emoji is two cells wide, so 3 + 15 + 3 = 21 cells, 23 with the
+        // 「 ✓ Tokyo trip 🗼🍣 1 」: each emoji is two cells wide, so 3 + 15 + 3 = 21 cells, 23 with the
         // border; the longest one sets the width
         let app = app_with("# Personal\n- a @2026-10-10\n# Tokyo trip 🗼🍣\n- b @2026-12-24\n");
         assert_eq!(width(&app), 23);
         // A two-digit count: 1 more cell
         let ten = "- x @2026-10-10\n".repeat(10);
         assert_eq!(width(&app_with(&format!("# Tokyo trip 🗼🍣\n{ten}"))), 24);
-        // Longer still (「 ☑ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): 38, cut
+        // Longer still (「 ✓ Year-end chores 🎄 and plans for 2027 0 」 needs 43 + 2 = 45 cells): 38, cut
         let app = app_with("# Year-end chores 🎄 and plans for 2027\n- a\n");
         assert_eq!(width(&app), 38);
     }

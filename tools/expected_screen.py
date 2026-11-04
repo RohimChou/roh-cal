@@ -80,8 +80,8 @@ SIDE_MIN, SIDE_MAX = 22, 38  # side menu min / max width (borders included) when
 
 
 # A check box and the no-break space after it (see `check_box` in src/ui.rs: a plain space would let the
-# terminal draw a borrowed `☐` two cells wide)
-BOX_ON, BOX_OFF = "☑\u00a0", "☐\u00a0"
+# terminal draw a borrowed `◌` two cells wide)
+BOX_ON, BOX_OFF = "✓\u00a0", "◌\u00a0"
 
 
 def width(s):
@@ -317,16 +317,16 @@ def group_label(t, path):
 
 
 def side_width(t, groups):
-    """side menu width (borders included): the longest row 「 ☑ name count 」 (with its indent) plus borders,
+    """side menu width (borders included): the longest row 「 ✓ name count 」 (with its indent) plus borders,
     between SIDE_MIN and SIDE_MAX"""
     longest = max([width("".join(group_label(t, path))) + 3 + len(f" {count} ") for path, count in groups]
-                  + [3 + width(t[k]) + 1 for k in ("hide_all", "hide_done")])  # the 「 ☐ 隱藏全部 」 rows on top
+                  + [3 + width(t[k]) + 1 for k in ("hide_all", "hide_done")])  # the 「 ◌ 隱藏全部 」 rows on top
     return min(max(longest + 2, SIDE_MIN), SIDE_MAX)
 
 
 def side_lines(t, h, groups):
     """Each row of the side menu column (top and bottom borders included, the hints line not):
-    one row per calendar 「 ☑ name    count 」, indented 2 cells per level"""
+    one row per calendar 「 ✓ name    count 」, indented 2 cells per level"""
     iw = side_width(t, groups) - 2
     rows = [ljust(t["side"], iw), "─" * iw]
     # Below the header (when at least 4 rows are left under it): the two switches and a rule; 「隱藏全部」 is
@@ -958,7 +958,7 @@ def tasks_screen(lang, w, h, text, groups):
         it = items[k]
         children = [c for c in items if c["parent"] == k]
         marker = " " if not children else ("▾" if it["line"] in expanded else "▸")
-        # A task's check box (☑ once done; in progress stays ☐, its title has 🚧), an event's dot
+        # A task's check box (✓ once done; in progress stays ◌, its title has 🚧), an event's dot
         check = (BOX_ON if it["done"] else BOX_OFF) if it["task"] else "∙ "
         # One level under the calendar's heading, plus the calendars it is inside, plus its subtask depth
         levels = 1 + (len(paths[it["line"]]) - 1 if paths[it["line"]] else 0) + it["depth"]

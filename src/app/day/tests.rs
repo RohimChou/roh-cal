@@ -238,7 +238,7 @@ fn clicks_and_the_wheel_choose_in_the_popup() {
 #[test]
 fn a_drag_over_titles_marks_text_until_a_key_or_the_next_press() {
     // 10/17's popup (60 × 20): a blank row, `Work` (y + 2), then one item per row, 2 cells in after a blank
-    // cell of padding: Trip to NYC 「∙ 10/16~18 」 (title from x + 16), Triage bugs 「☑ 」 (x + 7), Team sync
+    // cell of padding: Trip to NYC 「∙ 10/16~18 」 (title from x + 16), Triage bugs 「✓ 」 (x + 7), Team sync
     // 「∙ 10:00 」 (x + 13)
     let mut app = month_app();
     press(&mut app, KeyCode::Enter);

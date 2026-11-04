@@ -35,7 +35,7 @@ pub struct Settings {
     /// Which built-in theme to use (a name in `theme::BUILTIN`), e.g. `nord-bright`
     pub theme: String,
     /// Done tasks' titles are struck through in every view (see `ui::title_span`); when off, only their
-    /// gray color tells them apart (and their `☑` in the day popup and on the tasks page)
+    /// gray color tells them apart (and their `✓` in the day popup and on the tasks page)
     pub cross_out_done: bool,
     /// The tab bar on the top row (the views `1` `2` `3` switch to, see `ui::tabs`); when off, the views take
     /// that row too

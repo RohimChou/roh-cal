@@ -390,7 +390,7 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
         let thumb: Vec<u16> = (7..12)
             .filter(|&y| buffer[(21, y)].symbol() == "┃")
             .collect();
-        // Split each row 「│ ☑ c01 … 1」 on whitespace; the 3rd part is the name
+        // Split each row 「│ ✓ c01 … 1」 on whitespace; the 3rd part is the name
         let names = rows
             .iter()
             .map(|row| row.split_whitespace().nth(2).unwrap_or("").to_string());
@@ -399,8 +399,8 @@ fn a_long_calendar_list_scrolls_to_the_chosen_one() {
     // The two switches and their rule above the list (not scrolled with it); clicks hit the switches
     let terminal = draw_app(&mut app, 121, 14);
     let top = area_rows(terminal.backend().buffer(), Rect::new(0, 4, 22, 3));
-    assert!(top[0].starts_with("│ ☐\u{a0}隱藏全部"), "{}", top[0]);
-    assert!(top[1].starts_with("│ ☐\u{a0}隱藏做完的"), "{}", top[1]);
+    assert!(top[0].starts_with("│ ◌\u{a0}隱藏全部"), "{}", top[0]);
+    assert!(top[1].starts_with("│ ◌\u{a0}隱藏做完的"), "{}", top[1]);
     assert_eq!(top[2], "│────────────────────│");
     assert_eq!(click_at(&app, 5, 4), Some(Click::HideAll));
     assert_eq!(click_at(&app, 5, 5), Some(Click::HideDone));
@@ -467,11 +467,11 @@ fn a_narrow_side_menu_covers_the_left_of_the_screen() {
             "╭────────────────────╮",
             "│ 日曆               │",
             "│────────────────────│",
-            "│ ☐\u{a0}隱藏全部         │",
-            "│ ☐\u{a0}隱藏做完的       │",
+            "│ ◌\u{a0}隱藏全部         │",
+            "│ ◌\u{a0}隱藏做完的       │",
             "│────────────────────│",
-            "│ ☑\u{a0}Work           1 │",
-            "│ ☑\u{a0}Personal       1 │",
+            "│ ✓\u{a0}Work           1 │",
+            "│ ✓\u{a0}Personal       1 │",
             "│                    │",
         ]
     );
@@ -531,28 +531,28 @@ fn side_menu_lists_the_calendars_when_wide() {
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ 日曆                               ││2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項                    2026/10/17（六） │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
-            "│ ☐\u{a0}隱藏全部                         ││  10月 40 │                  1   2   3  ││ 10/10 Farmers market                         │",
-            "│ ☐\u{a0}隱藏做完的                       ││       41 │  4   5⠂  6   7   8   9  10⠂ ││ 10/15 Fix the login bug                      ┃",
+            "│ ◌\u{a0}隱藏全部                         ││  10月 40 │                  1   2   3  ││ 10/10 Farmers market                         │",
+            "│ ◌\u{a0}隱藏做完的                       ││       41 │  4   5⠂  6   7   8   9  10⠂ ││ 10/15 Fix the login bug                      ┃",
             "│────────────────────────────────────││       42 │ 11  12  13  14  15⠂ 16⠂[17⠒]││ 10/16 17:30 Send the weekly update           ┃",
-            "│ ☑\u{a0}未分組                         2 ││       43 │ 18⠂ 19  20⠂ 21  22  23  24  ││ 10/17 Dinner with friends                    ┃",
-            "│ ☑\u{a0}Personal                       5 ││       44 │ 25  26  27  28  29  30  31  ││ 10/17 08:00 Coffee chat                      ┃",
-            "│ ☑\u{a0}Work                           1 ││          │                             ││ 10/18 07:00 Go hiking                        │",
-            "│   ☑\u{a0}Year-end odds and ends and p 2 ││──────────┼─────────────────────────────││────────────────────────────────── 還有 1 件 ─│",
+            "│ ✓\u{a0}未分組                         2 ││       43 │ 18⠂ 19  20⠂ 21  22  23  24  ││ 10/17 Dinner with friends                    ┃",
+            "│ ✓\u{a0}Personal                       5 ││       44 │ 25  26  27  28  29  30  31  ││ 10/17 08:00 Coffee chat                      ┃",
+            "│ ✓\u{a0}Work                           1 ││          │                             ││ 10/18 07:00 Go hiking                        │",
+            "│   ✓\u{a0}Year-end odds and ends and p 2 ││──────────┼─────────────────────────────││────────────────────────────────── 還有 1 件 ─│",
             "│                                    ││  11月 45 │  1   2   3⠂  4   5   6   7  ││  11/3 09:30 Release v2.3                     │",
             "│                                    ││       46 │  8   9  10  11  12  13  14  ││                                              │",
             "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
             " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
     );
-    // ☑ uses the `checked` color, names and the header are normal text, numbers are muted, the border is a
-    // normal line; a switch that is off: ☐ muted, its name normal text
+    // ✓ uses the `checked` color, names and the header are normal text, numbers are muted, the border is a
+    // normal line; a switch that is off: ◌ muted, its name normal text
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 7), ("☑", theme.checked));
+    assert_eq!(cell(2, 7), ("✓", theme.checked));
     assert_eq!(cell(4, 8), ("P", theme.text));
     assert_eq!(cell(35, 8), ("5", theme.muted));
-    assert_eq!(cell(2, 4), ("☐", theme.muted));
+    assert_eq!(cell(2, 4), ("◌", theme.muted));
     assert_eq!(cell(4, 4), ("隱", theme.text));
     assert_eq!(cell(2, 2), ("日", theme.text));
     assert_eq!(cell(0, 1), ("╭", theme.line));
@@ -583,7 +583,7 @@ fn side_menu_lists_the_calendars_when_wide() {
 
 #[test]
 fn unchecked_calendars_hide_their_items() {
-    // Personal unchecked: ☐ and the name are muted, the number still counts; its 5 items are not listed
+    // Personal unchecked: ◌ and the name are muted, the number still counts; its 5 items are not listed
     let mut app = agenda_app(Lang::En);
     monday_first(&mut app);
     app.groups[1].shown = false;
@@ -595,13 +595,13 @@ fn unchecked_calendars_hide_their_items() {
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ Calendars                          ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                      Sat Oct 17, 2026 │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
-            "│ ☐\u{a0}Hide all                         ││   Oct 40 │              1   2   3   4  ││ 10/15 Fix the login bug                      │",
-            "│ ☐\u{a0}Hide done                        ││       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly update           │",
+            "│ ◌\u{a0}Hide all                         ││   Oct 40 │              1   2   3   4  ││ 10/15 Fix the login bug                      │",
+            "│ ◌\u{a0}Hide done                        ││       41 │  5   6   7   8   9  10  11  ││ 10/16 17:30 Send the weekly update           │",
             "│────────────────────────────────────││       42 │ 12  13  14  15⠂ 16⠂[17] 18  ││ 10/20 A really long title that just keeps goi│",
-            "│ ☑\u{a0}Ungrouped                      2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││                                              │",
-            "│ ☐\u{a0}Personal                       5 ││       44 │ 26  27  28  29  30  31      ││                                              │",
-            "│ ☑\u{a0}Work                           1 ││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
-            "│   ☑\u{a0}Year-end odds and ends and p 2 ││   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                     │",
+            "│ ✓\u{a0}Ungrouped                      2 ││       43 │ 19  20⠂ 21  22  23  24  25  ││                                              │",
+            "│ ◌\u{a0}Personal                       5 ││       44 │ 26  27  28  29  30  31      ││                                              │",
+            "│ ✓\u{a0}Work                           1 ││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
+            "│   ✓\u{a0}Year-end odds and ends and p 2 ││   Nov 44 │                          1  ││  11/3 09:30 Release v2.3                     │",
             "│                                    ││       45 │  2   3⠂  4   5   6   7   8  ││                                              │",
             "│                                    ││       46 │  9  10  11  12  13  14  15  ││                                              │",
             "╰────────────────────────────────────╯╰────────────────────────────────────────╯╰──────────────────────────────────────────────╯",
@@ -611,9 +611,9 @@ fn unchecked_calendars_hide_their_items() {
     let theme = Theme::default();
     let buffer = terminal.backend().buffer();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 8), ("☐", theme.muted));
+    assert_eq!(cell(2, 8), ("◌", theme.muted));
     assert_eq!(cell(4, 8), ("P", theme.muted));
-    assert_eq!(cell(2, 7), ("☑", theme.checked));
+    assert_eq!(cell(2, 7), ("✓", theme.checked));
     // Dates keep their usual colors whatever items they have: 10/5 (Monday), 10/16 (Friday, an
     // ungrouped item) normal, 10/10 (Saturday) weekend blue
     assert_eq!(cell(52, 5), ("5", theme.text));
@@ -640,17 +640,17 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ 日曆                ││2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項                                   2026/10/17（六） │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
-            "│ ☐\u{a0}隱藏全部          ││  10月 40 │                  1   2   3  ││ 10/14 Index the old orders                                  │",
-            "│ ☐\u{a0}隱藏做完的        ││       41 │  4   5   6   7   8   9  10  ││ 10/14 10:30 Dentist appointment                             │",
+            "│ ◌\u{a0}隱藏全部          ││  10月 40 │                  1   2   3  ││ 10/14 Index the old orders                                  │",
+            "│ ◌\u{a0}隱藏做完的        ││       41 │  4   5   6   7   8   9  10  ││ 10/14 10:30 Dentist appointment                             │",
             "│─────────────────────││       42 │ 11  12  13  14⠒ 15  16 [17] ││ 10/20 Ship the v2.4 release                                 │",
-            "│ ☑\u{a0}Work            1 ││       43 │ 18  19  20⠂ 21⠂ 22  23  24  ││ 10/21 10:00 Design review                                   │",
-            "│   ☑\u{a0}Search revamp 2 ││       44 │ 25  26  27  28  29  30  31  ││                                                             │",
-            "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│ ✓\u{a0}Work            1 ││       43 │ 18  19  20⠂ 21⠂ 22  23  24  ││ 10/21 10:00 Design review                                   │",
+            "│   ✓\u{a0}Search revamp 2 ││       44 │ 25  26  27  28  29  30  31  ││                                                             │",
+            "│ ✓\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
             "│────── 已封存 ───────││  11月 45 │  1   2   3   4   5   6   7  ││                                                             │",
-            "│ ☐\u{a0}Payments API v2 2 ││       46 │  8   9  10  11  12  13  14  ││                                                             │",
-            "│ ☐\u{a0}Tokyo trip      1 ││       47 │ 15  16  17  18  19  20  21  ││                                                             │",
-            "│   ☐\u{a0}Packing list  0 ││       48 │ 22  23  24  25  26  27  28  ││                                                             │",
-            "│ ☐\u{a0}2025 holidays   1 ││       49 │ 29  30                      ││                                                             │",
+            "│ ◌\u{a0}Payments API v2 2 ││       46 │  8   9  10  11  12  13  14  ││                                                             │",
+            "│ ◌\u{a0}Tokyo trip      1 ││       47 │ 15  16  17  18  19  20  21  ││                                                             │",
+            "│   ◌\u{a0}Packing list  0 ││       48 │ 22  23  24  25  26  27  28  ││                                                             │",
+            "│ ◌\u{a0}2025 holidays   1 ││       49 │ 29  30                      ││                                                             │",
             "│                     ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
             "│                     ││  12月 49 │          1   2   3   4   5  ││                                                             │",
             "│                     ││       50 │  6   7   8   9  10  11  12  ││                                                             │",
@@ -687,17 +687,17 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ Calendars           ││  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  ││ Agenda                                     Sat Oct 17, 2026 │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
-            "│ ☐\u{a0}Hide all          ││   Oct 40 │                  1   2⠂  3  ││  10/2 Release v2.3                                          │",
-            "│ ☐\u{a0}Hide done         ││       41 │  4   5   6   7   8   9  10  ││ 10/14 Index the old orders                                  │",
+            "│ ◌\u{a0}Hide all          ││   Oct 40 │                  1   2⠂  3  ││  10/2 Release v2.3                                          │",
+            "│ ◌\u{a0}Hide done         ││       41 │  4   5   6   7   8   9  10  ││ 10/14 Index the old orders                                  │",
             "│─────────────────────││       42 │ 11  12  13  14⠒ 15  16 [17] ││ 10/14 10:30 Dentist appointment                             │",
-            "│ ☑\u{a0}Work            1 ││       43 │ 18  19  20⠂ 21⠂ 22  23  24  ││ 10/20 Ship the v2.4 release                                 │",
-            "│   ☑\u{a0}Search revamp 2 ││       44 │ 25  26  27  28  29  30  31  ││ 10/21 10:00 Design review                                   │",
-            "│ ☑\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
+            "│ ✓\u{a0}Work            1 ││       43 │ 18  19  20⠂ 21⠂ 22  23  24  ││ 10/20 Ship the v2.4 release                                 │",
+            "│   ✓\u{a0}Search revamp 2 ││       44 │ 25  26  27  28  29  30  31  ││ 10/21 10:00 Design review                                   │",
+            "│ ✓\u{a0}Personal        1 ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
             "│───── Archived ──────││   Nov 45 │  1   2   3   4   5   6   7  ││                                                             │",
-            "│ ☑\u{a0}Payments API v2 2 ││       46 │  8   9  10  11  12  13  14  ││                                                             │",
-            "│ ☐\u{a0}Tokyo trip      1 ││       47 │ 15  16  17  18  19  20  21  ││                                                             │",
-            "│   ☐\u{a0}Packing list  0 ││       48 │ 22  23  24  25  26  27  28  ││                                                             │",
-            "│ ☐\u{a0}2025 holidays   1 ││       49 │ 29  30                      ││                                                             │",
+            "│ ✓\u{a0}Payments API v2 2 ││       46 │  8   9  10  11  12  13  14  ││                                                             │",
+            "│ ◌\u{a0}Tokyo trip      1 ││       47 │ 15  16  17  18  19  20  21  ││                                                             │",
+            "│   ◌\u{a0}Packing list  0 ││       48 │ 22  23  24  25  26  27  28  ││                                                             │",
+            "│ ◌\u{a0}2025 holidays   1 ││       49 │ 29  30                      ││                                                             │",
             "│                     ││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
             "│                     ││   Dec 49 │          1   2   3   4   5  ││                                                             │",
             "│                     ││       50 │  6   7   8   9  10  11  12  ││                                                             │",
@@ -727,7 +727,7 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     );
     app.screen = Rect::new(0, 0, 121, 46);
     app.focus = Focus::Side;
-    // The names on rows `y` to `y + height - 1` (split 「│ ☑ r01 … 1」 on whitespace: the 3rd part), and
+    // The names on rows `y` to `y + height - 1` (split 「│ ✓ r01 … 1」 on whitespace: the 3rd part), and
     // the rows among them with the scrollbar's thumb on the right border
     let names = |app: &mut App, y: u16, height: u16| {
         let terminal = draw_app(app, 121, 46);
@@ -776,10 +776,10 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
     // then the rule and 1 archived row (a01, chosen)
     let terminal = draw_app(&mut app, 121, 13);
     let rows = area_rows(terminal.backend().buffer(), Rect::new(0, 7, 22, 4));
-    assert!(rows[0].starts_with("│ ☑\u{a0}r04 "), "{}", rows[0]);
-    assert!(rows[1].starts_with("│ ☑\u{a0}r05 "), "{}", rows[1]);
+    assert!(rows[0].starts_with("│ ✓\u{a0}r04 "), "{}", rows[0]);
+    assert!(rows[1].starts_with("│ ✓\u{a0}r05 "), "{}", rows[1]);
     assert_eq!(rows[2], "│────── 已封存 ──────│");
-    assert!(rows[3].starts_with("│ ☐\u{a0}a01 "), "{}", rows[3]);
+    assert!(rows[3].starts_with("│ ◌\u{a0}a01 "), "{}", rows[3]);
     // Without archived calendars there is no rule and no 30-row cap: all 33 fit in the 37 rows
     let mut app = App::new(
         Lang::ZhTw,
@@ -794,7 +794,7 @@ fn the_running_calendars_take_at_most_30_rows_above_the_archive_part() {
 
 #[test]
 fn a_checked_calendar_inside_an_unchecked_one_still_shows() {
-    // Work unchecked on its own: SFAP inside it keeps its ☑ in the usual colors and its item (a) is still
+    // Work unchecked on its own: SFAP inside it keeps its ✓ in the usual colors and its item (a) is still
     // listed; only Work's own items would be hidden
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
     app.set_items(crate::tasks::parse(
@@ -806,17 +806,17 @@ fn a_checked_calendar_inside_an_unchecked_one_still_shows() {
     assert_eq!(
         area_rows(buffer, Rect::new(0, 7, 22, 3)),
         [
-            "│ ☐\u{a0}Work           0 │",
-            "│   ☑\u{a0}SFAP         1 │",
-            "│ ☑\u{a0}Personal       1 │",
+            "│ ◌\u{a0}Work           0 │",
+            "│   ✓\u{a0}SFAP         1 │",
+            "│ ✓\u{a0}Personal       1 │",
         ]
     );
     let theme = Theme::default();
     let cell = |x: u16, y: u16| (buffer[(x, y)].symbol(), buffer[(x, y)].fg);
-    assert_eq!(cell(2, 7), ("☐", theme.muted));
-    assert_eq!(cell(4, 8), ("☑", theme.checked));
+    assert_eq!(cell(2, 7), ("◌", theme.muted));
+    assert_eq!(cell(4, 8), ("✓", theme.checked));
     assert_eq!(cell(6, 8), ("S", theme.text));
-    assert_eq!(cell(2, 9), ("☑", theme.checked));
+    assert_eq!(cell(2, 9), ("✓", theme.checked));
     let titles: Vec<&str> = app
         .agenda()
         .iter()
@@ -843,7 +843,7 @@ fn side_menu_focus_lights_its_border_and_the_chosen_calendar() {
     }
     assert_eq!(
         (buffer[(2, 8)].symbol(), buffer[(2, 8)].fg),
-        ("☑", theme.checked)
+        ("✓", theme.checked)
     );
     // The 「隱藏全部」 row chosen: it gets the background, the calendars do not
     app.side_row = SideRow::HideAll;
@@ -2645,11 +2645,11 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
-            "│ ☐\u{a0}隱藏全部         ││  40 │ 28          │ 29         │ 30         │ 1 10月     │ 2          │ 3          │ 4          │",
-            "│ ☐\u{a0}隱藏做完的       ││ 10月│             │ Backyard BBQ            │            │            │            │            │",
+            "│ ◌\u{a0}隱藏全部         ││  40 │ 28          │ 29         │ 30         │ 1 10月     │ 2          │ 3          │ 4          │",
+            "│ ◌\u{a0}隱藏做完的       ││ 10月│             │ Backyard BBQ            │            │            │            │            │",
             "│────────────────────│├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
-            "│ ☑\u{a0}未分組         7 ││  41 │ 5           │ 6          │ 7          │ 8          │ 9          │ 10         │ 11         │",
-            "│ ☑\u{a0}Personal       8 ││     │ Pay the phone bill       │            │            │            │ Farmers market          │",
+            "│ ✓\u{a0}未分組         7 ││  41 │ 5           │ 6          │ 7          │ 8          │ 9          │ 10         │ 11         │",
+            "│ ✓\u{a0}Personal       8 ││     │ Pay the phone bill       │            │            │            │ Farmers market          │",
             "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
             "│                    ││  42 │ 12          │ 13         │ 14         │ 15         │ 16         │ 17         │ 18         │",
             "│                    ││     │ 14:00 Code r│ 15:00 Confirm alerting w│ Fix the log│ +4         │ +2         │ 07:00 Go hi│",
@@ -2676,11 +2676,11 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
-            "│ ☐\u{a0}隱藏全部         ││  40 │ 28          │ 29         │ 30         │ 1 10月     │ 2          │ 3          │ 4          │",
-            "│ ☐\u{a0}隱藏做完的       ││ 10月│             │            │            │            │            │            │            │",
+            "│ ◌\u{a0}隱藏全部         ││  40 │ 28          │ 29         │ 30         │ 1 10月     │ 2          │ 3          │ 4          │",
+            "│ ◌\u{a0}隱藏做完的       ││ 10月│             │            │            │            │            │            │            │",
             "│────────────────────│├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
-            "│ ☑\u{a0}未分組         7 ││  41 │ 5           │ 6          │ 7          │ 8          │ 9          │ 10         │ 11         │",
-            "│ ☐\u{a0}Personal       8 ││     │             │            │            │            │            │            │            │",
+            "│ ✓\u{a0}未分組         7 ││  41 │ 5           │ 6          │ 7          │ 8          │ 9          │ 10         │ 11         │",
+            "│ ◌\u{a0}Personal       8 ││     │             │            │            │            │            │            │            │",
             "│                    │├─────┼─────────────┼────────────┼────────────┼────────────┼────────────┼────────────┼────────────┤",
             "│                    ││  42 │ 12          │ 13         │ 14         │ 15         │ 16         │ 17         │ 18         │",
             "│                    ││     │ 14:00 Code r│ 15:00 Confirm alerting w│ Fix the log│ +4         │            │            │",
@@ -3140,7 +3140,7 @@ fn tasks_page_with_collapsed_calendars() {
             "│ ▾ Work                                                   │",
             "│   ▸ SFAP  2                                              │",
             "│   ▾ CAIS                                                 │",
-            "│       ☐\u{a0}Ship the monthly report              10/22       │",
+            "│       ◌\u{a0}Ship the monthly report              10/22       │",
             "│ ▸ Personal  2                                            │",
             "│ ▾ Work                                                   │",
             "│     ∙ Team sync                              10/19 10:00 │",
@@ -3180,15 +3180,15 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
             "│──────────────────────────────────────────────────────────│",
             "│ ▾ Work                                                   │",
             "│   ▾ SFAP                                                 │",
-            "│     ▸ ☐\u{a0}Fix the login bug  0/1               10/20       │",
+            "│     ▸ ◌\u{a0}Fix the login bug  0/1               10/20       │",
             "│     ▾ Bugs                                               │",
-            "│         ☐\u{a0}Session times out too early        10/21       │",
+            "│         ◌\u{a0}Session times out too early        10/21       │",
             "│   ▾ CAIS                                                 │",
-            "│       ☐\u{a0}Ship the monthly report              10/22       │",
+            "│       ◌\u{a0}Ship the monthly report              10/22       │",
             "│ ▾ Personal                                               │",
             "│     ∙ Gym                                    10/18       │",
             "│   ▾ Moving                                               │",
-            "│       ☐\u{a0}Pack the books                        11/1       │",
+            "│       ◌\u{a0}Pack the books                        11/1       │",
             "│     Wishlist                                             │",
             "│ ▾ Work                                                   │",
             "│     ∙ Team sync                              10/19 10:00 │",
@@ -3275,27 +3275,27 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ ▾ Payments API v2                                                  │",
-            "│     ☑\u{a0}Align with PM on the refund flow spec             9/28       │",
-            "│     ☑\u{a0}Break down tickets and estimate                   9/30 10:00 │",
-            "│   ▸ ☐\u{a0}Implement the refund API  1/4                    10/14       │",
-            "│     ☐\u{a0}Code review: Amy's PR #482                       10/12 14:00 │",
-            "│     ☐\u{a0}Confirm alerting with SRE                        10/13 15:00 │",
-            "│     ☐\u{a0}Reply to Kevin about error codes                 10/14       │",
-            "│     ☑\u{a0}Fix the staging DB migration                      10/8       │",
+            "│     ✓\u{a0}Align with PM on the refund flow spec             9/28       │",
+            "│     ✓\u{a0}Break down tickets and estimate                   9/30 10:00 │",
+            "│   ▸ ◌\u{a0}Implement the refund API  1/4                    10/14       │",
+            "│     ◌\u{a0}Code review: Amy's PR #482                       10/12 14:00 │",
+            "│     ◌\u{a0}Confirm alerting with SRE                        10/13 15:00 │",
+            "│     ◌\u{a0}Reply to Kevin about error codes                 10/14       │",
+            "│     ✓\u{a0}Fix the staging DB migration                      10/8       │",
             "│     ∙ Code freeze                                      10/23       │",
-            "│     ☐\u{a0}Prepare the release checklist @2026-10-23        10/22       │",
-            "│     ☐\u{a0}Write the runbook, see                                       │",
+            "│     ◌\u{a0}Prepare the release checklist @2026-10-23        10/22       │",
+            "│     ◌\u{a0}Write the runbook, see                                       │",
             "│       https://wiki.example.com/payments/runbook                    │",
             "│     ∙ Release v2.3                                     10/27 09:30 │",
             "│ ▾ Recurring                                                        │",
             "│     ∙ Team sync                                        10/19 10:00 │",
             "│     ∙ Team sync                                        10/26 10:00 │",
-            "│     ☐\u{a0}Send the weekly update                           10/16 17:30 │",
-            "│     ☐\u{a0}Clean up this week's notes                       10/16       │",
-            "│     ☐\u{a0}🚧 Draft the release notes                       10/16       │",
+            "│     ◌\u{a0}Send the weekly update                           10/16 17:30 │",
+            "│     ◌\u{a0}Clean up this week's notes                       10/16       │",
+            "│     ◌\u{a0}🚧 Draft the release notes                       10/16       │",
             "│     ∙ Team offsite                                     10/29       │",
-            "│     ☐\u{a0}Send the weekly update                           10/23 17:30 │",
-            "│     ☑\u{a0}Renew the VPN certificate                         10/5       │",
+            "│     ◌\u{a0}Send the weekly update                           10/23 17:30 │",
+            "│     ✓\u{a0}Renew the VPN certificate                         10/5       │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 4 行  - [x] Align with PM on the refund flow spec @2026-09-28   │",
             "╰────────────────────────────────────────────────────────────────────╯",
@@ -3315,11 +3315,11 @@ fn tasks_page_lists_the_file_as_a_tree() {
             "│ Tasks                                                 1 mistake(s) │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ ▾ Learning Rust 🦀                                                 │",
-            "│     ☑\u{a0}Finish chapter 4 of The Book (ownership)          10/3       │",
-            "│     ☐\u{a0}Read the Ratatui layout docs                                 │",
-            "│   ▾ ☐\u{a0}Write the task file parser for roh-cal  0/1      10/11       │",
-            "│     ▾ ☐\u{a0}Write a test for every rule  0/1                           │",
-            "│         ☐\u{a0}Test that `@Rukis` is not a date                         │",
+            "│     ✓\u{a0}Finish chapter 4 of The Book (ownership)          10/3       │",
+            "│     ◌\u{a0}Read the Ratatui layout docs                                 │",
+            "│   ▾ ◌\u{a0}Write the task file parser for roh-cal  0/1      10/11       │",
+            "│     ▾ ◌\u{a0}Write a test for every rule  0/1                           │",
+            "│         ◌\u{a0}Test that `@Rukis` is not a date                         │",
             "│     ∙ RustConf livestream @Rukis                       10/29 23:00 │",
             "│ ▾ Tokyo trip                                                       │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3350,7 +3350,7 @@ fn tasks_page_colors_and_clicks() {
     // At 40 wide 「Send the weekly update」 does not fit before its date: 「update」 wraps onto the next line,
     // under the title; the rows below move down one line (expected rows from tools/expected_screen.py)
     assert_eq!(rows[4], "│ ▾ Work                               │");
-    assert_eq!(rows[5], "│     ☐\u{a0}Send the weekly          10/16 │");
+    assert_eq!(rows[5], "│     ◌\u{a0}Send the weekly          10/16 │");
     assert_eq!(rows[6], "│       update                         │");
     assert_eq!(rows[8], "│   ▸ ∙ Hackathon  0/1           10/10 │");
     assert_eq!(rows[9], "│   ▸ ∙ Trip to Tokyo  0/1    2027/1/2 │");
@@ -3370,19 +3370,19 @@ fn tasks_page_colors_and_clicks() {
     assert_eq!(cell(2, 4), ("▾", theme.muted, false));
     assert_eq!(buffer[(4, 4)].fg, theme.label);
     assert!(!buffer[(4, 4)].modifier.contains(Modifier::BOLD));
-    // Send the weekly update (y 5-6): not done → ☐ and the title in normal text, also on the wrapped line;
+    // Send the weekly update (y 5-6): not done → ◌ and the title in normal text, also on the wrapped line;
     // date (x 33-37) in its day's color (normal); the chosen item gets the highlight across both of its
     // lines
-    assert_eq!(cell(6, 5), ("☐", theme.text, false));
+    assert_eq!(cell(6, 5), ("◌", theme.text, false));
     assert_eq!(cell(8, 5), ("S", theme.text, false));
     assert_eq!(cell(8, 6), ("u", theme.text, false));
     assert_eq!(cell(34, 5), ("0", theme.text, false));
     assert_eq!(buffer[(1, 5)].bg, theme.selection);
     assert_eq!(buffer[(37, 6)].bg, theme.selection);
     assert_eq!(buffer[(1, 7)].bg, Color::Reset);
-    // Fix the login bug (y 7): done → ☑ gray, the title gray and struck through; Hackathon (y 8): past
+    // Fix the login bug (y 7): done → ✓ gray, the title gray and struck through; Hackathon (y 8): past
     // event → ∙ and the title gray, not struck through
-    assert_eq!(cell(6, 7), ("☑", theme.muted, false));
+    assert_eq!(cell(6, 7), ("✓", theme.muted, false));
     assert_eq!(cell(8, 7), ("F", theme.muted, true));
     assert_eq!(cell(6, 8), ("∙", theme.muted, false));
     assert_eq!(cell(8, 8), ("H", theme.muted, false));
@@ -3437,10 +3437,10 @@ fn a_wrapped_item_is_kept_on_screen_whole() {
     assert_eq!(
         text_rows(terminal.backend().buffer())[4..11],
         [
-            "│     ☐\u{a0}c                              │",
-            "│     ☐\u{a0}d                              │",
-            "│     ☐\u{a0}e                              │",
-            "│     ☐\u{a0}one two three four five six    │",
+            "│     ◌\u{a0}c                              │",
+            "│     ◌\u{a0}d                              │",
+            "│     ◌\u{a0}e                              │",
+            "│     ◌\u{a0}one two three four five six    │",
             "│       seven eight nine ten eleven    │",
             "│       twelve thirteen fourteen       │",
             "│       fifteen sixteen                │",
@@ -3463,14 +3463,14 @@ fn tasks_page_points_at_format_mistakes() {
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ ▾ Personal                                                         │",
-            "│     ☐\u{a0}Pay the credit card bill                         10/25       │",
-            "│     ☐\u{a0}Organize the bookshelf                                       │",
-            "│     ☐\u{a0}Buy Mom's birthday gift                           11/2       │",
-            "│     ☐\u{a0}Book the annual physical                         10/16       │",
+            "│     ◌\u{a0}Pay the credit card bill                         10/25       │",
+            "│     ◌\u{a0}Organize the bookshelf                                       │",
+            "│     ◌\u{a0}Buy Mom's birthday gift                           11/2       │",
+            "│     ◌\u{a0}Book the annual physical                         10/16       │",
             "│     ∙ Mom's birthday 🎂                                10/29       │",
-            "│     ☐\u{a0}Pay property tax @2026-13-01                                 │",
+            "│     ◌\u{a0}Pay property tax @2026-13-01                                 │",
             "│   ▾ Moving                                                         │",
-            "│       ☐\u{a0}Get quotes from movers                          11/7       │",
+            "│       ◌\u{a0}Get quotes from movers                          11/7       │",
             "│────────────────────────────────────────────────────────────────────│",
             "│ 第 43 行：@2026-13-01：沒有這一天                                  │",
             "╰────────────────────────────────────────────────────────────────────╯",
@@ -3506,16 +3506,16 @@ fn tasks_page_with_the_side_menu() {
             "╭──────────────────────╮╭───────────────────────────────────────────────────────────────────────────────────────────────╮",
             "│ 日曆                 ││ 任務                                                                                 1 處寫錯 │",
             "│──────────────────────││───────────────────────────────────────────────────────────────────────────────────────────────│",
-            "│ ☐\u{a0}隱藏全部           ││ ▾ Personal                                                                                    │",
-            "│ ☐\u{a0}隱藏做完的         ││     ☐\u{a0}Pay the credit card bill                                                    10/25       │",
-            "│──────────────────────││     ☐\u{a0}Organize the bookshelf                                                                  │",
-            "│ ☐\u{a0}Payments API v2 12 ││     ☐\u{a0}Buy Mom's birthday gift                                                      11/2       │",
-            "│ ☐\u{a0}Recurring       14 ││     ☐\u{a0}Book the annual physical                                                    10/16       │",
-            "│ ☑\u{a0}Personal         5 ││     ∙ Mom's birthday 🎂                                                           10/29       │",
-            "│   ☑\u{a0}Moving         4 ││     ☐\u{a0}Pay property tax @2026-13-01                                                            │",
-            "│ ☑\u{a0}US holidays      2 ││   ▾ Moving                                                                                    │",
-            "│ ☑\u{a0}Learning Rust 🦀 4 ││───────────────────────────────────────────────────────────────────────────────────────────────│",
-            "│ ☑\u{a0}Tokyo trip       5 ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
+            "│ ◌\u{a0}隱藏全部           ││ ▾ Personal                                                                                    │",
+            "│ ◌\u{a0}隱藏做完的         ││     ◌\u{a0}Pay the credit card bill                                                    10/25       │",
+            "│──────────────────────││     ◌\u{a0}Organize the bookshelf                                                                  │",
+            "│ ◌\u{a0}Payments API v2 12 ││     ◌\u{a0}Buy Mom's birthday gift                                                      11/2       │",
+            "│ ◌\u{a0}Recurring       14 ││     ◌\u{a0}Book the annual physical                                                    10/16       │",
+            "│ ✓\u{a0}Personal         5 ││     ∙ Mom's birthday 🎂                                                           10/29       │",
+            "│   ✓\u{a0}Moving         4 ││     ◌\u{a0}Pay property tax @2026-13-01                                                            │",
+            "│ ✓\u{a0}US holidays      2 ││   ▾ Moving                                                                                    │",
+            "│ ✓\u{a0}Learning Rust 🦀 4 ││───────────────────────────────────────────────────────────────────────────────────────────────│",
+            "│ ✓\u{a0}Tokyo trip       5 ││ 第 37 行  - [ ] Pay the credit card bill !!! @2026-10-25                                      │",
             "╰──────────────────────╯╰───────────────────────────────────────────────────────────────────────────────────────────────╯",
             " jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯器 | s 日曆 | ? 說明 | , 設定 | q 離開",
         ]
@@ -3545,9 +3545,9 @@ fn a_long_title_wraps_in_the_day_popup() {
     assert_eq!(
         rows,
         [
-            " ☐\u{a0}A really long title that just keeps going and",
+            " ◌\u{a0}A really long title that just keeps going and",
             "   going and going past the edge of the box",
-            " ☐\u{a0}Pack",
+            " ◌\u{a0}Pack",
         ]
     );
     // The chosen (first) item: both lines have the selection background from border to border
@@ -3573,7 +3573,7 @@ fn a_long_title_wraps_in_the_day_popup() {
         rows[6].contains("│   going and going past the edge of the box "),
         "{rows:#?}"
     );
-    assert!(rows[2].contains("│ ☐\u{a0}b "), "{rows:#?}");
+    assert!(rows[2].contains("│ ◌\u{a0}b "), "{rows:#?}");
 }
 
 #[test]
@@ -3660,7 +3660,7 @@ fn the_day_popup_opens_on_a_day_with_no_items_too() {
             "│                            │",
             "│ 沒有事                     │",
             "│                            │",
-            "╰────────────── ☑\u{a0}照日曆分組 ╯",
+            "╰────────────── ✓\u{a0}照日曆分組 ╯",
         ]
     );
     assert_eq!(buffer[(17, 10)].fg, Theme::default().muted);
@@ -3726,7 +3726,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     // longest item 27 + border 2 + a blank cell 1 + padding 2 = 32, but the top border needs more: the
     // date with its arrows 22 + 「 未完成 1 / 已完成 1 」 21 + one line cell + 2 corners = 46 wide, 4 + 2 + 2
     // = 8 rows tall → x 7, y 6; the top border shows the date between ‹ ›, one item per row (like layout 1's agenda, but each item
-    // starts with its check box, ☑ once done, or `∙` for an event, and only the multi-day item writes its
+    // starts with its check box, ✓ once done, or `∙` for an event, and only the multi-day item writes its
     // dates), the first item is chosen; the bottom row switches to the popup's keys
     let text = "- [ ] Buy groceries @2026-10-17 17:30\n- Farmers market @2026-10-17 10:00\n\
                     - [x] Clean the garage @2026-10-17\n- Parents in town @2026-10-16..2026-10-18\n";
@@ -3740,11 +3740,11 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
             "╭ ‹ 2026/10/17（六） › ─ 未完成 1 / 已完成 1 ╮",
             "│                                            │",
             "│  ∙ 10/16~18 Parents in town                │",
-            "│  ☑\u{a0}Clean the garage                        │",
+            "│  ✓\u{a0}Clean the garage                        │",
             "│  ∙ 10:00 Farmers market                    │",
-            "│  ☐\u{a0}17:30 Buy groceries                     │",
+            "│  ◌\u{a0}17:30 Buy groceries                     │",
             "│                                            │",
-            "╰────────────────────────────── ☑\u{a0}照日曆分組 ╯",
+            "╰────────────────────────────── ✓\u{a0}照日曆分組 ╯",
         ]
     );
     // The bottom border's right end: the switch for grouping by calendar (on by default). The key hints
@@ -3774,9 +3774,9 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     assert_eq!(
         area_rows(buffer, Rect::new(7, 2, 45, 3)),
         [
-            "│  ☑\u{a0}Clean the garage                        ",
+            "│  ✓\u{a0}Clean the garage                        ",
             "│  ∙ 10:00 Farmers market                    ",
-            "│  ☐\u{a0}17:30 Buy groceries                     ",
+            "│  ◌\u{a0}17:30 Buy groceries                     ",
         ]
     );
     assert!((2..5).any(|y| buffer[(52, y)].symbol() == "┃"));
@@ -3797,7 +3797,7 @@ fn the_day_popup_lists_every_item_of_the_day_over_the_big_calendar() {
     let terminal = draw_app(&mut app, 60, 7);
     assert_eq!(
         area_rows(terminal.backend().buffer(), Rect::new(7, 2, 45, 1)),
-        ["│  ☑\u{a0}Clean the garage                        "]
+        ["│  ✓\u{a0}Clean the garage                        "]
     );
     assert_eq!(
         terminal.backend().buffer()[(8, 2)].bg,
@@ -4612,7 +4612,7 @@ fn an_in_progress_item_leaves_its_time_out_of_a_month_grid_cell_but_the_day_popu
 #[test]
 fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     // 10/17: one item outside any calendar, one in CAIS > Reports, one `!!!` in Life, a holiday.
-    // Widest line: 「 ☐ Send the report」 18 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 28;
+    // Widest line: 「 ◌ Send the report」 18 + 「 CAIS」 5 + border 2 + a blank cell 1 + padding 2 = 28;
     // the top border needs more: the date with its arrows 22 + 「 3 open / 0 done 」 17 + one line cell +
     // 2 corners = 42
     let text = "- [ ] Loose end @2026-10-17\n# CAIS\n## Reports\n- [ ] Send the report @2026-10-17\n\
@@ -4624,19 +4624,19 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
-    // Not grouped by calendar (☐ on the bottom border): the outermost calendar ends one blank cell before
+    // Not grouped by calendar (◌ on the bottom border): the outermost calendar ends one blank cell before
     // the padding; none outside a calendar or for a holiday
     assert_eq!(
         area_rows(buffer, area),
         [
             "╭ ‹ Sat Oct 17, 2026 › ─ 3 open / 0 done ╮",
             "│                                        │",
-            "│  ☐\u{a0}Loose end                           │",
-            "│  ☐\u{a0}Send the report               CAIS  │",
-            "│  ☐\u{a0}Pay the fine                  Life  │",
+            "│  ◌\u{a0}Loose end                           │",
+            "│  ◌\u{a0}Send the report               CAIS  │",
+            "│  ◌\u{a0}Pay the fine                  Life  │",
             "│  ∙ Day off                             │",
             "│                                        │",
-            "╰───────────────────────── ☐\u{a0}By calendar ╯",
+            "╰───────────────────────── ◌\u{a0}By calendar ╯",
         ]
     );
     // The calendar and the check box are colored like the time: muted, or the whole line's color with a
@@ -4646,7 +4646,7 @@ fn the_day_popup_writes_each_items_outermost_calendar_at_the_right() {
     assert_eq!(buffer[(area.x + 35, area.y + 3)].fg, theme.muted);
     assert_eq!(buffer[(area.x + 35, area.y + 4)].symbol(), "L");
     assert_eq!(buffer[(area.x + 35, area.y + 4)].fg, theme.priority_high);
-    assert_eq!(buffer[(area.x + 3, area.y + 3)].symbol(), "☐");
+    assert_eq!(buffer[(area.x + 3, area.y + 3)].symbol(), "◌");
     assert_eq!(buffer[(area.x + 3, area.y + 3)].fg, theme.muted);
     assert_eq!(buffer[(area.x + 3, area.y + 4)].fg, theme.priority_high);
     assert_eq!(buffer[(area.x + 3, area.y + 5)].symbol(), "∙");
@@ -4659,7 +4659,7 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
     // 20:00); grouped (the default): the item outside any calendar first, then the calendars in the
     // calendar list's order as a tree like the tasks page (CAIS's own items, then Reports inside it), each
     // name on its own line, 2 cells further in per level, and its items 2 cells further in than it, by
-    // time inside it. Widest line: 「     ☐ 08:00 Send the report」 28 + border 2 + a blank cell 1 +
+    // time inside it. Widest line: 「     ◌ 08:00 Send the report」 28 + border 2 + a blank cell 1 +
     // padding 2 = 33; the top border needs more: the date with its arrows 22 + 「 4 open / 0 done 」 17 +
     // one line cell + 2 corners = 42. Expected rows from a separate Python count of the indents
     let text = "- [ ] Loose end @2026-10-17 20:00\n# CAIS\n- [ ] Ship the fix @2026-10-17 17:00\n\
@@ -4691,17 +4691,17 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
         [
             "╭ ‹ Sat Oct 17, 2026 › ─ 4 open / 0 done ╮",
             "│                                        │",
-            "│  ☐\u{a0}20:00 Loose end                     │",
+            "│  ◌\u{a0}20:00 Loose end                     │",
             "│  CAIS                                  │",
-            "│    ☐\u{a0}17:00 Ship the fix                │",
+            "│    ◌\u{a0}17:00 Ship the fix                │",
             "│    Reports                             │",
-            "│      ☐\u{a0}08:00 Send the report           │",
+            "│      ◌\u{a0}08:00 Send the report           │",
             "│  Life                                  │",
-            "│    ☐\u{a0}09:00 Pay the fine                │",
+            "│    ◌\u{a0}09:00 Pay the fine                │",
             "│  Holidays                              │",
             "│    ∙ Day off                           │",
             "│                                        │",
-            "╰───────────────────────── ☑\u{a0}By calendar ╯",
+            "╰───────────────────────── ✓\u{a0}By calendar ╯",
         ]
     );
     // A calendar's name is in the color of the tasks page's calendar headings, at every level
@@ -4719,7 +4719,7 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
     app.day_index = 2;
     let terminal = draw_app(&mut app, 80, 24);
     let rows = area_rows(terminal.backend().buffer(), area);
-    assert_eq!(rows[12], "╰───────────────────────── ☑\u{a0}By calendar ╯");
+    assert_eq!(rows[12], "╰───────────────────────── ✓\u{a0}By calendar ╯");
     // Only Reports has an item that day: CAIS still gets its heading above it
     let text = "# CAIS\n## Reports\n- [ ] Send the report @2026-10-17 08:00\n";
     let mut app = month_app(Lang::En, date(2026, 10, 17), text);
@@ -4730,7 +4730,7 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
     assert!(rows[2].starts_with("│  CAIS "), "{rows:#?}");
     assert!(rows[3].starts_with("│    Reports "), "{rows:#?}");
     assert!(
-        rows[4].starts_with("│      ☐\u{a0}08:00 Send the report "),
+        rows[4].starts_with("│      ◌\u{a0}08:00 Send the report "),
         "{rows:#?}"
     );
 }
@@ -4739,7 +4739,7 @@ fn the_day_popup_lists_items_under_their_calendars_as_a_tree() {
 fn the_day_popup_lists_subtasks_under_their_parent() {
     // 10/17: 「Plan the trip」 has no date, its subtask 「Book flights」 and that one's 「Compare prices」 are
     // on the day; 「Fly out」 (07:40) comes before Book flights (09:00) by time, but the family stays
-    // together, in the place of its first item (Compare prices, no time). Widest line: 「      ☐ 09:00 Book
+    // together, in the place of its first item (Compare prices, no time). Widest line: 「      ◌ 09:00 Book
     // flights」 25 + border 2 + a blank cell 1 + padding 2 = 30; the top border needs more: 42 (as in
     // `the_day_popup_lists_items_under_their_outermost_calendar`). Expected rows from a separate Python
     // count of the indents
@@ -4760,11 +4760,11 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
             "│                                        │",
             "│  Trip                                  │",
             "│    Plan the trip                       │",
-            "│      ☐\u{a0}09:00 Book flights              │",
-            "│        ☐\u{a0}Compare prices                │",
+            "│      ◌\u{a0}09:00 Book flights              │",
+            "│        ◌\u{a0}Compare prices                │",
             "│    ∙ 07:40 Fly out                     │",
             "│                                        │",
-            "╰───────────────────────── ☑\u{a0}By calendar ╯",
+            "╰───────────────────────── ✓\u{a0}By calendar ╯",
         ]
     );
     let theme = Theme::default();
@@ -4789,11 +4789,11 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
             "╭ ‹ Sat Oct 17, 2026 › ─ 2 open / 0 done ╮",
             "│                                        │",
             "│  Plan the trip                         │",
-            "│    ☐\u{a0}09:00 Book flights          Trip  │",
-            "│      ☐\u{a0}Compare prices            Trip  │",
+            "│    ◌\u{a0}09:00 Book flights          Trip  │",
+            "│      ◌\u{a0}Compare prices            Trip  │",
             "│  ∙ 07:40 Fly out                 Trip  │",
             "│                                        │",
-            "╰ Trip ─────────────────── ☐\u{a0}By calendar ╯",
+            "╰ Trip ─────────────────── ◌\u{a0}By calendar ╯",
         ]
     );
     // Too short (60 × 7: 3 lines inside the box): after scrolling down to Fly out, choosing Book flights
@@ -4810,7 +4810,7 @@ fn the_day_popup_lists_subtasks_under_their_parent() {
     assert!(rows[1].starts_with("│  Trip "), "{rows:#?}");
     assert!(rows[2].starts_with("│    Plan the trip "), "{rows:#?}");
     assert!(
-        rows[3].starts_with("│      ☐\u{a0}09:00 Book flights "),
+        rows[3].starts_with("│      ◌\u{a0}09:00 Book flights "),
         "{rows:#?}"
     );
 }
@@ -4839,7 +4839,7 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when
     assert_eq!(
         bottom(&mut app),
         (
-            "╰ CAIS > Reports ───────── ☐\u{a0}By calendar ╯".to_string(),
+            "╰ CAIS > Reports ───────── ◌\u{a0}By calendar ╯".to_string(),
             Theme::default().label
         )
     );
@@ -4855,21 +4855,21 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when
     app.day_index = 0;
     assert_eq!(
         bottom(&mut app).0,
-        "╰───────────────────────── ☐\u{a0}By calendar ╯"
+        "╰───────────────────────── ◌\u{a0}By calendar ╯"
     );
     // Grouped, the calendars' headings already show the path: only the switch, for every item
     app.settings.day_popup.by_calendar = true;
     app.day_index = 1;
     assert_eq!(
         bottom(&mut app).0,
-        "╰───────────────────────── ☑\u{a0}By calendar ╯"
+        "╰───────────────────────── ✓\u{a0}By calendar ╯"
     );
-    // ☑ in the `checked` color, its name in the text color (the box is taller now, with the headings)
+    // ✓ in the `checked` color, its name in the text color (the box is taller now, with the headings)
     let terminal = draw_app(&mut app, 80, 24);
     let buffer = terminal.backend().buffer();
     let area = day_area(&app);
     let y = area.bottom() - 1;
-    assert_eq!(buffer[(area.right() - 15, y)].symbol(), "☑");
+    assert_eq!(buffer[(area.right() - 15, y)].symbol(), "✓");
     assert_eq!(buffer[(area.right() - 15, y)].fg, theme.checked);
     assert_eq!(buffer[(area.right() - 13, y)].fg, theme.text);
     // A click there flips it: the switch's 15 cells end next to the corner
@@ -4887,7 +4887,7 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when
     app.settings.day_popup.by_calendar = false;
     assert_eq!(
         bottom(&mut app).0,
-        "╰ CAIS > 2603_Monthly_rep─ ☐\u{a0}By calendar ╯"
+        "╰ CAIS > 2603_Monthly_rep─ ◌\u{a0}By calendar ╯"
     );
 }
 

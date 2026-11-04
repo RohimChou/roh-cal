@@ -54,7 +54,7 @@ pub struct Theme {
     pub background: Color,
     /// The border of the pane that has keyboard focus; the matching characters in the editor's `#` list
     pub focus: Color,
-    /// The `☑` of checked calendars in the side menu
+    /// The `✓` of checked calendars in the side menu
     pub checked: Color,
     /// The notice that briefly replaces the bottom row (write failed, reloaded)
     pub notice: Color,

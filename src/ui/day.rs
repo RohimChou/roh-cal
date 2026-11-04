@@ -79,8 +79,8 @@ fn open_color(open: usize, total: usize, theme: &Theme) -> Color {
     }
 }
 
-/// The switch at the right end of the bottom border, e.g. 「 ☑ By calendar 」: ☑ in the `checked` color
-/// while grouped by calendar (`[day_popup] by_calendar`), ☐ muted when not (like the calendar list's
+/// The switch at the right end of the bottom border, e.g. 「 ✓ By calendar 」: ✓ in the `checked` color
+/// while grouped by calendar (`[day_popup] by_calendar`), ◌ muted when not (like the calendar list's
 /// switches); `c` or a click flips it
 fn switch_line(app: &App) -> Line<'static> {
     let theme = &app.theme;
@@ -160,7 +160,7 @@ fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
 }
 
 /// One item's line before wrapping: its `item_marker` (colored like the time), its dates only when it spans
-/// several days, its time, then its title, e.g. 「 ☐ 17:30 Buy groceries」, 「 ∙ 10/16~18 Parents in town」
+/// several days, its time, then its title, e.g. 「 ◌ 17:30 Buy groceries」, 「 ∙ 10/16~18 Parents in town」
 fn popup_line(item: &Item, app: &App) -> Line<'static> {
     let mut spans = vec![
         Span::raw(" "),

@@ -409,8 +409,8 @@ fn levels(item: &Item) -> usize {
         + item.depth
 }
 
-/// One item laid out at `width` cells: 「 ▸ ☐ 實作退款 API  1/4            10/14       」. On the left: the indent
-/// (2 cells per level, see `levels`), `▸` / `▾` (has subtasks: collapsed / expanded), `☐` / `☑` (task) or `∙`
+/// One item laid out at `width` cells: 「 ▸ ◌ 實作退款 API  1/4            10/14       」. On the left: the indent
+/// (2 cells per level, see `levels`), `▸` / `▾` (has subtasks: collapsed / expanded), `◌` / `✓` (task) or `∙`
 /// (event, see `item_marker`), the title, and how many subtasks are done; when that does not fit, the title (with the count) wraps onto
 /// the next lines, which start under the title. On the right of the first line: a date column
 /// (right-aligned) and a time column, sized by `date_columns`; an item without a time leaves that cell blank

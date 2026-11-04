@@ -137,16 +137,18 @@ fn calendar_path(item: &Item) -> Option<String> {
     Some(names.join(" > "))
 }
 
-/// A check box and the space after it: `☑ ` when `checked`, else `☐ `. The space is a no-break space
-/// (U+00A0), which looks the same as a plain one: many fonts have no `☐`, so the terminal borrows it from
-/// another font, often a wide CJK one, and Ghostty draws such a borrowed symbol two cells wide when a plain
-/// space follows it, covering the space (any other character after it keeps it one cell)
+/// A check box and the space after it: `✓ ` when `checked`, else `◌ `. Most common terminal fonts have
+/// both, so the terminal seldom borrows them from another font (a borrowed symbol may be drawn wrong).
+/// The space is a no-break space (U+00A0), which looks the same as a plain one: with a font that lacks
+/// the symbol, the terminal often borrows it from a wide CJK font, and Ghostty draws such a borrowed
+/// symbol two cells wide when a plain space follows it, covering the space (any other character after it
+/// keeps it one cell)
 fn check_box(checked: bool) -> &'static str {
-    if checked { "☑\u{a0}" } else { "☐\u{a0}" }
+    if checked { "✓\u{a0}" } else { "◌\u{a0}" }
 }
 
 /// What an item's line starts with in the day popup and on the tasks page, so a wrapped title cannot pass
-/// for the next item: a task's check box (`☑` once done, see `check_box`; in progress is `☐`, its title
+/// for the next item: a task's check box (`✓` once done, see `check_box`; in progress is `◌`, its title
 /// has 🚧), an event's `∙` and a space
 fn item_marker(item: &Item) -> &'static str {
     match item.kind {

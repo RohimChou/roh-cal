@@ -310,7 +310,7 @@ fn the_list_width_steps_by_one_cell_and_stops_at_the_ends() {
 
 #[test]
 fn hl_on_the_auto_width_go_from_the_width_on_screen() {
-    // 「 ☑ Tokyo trip 🗼🍣 1 」 makes the auto width 23 (see `ui::side`)
+    // 「 ✓ Tokyo trip 🗼🍣 1 」 makes the auto width 23 (see `ui::side`)
     let items = crate::tasks::parse("# Tokyo trip 🗼🍣\n- b @2026-12-24\n").items;
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), items).with_theme("catppuccin-mocha");
     app.screen = Rect::new(0, 0, 130, 30);
