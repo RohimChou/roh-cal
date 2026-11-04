@@ -816,9 +816,9 @@ impl App {
         }
         self.tasks_line = Some(line);
         self.focus = super::Focus::Tasks;
-        // A double click on the item (not on `▸`) = check it off (same as the agenda)
+        // A double click on the item (not on `▸`) = `Space` (same as the agenda)
         if !on_toggle && self.is_double_click(super::ClickTarget::Item(line), now) {
-            self.toggle_chosen();
+            self.ask_check();
         }
     }
 

@@ -642,8 +642,14 @@ fn only_a_double_click_checks_a_task_off() {
         Some("Weekly update")
     );
     assert_eq!(read(), text);
-    // Another click 0.3 s after that one: a double click, checked off
+    // Another click 0.3 s after that one: a double click, which asks first like `Space`; y checks it off
     app.click_task(2, false, at(1200));
+    assert_eq!(read(), text);
+    assert_eq!(
+        app.confirm_check().map(|item| item.title.as_str()),
+        Some("Weekly update")
+    );
+    press(&mut app, KeyCode::Char('y'));
     assert!(read().contains("- [x] Weekly update\n"));
     // Two quick clicks on Design doc's ▸: expand, then collapse; it is not checked off
     app.click_task(1, true, at(2000));

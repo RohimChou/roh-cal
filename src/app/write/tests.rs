@@ -220,10 +220,22 @@ fn only_a_double_click_checks_an_item_off() {
     let later = Instant::now() + Duration::from_millis(900);
     app.click_item(0, later);
     assert_eq!(read(), text);
-    // Another click 0.3 s after that one: a double click, checked off right away (no question: a double
-    // click is hard to do by accident)
+    // Another click 0.3 s after that one: a double click, which asks first like `Space`
     app.click_item(0, later + Duration::from_millis(300));
+    assert_eq!(read(), text);
+    assert_eq!(
+        app.confirm_check().map(|item| item.title.as_str()),
+        Some("Review PRs")
+    );
+    // y: checked off
+    press(&mut app, KeyCode::Char('y'));
     assert_eq!(read(), "- [x] Review PRs @2026-10-10\n");
+    assert_eq!(app.confirm_check(), None);
+    // A double click on the done one: unchecked right away, like `Space`
+    let again = later + Duration::from_millis(2000);
+    app.click_item(0, again);
+    app.click_item(0, again + Duration::from_millis(300));
+    assert_eq!(read(), text);
     assert_eq!(app.confirm_check(), None);
     clean_up(&path);
 }

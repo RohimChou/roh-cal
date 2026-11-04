@@ -1443,14 +1443,14 @@ impl App {
         }
     }
 
-    /// A click on agenda row `index` at time `now`: chooses it; a double click checks it off. Clicking the
-    /// chosen item again later only chooses it, so a stray click does not check it off by accident
+    /// A click on agenda row `index` at time `now`: chooses it; a double click checks it off like `Space`
+    /// (an open task asks first). Clicking the chosen item again later only chooses it
     fn click_item(&mut self, index: usize, now: Instant) {
         self.choose(index);
         if let Some(line) = self.chosen_item().map(|item| item.line)
             && self.is_double_click(ClickTarget::Item(line), now)
         {
-            self.toggle_chosen();
+            self.ask_check();
         }
     }
 

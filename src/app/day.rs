@@ -240,7 +240,7 @@ impl App {
         if let Some(line) = self.chosen_item().map(|item| item.line)
             && self.is_double_click(ClickTarget::Item(line), now)
         {
-            self.toggle_chosen();
+            self.ask_check();
         }
     }
 

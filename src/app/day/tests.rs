@@ -352,7 +352,7 @@ fn checking_and_editing_keep_the_popup_on_the_same_item() {
         (Focus::Day, Some("Triage bugs"))
     );
     // Click the chosen item, then again 0.9 s later: only chosen, not checked. Another click 0.3 s after
-    // that one is a double click: checked, and the file is back as it was
+    // that one is a double click: asks first like `Space`, and y checks it, so the file is back as it was
     let area = ui::day_area(&app);
     let start = Instant::now();
     let click = |app: &mut App, ms: u64| {
@@ -362,6 +362,12 @@ fn checking_and_editing_keep_the_popup_on_the_same_item() {
     click(&mut app, 900);
     assert!(read().contains("- [ ] Triage bugs @2026-10-17\n"));
     click(&mut app, 1200);
+    assert!(read().contains("- [ ] Triage bugs @2026-10-17\n"));
+    assert_eq!(
+        app.confirm_check().map(|item| item.title.as_str()),
+        Some("Triage bugs")
+    );
+    press(&mut app, KeyCode::Char('y'));
     assert_eq!(read(), DAY);
     // e, add the time 18:00 (written @18:00: the day's date is left out in the editor): it moves to the
     // end, and the popup still has it chosen

@@ -60,8 +60,9 @@ impl App {
         self.change_chosen_box(edit::toggle);
     }
 
-    /// `Space` / `x`: an open task (in progress too) is checked off only after asking in the confirm box
-    /// (`answer_check`); a done task is unchecked right away, an event gets the notice that it has no box
+    /// `Space` / `x` (or a double click): an open task (in progress too) is checked off only after asking in
+    /// the confirm box (`answer_check`); a done task is unchecked right away, an event gets the notice that it
+    /// has no box
     pub(super) fn ask_check(&mut self) {
         match self.chosen_item() {
             Some(item) if item.kind == Kind::Task && !item.done => {
