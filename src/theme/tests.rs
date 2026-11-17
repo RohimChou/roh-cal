@@ -302,3 +302,12 @@ fn the_tab_bar_colors_come_from_focus_selection_and_background() {
     assert_eq!(terminal.background, Color::Reset);
     assert_eq!(terminal.tab_background(), terminal.selection);
 }
+
+#[test]
+fn a_chosen_days_cell_is_a_fainter_selection() {
+    // nord-bright (computed apart): selection #5c5366 40% of the way to the background nord0 #2e3440; the
+    // terminal theme has no background color to mix with: none
+    assert_eq!(Theme::default().cell_background(), Color::Rgb(74, 71, 87));
+    let terminal = Theme::builtin("terminal").expect("terminal");
+    assert_eq!(terminal.cell_background(), Color::Reset);
+}

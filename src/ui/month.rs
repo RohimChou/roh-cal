@@ -302,20 +302,21 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             .zip(chosen)
             .and_then(|(column, item)| chosen_line(&slots[column], item, grid.week_height));
         // The selected day's cell gets a background, top-left to bottom-right (like v1); while its items have
-        // the keyboard, only its date line and the chosen item's line
+        // the keyboard, a fainter one (`Theme::cell_background`), the chosen item's line keeping `selection`
+        let faint = Style::new().bg(theme.cell_background());
         if let Some(column) = selected {
             let cell = cells[column];
             match chosen_row {
                 Some(row) => {
-                    for y in [cell.y, cell.y + row] {
-                        let line = Rect {
-                            y,
-                            height: 1,
-                            ..cell
-                        }
-                        .intersection(cell);
-                        frame.buffer_mut().set_style(line, selection);
-                    }
+                    frame.buffer_mut().set_style(cell, faint);
+                    let line = Rect {
+                        y: cell.y + row,
+                        height: 1,
+                        ..cell
+                    };
+                    frame
+                        .buffer_mut()
+                        .set_style(line.intersection(cell), selection);
                 }
                 None => frame.buffer_mut().set_style(cell, selection),
             }
@@ -334,6 +335,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             column: selected,
             row: chosen_row,
             style: selection,
+            faint,
         };
         render_week(frame, &cells, &lines, &days, lit, overflow);
         let shown: Vec<usize> = slots
@@ -563,22 +565,27 @@ fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
 }
 
 /// Where the selected day's background goes in a row (`render_week`): `column` = its cell (0 = the week's
-/// first day), if it is in this row; `row` = the chosen item's line while its items have the keyboard (only
-/// the date line and that line are lit), `None` = the whole cell; `style` = the background
+/// first day), if it is in this row; `row` = the chosen item's line while its items have the keyboard
+/// (`None` = they do not); `style` = the background of the whole cell, or of the chosen line; `faint` = the
+/// rest of the cell's while its items have the keyboard
 #[derive(Clone, Copy)]
 struct Lit {
     column: Option<usize>,
     row: Option<u16>,
     style: Style,
+    faint: Style,
 }
 
 impl Lit {
-    /// Whether line `row` of cell `column` has the background
-    fn lights(self, column: usize, row: usize) -> bool {
-        self.column == Some(column)
-            && self
-                .row
-                .is_none_or(|lit| row == 0 || row == usize::from(lit))
+    /// The background of line `row` of cell `column`: `None` outside the selected day's cell
+    fn background(self, column: usize, row: usize) -> Option<Style> {
+        if self.column != Some(column) {
+            return None;
+        }
+        match self.row {
+            Some(chosen) if row != usize::from(chosen) => Some(self.faint),
+            _ => Some(self.style),
+        }
     }
 }
 
@@ -625,14 +632,14 @@ fn render_week(
                 }
             }
             frame.render_widget(line, Rect::new(cell.x, y, right - cell.x, 1));
-            if lit.lights(column, row) {
+            if let Some(background) = lit.background(column, row) {
                 let text_end = cell
                     .x
                     .saturating_add(u16::try_from(line.width()).unwrap_or(u16::MAX));
                 let end = text_end.saturating_add(1).min(right);
                 if end > cell.right() {
                     let spilled = Rect::new(cell.right(), y, end - cell.right(), 1);
-                    frame.buffer_mut().set_style(spilled, lit.style);
+                    frame.buffer_mut().set_style(spilled, background);
                 }
             }
         }

@@ -5486,8 +5486,9 @@ fn week_view_items_scroll_in_their_box_while_chosen() {
 #[test]
 fn month_view_items_can_be_chosen_in_their_cell() {
     // 80 × 31 (3 lines a week): 10/16 lists 1 of its 4 items and 「+3」. Its items with the keyboard, the
-    // 3rd chosen (hidden behind 「+3」): its line stands there instead. Only the date line and the chosen
-    // line are on the `selection` background (10/16: x 60-68; the date on y 12, the items on y 13 and 14)
+    // 3rd chosen (hidden behind 「+3」): its line stands there instead. The cell is on a fainter background
+    // (`Theme::cell_background`), the chosen line on `selection` (10/16: x 60-68; the date on y 12, the
+    // items on y 13 and 14)
     let mut app = month_app(Lang::ZhTw, date(2026, 10, 16), MONTH_TASKS);
     app.focus = Focus::Cell;
     app.cell_index = 2;
@@ -5530,8 +5531,9 @@ fn month_view_items_can_be_chosen_in_their_cell() {
     );
     let buffer = terminal.backend().buffer();
     let theme = Theme::default();
-    for (y, lit) in [(12, true), (13, false), (14, true)] {
-        assert_eq!(buffer[(61, y)].bg == theme.selection, lit, "y {y}");
+    let faint = theme.cell_background();
+    for (y, background) in [(12, faint), (13, faint), (14, theme.selection)] {
+        assert_eq!(buffer[(61, y)].bg, background, "y {y}");
     }
     // The 1st chosen (it shows): 「+3」 stays, its own line is lit
     app.cell_index = 0;
@@ -5573,8 +5575,15 @@ fn month_view_items_can_be_chosen_in_their_cell() {
         ]
     );
     let buffer = terminal.backend().buffer();
-    for (y, lit) in [(12, true), (13, true), (14, false)] {
-        assert_eq!(buffer[(61, y)].bg == theme.selection, lit, "y {y}");
+    for (y, background) in [(12, faint), (13, theme.selection), (14, faint)] {
+        assert_eq!(buffer[(61, y)].bg, background, "y {y}");
+    }
+    // Back on the calendar: the whole cell on `selection` again
+    app.focus = Focus::Calendar;
+    let terminal = draw_app(&mut app, 80, 31);
+    let buffer = terminal.backend().buffer();
+    for y in 12..=14 {
+        assert_eq!(buffer[(61, y)].bg, theme.selection, "y {y}");
     }
     // A multi-day item chosen: its bar is lit in the selected day's cell only (the trip, 10/20 to 10/25,
     // its bar on the first line under the dates; weeks from Monday: 10/20 at x 18-27, 10/21 at x 29-38)

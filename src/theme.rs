@@ -363,6 +363,16 @@ impl Theme {
         mix(self.selection, self.background, 0.25)
     }
 
+    /// The month grid's selected cell while its items have the keyboard: `selection` fainter, 40% of the way
+    /// to `background`, so the chosen item's line (`selection`) stands out in it; `Reset` (none) when there is
+    /// no background color to mix with (the `terminal` theme): then only the chosen line is lit
+    pub fn cell_background(&self) -> Color {
+        match (self.selection, self.background) {
+            (Color::Rgb(..), Color::Rgb(..)) => mix(self.selection, self.background, 0.4),
+            _ => Color::Reset,
+        }
+    }
+
     /// The color of a priority (`!!!` → `priority_high`…)
     pub fn priority(&self, priority: Priority) -> Color {
         match priority {
