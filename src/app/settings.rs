@@ -114,23 +114,31 @@ impl Row {
     /// The places this setting changes something on (the settings page dims it while none of them is on
     /// screen, see `applies_here`); `None` = everywhere
     pub fn places(self) -> Option<&'static [Place]> {
-        const CALENDARS: &[Place] = &[Place::View(View::Planner), Place::View(View::Month)];
-        const PLANNER: &[Place] = &[Place::View(View::Planner)];
+        const CALENDARS: &[Place] = &[
+            Place::View(View::Planner),
+            Place::View(View::Month),
+            Place::View(View::Week),
+        ];
+        // Layout 1's calendar and the week view's small one
+        const PLANNER: &[Place] = &[Place::View(View::Planner), Place::View(View::Week)];
         const MONTH: &[Place] = &[Place::View(View::Month)];
         match self {
-            // Both calendars: their columns and week numbers
+            // Every calendar: their columns and week numbers
             Self::RelativeWeeks | Self::FirstDayOfWeek => Some(CALENDARS),
-            // Only layout 1's calendar has dots
+            // Only layout 1's calendar and the week view's small one have dots
             Self::Dots => Some(PLANNER),
             Self::GridLines | Self::CenterCursor | Self::Overflow => Some(MONTH),
             Self::ListWidth => Some(&[Place::CalendarList]),
             Self::ByCalendar => Some(&[Place::DayPopup]),
-            // Colors only the calendars draw: the year line, week numbers; the month grid's own: its grid
-            // lines and multi-day bars
-            Self::Color("year_line" | "week_number" | "week_number_dim") => Some(CALENDARS),
+            // Colors only the calendars draw: week numbers, and in layouts 1 and 2 the year line; the month
+            // grid's own: its grid lines and multi-day bars
+            Self::Color("week_number" | "week_number_dim") => Some(CALENDARS),
+            Self::Color("year_line") => {
+                Some(&[Place::View(View::Planner), Place::View(View::Month)])
+            }
             Self::Color("grid" | "range" | "range_alt") => Some(MONTH),
-            // Only layout 1's calendar has brackets around the selected day (the month grid gives it a
-            // background) and underlines overlapping multi-day items
+            // Only layout 1's calendar and the week view's small one have brackets around the selected day
+            // (the month grid gives it a background) and underline overlapping multi-day items
             Self::Color("selected" | "range_overlap") => Some(PLANNER),
             // The calendar list's ✓ and the day popup's switch
             Self::Color("checked") => Some(&[Place::CalendarList, Place::DayPopup]),

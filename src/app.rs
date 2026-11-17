@@ -1457,11 +1457,18 @@ impl App {
         self.settings.calendar_list.width = u16::try_from(width).ok();
     }
 
-    /// A click on a calendar day at time `now` (both layouts): selects the day; a second click on the same
-    /// day within `DOUBLE_CLICK` (a double click) goes into that day's items, like `Enter`. Clicking the
-    /// selected day again later only selects it, so a stray click does not move the keyboard or open a popup
+    /// A click on a calendar day at time `now` (layouts 1, 2 and the week view): selects the day; a second
+    /// click on the same day within `DOUBLE_CLICK` (a double click) goes into that day's items, like `Enter`.
+    /// Clicking the selected day again later only selects it, so a stray click does not move the keyboard or
+    /// open a popup. In the week view a day outside the 7 on screen (on the small calendar) starts them there
     fn click_calendar_day(&mut self, day: Date, now: Instant) {
         let double = self.is_double_click(ClickTarget::Day(day), now);
+        let on_screen = self
+            .week_top
+            .is_some_and(|top| (top..=top.saturating_add(6.days())).contains(&day));
+        if self.view == View::Week && !on_screen {
+            self.week_top = None;
+        }
         self.selected = day;
         self.focus = Focus::Calendar;
         if double {

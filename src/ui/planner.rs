@@ -25,15 +25,17 @@ use ratatui::{
 };
 
 /// Cells per day: a blank, the date (right-aligned in 2 cells), and one cell after it
-const DAY_WIDTH: u16 = 4;
+pub(super) const DAY_WIDTH: u16 = 4;
 /// The 7 days, plus 1 extra cell at the end for the last day's `]` when the cell after its date is taken
 const DAYS_WIDTH: u16 = 7 * DAY_WIDTH + 1;
-/// The four columns in the calendar box: year/month, week number, │, 7 days
+/// Widths of the four columns in the calendar box: year/month, week number, │, 7 days
+pub(super) const COLUMN_WIDTHS: [u16; 4] = [6, 4, 1, DAYS_WIDTH];
+/// The four columns as layout constraints
 const COLUMNS: [Constraint; 4] = [
-    Constraint::Length(6),
-    Constraint::Length(4),
-    Constraint::Length(1),
-    Constraint::Length(DAYS_WIDTH),
+    Constraint::Length(COLUMN_WIDTHS[0]),
+    Constraint::Length(COLUMN_WIDTHS[1]),
+    Constraint::Length(COLUMN_WIDTHS[2]),
+    Constraint::Length(COLUMN_WIDTHS[3]),
 ];
 /// Width of the calendar box: the four columns + left and right border
 pub const CALENDAR_WIDTH: u16 = 6 + 4 + 1 + DAYS_WIDTH + 2;
@@ -270,6 +272,13 @@ pub fn click_at(calendar: Rect, agenda: Rect, app: &App, column: u16, row: u16) 
 ///
 /// The year/month column shows the year of `year`, e.g. 「2026年  週」
 fn render_header(frame: &mut Frame, area: Rect, app: &App, year: Date) {
+    render_cells(frame, area, header_cells(app, year));
+}
+
+/// The calendar header's four columns: `year`'s year on the right of the year/month column, 「週」 on the
+/// right of the week-number column, │, and the weekday names over their dates (weekend days in the weekend
+/// color)
+pub(super) fn header_cells(app: &App, year: Date) -> [Line<'static>; 4] {
     let texts = app.lang.texts();
     let theme = &app.theme;
     let normal = Style::new().fg(theme.text);
@@ -286,16 +295,12 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, year: Date) {
             Span::styled(format!(" {} ", texts.weekday(weekday)), style)
         })
         .collect();
-    render_cells(
-        frame,
-        area,
-        [
-            Line::styled(month_header, normal).right_aligned(),
-            Line::styled(texts.header_week, normal).right_aligned(),
-            Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
-            Line::from(weekdays),
-        ],
-    );
+    [
+        Line::styled(month_header, normal).right_aligned(),
+        Line::styled(texts.header_week, normal).right_aligned(),
+        Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
+        Line::from(weekdays),
+    ]
 }
 
 /// One row of the calendar box: year / month on the left, week number, │, 7 days (`DAY_WIDTH` cells per day,
@@ -364,7 +369,7 @@ fn render_week(
 /// A multi-day item underlines its dates, and the cells between two of its days too, so its days read as
 /// one line (`ranges_on`); two items back to back stay apart; where two or more overlap, the underline is
 /// in `range_overlap`
-fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
+pub(super) fn day_cells(days: &WeekRow, app: &App) -> Line<'static> {
     let bracket = Style::new()
         .fg(app.theme.selected)
         .add_modifier(Modifier::BOLD);

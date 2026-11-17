@@ -1704,13 +1704,28 @@ fn the_mouse_works_in_the_week_view() {
     assert_eq!(app.selected, date(2026, 10, 14));
     click(&mut app, 79, 18);
     assert_eq!(app.selected, date(2026, 10, 17));
-    // The 8th box (row 4, right) is no day
-    click(&mut app, 60, 21);
-    assert_eq!(app.selected, date(2026, 10, 17));
     // A double click on the 7th box (row 4, left) opens that day's popup
     click(&mut app, 5, 21);
     click(&mut app, 5, 21);
     assert_eq!((app.selected, app.focus), (date(2026, 10, 18), Focus::Day));
+    press(&mut app, KeyCode::Esc);
+    // The 8th box is the small calendar: inside it at x 41-78, y 20-22: the header on y 20, then the weeks
+    // from 10/11 (the week 10/12 is in); a day is 4 cells from x 52 (after year / month, week number, │).
+    // A date among the 7 on screen selects it, and they stay
+    click(&mut app, 60, 21);
+    assert_eq!(
+        (app.selected, app.week_top),
+        (date(2026, 10, 13), Some(date(2026, 10, 12)))
+    );
+    // The header, the month / week-number columns: no day
+    for (column, row) in [(60, 20), (45, 21), (51, 22)] {
+        click(&mut app, column, row);
+        assert_eq!(app.selected, date(2026, 10, 13), "{column}, {row}");
+    }
+    // A date outside the 7 (Friday 10/23 on the next week's row): selected, and the 7 days start there on
+    // the next draw
+    click(&mut app, 72, 22);
+    assert_eq!((app.selected, app.week_top), (date(2026, 10, 23), None));
 }
 
 #[test]

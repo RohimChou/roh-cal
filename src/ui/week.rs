@@ -1,14 +1,21 @@
-//! Layout 4 (`4`): the week view. 7 days in boxes two to a row (the 8th box, bottom right, stays blank),
-//! each day's items one per line and cut off at the box's right edge (the day popup shows them whole).
-//! The 7 days slide along with the selected day: moving past the last box slides them a day later, past
-//! the first a day earlier
+//! Layout 4 (`4`): the week view. 7 days in boxes two to a row, each day's items one per line and cut off
+//! at the box's right edge (the day popup shows them whole); the 8th box (bottom right) is a small
+//! calendar. The 7 days slide along with the selected day: moving past the last box slides them a day
+//! later, past the first a day earlier
 
-use super::{Click, day::popup_line, planner::day_color};
-use crate::app::{App, Focus};
+use super::{
+    Click,
+    day::popup_line,
+    planner::{self, COLUMN_WIDTHS, DAY_WIDTH, day_color},
+};
+use crate::{
+    app::{App, Focus},
+    calendar::{self, WeekRow},
+};
 use jiff::{ToSpan, civil::Date};
 use ratatui::{
     Frame,
-    layout::{Position, Rect},
+    layout::{Margin, Position, Rect},
     style::{Modifier, Style},
     symbols::line,
     text::{Line, Span},
@@ -21,6 +28,8 @@ const DAYS: i64 = 7;
 const ROWS: u16 = 4;
 /// Boxes in a row
 const COLUMNS: u16 = 2;
+/// Cells left of the small calendar's dates: year / month, week number, │
+const DATES_X: u16 = COLUMN_WIDTHS[0] + COLUMN_WIDTHS[1] + COLUMN_WIDTHS[2];
 
 /// The first of the 7 days on screen: from `top` (`App::week_top`; not set = the selected day), slid just
 /// enough that `selected` is inside: after the last day = it becomes the last, before the first = the first
@@ -62,13 +71,17 @@ fn boxes(area: Rect) -> Vec<Rect> {
 }
 
 /// Draws the week view on `area`: first slides the 7 days so the selected day is among them (kept in
-/// `app.week_top`), then draws each day's box
+/// `app.week_top`), then draws each day's box and the small calendar
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let first = first_day(app.week_top, app.selected);
     app.week_top = Some(first);
     let app = &*app;
-    for (offset, area) in (0..DAYS).zip(boxes(area)) {
+    let boxes = boxes(area);
+    for (offset, &area) in (0..DAYS).zip(&boxes) {
         render_day(frame, area, first.saturating_add(offset.days()), app);
+    }
+    if let Some(&area) = boxes.get(7) {
+        render_calendar(frame, area, first, app);
     }
 }
 
@@ -131,14 +144,123 @@ fn render_day(frame: &mut Frame, area: Rect, day: Date, app: &App) {
     }
 }
 
-/// What a click at (`column`, `row`) hits in the week view on `area`: a day's box, anywhere in it
+/// Draws one piece of text in each of the small calendar's four columns on a row (`area`), at layout 1's
+/// column widths from the left; whatever does not fit in `area` is cut off at its right edge
+fn render_columns(frame: &mut Frame, area: Rect, cells: [Line; 4]) {
+    let mut x = area.x;
+    for (cell, width) in cells.into_iter().zip(COLUMN_WIDTHS) {
+        let column = Rect::new(x, area.y, width, area.height).intersection(area);
+        frame.render_widget(cell, column);
+        x = x.saturating_add(width);
+    }
+}
+
+/// The first day of the small calendar's top week: the week the 7 days start in
+fn calendar_top(first: Date, app: &App) -> Date {
+    calendar::week_start(first, app.first_day_of_week())
+}
+
+/// The small calendar in the 8th box (no title): layout 1's header (the year of the first day on screen,
+/// 週, the weekdays), then the weeks one after another from the week the 7 days start in, as many as fit,
+/// without breaks between months (a month's name on the top week and on the week with its 1st). Dates,
+/// dots and the selected day's `[17]` as in layout 1 (`planner::day_cells`); the 7 days on screen get the
+/// `selection` background, and the weeks they are in the bright week-number color
+fn render_calendar(frame: &mut Frame, area: Rect, first: Date, app: &App) {
+    let theme = &app.theme;
+    let texts = app.lang.texts();
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::new().fg(theme.line));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.height == 0 {
+        return;
+    }
+    render_columns(
+        frame,
+        Rect { height: 1, ..inner },
+        planner::header_cells(app, first),
+    );
+    let week_first = app.first_day_of_week();
+    let relative = app.settings.calendar.relative_weeks;
+    let shown = first..=first.saturating_add((DAYS - 1).days());
+    for (week, y) in (0..).zip(inner.y + 1..inner.bottom()) {
+        let start = calendar_top(first, app).saturating_add(i64::from(week).weeks());
+        let days: [Date; 7] = std::array::from_fn(|day| start.saturating_add((day as i64).days()));
+        let row: WeekRow = days.map(Some);
+        // A month's name: on the week with its 1st, and on the top week
+        let label = days
+            .iter()
+            .find(|day| day.day() == 1)
+            .or((week == 0).then_some(&first))
+            .map(|&day| texts.month_label(day))
+            .unwrap_or_default();
+        // The week number from 1/1 when the week has it (that week is week 1), else from its first day
+        let numbered = days
+            .iter()
+            .copied()
+            .find(|day| day.month() == 1 && day.day() == 1)
+            .unwrap_or(start);
+        let number = calendar::week_label(numbered, app.selected, relative, week_first);
+        let number_color = if days.iter().any(|day| shown.contains(day)) {
+            theme.week_number
+        } else {
+            theme.week_number_dim
+        };
+        let area = Rect {
+            y,
+            height: 1,
+            ..inner
+        };
+        render_columns(
+            frame,
+            area,
+            [
+                Line::styled(label, Style::new().fg(theme.label)).right_aligned(),
+                Line::styled(format!("{number:>3} "), Style::new().fg(number_color)),
+                Line::styled(line::VERTICAL, Style::new().fg(theme.line)),
+                planner::day_cells(&row, app),
+            ],
+        );
+        // The 7 days on screen: the background, DAY_WIDTH cells each
+        for (column, day) in (0..).zip(&days) {
+            if shown.contains(day) {
+                let x = area.x + DATES_X + column * DAY_WIDTH;
+                let cells = Rect::new(x, y, DAY_WIDTH, 1).intersection(area);
+                frame
+                    .buffer_mut()
+                    .set_style(cells, Style::new().bg(theme.selection));
+            }
+        }
+    }
+}
+
+/// What a click at (`column`, `row`) hits in the week view on `area`: a day's box (anywhere in it), or a
+/// date in the small calendar (the blanks before and after it count, as in layout 1)
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let first = first_day(app.week_top, app.selected);
     let position = Position::new(column, row);
-    (0..DAYS)
-        .zip(boxes(area))
+    let boxes = boxes(area);
+    if let Some((offset, _)) = (0..DAYS)
+        .zip(&boxes)
         .find(|(_, area)| area.contains(position))
-        .map(|(offset, _)| Click::Day(first.saturating_add(offset.days())))
+    {
+        return Some(Click::Day(first.saturating_add(offset.days())));
+    }
+    // The small calendar: below its header, right of the │
+    let inner = boxes.get(7)?.inner(Margin::new(1, 1));
+    if !inner.contains(position) || row == inner.y || column < inner.x + DATES_X {
+        return None;
+    }
+    let weekday = (column - inner.x - DATES_X) / DAY_WIDTH;
+    if weekday >= 7 {
+        return None;
+    }
+    let week = row - inner.y - 1;
+    let day = calendar_top(first, app)
+        .saturating_add(i64::from(week).weeks())
+        .saturating_add(i64::from(weekday).days());
+    Some(Click::Day(day))
 }
 
 #[cfg(test)]

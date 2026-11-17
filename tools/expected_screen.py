@@ -752,11 +752,11 @@ def even_split(total, parts):
     return [(sum(lengths[:k]), lengths[k]) for k in range(parts)]
 
 
-def week_screen(lang, w, h, first, items, groups):
+def week_screen(lang, w, h, first, selected, items, groups):
     """The week view: side menu (only when wide enough) + 4 rows of 2 boxes, the 7 days from `first` row by
-    row (left, then right) and the 8th blank + hints line. A box: its date on the top border after 「─ 」
-    (and 「今天」 on today's), then one line per item 「 ◌ 10/16~18 09:00 title」 cut one cell before the
-    right border; when they do not fit, the last line says how many more, right-aligned"""
+    row (left, then right) and the small calendar in the 8th + hints line. A box: its date on the top border
+    after 「─ 」 (and 「今天」 on today's), then one line per item 「 ◌ 10/16~18 09:00 title」 cut one cell
+    before the right border; when they do not fit, the last line says how many more, right-aligned"""
     t = TEXTS[lang]
     sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
     mw, mh = w - sw, h - 1
@@ -793,6 +793,32 @@ def week_screen(lang, w, h, first, items, groups):
         if len(shown) < len(on_day):
             more = cut(t["day_more"](len(on_day) - len(shown)), iw - 1)
             put(x + 1, y + ih, rjust(more, iw - 1))
+    # The 8th box: a small calendar like layout 1's, laid out at 40 cells and cut to the box: the header
+    # (the first day's year), then the weeks one after another from the week of `first`, a month's name on
+    # the top week and on the week with its 1st (no breaks between months)
+    (y, bh), (x, bw) = rows[3], columns[1]
+    iw, ih = bw - 2, bh - 2
+    put(x, y, "╭" + "─" * iw + "╮")
+    for r in range(1, bh - 1):
+        put(x, y + r, "│" + " " * iw + "│")
+    put(x, y + bh - 1, "╰" + "─" * iw + "╯")
+    on_day = lambda d: 0 if NO_DOTS else sum(1 for it in items if it[0] <= d <= (it[4] or it[0]))
+    cal = [rjust(t["year"](first.year), 6) + rjust(t["hw"], 4) + "│" + ljust("".join(" " + d + " " for d in header_days(t)), 29)]
+    top = week_start(first)
+    for k in range(max(ih - 1, 0)):
+        days = [top + datetime.timedelta(days=7 * k + j) for j in range(7)]
+        firsts = [d for d in days if d.day == 1]
+        label = t["month"](firsts[0].month) if firsts else (t["month"](first.month) if k == 0 else "")
+        new_year = [d for d in days if (d.month, d.day) == (1, 1)]
+        number = week_number(new_year[0] if new_year else days[0], selected)
+        cells = list("".join(f"{d.day:>3}" + DOTS[min(on_day(d), 4)] for d in days) + " ")
+        for j, d in enumerate(days):
+            if d == selected:
+                cells[4 * j + 3 - len(str(d.day)) - 1] = "["
+                cells[4 * j + 3 + (1 if on_day(d) else 0)] = "]"
+        cal.append(rjust(label, 6) + f"{number:>3} " + "│" + "".join(cells))
+    for r, line in enumerate(cal[:ih]):
+        put(x + 1, y + 1 + r, cut(line, iw))
     lines = ["".join(row) for row in canvas]
     if sw:
         lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
@@ -1122,7 +1148,7 @@ if os.environ.get("LAYOUT") == "3":
 elif os.environ.get("LAYOUT") == "4":
     items = read_items(text, {groups[i][0] for i in HIDDEN})
     first = datetime.date.fromisoformat(sys.argv[5]) if len(sys.argv) > 5 else selected
-    out = week_screen(lang, w, h, first, items, groups)
+    out = week_screen(lang, w, h, first, selected, items, groups)
 elif os.environ.get("LAYOUT") == "2":
     items = read_items(text, {groups[i][0] for i in HIDDEN})
     top = month_top(selected, sys.argv[5] if len(sys.argv) > 5 else None)

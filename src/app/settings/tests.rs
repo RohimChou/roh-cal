@@ -211,13 +211,26 @@ fn colors_a_view_does_not_draw_are_for_the_other_views() {
 
 #[test]
 fn the_first_day_of_week_is_lit_only_with_a_calendar_on_screen() {
-    // Layouts 1 and 2 have a calendar; the tasks page does not
+    // Layouts 1 and 2 and the week view (its small calendar) have a calendar; the tasks page does not
     let mut app = app_with_settings();
     assert!(Row::FirstDayOfWeek.applies_here(&app));
     app.view = View::Month;
     assert!(Row::FirstDayOfWeek.applies_here(&app));
     app.view = View::Tasks;
     assert!(!Row::FirstDayOfWeek.applies_here(&app));
+    // The week view's small calendar: dots, brackets and week numbers like layout 1's, but no year line
+    app.view = View::Week;
+    for row in [
+        Row::FirstDayOfWeek,
+        Row::RelativeWeeks,
+        Row::Dots,
+        Row::Color("selected"),
+        Row::Color("week_number"),
+    ] {
+        assert!(row.applies_here(&app), "{row:?}");
+    }
+    assert!(!Row::Color("year_line").applies_here(&app));
+    assert!(!Row::GridLines.applies_here(&app));
 }
 
 #[test]

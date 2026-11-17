@@ -410,7 +410,7 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
         theme.help_key
     );
     assert_eq!(rows[rows.len() - 2].trim_end_matches([' ', '│']), "");
-    // ...and dots is dimmed there: only layout 1's calendar has dots
+    // ...and dots is dimmed there: only layout 1's calendar and the week view's small one have dots
     let mut app =
         App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.view = crate::app::View::Month;
@@ -421,9 +421,10 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
     );
     assert_eq!(
         rows[rows.len() - 2].trim_end_matches([' ', '│']),
-        "│  這個畫面用不到：1 月曆"
+        "│  這個畫面用不到：1 月曆、4 週"
     );
-    // Tasks page: relative_weeks is for layouts 1 and 2; theme is for every view
+    // Tasks page: relative_weeks is for the calendars (layouts 1, 2 and the week view's small one); theme is
+    // for every view
     let mut app =
         App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("catppuccin-mocha");
     app.view = crate::app::View::Tasks;
@@ -433,6 +434,6 @@ fn settings_that_do_nothing_here_are_dimmed_and_say_where_they_apply() {
     assert_eq!(at(TOP_NAME, y_of(Row::Theme)).fg, theme.help_key);
     assert_eq!(
         rows[rows.len() - 2].trim_end_matches([' ', '│']),
-        "│  這個畫面用不到：1 月曆、2 大月曆"
+        "│  這個畫面用不到：1 月曆、2 大月曆、4 週"
     );
 }
