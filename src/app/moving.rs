@@ -143,6 +143,14 @@ impl App {
                 _ => self.focus = Focus::Calendar,
             }
         }
+        // A box's items: choose the moved item on its new day; if the move failed, back to the calendar
+        if back.1 == Focus::Cell {
+            if moved {
+                self.choose_cell_line(item.line);
+            } else {
+                self.focus = Focus::Calendar;
+            }
+        }
         // Layout 2's popup: open on the new day with the moved item chosen; if the move failed, close it
         if back.1 == Focus::Day {
             if moved {

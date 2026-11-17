@@ -16,7 +16,8 @@ python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TAS
 opened: the week with the selected month's 1st; scroll if the selected week is not within the 6 weeks)
 Week view (env var LAYOUT=4):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [FIRST_DAY] < TASK_FILE
-(FIRST_DAY = YYYY-MM-DD of the first of the 7 days on screen; not given = the selected day)
+(FIRST_DAY = YYYY-MM-DD of the first of the 7 days on screen; not given = the selected day; with CHOSEN, the
+selected day's items have the keyboard: CHOSEN = which of them is chosen, CELL_TOP = the first one its box shows)
 Tasks page (env var LAYOUT=3):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
 (the tasks page does not use SELECTED_DAY, but it must still be given; events before today are left out, unless an
@@ -57,7 +58,8 @@ TEXTS = {
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
                date=lambda d: f"{d:%a %b} {d.day}, {d.year}",
                day_title=lambda d: f"{calendar.day_abbr[d.weekday()]} {d.month}/{d.day}", today="today",
-               day_more=lambda n: f"{n} more, Enter shows all"),
+               day_more=lambda n: f"{n} more, Enter shows all", day_above=lambda n: f"{n} more above",
+               day_below=lambda n: f"{n} more below"),
     "zh": dict(hints_tasks=" jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯器 | s 日曆 | ? 說明 | , 設定 | q 離開",
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
@@ -67,10 +69,12 @@ TEXTS = {
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
                date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）",
                day_title=lambda d: f"{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）", today="今天",
-               day_more=lambda n: f"還有 {n} 件，Enter 看全部"),
+               day_more=lambda n: f"還有 {n} 件，Enter 看全部", day_above=lambda n: f"上面還有 {n} 件",
+               day_below=lambda n: f"下面還有 {n} 件"),
 }
 CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
+CELL_TOP = int(os.environ.get("CELL_TOP", "0"))
 SIDE_HIDDEN = "SIDE_HIDDEN" in os.environ
 NO_GRID = "NO_GRID" in os.environ
 CENTER = "CENTER" in os.environ
@@ -786,13 +790,31 @@ def week_screen(lang, w, h, first, selected, items, groups):
             continue
         # In-progress items first, then by start day and time (sorted() keeps the file's order among equals)
         on_day = sorted((it for it in items if it[0] <= day <= (it[4] or it[0])), key=lambda it: not it[5])
-        shown = on_day if len(on_day) <= ih else on_day[:ih - 1]
-        for r, it in enumerate(shown):
+        n = len(on_day)
+        # The selected day's items have the keyboard (CHOSEN): its box starts at item CELL_TOP; a note line on
+        # top when scrolled, one at the bottom when the rest still does not fit (none with under 3 lines)
+        keyboard = CHOSEN is not None and day == selected
+        top = CELL_TOP if keyboard else 0
+        notes = 2 if not keyboard or ih >= 3 else 0  # 0 = no note lines at all
+        if n <= ih:
+            listed, above, below = on_day, False, False
+        elif not notes:
+            listed, above, below = on_day[top:top + ih], False, False
+        elif top == 0:
+            listed, above, below = on_day[:ih - 1], False, True
+        elif n - top <= ih - 1:
+            listed, above, below = on_day[top:], True, False
+        else:
+            listed, above, below = on_day[top:top + ih - 2], True, True
+        if above:
+            put(x + 1, y + 1, rjust(cut(t["day_above"](top), iw - 1), iw - 1))
+        for r, it in enumerate(listed):
             line = " " + MARKERS[it[3]] + (range_text(it) + " " if it[4] else "") + (it[1] + " " if it[1] else "") + it[2]
-            put(x + 1, y + 1 + r, cut(line, iw - 1))
-        if len(shown) < len(on_day):
-            more = cut(t["day_more"](len(on_day) - len(shown)), iw - 1)
-            put(x + 1, y + ih, rjust(more, iw - 1))
+            put(x + 1, y + 1 + r + above, cut(line, iw - 1))
+        if below:
+            rest = n - top - len(listed)
+            more = t["day_below"](rest) if keyboard else t["day_more"](rest)
+            put(x + 1, y + ih, rjust(cut(more, iw - 1), iw - 1))
     # The 8th box: a small calendar like layout 1's, laid out at 40 cells and cut to the box: the header
     # (the first day's year), then the weeks one after another from the week of `first`, a month's name on
     # the top week and on the week with its 1st (no breaks between months)

@@ -153,8 +153,9 @@ impl App {
         if !matches!(key.code, KeyCode::Char('d' | 'y')) {
             return;
         }
-        // Deleting from the day popup (either layout): writing adjusts or closes the popup itself
-        let in_popup = self.focus == Focus::Day;
+        // Deleting from the day popup (either layout) or a box's items: writing adjusts the choice itself
+        // (the popup stays open saying 「沒有事」; a box's items go back to the calendar with none left)
+        let in_popup = matches!(self.focus, Focus::Day | Focus::Cell);
         // Tasks page: which row was chosen before deleting (choose that position after deleting)
         let row = if self.view == View::Tasks {
             self.tasks_cursor(&self.tasks_rows()).unwrap_or(0)
@@ -173,8 +174,8 @@ impl App {
                     self.choose_task_row_near(row);
                     return;
                 }
-                // The day popup: set_items already adjusted the chosen
-                // position (it says 「沒有事」 if that day has no items left)
+                // The day popup or a box's items: set_items already adjusted
+                // the chosen position
                 if in_popup {
                     return;
                 }

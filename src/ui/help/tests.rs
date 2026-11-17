@@ -164,6 +164,10 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
         rows[0]
     );
     assert!(rows[2].starts_with("│  事項 "), "{}", rows[2]);
+    // The items in the week view's boxes: the same keys as the agenda's
+    let (_, cell_rows, _) = draw_in(Focus::Cell, Lang::ZhTw, 70, 23, Help::default());
+    let (_, agenda_rows, _) = draw_in(Focus::Agenda, Lang::ZhTw, 70, 23, Help::default());
+    assert_eq!(cell_rows, agenda_rows);
 }
 
 #[test]

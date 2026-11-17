@@ -1,5 +1,6 @@
 //! App state and the main loop: draw the screen → wait for input → update the state, until quit
 
+mod cells;
 mod day;
 mod editor;
 mod help;
@@ -82,6 +83,9 @@ pub enum Focus {
     Tasks,
     /// Layout 2's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
     Day,
+    /// The selected day's items where the calendar itself lists them (`Tab` from the week view's boxes):
+    /// `j` / `k` choose them one by one, going on to the next / previous day that has items
+    Cell,
 }
 
 /// What a click landed on, to tell a double click (two clicks on the same one within `DOUBLE_CLICK`)
@@ -388,6 +392,12 @@ pub struct App {
     /// Which item is chosen in layout 2's popup (index in `day_items()`);
     /// used only when the keyboard is in the popup
     pub day_index: usize,
+    /// Which of the selected day's items is chosen in its box (index in `cell_items()`); used only when the
+    /// keyboard is there (`Focus::Cell`)
+    pub cell_index: usize,
+    /// The week view's scroll inside the selected day's box while its items have the keyboard: (that day,
+    /// the first item shown); `ui::week::render` keeps the chosen item in view
+    pub cell_top: Option<(Date, usize)>,
     /// Popup scroll: which line is at the top (a long title wraps onto more than one line; it scrolls only
     /// when the chosen item leaves the box)
     pub day_top: usize,
@@ -490,6 +500,8 @@ impl App {
             left: HashMap::new(),
             agenda_index: 0,
             day_index: 0,
+            cell_index: 0,
+            cell_top: None,
             day_top: 0,
             day_drag: None,
             help_drag: None,
@@ -755,7 +767,7 @@ impl App {
     pub fn chosen(&self) -> Option<Entry<'_>> {
         match self.focus {
             Focus::Agenda => self.agenda().get(self.agenda_index).copied(),
-            Focus::Calendar | Focus::Side | Focus::Tasks | Focus::Day => None,
+            Focus::Calendar | Focus::Side | Focus::Tasks | Focus::Day | Focus::Cell => None,
         }
     }
 
@@ -766,6 +778,7 @@ impl App {
             Focus::Agenda => self.chosen().map(|entry| entry.item),
             Focus::Tasks => self.tasks_chosen(),
             Focus::Day => self.day_items().get(self.day_index).copied(),
+            Focus::Cell => self.cell_items().get(self.cell_index).copied(),
             Focus::Calendar | Focus::Side => None,
         }
     }
@@ -801,6 +814,10 @@ impl App {
             (Focus::Day, View::Planner | View::Month | View::Week) => {
                 self.focus = Focus::Day;
                 self.keep_day_choice();
+            }
+            (Focus::Cell, View::Week) => {
+                self.focus = Focus::Cell;
+                self.keep_cell_choice();
             }
             _ => {}
         }
@@ -1015,6 +1032,7 @@ impl App {
                 Focus::Side => self.handle_side_key(key.code, after_g),
                 Focus::Tasks => self.handle_tasks_key(key, after_g),
                 Focus::Day => self.handle_day_key(key.code),
+                Focus::Cell => self.handle_cell_key(key.code),
             },
         }
     }
@@ -1251,6 +1269,9 @@ impl App {
         if self.focus == Focus::Day {
             self.keep_day_choice();
         }
+        if self.focus == Focus::Cell {
+            self.keep_cell_choice();
+        }
         if self.focus == Focus::Agenda && self.agenda_index >= self.agenda().len() {
             match self.agenda().len().checked_sub(1) {
                 Some(last) => self.choose(last),
@@ -1390,6 +1411,9 @@ impl App {
                 match ui::click_at(self, mouse.column, mouse.row) {
                     Some(Click::Day(date)) => self.click_calendar_day(date, Instant::now()),
                     Some(Click::Item(index)) => self.click_item(index, Instant::now()),
+                    Some(Click::CellItem { day, index }) => {
+                        self.click_cell_item(day, index, Instant::now());
+                    }
                     Some(Click::Group(index)) => self.click_group(index),
                     Some(Click::HideAll) => {
                         self.focus = Focus::Side;
@@ -1509,6 +1533,7 @@ impl App {
             Focus::Side => self.choose_group(isize::from(step)),
             Focus::Tasks => self.choose_task(isize::from(step)),
             Focus::Day => self.choose_day(isize::from(step)),
+            Focus::Cell => self.choose_next_cell(i64::from(step)),
         }
     }
 
@@ -1558,6 +1583,7 @@ impl App {
         match self.focus {
             // The day may have fewer items now (e.g. checked off on the tasks page with done ones hidden)
             Focus::Day => self.keep_day_choice(),
+            Focus::Cell => self.keep_cell_choice(),
             // The chosen item may be gone or moved to another day (e.g. edited on the tasks page): back to
             // the calendar
             Focus::Agenda => {
@@ -1619,15 +1645,17 @@ impl App {
         match self.focus {
             Focus::Day => {}
             Focus::Calendar => {
-                if self.view == View::Planner {
-                    self.enter_agenda();
-                }
+                self.enter_items();
                 if self.focus == Focus::Calendar && self.side_shown() {
                     self.focus = Focus::Side;
                 }
             }
-            Focus::Agenda | Focus::Tasks if self.side_shown() => self.focus = Focus::Side,
-            Focus::Agenda | Focus::Side | Focus::Tasks => self.focus = self.home_focus(),
+            Focus::Agenda | Focus::Tasks | Focus::Cell if self.side_shown() => {
+                self.focus = Focus::Side;
+            }
+            Focus::Agenda | Focus::Side | Focus::Tasks | Focus::Cell => {
+                self.focus = self.home_focus();
+            }
         }
     }
 
@@ -1638,18 +1666,16 @@ impl App {
         match self.focus {
             Focus::Day => {}
             Focus::Calendar | Focus::Tasks if self.side_shown() => self.focus = Focus::Side,
-            Focus::Calendar => {
-                if self.view == View::Planner {
-                    self.enter_agenda();
-                }
-            }
-            Focus::Side if self.view == View::Planner => {
-                self.enter_agenda();
+            Focus::Calendar => self.enter_items(),
+            Focus::Side if self.view != View::Tasks => {
+                self.enter_items();
                 if self.focus == Focus::Side {
                     self.focus = Focus::Calendar;
                 }
             }
-            Focus::Agenda | Focus::Side | Focus::Tasks => self.focus = self.home_focus(),
+            Focus::Agenda | Focus::Side | Focus::Tasks | Focus::Cell => {
+                self.focus = self.home_focus();
+            }
         }
     }
 
@@ -1723,6 +1749,16 @@ impl App {
         }
     }
 
+    /// `Tab` from the calendar into its items: layout 1's agenda (`enter_agenda`), the week view's boxes
+    /// (`enter_cells`); no items: the keyboard does not move
+    fn enter_items(&mut self) {
+        match self.view {
+            View::Planner => self.enter_agenda(),
+            View::Week => self.enter_cells(),
+            View::Month | View::Tasks => {}
+        }
+    }
+
     /// Moves the keyboard to the agenda: chooses the first item on or after the selected day (a multi-day item
     /// that started earlier but covers the selected day sorts first, so it is chosen first);
     /// if there is nothing on or after it, choose the last item; if there are no items at all, do not move
@@ -1771,6 +1807,10 @@ impl App {
             self.choose_day_line(line);
             return;
         }
+        if self.focus == Focus::Cell {
+            self.choose_cell_line(line);
+            return;
+        }
         if self.view != View::Planner {
             self.focus = Focus::Calendar;
             return;
@@ -1793,6 +1833,7 @@ impl App {
                 }
             }
             Focus::Day => self.choose_day_line(line),
+            Focus::Cell => self.choose_cell_line(line),
             // The tasks page remembers its choice by file line already
             Focus::Calendar | Focus::Side | Focus::Tasks => {}
         }

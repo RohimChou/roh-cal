@@ -289,7 +289,7 @@ impl App {
     /// such calendar: at the end of the file)
     pub(super) fn start_adding(&mut self) {
         let near = match self.focus {
-            Focus::Agenda | Focus::Tasks | Focus::Day => self.chosen_item().cloned(),
+            Focus::Agenda | Focus::Tasks | Focus::Day | Focus::Cell => self.chosen_item().cloned(),
             Focus::Calendar | Focus::Side => self
                 .items_on(self.selected)
                 .first()
@@ -668,7 +668,7 @@ impl App {
                         match &place {
                             _ if shown => self.choose_line(line),
                             Place::InGroupOf(item) | Place::ChildOf(item)
-                                if self.focus == Focus::Agenda =>
+                                if matches!(self.focus, Focus::Agenda | Focus::Cell) =>
                             {
                                 self.choose_line(item.line);
                             }

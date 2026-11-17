@@ -278,6 +278,11 @@ pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
         && (border..=border + beside).contains(&column)
 }
 
+/// `day`'s items in the order its box lists them (the week view; elsewhere the same order, `App::items_on`)
+pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {
+    app.items_on(day)
+}
+
 /// Where each part of the screen is
 struct Areas {
     /// Top row: the tab bar (the views `1` `2` `3` `4` switch to); height 0 when it is off (`tab_bar = false`)
@@ -352,6 +357,9 @@ pub enum Click {
     /// A row of the tasks page: its index in `App::tasks_rows()`; `on_marker` = the click was
     /// on `▸` / `▾` (expand / collapse)
     TaskRow { row: usize, on_marker: bool },
+    /// An item where the calendar itself lists it (a week view box): `day`'s item `index` in
+    /// `cell_items` order
+    CellItem { day: Date, index: usize },
 }
 
 /// What a mouse click at terminal cell (`column`, `row`) hits;

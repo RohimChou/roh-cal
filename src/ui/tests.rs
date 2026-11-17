@@ -23,10 +23,10 @@ fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBac
 }
 
 /// Which day a mouse click at (`column`, `row`) hits: a date on the calendar gives that day, an item in
-/// the agenda gives that item's day
+/// the agenda gives that item's day, an item in a calendar cell / box the day of that cell
 fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
     match click_at(app, column, row)? {
-        Click::Day(date) => Some(date),
+        Click::Day(date) | Click::CellItem { day: date, .. } => Some(date),
         Click::Item(index) => Some(app.agenda()[index].date),
         Click::Group(_) | Click::HideAll | Click::HideDone | Click::TaskRow { .. } => None,
     }
@@ -5402,4 +5402,83 @@ fn week_view_has_a_small_calendar_in_the_8th_box() {
             " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
         ]
     );
+}
+
+#[test]
+fn week_view_items_scroll_in_their_box_while_chosen() {
+    // 80 × 21: boxes 3 lines inside (the 4th row 2), the 7 days from 10/12; 10/16's 4 items do not fit.
+    // `Tab` and `j` 3 times choose its last item: the box scrolls so items 3 and 4 show, under a line
+    // saying 2 more are above; the chosen one on the `selection` background
+    use crate::test_utils::press;
+    use ratatui::crossterm::event::KeyCode;
+    let mut app = week_app(Lang::ZhTw, date(2026, 10, 16), MONTH_TASKS);
+    app.week_top = Some(date(2026, 10, 12));
+    press(&mut app, KeyCode::Tab);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('j'));
+    }
+    let terminal = draw_app(&mut app, 80, 21);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "   1 月曆   2 大月曆   3 任務 ┃ 4 週",
+            "╭─ 10/12（一） ────────────────────────╮╭─ 10/13（二） ────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/14（三） ────────────────────────╮╭─ 10/15（四） ────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/16（五） ────────────────────────╮╭─ 10/17（六） 今天 ───────────────────╮",
+            "│                        上面還有 2 件 ││ ∙ Dinner with friends                │",
+            "│ ◌\u{a0}Book a checkup                     ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "│ ◌\u{a0}17:30 Send the weekly update       ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/18（日） ────────────────────────╮╭──────────────────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    ││2026年 週 │ 日  一  二  三  四  五  六│",
+            "│                                      ││  10月 42 │ 11  12⠂ 13⠂ 14  15⠂[16⠶]17│",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    // 10/16 is the left box of row 3 (y 11-15): the note on y 12, the items on y 13 and 14
+    let buffer = terminal.backend().buffer();
+    let theme = Theme::default();
+    assert_eq!(buffer[(2, 14)].bg, theme.selection);
+    assert_eq!(buffer[(38, 14)].bg, theme.selection);
+    assert_ne!(buffer[(2, 13)].bg, theme.selection);
+    // `k` twice, to the 2nd item: it would show from item 2 under a line saying 1 more is above, so the box
+    // goes back to the top instead (items 1 and 2, the last line saying 2 more are below)
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char('k'));
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 21).backend().buffer()),
+        [
+            "   1 月曆   2 大月曆   3 任務 ┃ 4 週",
+            "╭─ 10/12（一） ────────────────────────╮╭─ 10/13（二） ────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/14（三） ────────────────────────╮╭─ 10/15（四） ────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/16（五） ────────────────────────╮╭─ 10/17（六） 今天 ───────────────────╮",
+            "│ ◌\u{a0}18:30 🚧 Team happy hour           ││ ∙ Dinner with friends                │",
+            "│ ◌\u{a0}Clean up notes                     ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "│                        下面還有 2 件 ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/18（日） ────────────────────────╮╭──────────────────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    ││2026年 週 │ 日  一  二  三  四  五  六│",
+            "│                                      ││  10月 42 │ 11  12⠂ 13⠂ 14  15⠂[16⠶]17│",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    assert_eq!(app.cell_top, Some((date(2026, 10, 16), 0)));
 }

@@ -296,7 +296,7 @@ const EN: Texts = Texts {
                     ("d", "delete"),
                     ("u", "undo"),
                 ],
-                places: &[Focus::Agenda, Focus::Day],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell],
             },
             HelpSection {
                 title: "Day popup",
@@ -432,7 +432,7 @@ const EN: Texts = Texts {
                     ("d", "delete with subtasks"),
                     ("u", "undo"),
                 ],
-                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell, Focus::Tasks],
             },
             HelpSection {
                 title: "Day popup",
@@ -460,7 +460,7 @@ const EN: Texts = Texts {
                     ("Enter", "move it there"),
                     ("Esc", "cancel"),
                 ],
-                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell, Focus::Tasks],
             },
             HelpSection {
                 title: "Calendar list",
@@ -574,7 +574,7 @@ const ZH_TW: Texts = Texts {
                     ("d", "刪除"),
                     ("u", "復原"),
                 ],
-                places: &[Focus::Agenda, Focus::Day],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell],
             },
             HelpSection {
                 title: "那天的事",
@@ -710,7 +710,7 @@ const ZH_TW: Texts = Texts {
                     ("d", "刪除（連子任務）"),
                     ("u", "復原"),
                 ],
-                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell, Focus::Tasks],
             },
             HelpSection {
                 title: "那天的事",
@@ -738,7 +738,7 @@ const ZH_TW: Texts = Texts {
                     ("Enter", "搬過去"),
                     ("Esc", "取消"),
                 ],
-                places: &[Focus::Agenda, Focus::Day, Focus::Tasks],
+                places: &[Focus::Agenda, Focus::Day, Focus::Cell, Focus::Tasks],
             },
             HelpSection {
                 title: "日曆清單",
@@ -861,6 +861,24 @@ impl Texts {
         match self.lang {
             Lang::En => format!("{count} more, Enter shows all"),
             Lang::ZhTw => format!("還有 {count} 件，Enter 看全部"),
+        }
+    }
+
+    /// The first line of a scrolled week view box while its items have the keyboard, e.g. `3 more above` /
+    /// `上面還有 3 件`
+    pub fn week_above(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} more above"),
+            Lang::ZhTw => format!("上面還有 {count} 件"),
+        }
+    }
+
+    /// The last line of a week view box whose items have the keyboard and do not all fit below, e.g.
+    /// `3 more below` / `下面還有 3 件`
+    pub fn week_below(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} more below"),
+            Lang::ZhTw => format!("下面還有 {count} 件"),
         }
     }
 
@@ -1165,11 +1183,13 @@ impl Texts {
             (Lang::En, Focus::Day) => "day popup",
             (Lang::En, Focus::Side) => "calendar list",
             (Lang::En, Focus::Tasks) => "tasks page",
+            (Lang::En, Focus::Cell) => "items",
             (Lang::ZhTw, Focus::Calendar) => "月曆",
             (Lang::ZhTw, Focus::Agenda) => "事項",
             (Lang::ZhTw, Focus::Day) => "那天的事",
             (Lang::ZhTw, Focus::Side) => "日曆清單",
             (Lang::ZhTw, Focus::Tasks) => "任務頁",
+            (Lang::ZhTw, Focus::Cell) => "事項",
         }
     }
 
