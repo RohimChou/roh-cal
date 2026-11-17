@@ -377,6 +377,16 @@ enum Slot<'a> {
     Empty,
 }
 
+impl<'a> Slot<'a> {
+    /// The item on this line (a bar's or a one-day item); `None` for a free line
+    fn item(self) -> Option<&'a Item> {
+        match self {
+            Self::Bar(item) | Self::Item(item) => Some(item),
+            Self::Empty => None,
+        }
+    }
+}
+
 /// A multi-day item's bar in one row: the line it is on (`lane`; 0 = the first line under the date) and the
 /// columns it covers (0 = the week's first day)
 struct Bar<'a> {
@@ -471,10 +481,7 @@ pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {
     slots
         .swap_remove(column)
         .into_iter()
-        .filter_map(|slot| match slot {
-            Slot::Bar(item) | Slot::Item(item) => Some(item),
-            Slot::Empty => None,
-        })
+        .filter_map(Slot::item)
         .collect()
 }
 
@@ -486,10 +493,9 @@ fn chosen_line(slots: &[Slot], item: &Item, rows: u16) -> Option<u16> {
         return None;
     }
     let shown = shown_lines(slots.len(), rows);
-    let at = slots.iter().position(|slot| match slot {
-        Slot::Bar(each) | Slot::Item(each) => std::ptr::eq(*each, item),
-        Slot::Empty => false,
-    })?;
+    let at = slots
+        .iter()
+        .position(|slot| slot.item().is_some_and(|each| std::ptr::eq(each, item)))?;
     u16::try_from(at.min(shown) + 1).ok()
 }
 
@@ -680,13 +686,7 @@ fn cell_lines(
 ) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let mut first = date_line(day, month, app);
-    let items: Vec<&Item> = slots
-        .iter()
-        .filter_map(|slot| match slot {
-            Slot::Bar(item) | Slot::Item(item) => Some(*item),
-            Slot::Empty => None,
-        })
-        .collect();
+    let items: Vec<&Item> = slots.iter().copied().filter_map(Slot::item).collect();
     if rows <= 1 {
         // Dots: the day's color if some item is not over yet, muted if all are over
         let color = if items.iter().any(|item| item.is_open(app.today)) {
@@ -706,10 +706,8 @@ fn cell_lines(
     if shown < slots.len() {
         let hidden: Vec<&Item> = slots[shown..]
             .iter()
-            .filter_map(|slot| match slot {
-                Slot::Bar(item) | Slot::Item(item) => Some(*item),
-                Slot::Empty => None,
-            })
+            .copied()
+            .filter_map(Slot::item)
             .collect();
         match chosen.filter(|chosen| hidden.iter().any(|item| std::ptr::eq(*item, *chosen))) {
             Some(item) => lines.push(item_line(item, app)),
@@ -1165,20 +1163,17 @@ fn item_at(app: &App, start: Date, weekday: usize, line: usize, rows: u16) -> Op
     let index_of = |at: usize| {
         slots[..at]
             .iter()
-            .filter(|slot| !matches!(slot, Slot::Empty))
+            .filter(|slot| slot.item().is_some())
             .count()
     };
     if line == 0 || rows <= 1 {
         return None;
     }
     if line <= shown {
-        return match slots[line - 1] {
-            Slot::Empty => None,
-            Slot::Bar(_) | Slot::Item(_) => Some(Click::CellItem {
-                day,
-                index: index_of(line - 1),
-            }),
-        };
+        return slots[line - 1].item().map(|_| Click::CellItem {
+            day,
+            index: index_of(line - 1),
+        });
     }
     if line != shown + 1 || shown == slots.len() {
         return None;

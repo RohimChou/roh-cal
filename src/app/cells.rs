@@ -24,7 +24,7 @@ impl App {
             .items
             .iter()
             .filter(|item| self.is_shown(item))
-            .filter_map(|item| Some((item.date?, item.end.or(item.date)?)));
+            .filter_map(|item| Some((item.date?, item.last_day()?)));
         if step > 0 {
             shown
                 .filter(|&(_, last)| last >= next)

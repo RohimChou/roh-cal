@@ -155,6 +155,7 @@ App::run 的迴圈
 | 字元 | `~` 是 East Asian Width Na（1 格）；`–`（en dash）是 A，不要用 |
 
 ## 可以改進的地方
+- 大月曆選事時 `App::cell_items()`（`month::cell_items`）每次都重排那一週（`layout_row`），按一次鍵會排好幾次（`choose_next_cell`、`render`、點擊各一次）；任務檔幾百行時量不出差別。真的慢了，可以讓 `render` 把選到那週的排法記回 `app`
 - `planner::render` 有 130 多行：捲動和兩個框都在裡面，可以拆成「算捲動」和「畫一列」。捲動的結果可以像設定頁一樣由 `ui::render` 記回 `app`（`planner::scrolled`、`month` 也一樣）：每個 render 就只要 `&App`，捲動也能不靠 TestBackend 單獨測
 - `day_color`、`in_multi_day`、`date_text`、`open_item_color` 放在 `planner.rs`，但版型 2、任務頁、side menu 都在用：可以搬到 `ui.rs`
 - `edit.rs` 認「這一行沒被改過」有兩份寫法（`find_line` 和 `replace_line` 裡自己比一次）；拿縮排有 `indent_of` 了，`add`、`replace` 還是自己寫一次：可以合成一個
