@@ -1134,7 +1134,8 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
 
 /// The item on line `line` (0 = the date) of the cell of day `weekday` (0 = the first) in the week from
 /// `start`, as `render` draws it (`rows` lines a week): a one-day item's line or a bar's line there, or the
-/// last line when the chosen item stands there instead of `+N`; `None` elsewhere
+/// last line when the chosen item stands there instead of `+N`; `+N` itself is `Click::More`; `None`
+/// elsewhere
 fn item_at(app: &App, start: Date, weekday: usize, line: usize, rows: u16) -> Option<Click> {
     let days: Vec<Date> = start.series(1.day()).take(7).collect();
     let day = days[weekday];
@@ -1159,18 +1160,22 @@ fn item_at(app: &App, start: Date, weekday: usize, line: usize, rows: u16) -> Op
             }),
         };
     }
-    // The last line: the chosen item stands there instead of `+N`
+    if line != shown + 1 || shown == slots.len() {
+        return None;
+    }
+    // The last line: `+N`, or the chosen item standing there instead
     let chosen = app
         .cell_items()
         .get(app.cell_index)
         .copied()
-        .filter(|_| app.focus == Focus::Cell && day == app.selected)?;
-    (line == shown + 1 && usize::from(chosen_line(slots, chosen, rows)?) == line).then_some(
-        Click::CellItem {
+        .filter(|_| app.focus == Focus::Cell && day == app.selected);
+    match chosen.and_then(|item| chosen_line(slots, item, rows)) {
+        Some(chosen) if usize::from(chosen) == line => Some(Click::CellItem {
             day,
             index: app.cell_index,
-        },
-    )
+        }),
+        _ => Some(Click::More(day)),
+    }
 }
 
 #[cfg(test)]

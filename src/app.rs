@@ -1415,6 +1415,12 @@ impl App {
                     Some(Click::CellItem { day, index }) => {
                         self.click_cell_item(day, index, Instant::now());
                     }
+                    // 「還有 N 件」, `+N`: that day's popup, like `Enter`
+                    Some(Click::More(day)) => {
+                        self.selected = day;
+                        self.focus = Focus::Calendar;
+                        self.open_day();
+                    }
                     Some(Click::Group(index)) => self.click_group(index),
                     Some(Click::HideAll) => {
                         self.focus = Focus::Side;

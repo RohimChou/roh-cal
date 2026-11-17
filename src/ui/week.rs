@@ -318,8 +318,8 @@ fn render_calendar(frame: &mut Frame, area: Rect, first: Date, app: &App) {
 }
 
 /// What a click at (`column`, `row`) hits in the week view on `area`: an item's line in a box (as it was
-/// last drawn: scrolled, with its lines saying how many more), elsewhere in a box its day, or a date in the
-/// small calendar (the blanks before and after it count, as in layout 1)
+/// last drawn: scrolled), a line there saying how many more (the box's day, to open its popup), elsewhere in
+/// a box its day, or a date in the small calendar (the blanks before and after it count, as in layout 1)
 pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
     let first = first_day(app.week_top, app.selected);
     let position = Position::new(column, row);
@@ -332,8 +332,12 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
         let inner = area.inner(Margin::new(1, 1));
         if inner.contains(position) {
             let count = cell_items(app, day).len();
-            let (top, shown, above, _) = box_window(app, day, count, usize::from(inner.height));
+            let rows = usize::from(inner.height);
+            let (top, shown, above, below) = box_window(app, day, count, rows);
             let line = usize::from(row - inner.y);
+            if (above && line == 0) || (below && line + 1 == rows) {
+                return Some(Click::More(day));
+            }
             if let Some(index) = line.checked_sub(usize::from(above))
                 && index < shown
             {

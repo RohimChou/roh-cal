@@ -288,12 +288,10 @@ fn clicking_an_item_in_a_month_cell_chooses_it() {
             (date(2026, 10, 17), Some("Trip to NYC".into()))
         )
     );
-    // 「+3」 (the chosen item shows): the day, the keyboard back on the calendar
+    // 「+3」 (the chosen item shows): that day's popup opens
     mouse(&mut app, down, 72, 14);
-    assert_eq!(
-        (app.focus, app.selected),
-        (Focus::Calendar, date(2026, 10, 17))
-    );
+    assert_eq!((app.focus, app.selected), (Focus::Day, date(2026, 10, 17)));
+    press(&mut app, KeyCode::Esc);
     // The 4th item chosen stands where 「+3」 was: a double click there checks it (asks first)
     press(&mut app, KeyCode::Tab);
     for _ in 0..3 {
@@ -307,4 +305,32 @@ fn clicking_an_item_in_a_month_cell_chooses_it() {
     mouse(&mut app, down, 72, 14);
     assert_eq!(app.focus, Focus::Cell);
     assert!(matches!(app.mode, Mode::ConfirmCheck(_)));
+}
+
+#[test]
+fn clicking_a_line_saying_how_many_more_opens_the_days_popup() {
+    // 80 × 21, the 7 days from 10/12: 10/17 is the right box of row 3 (x 40-79, y 11-15, 3 lines inside on
+    // y 12-14) with 4 items: 2 show, and 「2 more, Enter shows all」 on y 14. A click there opens the popup
+    let text = "- [ ] One @2026-10-17\n- [ ] Two @2026-10-17\n- [ ] Three @2026-10-17\n- [ ] Four @2026-10-17\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.view = View::Week;
+    app.screen = Rect::new(0, 0, 80, 21);
+    app.selected = date(2026, 10, 12);
+    app.week_top = Some(date(2026, 10, 12));
+    let down = MouseEventKind::Down(MouseButton::Left);
+    mouse(&mut app, down, 70, 14);
+    assert_eq!((app.focus, app.selected), (Focus::Day, date(2026, 10, 17)));
+    press(&mut app, KeyCode::Esc);
+    // With its items chosen and scrolled to the last (item 3 on top): 「2 more above」 on y 12 opens it too
+    press(&mut app, KeyCode::Tab);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('j'));
+    }
+    app.cell_top = Some((date(2026, 10, 17), 2));
+    mouse(&mut app, down, 70, 12);
+    assert_eq!((app.focus, app.selected), (Focus::Day, date(2026, 10, 17)));
 }

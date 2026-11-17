@@ -26,7 +26,7 @@ fn draw(lang: Lang, width: u16, height: u16, selected: Date) -> Terminal<TestBac
 /// the agenda gives that item's day, an item in a calendar cell / box the day of that cell
 fn date_at(app: &App, column: u16, row: u16) -> Option<Date> {
     match click_at(app, column, row)? {
-        Click::Day(date) | Click::CellItem { day: date, .. } => Some(date),
+        Click::Day(date) | Click::CellItem { day: date, .. } | Click::More(date) => Some(date),
         Click::Item(index) => Some(app.agenda()[index].date),
         Click::Group(_) | Click::HideAll | Click::HideDone | Click::TaskRow { .. } => None,
     }

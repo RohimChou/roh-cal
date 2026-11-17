@@ -364,6 +364,9 @@ pub enum Click {
     /// An item where the calendar itself lists it (a week view box): `day`'s item `index` in
     /// `cell_items` order
     CellItem { day: Date, index: usize },
+    /// A line saying how many more items a day has (a week view box's 「還有 N 件」 / 「上面還有 N 件」, the
+    /// month grid's `+N`): opens that day's popup
+    More(Date),
 }
 
 /// What a mouse click at terminal cell (`column`, `row`) hits;
