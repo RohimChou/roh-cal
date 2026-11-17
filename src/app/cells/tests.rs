@@ -334,3 +334,31 @@ fn clicking_a_line_saying_how_many_more_opens_the_days_popup() {
     mouse(&mut app, down, 70, 12);
     assert_eq!((app.focus, app.selected), (Focus::Day, date(2026, 10, 17)));
 }
+
+#[test]
+fn rescheduling_picks_a_day_by_any_click_in_its_cell() {
+    // Month grid, 80 × 31 with grid lines, 9/27 on top: 10/17 (Saturday) at x 70-78, the trip's bar on y 13,
+    // 「+3」 on y 14. Rescheduling 10/20's item: a click on 10/17's bar line picks 10/17, one on its 「+3」
+    // (the same day again) confirms (no task file here: nothing is written, but the rescheduling ends)
+    let mut app = week_app(date(2026, 10, 20));
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 31);
+    app.month_top = Some(date(2026, 9, 27));
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('r'));
+    assert!(matches!(app.mode, Mode::Moving(_)));
+    let down = MouseEventKind::Down(MouseButton::Left);
+    mouse(&mut app, down, 72, 13);
+    assert_eq!(app.selected, date(2026, 10, 17));
+    assert!(matches!(app.mode, Mode::Moving(_)));
+    mouse(&mut app, down, 72, 14);
+    assert!(!matches!(app.mode, Mode::Moving(_)));
+    // The week view, from 10/16: an item's line in 10/17's box (x 40-79, its items on y 2-5) picks 10/17
+    let mut app = week_app(date(2026, 10, 20));
+    app.week_top = Some(date(2026, 10, 16));
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('r'));
+    mouse(&mut app, down, 50, 3);
+    assert_eq!(app.selected, date(2026, 10, 17));
+    assert!(matches!(app.mode, Mode::Moving(_)));
+}

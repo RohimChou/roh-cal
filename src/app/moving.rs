@@ -70,13 +70,17 @@ impl App {
     }
 
     /// Mouse while rescheduling: the wheel moves the selected day as usual (a week); clicking a date picks the
-    /// new date (clicking the same day again = confirm); clicks elsewhere are ignored
+    /// new date (clicking the same day again = confirm), anywhere in a day's cell or box too (on an item's
+    /// line, on its `+N`); clicks elsewhere are ignored
     pub(super) fn handle_moving_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             MouseEventKind::ScrollDown => self.scroll(1),
             MouseEventKind::ScrollUp => self.scroll(-1),
             MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(Click::Day(date)) = ui::click_at(self, mouse.column, mouse.row) {
+                if let Some(
+                    Click::Day(date) | Click::CellItem { day: date, .. } | Click::More(date),
+                ) = ui::click_at(self, mouse.column, mouse.row)
+                {
                     self.click_while_moving(date);
                 }
             }
