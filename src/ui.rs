@@ -411,13 +411,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         frame.render_widget(line, hints);
     }
     // A note at the bottom right (`App::toast`, e.g. 「已複製 11 個字」): over the end of the bottom row, a
-    // blank cell on each side
+    // blank cell on each side. Colored by its span, not the line: a line's style would color the whole row,
+    // the key hints left of it too
     if let Some((toast, _)) = app.toast {
         frame.render_widget(
-            Line::styled(
+            Line::from(Span::styled(
                 format!(" {} ", texts.toast(toast)),
                 Style::new().fg(theme.notice),
-            )
+            ))
             .right_aligned(),
             hints,
         );

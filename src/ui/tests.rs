@@ -4894,7 +4894,8 @@ fn the_day_popup_writes_the_chosen_items_calendar_path_on_its_bottom_border_when
 #[test]
 fn a_toast_covers_the_right_end_of_the_bottom_row() {
     // 60 × 20, the popup open: its keys on the bottom row (96 cells, cut at 60), the note over their end
-    // with a blank cell on each side, in the notice color (expected row from a separate Python count)
+    // with a blank cell on each side, in the notice color; the keys left of it keep their colors (expected
+    // row from a separate Python count)
     let mut app = month_app(Lang::En, date(2026, 10, 17), "- [ ] Pack @2026-10-17\n");
     app.focus = Focus::Day;
     app.toast = Some((Toast::Copied(11), std::time::Instant::now()));
@@ -4907,7 +4908,10 @@ fn a_toast_covers_the_right_end_of_the_bottom_row() {
     // (`text_rows` drops blanks at the end: the last cell is the note's blank)
     assert_eq!(buffer[(58, 19)].symbol(), "s");
     assert_eq!(buffer[(59, 19)].symbol(), " ");
-    assert_eq!(buffer[(44, 19)].fg, Theme::default().notice);
+    let theme = Theme::default();
+    assert_eq!(buffer[(44, 19)].fg, theme.notice);
+    assert_eq!(buffer[(1, 19)].fg, theme.muted);
+    assert_eq!(buffer[(9, 19)].fg, theme.line);
     // One character, and in Chinese; failing to copy
     let texts = |lang: Lang, toast| lang.texts().toast(toast);
     assert_eq!(texts(Lang::En, Toast::Copied(1)), "Copied 1 char");
