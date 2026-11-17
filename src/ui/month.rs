@@ -238,6 +238,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // The selected month: days of other months are grayed out
     let month = app.selected.first_of_month();
+    // The selected day's items have the keyboard (`Focus::Cell`): the chosen one
+    let chosen = if app.focus == Focus::Cell {
+        app.cell_items().get(app.cell_index).copied()
+    } else {
+        None
+    };
     for week in 0..grid.weeks {
         let start = top.saturating_add(i64::from(week).weeks());
         let days: Vec<Date> = start.series(1.day()).take(7).collect();
@@ -288,26 +294,62 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         }
         let cells: Vec<Rect> = (1..=7).map(|column| grid.cell(week, column)).collect();
-        // The selected day's cell gets a background, top-left to bottom-right (like v1)
         let selected = days.iter().position(|&day| day == app.selected);
         let selection = Style::new().bg(theme.selection);
-        if let Some(column) = selected {
-            frame.buffer_mut().set_style(cells[column], selection);
-        }
         let (bars, slots) = layout_row(&days, app);
+        // The line the chosen item is on in the selected day's cell (`None` = the keyboard is not on its items)
+        let chosen_row = selected
+            .zip(chosen)
+            .and_then(|(column, item)| chosen_line(&slots[column], item, grid.week_height));
+        // The selected day's cell gets a background, top-left to bottom-right (like v1); while its items have
+        // the keyboard, only its date line and the chosen item's line
+        if let Some(column) = selected {
+            let cell = cells[column];
+            match chosen_row {
+                Some(row) => {
+                    for y in [cell.y, cell.y + row] {
+                        let line = Rect {
+                            y,
+                            height: 1,
+                            ..cell
+                        }
+                        .intersection(cell);
+                        frame.buffer_mut().set_style(line, selection);
+                    }
+                }
+                None => frame.buffer_mut().set_style(cell, selection),
+            }
+        }
         // Laid out as a whole week even when cut off at the bottom (the cut-off part just does not show)
         let lines: Vec<Vec<Line>> = days
             .iter()
             .zip(&slots)
-            .map(|(&day, slots)| cell_lines(day, month, slots, grid.week_height, app))
+            .map(|(&day, slots)| {
+                let chosen = chosen.filter(|_| day == app.selected);
+                cell_lines(day, month, slots, grid.week_height, chosen, app)
+            })
             .collect();
         let overflow = app.settings.month.overflow;
-        render_week(frame, &cells, &lines, &days, selected, selection, overflow);
+        let lit = Lit {
+            column: selected,
+            row: chosen_row,
+            style: selection,
+        };
+        render_week(frame, &cells, &lines, &days, lit, overflow);
         let shown: Vec<usize> = slots
             .iter()
             .map(|slots| shown_lines(slots.len(), grid.week_height))
             .collect();
         render_bars(frame, &cells, &bars, &shown, &days, app);
+        // A chosen multi-day item showing as a bar: its band in the selected day's cell is lit too
+        if let (Some(column), Some(row)) = (selected, chosen_row)
+            && usize::from(row) <= shown[column]
+            && matches!(slots[column].get(usize::from(row) - 1), Some(Slot::Bar(_)))
+        {
+            let cell = cells[column];
+            let band = Rect::new(cell.x, cell.y + row, cell.width, 1).intersection(cell);
+            frame.buffer_mut().set_style(band, selection);
+        }
     }
     if !app.settings.month.grid_lines {
         render_month_edges(frame.buffer_mut(), inner, &grid, top, app, border);
@@ -404,6 +446,38 @@ fn layout_row<'a>(days: &[Date], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a
     (bars, slots)
 }
 
+/// `day`'s items in the order its cell lists them (`App::cell_index` counts in it): each line under the date
+/// from the top, multi-day bars on their lines (`layout_row`), free lines skipped
+pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {
+    let start = calendar::week_start(day, app.first_day_of_week());
+    let days: Vec<Date> = start.series(1.day()).take(7).collect();
+    let column = days.iter().position(|&each| each == day).unwrap_or(0);
+    let (_, mut slots) = layout_row(&days, app);
+    slots
+        .swap_remove(column)
+        .into_iter()
+        .filter_map(|slot| match slot {
+            Slot::Bar(item) | Slot::Item(item) => Some(item),
+            Slot::Empty => None,
+        })
+        .collect()
+}
+
+/// The line of a cell (`slots`, `rows` tall) the chosen `item` is on (0 = the date): its own line when it
+/// shows, otherwise the last line, where it stands instead of `+N`; `None` in a cell showing no items
+/// (1 line: dots), or when the item is not in it
+fn chosen_line(slots: &[Slot], item: &Item, rows: u16) -> Option<u16> {
+    if rows <= 1 {
+        return None;
+    }
+    let shown = shown_lines(slots.len(), rows);
+    let at = slots.iter().position(|slot| match slot {
+        Slot::Bar(each) | Slot::Item(each) => std::ptr::eq(*each, item),
+        Slot::Empty => false,
+    })?;
+    u16::try_from(at.min(shown) + 1).ok()
+}
+
 /// How many of a cell's `slots` lines under the date it shows, `rows` tall: all if they fit; otherwise one
 /// fewer, and `+N` goes on the last line; none in a 1-line cell (dots instead)
 fn shown_lines(slots: usize, rows: u16) -> usize {
@@ -488,9 +562,28 @@ fn bar_line(item: &Item, time: bool, lane: usize, app: &App) -> Line<'static> {
     Line::from(spans).style(Style::new().bg(background))
 }
 
-/// Draws the 7 cells of one week (`days`, from its first day on), line by line; `selected` = the column
-/// (0 = the week's first day) of the selected day's cell, if it is in this row, and `selection` its
-/// background
+/// Where the selected day's background goes in a row (`render_week`): `column` = its cell (0 = the week's
+/// first day), if it is in this row; `row` = the chosen item's line while its items have the keyboard (only
+/// the date line and that line are lit), `None` = the whole cell; `style` = the background
+#[derive(Clone, Copy)]
+struct Lit {
+    column: Option<usize>,
+    row: Option<u16>,
+    style: Style,
+}
+
+impl Lit {
+    /// Whether line `row` of cell `column` has the background
+    fn lights(self, column: usize, row: usize) -> bool {
+        self.column == Some(column)
+            && self
+                .row
+                .is_none_or(|lit| row == 0 || row == usize::from(lit))
+    }
+}
+
+/// Draws the 7 cells of one week (`days`, from its first day on), line by line; `lit` = where the selected
+/// day's cell is and which of its lines have the background
 ///
 /// Text below the first line (the date) that is too long **borrows to the right** from neighbor cells
 /// (like a spreadsheet): if the neighbor's whole cell is empty (nothing that day, only its date), its
@@ -507,10 +600,10 @@ fn render_week(
     cells: &[Rect],
     lines: &[Vec<Line>],
     days: &[Date],
-    selected: Option<usize>,
-    selection: Style,
+    lit: Lit,
     overflow: bool,
 ) {
+    let selected = lit.column;
     for (column, (cell, cell_lines)) in cells.iter().zip(lines).enumerate() {
         for (row, (line, y)) in cell_lines.iter().zip(cell.y..cell.bottom()).enumerate() {
             let mut right = cell.right();
@@ -532,14 +625,14 @@ fn render_week(
                 }
             }
             frame.render_widget(line, Rect::new(cell.x, y, right - cell.x, 1));
-            if selected == Some(column) {
+            if lit.lights(column, row) {
                 let text_end = cell
                     .x
                     .saturating_add(u16::try_from(line.width()).unwrap_or(u16::MAX));
                 let end = text_end.saturating_add(1).min(right);
                 if end > cell.right() {
                     let spilled = Rect::new(cell.right(), y, end - cell.right(), 1);
-                    frame.buffer_mut().set_style(spilled, selection);
+                    frame.buffer_mut().set_style(spilled, lit.style);
                 }
             }
         }
@@ -551,12 +644,20 @@ fn render_week(
 /// bars are drawn over them afterwards)
 ///
 /// - List all slots if they fit; otherwise list one fewer and put `+N` on the last line
-///   (N = the number of items not listed; free lines do not count)
+///   (N = the number of items not listed; free lines do not count); when `chosen` (the item chosen in this
+///   cell) is one of those, its line goes there instead
 /// - Cell only 1 line tall (very short terminal): no items; dots after the date, one per item (at most 4)
 ///
 /// Each piece of text carries its color on its `Span` (not `Line::styled`), so when a long title borrows
 /// the empty neighbor cells to the right, the neighbor's grid line does not get colored too
-fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> Vec<Line<'static>> {
+fn cell_lines(
+    day: Date,
+    month: Date,
+    slots: &[Slot],
+    rows: u16,
+    chosen: Option<&Item>,
+    app: &App,
+) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let mut first = date_line(day, month, app);
     let items: Vec<&Item> = slots
@@ -583,15 +684,20 @@ fn cell_lines(day: Date, month: Date, slots: &[Slot], rows: u16, app: &App) -> V
         Slot::Bar(_) | Slot::Empty => Line::default(),
     }));
     if shown < slots.len() {
-        let color = theme.muted;
-        let hidden = slots[shown..]
+        let hidden: Vec<&Item> = slots[shown..]
             .iter()
-            .filter(|slot| !matches!(slot, Slot::Empty))
-            .count();
-        lines.push(Line::from(Span::styled(
-            format!(" +{hidden}"),
-            Style::new().fg(color),
-        )));
+            .filter_map(|slot| match slot {
+                Slot::Bar(item) | Slot::Item(item) => Some(*item),
+                Slot::Empty => None,
+            })
+            .collect();
+        match chosen.filter(|chosen| hidden.iter().any(|item| std::ptr::eq(*item, *chosen))) {
+            Some(item) => lines.push(item_line(item, app)),
+            None => lines.push(Line::from(Span::styled(
+                format!(" +{}", hidden.len()),
+                Style::new().fg(theme.muted),
+            ))),
+        }
     }
     lines
 }
@@ -1014,12 +1120,57 @@ pub fn click_at(area: Rect, app: &App, column: u16, row: u16) -> Option<Click> {
                 cell.height = inner.bottom() - cell.y;
             }
             if cell.contains(position) {
-                let days = i64::from(week) * 7 + i64::try_from(weekday).ok()?;
-                return Some(Click::Day(top.saturating_add(days.days())));
+                let start = top.saturating_add(i64::from(week).weeks());
+                let day = start.saturating_add(i64::try_from(weekday).ok()?.days());
+                let line = usize::from(row - cell.y);
+                return Some(
+                    item_at(app, start, weekday, line, grid.week_height).unwrap_or(Click::Day(day)),
+                );
             }
         }
     }
     None
+}
+
+/// The item on line `line` (0 = the date) of the cell of day `weekday` (0 = the first) in the week from
+/// `start`, as `render` draws it (`rows` lines a week): a one-day item's line or a bar's line there, or the
+/// last line when the chosen item stands there instead of `+N`; `None` elsewhere
+fn item_at(app: &App, start: Date, weekday: usize, line: usize, rows: u16) -> Option<Click> {
+    let days: Vec<Date> = start.series(1.day()).take(7).collect();
+    let day = days[weekday];
+    let (_, slots) = layout_row(&days, app);
+    let slots = &slots[weekday];
+    let shown = shown_lines(slots.len(), rows);
+    let index_of = |at: usize| {
+        slots[..at]
+            .iter()
+            .filter(|slot| !matches!(slot, Slot::Empty))
+            .count()
+    };
+    if line == 0 || rows <= 1 {
+        return None;
+    }
+    if line <= shown {
+        return match slots[line - 1] {
+            Slot::Empty => None,
+            Slot::Bar(_) | Slot::Item(_) => Some(Click::CellItem {
+                day,
+                index: index_of(line - 1),
+            }),
+        };
+    }
+    // The last line: the chosen item stands there instead of `+N`
+    let chosen = app
+        .cell_items()
+        .get(app.cell_index)
+        .copied()
+        .filter(|_| app.focus == Focus::Cell && day == app.selected)?;
+    (line == shown + 1 && usize::from(chosen_line(slots, chosen, rows)?) == line).then_some(
+        Click::CellItem {
+            day,
+            index: app.cell_index,
+        },
+    )
 }
 
 #[cfg(test)]

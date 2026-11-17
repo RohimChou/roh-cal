@@ -139,14 +139,16 @@ fn shift_tab_goes_through_the_panes_backwards() {
     press(&mut app, KeyCode::BackTab);
     press(&mut app, KeyCode::BackTab);
     assert_eq!(app.focus, Focus::Calendar);
-    // Layout 2: calendar ⇄ side menu; the day popup ignores it
+    // Layout 2: calendar → side menu → the selected day's items → calendar; the day popup ignores it
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 140, 30);
     app.view = View::Month;
-    press(&mut app, KeyCode::BackTab);
-    assert_eq!(app.focus, Focus::Side);
-    press(&mut app, KeyCode::BackTab);
-    assert_eq!(app.focus, Focus::Calendar);
+    let mut order = Vec::new();
+    for _ in 0..3 {
+        press(&mut app, KeyCode::BackTab);
+        order.push(app.focus);
+    }
+    assert_eq!(order, [Focus::Side, Focus::Cell, Focus::Calendar]);
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::BackTab);
     assert_eq!(app.focus, Focus::Day);
@@ -1565,15 +1567,22 @@ fn switching_back_finds_a_layout_as_it_was_left() {
 }
 
 #[test]
-fn tab_skips_the_agenda_in_the_month_view() {
-    // Month grid: calendar → side menu → calendar; when narrow (no side menu), Tab does nothing
+fn tab_goes_into_the_selected_days_items_in_the_month_view() {
+    // Month grid: calendar → the selected day's items in its cell → side menu → calendar; when narrow (no
+    // side menu): calendar ⇄ items; with no items at all, Tab does nothing there
     let mut app = wide_app_with(GROUPS);
     app.view = View::Month;
-    for focus in [Focus::Side, Focus::Calendar] {
+    for focus in [Focus::Cell, Focus::Side, Focus::Calendar] {
         press(&mut app, KeyCode::Tab);
         assert_eq!(app.focus, focus);
     }
     let mut app = app_with(ITEMS);
+    app.view = View::Month;
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Cell);
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Calendar);
+    let mut app = app_with("- No date\n");
     app.view = View::Month;
     press(&mut app, KeyCode::Tab);
     assert_eq!(app.focus, Focus::Calendar);

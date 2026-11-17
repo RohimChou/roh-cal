@@ -278,9 +278,13 @@ pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
         && (border..=border + beside).contains(&column)
 }
 
-/// `day`'s items in the order its box lists them (the week view; elsewhere the same order, `App::items_on`)
+/// `day`'s items in the order its cell lists them: the month grid puts the multi-day bars on their lines first
+/// (`month::cell_items`); the week view's boxes (and anywhere else) in `App::items_on` order
 pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {
-    app.items_on(day)
+    match app.view {
+        View::Month => month::cell_items(app, day),
+        View::Planner | View::Tasks | View::Week => app.items_on(day),
+    }
 }
 
 /// Where each part of the screen is

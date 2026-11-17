@@ -5482,3 +5482,111 @@ fn week_view_items_scroll_in_their_box_while_chosen() {
     );
     assert_eq!(app.cell_top, Some((date(2026, 10, 16), 0)));
 }
+
+#[test]
+fn month_view_items_can_be_chosen_in_their_cell() {
+    // 80 × 31 (3 lines a week): 10/16 lists 1 of its 4 items and 「+3」. Its items with the keyboard, the
+    // 3rd chosen (hidden behind 「+3」): its line stands there instead. Only the date line and the chosen
+    // line are on the `selection` background (10/16: x 60-68; the date on y 12, the items on y 13 and 14)
+    let mut app = month_app(Lang::ZhTw, date(2026, 10, 16), MONTH_TASKS);
+    app.focus = Focus::Cell;
+    app.cell_index = 2;
+    let terminal = draw_app(&mut app, 80, 31);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
+            "╭────────────────────────────── 2026/10/16（五） ──────────────────────────────╮",
+            "│  週   日         一         二         三        四        五        六      │",
+            "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+            "│  40 │ 27       │ 28       │ 29       │ 30      │ 1 10月  │ 2       │ 3       │",
+            "│ 10月│          │          │ Backyard BBQ       │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  41 │ 4        │ 5        │ 6        │ 7       │ 8       │ 9       │ 10      │",
+            "│     │          │ Pay the phone bill  │         │         │         │ Farmers │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  42 │ 11       │ 12       │ 13       │ 14      │ 15      │ 16      │ 17      │",
+            "│     │          │ 14:00 Cod│ 15:00 Confirm alert│ Fix the │ 🚧 Team │ Dinner w│",
+            "│     │          │          │          │         │         │ Book a c│ 08:00 Co│",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  43 │ 18       │ 19       │ 20       │ 21      │ 22      │ 23      │ 24      │",
+            "│     │ 07:00 Go hiking     │ A really long title that spills over   │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  44 │ 25       │ 26       │ 27       │ 28      │ 29      │ 30      │ 31      │",
+            "│     │          │          │          │         │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  45 │ 1 11月   │ 2        │ 3        │ 4       │ 5       │ 6       │ 7       │",
+            "│ 11月│ Buy a birthday gift │          │         │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  46 │ 8        │ 9        │ 10       │ 11      │ 12      │ 13      │ 14      │",
+            "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    let buffer = terminal.backend().buffer();
+    let theme = Theme::default();
+    for (y, lit) in [(12, true), (13, false), (14, true)] {
+        assert_eq!(buffer[(61, y)].bg == theme.selection, lit, "y {y}");
+    }
+    // The 1st chosen (it shows): 「+3」 stays, its own line is lit
+    app.cell_index = 0;
+    let terminal = draw_app(&mut app, 80, 31);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
+            "╭────────────────────────────── 2026/10/16（五） ──────────────────────────────╮",
+            "│  週   日         一         二         三        四        五        六      │",
+            "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
+            "│  40 │ 27       │ 28       │ 29       │ 30      │ 1 10月  │ 2       │ 3       │",
+            "│ 10月│          │          │ Backyard BBQ       │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  41 │ 4        │ 5        │ 6        │ 7       │ 8       │ 9       │ 10      │",
+            "│     │          │ Pay the phone bill  │         │         │         │ Farmers │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  42 │ 11       │ 12       │ 13       │ 14      │ 15      │ 16      │ 17      │",
+            "│     │          │ 14:00 Cod│ 15:00 Confirm alert│ Fix the │ 🚧 Team │ Dinner w│",
+            "│     │          │          │          │         │         │ +3      │ 08:00 Co│",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  43 │ 18       │ 19       │ 20       │ 21      │ 22      │ 23      │ 24      │",
+            "│     │ 07:00 Go hiking     │ A really long title that spills over   │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  44 │ 25       │ 26       │ 27       │ 28      │ 29      │ 30      │ 31      │",
+            "│     │          │          │          │         │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  45 │ 1 11月   │ 2        │ 3        │ 4       │ 5       │ 6       │ 7       │",
+            "│ 11月│ Buy a birthday gift │          │         │         │         │         │",
+            "│     │          │          │          │         │         │         │         │",
+            "├─────┼──────────┼──────────┼──────────┼─────────┼─────────┼─────────┼─────────┤",
+            "│  46 │ 8        │ 9        │ 10       │ 11      │ 12      │ 13      │ 14      │",
+            "╰─────┴──────────┴──────────┴──────────┴─────────┴─────────┴─────────┴─────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    let buffer = terminal.backend().buffer();
+    for (y, lit) in [(12, true), (13, true), (14, false)] {
+        assert_eq!(buffer[(61, y)].bg == theme.selection, lit, "y {y}");
+    }
+    // A multi-day item chosen: its bar is lit in the selected day's cell only (the trip, 10/20 to 10/25,
+    // its bar on the first line under the dates; weeks from Monday: 10/20 at x 18-27, 10/21 at x 29-38)
+    let mut app = month_app(Lang::En, date(2026, 10, 21), RANGE_TASKS);
+    monday_first(&mut app);
+    app.focus = Focus::Cell;
+    app.cell_index = 0;
+    let terminal = draw_app(&mut app, 80, 31);
+    let buffer = terminal.backend().buffer();
+    let bar_y = (0..31)
+        .find(|&y| text_rows(buffer)[usize::from(y)].contains("Business trip"))
+        .expect("the trip's bar");
+    assert_eq!(buffer[(31, bar_y)].bg, theme.selection);
+    assert_eq!(buffer[(20, bar_y)].bg, theme.range);
+}

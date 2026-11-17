@@ -24,7 +24,8 @@ python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
 open task is under them);
 EXPANDED = line numbers of the items whose subtasks are expanded, comma-separated;
 CHOSEN_LINE = line number of the chosen item (not given = the first item)
-Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in the agenda);
+Env vars: CHOSEN = index of the chosen item in the sorted agenda (keyboard in the agenda); in layout 2, which
+of the selected day's items in its cell (from the top, bars included) has the keyboard;
 WINDOW = how many rows the selected month's agenda is scrolled;
 SIDE_HIDDEN = `s` was pressed and the side menu is hidden (the side menu only exists at 120+ cells wide);
 NO_GRID = layout 2 draws no grid lines (config `[month] grid_lines = false`);
@@ -668,7 +669,15 @@ def month_screen(lang, w, h, selected, top, items, groups):
                     else:
                         cell.append("")
                 if shown < len(slots[k]):
-                    cell.append(f" +{len([s for s in slots[k][shown:] if s])}")
+                    hidden = [s[1] for s in slots[k][shown:] if s]
+                    listed = [s[1] for s in slots[k] if s]
+                    # The selected day's chosen item (CHOSEN) is one of those: its line instead of +N
+                    pick = listed[CHOSEN] if CHOSEN is not None and d == selected else None
+                    if pick is not None and pick in hidden:
+                        _, time, title, _, _, in_progress = pick
+                        cell.append(" " + (time + " " if time and not in_progress else "") + title)
+                    else:
+                        cell.append(f" +{len(hidden)}")
             week_cells.append(cell)
             shown_by_day.append(shown)
         # Except on the first line, text may run right into the next cell as long as that whole cell is

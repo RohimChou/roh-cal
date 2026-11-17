@@ -239,3 +239,72 @@ fn clicking_an_item_in_a_box_chooses_it_and_a_double_click_checks_it() {
     );
     assert!(matches!(app.mode, Mode::ConfirmCheck(_)));
 }
+
+#[test]
+fn the_month_grid_chooses_in_the_order_its_cell_shows() {
+    // 10/17: coffee at 08:00, and a conference from 10/17 to 10/18 at 09:00. The week view's box lists them
+    // by time (coffee first); the month grid's cell puts the conference's bar on its own line first
+    let text = "- Coffee @2026-10-17 08:00\n- Conference @2026-10-17..2026-10-18 09:00\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.view = View::Week;
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(chosen(&app), (date(2026, 10, 17), Some("Coffee".into())));
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('2'));
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(
+        chosen(&app),
+        (date(2026, 10, 17), Some("Conference".into()))
+    );
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app), (date(2026, 10, 17), Some("Coffee".into())));
+    // Back from the side menu (narrow: called up over the screen): the same item
+    press(&mut app, KeyCode::Char('s'));
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(
+        (app.focus, chosen(&app)),
+        (Focus::Cell, (date(2026, 10, 17), Some("Coffee".into())))
+    );
+}
+
+#[test]
+fn clicking_an_item_in_a_month_cell_chooses_it() {
+    // 80 × 31 with grid lines, 9/27 on top: 10/17 (Saturday) at x 70-78, its date on y 12, the trip's bar
+    // on y 13 and 「+3」 on y 14
+    let mut app = week_app(date(2026, 10, 17));
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 31);
+    app.month_top = Some(date(2026, 9, 27));
+    let down = MouseEventKind::Down(MouseButton::Left);
+    mouse(&mut app, down, 72, 13);
+    assert_eq!(
+        (app.focus, chosen(&app)),
+        (
+            Focus::Cell,
+            (date(2026, 10, 17), Some("Trip to NYC".into()))
+        )
+    );
+    // 「+3」 (the chosen item shows): the day, the keyboard back on the calendar
+    mouse(&mut app, down, 72, 14);
+    assert_eq!(
+        (app.focus, app.selected),
+        (Focus::Calendar, date(2026, 10, 17))
+    );
+    // The 4th item chosen stands where 「+3」 was: a double click there checks it (asks first)
+    press(&mut app, KeyCode::Tab);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Char('j'));
+    }
+    assert_eq!(
+        chosen(&app),
+        (date(2026, 10, 17), Some("Weekly update".into()))
+    );
+    mouse(&mut app, down, 72, 14);
+    mouse(&mut app, down, 72, 14);
+    assert_eq!(app.focus, Focus::Cell);
+    assert!(matches!(app.mode, Mode::ConfirmCheck(_)));
+}

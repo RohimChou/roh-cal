@@ -83,7 +83,8 @@ pub enum Focus {
     Tasks,
     /// Layout 2's day popup (`Enter` on the calendar): `j` / `k` choose the selected day's items one by one
     Day,
-    /// The selected day's items where the calendar itself lists them (`Tab` from the week view's boxes):
+    /// The selected day's items where the calendar itself lists them (`Tab` into the month grid's cells or the
+    /// week view's boxes):
     /// `j` / `k` choose them one by one, going on to the next / previous day that has items
     Cell,
 }
@@ -815,7 +816,7 @@ impl App {
                 self.focus = Focus::Day;
                 self.keep_day_choice();
             }
-            (Focus::Cell, View::Week) => {
+            (Focus::Cell, View::Month | View::Week) => {
                 self.focus = Focus::Cell;
                 self.keep_cell_choice();
             }
@@ -1749,13 +1750,13 @@ impl App {
         }
     }
 
-    /// `Tab` from the calendar into its items: layout 1's agenda (`enter_agenda`), the week view's boxes
-    /// (`enter_cells`); no items: the keyboard does not move
+    /// `Tab` from the calendar into its items: layout 1's agenda (`enter_agenda`), the month grid's cells and
+    /// the week view's boxes (`enter_cells`); no items: the keyboard does not move
     fn enter_items(&mut self) {
         match self.view {
             View::Planner => self.enter_agenda(),
-            View::Week => self.enter_cells(),
-            View::Month | View::Tasks => {}
+            View::Month | View::Week => self.enter_cells(),
+            View::Tasks => {}
         }
     }
 
