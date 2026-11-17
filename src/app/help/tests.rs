@@ -129,7 +129,7 @@ fn clicking_outside_closes_it() {
     assert_eq!(app.selected, date(2026, 10, 17));
 }
 
-/// The help page open on a 70 × 23 screen with the task file and the config file under `/nonexistent`
+/// The help page open on a 70 × 25 screen with the task file and the config file under `/nonexistent`
 /// (the box of `ui::help`'s `files_are_listed_on_top_of_the_keys`): each path starts at column 21, its first
 /// line `/nonexistent/roh-cal/` (21 characters) on rows 4 and 6, the rest (`tasks.md`, `config.toml`) on
 /// rows 5 and 7
@@ -137,7 +137,7 @@ fn help_with_files() -> App {
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
     app.tasks_path = Some(PathBuf::from("/nonexistent/roh-cal/tasks.md"));
     app.config_path = Some(PathBuf::from("/nonexistent/roh-cal/config.toml"));
-    app.screen = Rect::new(0, 0, 70, 23);
+    app.screen = Rect::new(0, 0, 70, 25);
     press(&mut app, KeyCode::Char('?'));
     app
 }

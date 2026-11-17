@@ -16,6 +16,7 @@ mod side;
 mod splash;
 mod tabs;
 mod tasks;
+mod week;
 
 use crate::app::{App, Editor, Focus, Help, Mode, TextSpot, View};
 use crate::tasks::{Item, Kind};
@@ -33,8 +34,8 @@ use ratatui::{
 /// The terminal must be at least this wide to draw the side menu
 const SIDE_MIN_WIDTH: u16 = 120;
 
-/// Which layout each of the keys `1` `2` `3` switches to
-const VIEW_KEYS: [View; 3] = [View::Planner, View::Month, View::Tasks];
+/// Which layout each of the keys `1` `2` `3` `4` switches to
+const VIEW_KEYS: [View; 4] = [View::Planner, View::Month, View::Tasks, View::Week];
 
 /// Where the edit box is (so a mouse click outside it can cancel); nothing while it is closed
 pub fn editor_area(app: &App) -> Rect {
@@ -279,7 +280,7 @@ pub fn on_side_border(app: &App, column: u16, row: u16) -> bool {
 
 /// Where each part of the screen is
 struct Areas {
-    /// Top row: the tab bar (the views `1` `2` `3` switch to); height 0 when it is off (`tab_bar = false`)
+    /// Top row: the tab bar (the views `1` `2` `3` `4` switch to); height 0 when it is off (`tab_bar = false`)
     tabs: Rect,
     /// Far left: the side menu (the list of calendars); width 0 when it is not drawn
     side: Rect,
@@ -366,6 +367,7 @@ pub fn click_at(app: &App, column: u16, row: u16) -> Option<Click> {
         View::Planner => planner::click_at(areas.calendar, areas.agenda, app, column, row),
         View::Month => month::click_at(areas.main, app, column, row),
         View::Tasks => tasks::click_at(areas.main, app, column, row),
+        View::Week => week::click_at(areas.main, app, column, row),
     }
 }
 
@@ -406,7 +408,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             _ if app.focus == Focus::Day => hints_line(app, texts.hints_day),
             _ if app.focus == Focus::Side => hints_line(app, texts.hints_side),
             View::Tasks => hints_line(app, texts.hints_tasks),
-            View::Planner | View::Month => hints_line(app, texts.hints),
+            View::Planner | View::Month | View::Week => hints_line(app, texts.hints),
         };
         frame.render_widget(line, hints);
     }
@@ -433,6 +435,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         View::Planner => planner::render(frame, calendar_area, agenda_area, app),
         View::Month => month::render(frame, main_area, app),
         View::Tasks => tasks::render(frame, main_area, app),
+        View::Week => week::render(frame, main_area, app),
     }
     // The side menu called up on a narrow screen: drawn over the left of the main view
     if let Some(area) = side_overlay_in(frame.area(), app) {
@@ -440,7 +443,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         side::render(frame, area, app);
     }
     // Layout 2's day popup: over the month grid (the edit box, help page and so on go on top of it)
-    if matches!(app.view, View::Planner | View::Month) && app.focus == Focus::Day {
+    if matches!(app.view, View::Planner | View::Month | View::Week) && app.focus == Focus::Day {
         day::render(frame, main_area, app);
     }
     // The edit box, help page and settings page go on top of everything

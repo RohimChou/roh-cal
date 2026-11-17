@@ -161,7 +161,7 @@ fn tag_span(item: &Item, app: &App) -> Option<Span<'static>> {
 
 /// One item's line before wrapping: its `item_marker` (colored like the time), its dates only when it spans
 /// several days, its time, then its title, e.g. 「 ◌ 17:30 Buy groceries」, 「 ∙ 10/16~18 Parents in town」
-fn popup_line(item: &Item, app: &App) -> Line<'static> {
+pub(super) fn popup_line(item: &Item, app: &App) -> Line<'static> {
     let mut spans = vec![
         Span::raw(" "),
         Span::styled(

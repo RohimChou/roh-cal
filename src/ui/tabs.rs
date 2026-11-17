@@ -1,4 +1,4 @@
-//! Tab bar: the top row lists the views the keys `1` `2` `3` switch to, the shown one lit, so a first look
+//! Tab bar: the top row lists the views the keys `1` `2` `3` `4` switch to, the shown one lit, so a first look
 //! tells there are other views and which one this is. Clicking a tab = pressing its number key
 
 use super::VIEW_KEYS;

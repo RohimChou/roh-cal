@@ -14,6 +14,9 @@ Layout 2 (env var LAYOUT=2):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [TOP_ROW] < TASK_FILE
 (A row is one whole week, from its first day on. TOP_ROW = YYYY-MM-DD of a day in the top week. Not given = just
 opened: the week with the selected month's 1st; scroll if the selected week is not within the 6 weeks)
+Week view (env var LAYOUT=4):
+python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY [FIRST_DAY] < TASK_FILE
+(FIRST_DAY = YYYY-MM-DD of the first of the 7 days on screen; not given = the selected day)
 Tasks page (env var LAYOUT=3):
 python3 tools/expected_screen.py zh|en WIDTH HEIGHT SELECTED_DAY < TASK_FILE
 (the tasks page does not use SELECTED_DAY, but it must still be given; events before today are left out, unless an
@@ -32,8 +35,8 @@ MONDAY = weeks start on Monday in layouts 1 and 2 (`[calendar] first_day_of_week
 Sunday, the default);
 HIDDEN = indexes of the unchecked calendars in the side menu, comma-separated (e.g. `1,3`); their items
 are not shown (not given = the archived calendars, unchecked at start); COLLAPSED = calendars collapsed on the tasks page, comma-separated paths (e.g.
-`Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page
-The top row is always the tab bar (the views `1` `2` `3`, the one LAYOUT draws lit); HEIGHT counts it.
+`Recurring,Personal > Moving`); LAYOUT = 2 is layout 2, 3 is the tasks page, 4 the week view
+The top row is always the tab bar (the views `1` `2` `3` `4`, the one LAYOUT draws lit); HEIGHT counts it.
 Today is always 2026-10-17.
 """
 import calendar
@@ -52,7 +55,9 @@ TEXTS = {
                side=" Calendars", hide_all="Hide all", hide_done="Hide done", archived="Archived", ungrouped="Ungrouped", hw=" Wk ",
                wd=["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], items=" Agenda", more=lambda n: f"{n} more",
                year=lambda y: f"{y}", month=lambda m: calendar.month_abbr[m],
-               date=lambda d: f"{d:%a %b} {d.day}, {d.year}"),
+               date=lambda d: f"{d:%a %b} {d.day}, {d.year}",
+               day_title=lambda d: f"{calendar.day_abbr[d.weekday()]} {d.month}/{d.day}", today="today",
+               day_more=lambda n: f"{n} more, Enter shows all"),
     "zh": dict(hints_tasks=" jk 移動 | hl 收合 | Space 打勾 | e 編輯 | a 新增 | o 編輯器 | s 日曆 | ? 說明 | , 設定 | q 離開",
                tasks=" 任務", detail=lambda n, t: f" 第 {n} 行  {t}", mistakes=lambda n: f"{n} 處寫錯 ",
                mistake=lambda n, kind, token: f" 第 {n} 行：{token}：" + {"date": "沒有這一天", "time": "沒有這個時間", "range": "結束在開始之前"}[kind],
@@ -60,7 +65,9 @@ TEXTS = {
                side=" 日曆", hide_all="隱藏全部", hide_done="隱藏做完的", archived="已封存", ungrouped="未分組", hw=" 週 ",
                wd=list("一二三四五六日"), items=" 重要事項", more=lambda n: f"還有 {n} 件",
                year=lambda y: f"{y}年", month=lambda m: f"{m}月",
-               date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）"),
+               date=lambda d: f"{d.year}/{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）",
+               day_title=lambda d: f"{d.month}/{d.day}（{'一二三四五六日'[d.weekday()]}）", today="今天",
+               day_more=lambda n: f"還有 {n} 件，Enter 看全部"),
 }
 CHOSEN = int(os.environ["CHOSEN"]) if "CHOSEN" in os.environ else None
 WINDOW = int(os.environ.get("WINDOW", "0"))
@@ -140,9 +147,9 @@ def cut(s, n):
 
 
 def tab_row(lang, w, shown):
-    """The tab bar on the top row: 「 ┃ 1 calendar   2 month   3 tasks」 with view `shown` (1, 2 or 3) lit.
+    """The tab bar on the top row: 「 ┃ 1 calendar   2 month   3 tasks   4 week」 with view `shown` (1-4) lit.
     Every tab is a cell for the bar (┃ on the shown one, else blank) and then 「 N name 」"""
-    names = {"en": ["calendar", "month", "tasks"], "zh": ["月曆", "大月曆", "任務"]}[lang]
+    names = {"en": ["calendar", "month", "tasks", "week"], "zh": ["月曆", "大月曆", "任務", "週"]}[lang]
     row = " " + "".join(("┃" if n == shown else " ") + f" {n} {name} " for n, name in enumerate(names, 1))
     return ljust(cut(row, w), w)
 
@@ -229,11 +236,15 @@ def drop_priority(title):
     return " ".join(words)
 
 
+MARKERS = {}  # line index → what the item's line starts with in the day popup and the week view (`read_items`)
+
+
 def read_items(text, hidden):
     """Simple version: lines that start with `- ` and end with `@YYYY-MM-DD` or `@YYYY-MM-DD..YYYY-MM-DD`
     (a time may follow). Lines whose calendar is hidden (`hidden` = paths of the unchecked calendars,
     see `is_hidden`) are skipped.
-    Returns (date, time, title, line index, last day of a multi-day item or None, in progress `[/]`), sorted"""
+    Returns (date, time, title, line index, last day of a multi-day item or None, in progress `[/]`), sorted.
+    What each line starts with in the day popup (a check box for a task, `∙ ` for an event) goes in `MARKERS`"""
     items = []
     paths, _ = calendar_paths(text)
     for i, line in enumerate(text.splitlines()):
@@ -242,6 +253,8 @@ def read_items(text, hidden):
             end = datetime.date.fromisoformat(m.group(3)) if m.group(3) else None
             in_progress = re.match(r"\s*- \[/\] ", line) is not None
             title = (IN_PROGRESS if in_progress else "") + drop_priority(m.group(1))
+            check = re.match(r"\s*- \[(.)\] ", line)
+            MARKERS[i] = "∙ " if check is None else (BOX_ON if check.group(1) in "xX" else BOX_OFF)
             items.append((datetime.date.fromisoformat(m.group(2)), m.group(4), title, i, end, in_progress))
     # By date, time (items without a time first), then file order
     items.sort(key=lambda it: (it[0], it[1] is not None, it[1] or "", it[3]))
@@ -733,6 +746,60 @@ def month_screen(lang, w, h, selected, top, items, groups):
     return [ljust(cut(line, w), w) for line in lines]
 
 
+def even_split(total, parts):
+    """`total` cells in `parts` pieces as even as can be, the first ones one bigger: [(start, length)]"""
+    lengths = [total // parts + (1 if k < total % parts else 0) for k in range(parts)]
+    return [(sum(lengths[:k]), lengths[k]) for k in range(parts)]
+
+
+def week_screen(lang, w, h, first, items, groups):
+    """The week view: side menu (only when wide enough) + 4 rows of 2 boxes, the 7 days from `first` row by
+    row (left, then right) and the 8th blank + hints line. A box: its date on the top border after 「─ 」
+    (and 「今天」 on today's), then one line per item 「 ◌ 10/16~18 09:00 title」 cut one cell before the
+    right border; when they do not fit, the last line says how many more, right-aligned"""
+    t = TEXTS[lang]
+    sw = side_width(t, groups) if w >= 120 and not SIDE_HIDDEN else 0
+    mw, mh = w - sw, h - 1
+    rows, columns = even_split(mh, 4), even_split(mw, 2)
+    canvas = [[" "] * mw for _ in range(mh)]
+
+    def put(x, y, text):
+        for c in text:
+            canvas[y][x] = c
+            if width(c) == 2:
+                canvas[y][x + 1] = ""
+                x += 2
+            else:
+                x += 1
+
+    for k in range(7):
+        day = first + datetime.timedelta(days=k)
+        (y, bh), (x, bw) = rows[k // 2], columns[k % 2]
+        iw, ih = bw - 2, bh - 2
+        title = "─" + f" {t['day_title'](day)} " + (f"{t['today']} " if day == TODAY else "")
+        title = cut(title, iw)
+        put(x, y, "╭" + title + "─" * (iw - width(title)) + "╮")
+        for r in range(1, bh - 1):
+            put(x, y + r, "│" + " " * iw + "│")
+        put(x, y + bh - 1, "╰" + "─" * iw + "╯")
+        if ih <= 0:
+            continue
+        # In-progress items first, then by start day and time (sorted() keeps the file's order among equals)
+        on_day = sorted((it for it in items if it[0] <= day <= (it[4] or it[0])), key=lambda it: not it[5])
+        shown = on_day if len(on_day) <= ih else on_day[:ih - 1]
+        for r, it in enumerate(shown):
+            line = " " + MARKERS[it[3]] + (range_text(it) + " " if it[4] else "") + (it[1] + " " if it[1] else "") + it[2]
+            put(x + 1, y + 1 + r, cut(line, iw - 1))
+        if len(shown) < len(on_day):
+            more = cut(t["day_more"](len(on_day) - len(shown)), iw - 1)
+            put(x + 1, y + ih, rjust(more, iw - 1))
+    lines = ["".join(row) for row in canvas]
+    if sw:
+        lines = [side + line for side, line in zip(side_lines(t, h, groups), lines)]
+    lines.append(t["hints"])
+    return [ljust(cut(line, w), w) for line in lines]
+
+
 def read_tree(text):
     """For the tasks page: read every item in the whole file (items without a date too); a separate,
     simple parser. Returns ([dict(line, text, indent, depth, parent, task, done, in_progress, title, date, end, time,
@@ -1048,10 +1115,14 @@ ARCHIVED = archived_calendars(text)
 if "HIDDEN" not in os.environ:
     HIDDEN = {i for i, (path, _) in enumerate(groups) if path in ARCHIVED}
 # The top row is the tab bar; the rest of the screen is drawn one row shorter below it
-shown = {"2": 2, "3": 3}.get(os.environ.get("LAYOUT"), 1)
+shown = {"2": 2, "3": 3, "4": 4}.get(os.environ.get("LAYOUT"), 1)
 h -= 1
 if os.environ.get("LAYOUT") == "3":
     out = tasks_screen(lang, w, h, text, groups)
+elif os.environ.get("LAYOUT") == "4":
+    items = read_items(text, {groups[i][0] for i in HIDDEN})
+    first = datetime.date.fromisoformat(sys.argv[5]) if len(sys.argv) > 5 else selected
+    out = week_screen(lang, w, h, first, items, groups)
 elif os.environ.get("LAYOUT") == "2":
     items = read_items(text, {groups[i][0] for i in HIDDEN})
     top = month_top(selected, sys.argv[5] if len(sys.argv) > 5 else None)

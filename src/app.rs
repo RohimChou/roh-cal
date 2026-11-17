@@ -115,6 +115,9 @@ pub enum View {
     Month,
     /// Tasks page (`3`): the whole task file listed by calendar, subtasks as a tree, undated items included
     Tasks,
+    /// Week view (`4`): 7 days in boxes two to a row, each day's items one per line; the 7 days slide along
+    /// with the selected day
+    Week,
 }
 
 /// How a layout was left for another one (`App::set_view`)
@@ -410,6 +413,9 @@ pub struct App {
     /// Layout 2 was scrolled with the wheel while this day was selected: the 6 weeks stay where the wheel
     /// left them (the selected day may be off screen) until the selection changes
     pub month_free: Option<Date>,
+    /// Week view: the first of the 7 days on screen (`None` = on the next draw, start them at the selected
+    /// day); `ui::week::render` slides them so the selected day stays inside
+    pub week_top: Option<Date>,
     /// Screen colors
     pub theme: Theme,
     /// Settings from the config file (theme, colors, grid lines, relative week numbers…);
@@ -493,6 +499,7 @@ impl App {
             agenda_window: None,
             month_top: None,
             month_free: None,
+            week_top: None,
             theme: Theme::default(),
             settings: Settings::default(),
             config_path: None,
@@ -791,7 +798,7 @@ impl App {
                     self.choose(self.agenda_index.min(last));
                 }
             }
-            (Focus::Day, View::Planner | View::Month) => {
+            (Focus::Day, View::Planner | View::Month | View::Week) => {
                 self.focus = Focus::Day;
                 self.keep_day_choice();
             }
@@ -803,7 +810,7 @@ impl App {
     /// bring the keyboard back here
     fn home_focus(&self) -> Focus {
         match self.view {
-            View::Planner | View::Month => Focus::Calendar,
+            View::Planner | View::Month | View::Week => Focus::Calendar,
             View::Tasks => Focus::Tasks,
         }
     }
@@ -933,7 +940,7 @@ impl App {
     }
 
     /// Keys when no popup is open: `Tab` switches pane, `[` / `]` switch month, `t` back to today, `u` undo,
-    /// `1` / `2` / `3` switch layout, `s` hides / shows the side menu, `?` help page, `,` settings page,
+    /// `1` / `2` / `3` / `4` switch layout, `s` hides / shows the side menu, `?` help page, `,` settings page,
     /// `q` / `Ctrl+C` quit. `Esc` goes back to this layout's main pane;
     /// when already there: from the tasks page back to layout 1, from the calendar it quits. While layout 2's
     /// popup or the side menu called up when narrow is open, `Esc` / `q` only close it.
@@ -978,6 +985,7 @@ impl App {
             KeyCode::Char('1') => self.set_view(View::Planner),
             KeyCode::Char('2') => self.set_view(View::Month),
             KeyCode::Char('3') => self.set_view(View::Tasks),
+            KeyCode::Char('4') => self.set_view(View::Week),
             // 1st of the previous / next month, scrolled to the top (ignored on the tasks page: no calendar;
             // in the side menu they choose a top-level calendar instead)
             KeyCode::Char('[') if self.view != View::Tasks && self.focus != Focus::Side => {
@@ -1012,14 +1020,15 @@ impl App {
     }
 
     /// Keyboard on the calendar: left / right = previous / next day, up / down = previous / next week
-    /// (like vim); `a` adds an item on the selected day,
+    /// (like vim; in the week view the 7 days move a week along, see `move_weeks`); `a` adds an item on the
+    /// selected day,
     /// `Enter` goes into that day's items
     fn handle_calendar_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('h') | KeyCode::Left => self.move_by(-1),
             KeyCode::Char('l') | KeyCode::Right => self.move_by(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_by(-7),
-            KeyCode::Char('j') | KeyCode::Down => self.move_by(7),
+            KeyCode::Char('k') | KeyCode::Up => self.move_weeks(-1),
+            KeyCode::Char('j') | KeyCode::Down => self.move_weeks(1),
             KeyCode::Char('a') => self.start_adding(),
             KeyCode::Enter => self.open_day(),
             _ => {}
@@ -1482,13 +1491,13 @@ impl App {
         double
     }
 
-    /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on layout 1's calendar (layout 2's
-    /// only scrolls, `scroll_month`), one item in the agenda, the tasks page, or the popup, and one calendar
+    /// Wheel down (`step` = 1) / up (-1): moves a week when the keyboard is on layout 1's calendar or the
+    /// week view (layout 2's only scrolls, `scroll_month`), one item in the agenda, the tasks page, or the popup, and one calendar
     /// in the side menu
     fn scroll(&mut self, step: i8) {
         match self.focus {
             Focus::Calendar if self.view == View::Month => self.scroll_month(step),
-            Focus::Calendar => self.move_by(7 * i64::from(step)),
+            Focus::Calendar => self.move_weeks(i64::from(step)),
             Focus::Agenda => self.choose_next(isize::from(step)),
             Focus::Side => self.choose_group(isize::from(step)),
             Focus::Tasks => self.choose_task(isize::from(step)),
@@ -1532,6 +1541,7 @@ impl App {
                 View::Planner => self.calendar_top = None,
                 View::Month => self.selected_week_on_row_2(),
                 View::Tasks => {}
+                View::Week => self.week_top = None,
             },
         }
         if side {
@@ -1584,12 +1594,14 @@ impl App {
     }
 
     /// On the next draw, scroll the selected day's month to the top, in the layout shown only (the other
-    /// layout's scroll stays as it was left, see `set_view`)
+    /// layout's scroll stays as it was left, see `set_view`); the week view starts its 7 days at the
+    /// selected day
     fn scroll_to_month(&mut self) {
         match self.view {
             View::Planner => self.calendar_top = None,
             View::Month => self.month_top = None,
             View::Tasks => {}
+            View::Week => self.week_top = None,
         }
     }
 
@@ -1809,6 +1821,15 @@ impl App {
     /// Moves the selected day this many days later (negative = earlier)
     fn move_by(&mut self, days: i64) {
         self.selected = self.selected.saturating_add(days.days());
+    }
+
+    /// Moves the selected day `weeks` weeks later (negative = earlier); the week view's 7 days move along,
+    /// so the selected day keeps its box
+    fn move_weeks(&mut self, weeks: i64) {
+        self.move_by(7 * weeks);
+        if self.view == View::Week {
+            self.week_top = self.week_top.map(|top| top.saturating_add(weeks.weeks()));
+        }
     }
 }
 

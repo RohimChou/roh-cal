@@ -45,8 +45,8 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
     // column starts at the left column's widest line + 1; the top border says where the keyboard is
     let (area, rows, buffer) = draw(Lang::ZhTw, 70, 23, Help::default());
     // When centering does not divide evenly, the extra cell goes on the left (ratatui's `Flex::Center`):
-    // (70 − 56) / 2 = 7, (23 − 16) / 2: the extra row goes on top
-    assert_eq!(area, Rect::new(7, 4, 56, 16));
+    // (70 − 56) / 2 = 7, (23 − 17) / 2 = 3
+    assert_eq!(area, Rect::new(7, 3, 56, 17));
     assert_eq!(
         rows,
         [
@@ -56,8 +56,9 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
             "│    hjkl    移動                1       月曆 + 事項   │",
             "│    [ / ]   上個月 / 下個月     2       大月曆        │",
             "│    t       今天                3       任務頁        │",
-            "│    Enter   那天的事            s       日曆清單      │",
-            "│    a       在那天新增          .       隱藏做完的    │",
+            "│    Enter   那天的事            4       週            │",
+            "│    a       在那天新增          s       日曆清單      │",
+            "│                                .       隱藏做完的    │",
             "│                                Tab     換框          │",
             "│                                                      │",
             "│                              系統                    │",
@@ -71,10 +72,10 @@ fn short_page_puts_two_columns_in_the_middle_of_the_screen() {
     // Colors: the border is lit (keyboard focus is here); section names, keys and descriptions each have
     // their own color
     let theme = Theme::default();
-    assert_eq!(buffer[(7, 4)].fg, theme.focus);
-    assert_eq!(buffer[(10, 6)].fg, theme.help_section);
-    assert_eq!(buffer[(12, 7)].fg, theme.help_key);
-    assert_eq!(buffer[(20, 7)].fg, theme.text);
+    assert_eq!(buffer[(7, 3)].fg, theme.focus);
+    assert_eq!(buffer[(10, 5)].fg, theme.help_section);
+    assert_eq!(buffer[(12, 6)].fg, theme.help_key);
+    assert_eq!(buffer[(20, 6)].fg, theme.text);
     // Outside the box is still the screen underneath: the tab bar on top (layout 1's tab lit), layout 1's
     // top-left corner below it
     assert_eq!(buffer[(1, 0)].symbol(), "┃");
@@ -86,8 +87,8 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
     // Expected boxes computed by the same separate Python script: the tasks page, the calendar list, the
     // agenda (the day popup shares the agenda's keys)
     let (area, rows, _) = draw_in(Focus::Tasks, Lang::ZhTw, 70, 23, Help::default());
-    // (23 − 16) / 2: the extra row goes on top
-    assert_eq!(area, Rect::new(5, 4, 60, 16));
+    // (23 − 17) / 2 = 3
+    assert_eq!(area, Rect::new(5, 3, 60, 17));
     assert_eq!(
         rows,
         [
@@ -97,14 +98,15 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    j / k    選                    1        月曆 + 事項   │",
             "│    gg / G   第一件 / 最後一件     2        大月曆        │",
             "│    l / h    展開 / 收起           3        任務頁        │",
-            "│    Space    打勾                  s        日曆清單      │",
-            "│    /        進行中                .        隱藏做完的    │",
-            "│    e        編輯                  Tab      換框          │",
-            "│    a / A    新增 / 新增子任務                            │",
-            "│    r        改期                系統                     │",
-            "│    d        刪除                  ?        說明          │",
-            "│    u        復原                  ,        設定          │",
-            "│    o        編輯器                q        離開          │",
+            "│    Space    打勾                  4        週            │",
+            "│    /        進行中                s        日曆清單      │",
+            "│    e        編輯                  .        隱藏做完的    │",
+            "│    a / A    新增 / 新增子任務     Tab      換框          │",
+            "│    r        改期                                         │",
+            "│    d        刪除                系統                     │",
+            "│    u        復原                  ?        說明          │",
+            "│    o        編輯器                ,        設定          │",
+            "│                                   q        離開          │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────────╯",
         ]
@@ -119,13 +121,14 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    j / k    選                    1        月曆 + 事項   │",
             "│    gg / G   第一個 / 最後一個     2        大月曆        │",
             "│    [ / ]    上 / 下一個最外層     3        任務頁        │",
-            "│    Space    勾選                  s        日曆清單      │",
-            "│    Enter    只看這個 / 還原       .        隱藏做完的    │",
-            "│    a / A    新增 / 新增子日曆     Tab      換框          │",
-            "│    e        改名                                         │",
-            "│    d        刪除                系統                     │",
-            "│    L / H    往內 / 往外一層       ?        說明          │",
-            "│    z        封存 / 取消封存       ,        設定          │",
+            "│    Space    勾選                  4        週            │",
+            "│    Enter    只看這個 / 還原       s        日曆清單      │",
+            "│    a / A    新增 / 新增子日曆     .        隱藏做完的    │",
+            "│    e        改名                  Tab      換框          │",
+            "│    d        刪除                                         │",
+            "│    L / H    往內 / 往外一層     系統                     │",
+            "│    z        封存 / 取消封存       ?        說明          │",
+            "│                                   ,        設定          │",
             "│                                   q        離開          │",
             "│                                                          │",
             "╰ ?/Tab 全部按鍵 | q/Esc 關閉 ─────────────────────────────╯",
@@ -141,11 +144,12 @@ fn short_page_lists_the_keys_for_where_the_keyboard_is() {
             "│    j / k   選                    1       月曆 + 事項   │",
             "│    Space   打勾                  2       大月曆        │",
             "│    /       進行中                3       任務頁        │",
-            "│    e       編輯                  s       日曆清單      │",
-            "│    a / A   新增 / 新增子任務     .       隱藏做完的    │",
-            "│    r       改期                  Tab     換框          │",
-            "│    d       刪除                                        │",
-            "│    u       復原                系統                    │",
+            "│    e       編輯                  4       週            │",
+            "│    a / A   新增 / 新增子任務     s       日曆清單      │",
+            "│    r       改期                  .       隱藏做完的    │",
+            "│    d       刪除                  Tab     換框          │",
+            "│    u       復原                                        │",
+            "│                                系統                    │",
             "│                                  ?       說明          │",
             "│                                  ,       設定          │",
             "│                                  q       離開          │",
@@ -167,7 +171,7 @@ fn a_narrow_screen_stacks_the_columns() {
     // 44 cells cannot fit two columns (left 27 + 1 + right 23 + border 2 = 53): the right column goes below
     // the left one, with a blank line between
     let (area, rows, _) = draw(Lang::ZhTw, 44, 30, Help::default());
-    assert_eq!(area, Rect::new(6, 4, 32, 23));
+    assert_eq!(area, Rect::new(6, 3, 32, 24));
     assert_eq!(
         rows,
         [
@@ -184,6 +188,7 @@ fn a_narrow_screen_stacks_the_columns() {
             "│    1       月曆 + 事項       │",
             "│    2       大月曆            │",
             "│    3       任務頁            │",
+            "│    4       週                │",
             "│    s       日曆清單          │",
             "│    .       隱藏做完的        │",
             "│    Tab     換框              │",
@@ -218,8 +223,8 @@ fn files_are_listed_on_top_of_the_keys() {
         Some("/nonexistent/roh-cal/tasks.md"),
         Some("/nonexistent/roh-cal/config.toml"),
     );
-    let (area, rows, buffer) = draw_app(app, 70, 23, Help::default());
-    assert_eq!(area, Rect::new(7, 1, 56, 22));
+    let (area, rows, buffer) = draw_app(app, 70, 25, Help::default());
+    assert_eq!(area, Rect::new(7, 1, 56, 23));
     assert_eq!(
         rows,
         [
@@ -235,8 +240,9 @@ fn files_are_listed_on_top_of_the_keys() {
             "│    hjkl    移動                1       月曆 + 事項   │",
             "│    [ / ]   上個月 / 下個月     2       大月曆        │",
             "│    t       今天                3       任務頁        │",
-            "│    Enter   那天的事            s       日曆清單      │",
-            "│    a       在那天新增          .       隱藏做完的    │",
+            "│    Enter   那天的事            4       週            │",
+            "│    a       在那天新增          s       日曆清單      │",
+            "│                                .       隱藏做完的    │",
             "│                                Tab     換框          │",
             "│                                                      │",
             "│                              系統                    │",
@@ -280,7 +286,7 @@ fn a_part_of_a_path_wider_than_the_keys_widens_the_box_just_enough() {
     // path (no HOME): no line for it
     let app = app_with_files(Some("/nonexistent/roh-cal/tasks.md"), None);
     let (area, rows, _) = draw_app(app, 50, 30, Help::default());
-    assert_eq!(area, Rect::new(6, 1, 38, 28));
+    assert_eq!(area, Rect::new(6, 1, 38, 29));
     assert_eq!(
         rows[..8],
         [
@@ -312,7 +318,7 @@ fn dragged_over_path_characters_get_the_text_selection_background() {
         app
     };
     let theme = Theme::default();
-    let (_, _, buffer) = draw_app(dragged(), 70, 23, Help::default());
+    let (_, _, buffer) = draw_app(dragged(), 70, 25, Help::default());
     let marked = |buffer: &Buffer, x: u16, y: u16| buffer[(x, y)].bg == theme.text_selection;
     // 「roh-cal/」 on row 4 (columns 34–41) and 「task」 on row 5 (21–24), in the normal text color; the
     // characters around them are not marked

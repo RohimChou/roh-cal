@@ -56,8 +56,8 @@ pub struct Texts {
     /// The key hints on the bottom row (`s` = side menu: hides / shows it when wide enough, otherwise opens it
     /// over the left side)
     pub hints: &'static str,
-    /// The tab bar at the top: the names of the views `1` `2` `3` switch to, in that order
-    pub tabs: [&'static str; 3],
+    /// The tab bar at the top: the names of the views `1` `2` `3` `4` switch to, in that order
+    pub tabs: [&'static str; 4],
     /// Calendar header: the week number column (4 cells wide)
     pub header_week: &'static str,
     /// Monday to Sunday (`[0]` is Monday), each exactly 2 cells wide: the calendar header's names (it starts
@@ -226,7 +226,7 @@ impl HelpSection {
 const EN: Texts = Texts {
     lang: Lang::En,
     hints: " hjkl[] move  Tab pane  t today  s calendars  ? help  , settings  q quit",
-    tabs: ["calendar", "month", "tasks"],
+    tabs: ["calendar", "month", "tasks", "week"],
     header_week: " Wk ",
     weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
     header_items: " Agenda",
@@ -346,6 +346,7 @@ const EN: Texts = Texts {
                     ("1", "calendar + agenda"),
                     ("2", "month grid"),
                     ("3", "tasks page"),
+                    ("4", "week"),
                     ("s", "calendar list"),
                     (".", "hide done"),
                     ("Tab", "next pane"),
@@ -376,6 +377,7 @@ const EN: Texts = Texts {
                     ("1", "calendar + agenda"),
                     ("2", "month grid"),
                     ("3", "tasks page"),
+                    ("4", "week"),
                     ("Tab / Shift+Tab", "next / previous pane"),
                     ("s", "hide / show calendars"),
                     (".", "hide / show done tasks"),
@@ -502,7 +504,7 @@ const EN: Texts = Texts {
 const ZH_TW: Texts = Texts {
     lang: Lang::ZhTw,
     hints: " hjkl[] 移動  Tab 切換  t 今天  s 日曆  ? 說明  , 設定  q 離開",
-    tabs: ["月曆", "大月曆", "任務"],
+    tabs: ["月曆", "大月曆", "任務", "週"],
     header_week: " 週 ",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
     header_items: " 重要事項",
@@ -622,6 +624,7 @@ const ZH_TW: Texts = Texts {
                     ("1", "月曆 + 事項"),
                     ("2", "大月曆"),
                     ("3", "任務頁"),
+                    ("4", "週"),
                     ("s", "日曆清單"),
                     (".", "隱藏做完的"),
                     ("Tab", "換框"),
@@ -652,6 +655,7 @@ const ZH_TW: Texts = Texts {
                     ("1", "月曆 + 事項"),
                     ("2", "大月曆"),
                     ("3", "任務頁"),
+                    ("4", "週"),
                     ("Tab / Shift+Tab", "換框 / 反方向換框"),
                     ("s", "收起 / 打開日曆清單"),
                     (".", "隱藏 / 顯示做完的"),
@@ -825,6 +829,38 @@ impl Texts {
         match self.lang {
             Lang::En => EN_MONTHS[month_index(date)].to_string(),
             Lang::ZhTw => format!("{}月", date.month()),
+        }
+    }
+
+    /// A day's box title in the week view, e.g. `Tue 11/17` / `11/17（二）`
+    pub fn week_day_title(&self, date: Date) -> String {
+        // Monday = 0, Sunday = 6
+        let weekday = date.weekday().to_monday_zero_offset() as usize;
+        match self.lang {
+            Lang::En => format!("{} {}/{}", EN_WEEKDAYS[weekday], date.month(), date.day()),
+            Lang::ZhTw => format!(
+                "{}/{}（{}）",
+                date.month(),
+                date.day(),
+                self.weekdays[weekday]
+            ),
+        }
+    }
+
+    /// After today's box title in the week view: `today` / `今天`
+    pub fn week_today(&self) -> &'static str {
+        match self.lang {
+            Lang::En => "today",
+            Lang::ZhTw => "今天",
+        }
+    }
+
+    /// The last line of a week view box whose items do not all fit, e.g. `3 more, Enter shows all` /
+    /// `還有 3 件，Enter 看全部`
+    pub fn week_more(&self, count: usize) -> String {
+        match self.lang {
+            Lang::En => format!("{count} more, Enter shows all"),
+            Lang::ZhTw => format!("還有 {count} 件，Enter 看全部"),
         }
     }
 
@@ -1104,11 +1140,13 @@ impl Texts {
             (Lang::En, Place::View(View::Planner)) => "1 calendar",
             (Lang::En, Place::View(View::Month)) => "2 month grid",
             (Lang::En, Place::View(View::Tasks)) => "3 tasks page",
+            (Lang::En, Place::View(View::Week)) => "4 week",
             (Lang::En, Place::CalendarList) => "calendar list",
             (Lang::En, Place::DayPopup) => "day popup",
             (Lang::ZhTw, Place::View(View::Planner)) => "1 月曆",
             (Lang::ZhTw, Place::View(View::Month)) => "2 大月曆",
             (Lang::ZhTw, Place::View(View::Tasks)) => "3 任務頁",
+            (Lang::ZhTw, Place::View(View::Week)) => "4 週",
             (Lang::ZhTw, Place::CalendarList) => "日曆清單",
             (Lang::ZhTw, Place::DayPopup) => "那天的事",
         };

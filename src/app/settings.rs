@@ -36,7 +36,7 @@ pub struct SettingsPage {
 /// places is on screen)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
-    /// One of the views (`1` `2` `3`)
+    /// One of the views (`1` `2` `3` `4`)
     View(View),
     /// The calendar list on the left, while it is on screen
     CalendarList,

@@ -1420,8 +1420,9 @@ fn t_and_brackets_scroll_only_the_layout_shown() {
 
 #[test]
 fn clicking_a_tab_switches_like_its_number_key() {
-    // The tab bar on the top row (80 × 24): ` ┃ 1 calendar   2 month   3 tasks`; tab 1 at x 1-13 (its bar's
-    // cell, then 「 1 calendar 」), tab 2 at x 14-23, tab 3 at x 24-33; the blank before and after are no tab
+    // The tab bar on the top row (80 × 24): ` ┃ 1 calendar   2 month   3 tasks   4 week`; tab 1 at x 1-13
+    // (its bar's cell, then 「 1 calendar 」), tab 2 at x 14-23, tab 3 at x 24-33, tab 4 at x 34-42; the blank
+    // before and after are no tab
     let mut app = app_with(ITEMS);
     app.screen = Rect::new(0, 0, 80, 24);
     let click = |app: &mut App, column| {
@@ -1437,13 +1438,15 @@ fn clicking_a_tab_switches_like_its_number_key() {
         (13, View::Planner),
         (23, View::Month),
         (24, View::Tasks),
+        (34, View::Week),
+        (42, View::Week),
         (1, View::Planner),
     ] {
         click(&mut app, column);
         assert_eq!(app.view, view, "x {column}");
     }
     click(&mut app, 23);
-    for column in [0, 34] {
+    for column in [0, 43] {
         click(&mut app, column);
         assert_eq!(app.view, View::Month, "x {column}");
     }
@@ -1614,6 +1617,100 @@ fn t_puts_todays_week_on_row_2_in_the_month_view() {
     press(&mut app, KeyCode::Char('t'));
     assert_eq!(app.selected, date(2026, 10, 17));
     assert_eq!(app.month_top, Some(date(2026, 10, 4)));
+}
+
+#[test]
+fn j_k_and_the_wheel_move_the_week_views_seven_days_along() {
+    // The 7 days from 10/14, 10/17 selected (the 4th box): `j` moves both a week later, so 10/24 keeps the
+    // 4th box; `k` twice and the wheel up, a week earlier each
+    let mut app = app_with(ITEMS);
+    app.view = View::Week;
+    app.selected = date(2026, 10, 17);
+    app.week_top = Some(date(2026, 10, 14));
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(
+        (app.selected, app.week_top),
+        (date(2026, 10, 24), Some(date(2026, 10, 21)))
+    );
+    press(&mut app, KeyCode::Char('k'));
+    press(&mut app, KeyCode::Char('k'));
+    assert_eq!(
+        (app.selected, app.week_top),
+        (date(2026, 10, 10), Some(date(2026, 10, 7)))
+    );
+    app.handle_mouse(mouse_event(MouseEventKind::ScrollUp, 10, 10));
+    assert_eq!(
+        (app.selected, app.week_top),
+        (date(2026, 10, 3), Some(date(2026, 9, 30)))
+    );
+    // `h` / `l` only move the selected day (the next draw slides the 7 days when it leaves them)
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(
+        (app.selected, app.week_top),
+        (date(2026, 10, 4), Some(date(2026, 9, 30)))
+    );
+    // Layout 1's `j` leaves the week view's days alone
+    app.view = View::Planner;
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.week_top, Some(date(2026, 9, 30)));
+}
+
+#[test]
+fn t_brackets_and_another_day_start_the_week_view_at_the_selected_day() {
+    // `]`, `[`, `t`: the 7 days start at the day they select (`week_top` cleared until the next draw)
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.view = View::Week;
+    for (code, selected) in [
+        (KeyCode::Char(']'), date(2026, 11, 1)),
+        (KeyCode::Char('['), date(2026, 10, 1)),
+        (KeyCode::Char('t'), date(2026, 10, 17)),
+    ] {
+        app.week_top = Some(date(2027, 1, 1));
+        press(&mut app, code);
+        assert_eq!((app.selected, app.week_top), (selected, None), "{code:?}");
+    }
+    // Back from layout 1 with the same day selected: the 7 days stay; with another day: from that day
+    app.week_top = Some(date(2026, 10, 14));
+    press(&mut app, KeyCode::Char('1'));
+    press(&mut app, KeyCode::Char('4'));
+    assert_eq!(
+        (app.view, app.week_top),
+        (View::Week, Some(date(2026, 10, 14)))
+    );
+    press(&mut app, KeyCode::Char('1'));
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('4'));
+    assert_eq!((app.view, app.week_top), (View::Week, None));
+}
+
+#[test]
+fn the_mouse_works_in_the_week_view() {
+    // 80 × 25: below the tab bar, 4 rows of boxes at y 1-6, 7-12, 13-18, 19-23, the left box at x 0-39 and
+    // the right at x 40-79; the 7 days from 10/12
+    let mut app = app_with(ITEMS);
+    app.view = View::Week;
+    app.screen = Rect::new(0, 0, 80, 25);
+    app.selected = date(2026, 10, 12);
+    app.week_top = Some(date(2026, 10, 12));
+    let click = |app: &mut App, column, row| {
+        app.handle_mouse(mouse_event(
+            MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+        ));
+    };
+    // Anywhere in a box selects its day: the 3rd box (row 2, left), the 6th (row 3, right, its corner)
+    click(&mut app, 5, 9);
+    assert_eq!(app.selected, date(2026, 10, 14));
+    click(&mut app, 79, 18);
+    assert_eq!(app.selected, date(2026, 10, 17));
+    // The 8th box (row 4, right) is no day
+    click(&mut app, 60, 21);
+    assert_eq!(app.selected, date(2026, 10, 17));
+    // A double click on the 7th box (row 4, left) opens that day's popup
+    click(&mut app, 5, 21);
+    click(&mut app, 5, 21);
+    assert_eq!((app.selected, app.focus), (date(2026, 10, 18), Focus::Day));
 }
 
 #[test]

@@ -80,7 +80,7 @@ fn calendar_from_this_month_down_with_a_thick_line_between_years() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  │",
             "│──────────┼─────────────────────────────│",
@@ -116,7 +116,7 @@ fn calendar_in_english() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  │",
             "│──────────┼─────────────────────────────│",
@@ -139,7 +139,7 @@ fn selection_brackets_and_the_month_on_top() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  │",
             "│──────────┼─────────────────────────────│",
@@ -157,7 +157,7 @@ fn selection_brackets_and_the_month_on_top() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮",
             "│2027年 週 │ 日  一  二  三  四  五  六  │",
             "│──────────┼─────────────────────────────│",
@@ -185,7 +185,7 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 12).backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  │",
             "│──────────┼─────────────────────────────│",
@@ -204,7 +204,7 @@ fn calendar_scrolls_down_only_when_the_selection_gets_close_to_the_bottom() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 12).backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────────╮",
             "│  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  │",
             "│──────────┼─────────────────────────────│",
@@ -230,7 +230,7 @@ fn calendar_scrolls_up_into_earlier_months() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 11).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  │",
             "│──────────┼─────────────────────────────│",
@@ -527,7 +527,7 @@ fn side_menu_lists_the_calendars_when_wide() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ 日曆                               ││2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項                    2026/10/17（六） │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
@@ -562,7 +562,7 @@ fn side_menu_lists_the_calendars_when_wide() {
     assert_eq!(
         text_rows(draw_app(&mut app, 128, 15).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項                                                          2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────────────────────────────────────────────────────────────────────│",
@@ -591,7 +591,7 @@ fn unchecked_calendars_hide_their_items() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────╮╭────────────────────────────────────────╮╭──────────────────────────────────────────────╮",
             "│ Calendars                          ││  2026 Wk │ Mo  Tu  We  Th  Fr  Sa  Su  ││ Agenda                      Sat Oct 17, 2026 │",
             "│────────────────────────────────────││──────────┼─────────────────────────────││──────────────────────────────────────────────│",
@@ -636,7 +636,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ 日曆                ││2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項                                   2026/10/17（六） │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
@@ -683,7 +683,7 @@ fn archived_calendars_get_their_own_part_at_the_bottom_of_the_side_menu() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭─────────────────────╮╭────────────────────────────────────────╮╭─────────────────────────────────────────────────────────────╮",
             "│ Calendars           ││  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  ││ Agenda                                     Sat Oct 17, 2026 │",
             "│─────────────────────││──────────┼─────────────────────────────││─────────────────────────────────────────────────────────────│",
@@ -886,7 +886,7 @@ fn agenda_lists_each_months_items_next_to_it() {
     assert_eq!(
         text_rows(draw_app(&mut app, 77, 23).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -922,7 +922,7 @@ fn the_calendar_without_dots() {
     assert_eq!(
         text_rows(draw_app(&mut app, 77, 23).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -958,7 +958,7 @@ fn the_agenda_stays_one_column_when_wide() {
     assert_eq!(
         text_rows(draw_app(&mut app, 102, 15).backend().buffer()),
         [
-            " ┃ 1 calendar   2 month   3 tasks",
+            " ┃ 1 calendar   2 month   3 tasks   4 week",
             "╭────────────────────────────────────────╮╭──────────────────────────────────────────────────────────╮",
             "│  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa  ││ Agenda                                  Sat Oct 17, 2026 │",
             "│──────────┼─────────────────────────────││──────────────────────────────────────────────────────────│",
@@ -1123,7 +1123,7 @@ fn agenda_focus_highlights_the_chosen_item() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1228,7 +1228,7 @@ fn a_capped_month_scrolls_inside_while_choosing_items() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1268,7 +1268,7 @@ fn the_agenda_follows_the_calendar() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/20（二） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -1359,7 +1359,7 @@ fn a_hint_tells_how_many_more_items_a_month_has() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -2032,7 +2032,7 @@ fn multi_day_items_are_listed_once_per_month() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項       2026/10/17（六） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -2092,7 +2092,7 @@ fn multi_day_items_are_listed_once_per_month() {
     assert_eq!(
         text_rows(draw_app(&mut app, 77, 31).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭─────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  ││ 重要事項        2026/11/2（一） │",
             "│──────────┼─────────────────────────────││─────────────────────────────────│",
@@ -2362,7 +2362,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭───────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││  2026/10/17（六） │",
             "│──────────┼─────────────────────────────││───────────────────│",
@@ -2378,7 +2378,7 @@ fn the_agenda_header_keeps_the_whole_date_when_narrow() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮╭────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  ││   2026/10/17（六） │",
             "│──────────┼─────────────────────────────││────────────────────│",
@@ -2403,7 +2403,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 30).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2440,7 +2440,7 @@ fn month_view_fills_the_space_with_six_equal_weeks() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 28).backend().buffer()),
         [
-            "   1 calendar ┃ 2 month   3 tasks",
+            "   1 calendar ┃ 2 month   3 tasks   4 week",
             "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
             "│  Wk   Su         Mo         Tu         We        Th        Fr        Sa      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2490,7 +2490,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 31).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2528,7 +2528,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 25).backend().buffer()),
         [
-            "   1 calendar ┃ 2 month   3 tasks",
+            "   1 calendar ┃ 2 month   3 tasks   4 week",
             "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
             "│  Wk   Su         Mo         Tu         We        Th        Fr        Sa      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2561,7 +2561,7 @@ fn month_view_lists_each_days_items_in_its_cell() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2641,7 +2641,7 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
@@ -2672,7 +2672,7 @@ fn month_view_with_the_side_menu_hides_unchecked_calendars() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────╮╭─────────────────────────────────────── 2026/10/17（六） ────────────────────────────────────────╮",
             "│ 日曆               ││  週   一            二           三           四           五           六           日         │",
             "│────────────────────│├─────┬─────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┤",
@@ -2717,7 +2717,7 @@ fn month_view_without_grid_lines_gives_the_cells_more_room() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 25).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週  一         二         三         四        五        六        日       │",
             "│  40  28         29         30        │1 10月    2         3         4        │",
@@ -2799,7 +2799,7 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2824,7 +2824,7 @@ fn month_view_keeps_the_selected_week_in_the_middle() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/11/2（一） ───────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2855,7 +2855,7 @@ fn weeks_start_on_monday_when_set() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 15).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 一  二  三  四  五  六  日  │",
             "│──────────┼─────────────────────────────│",
@@ -2878,7 +2878,7 @@ fn weeks_start_on_monday_when_set() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 calendar ┃ 2 month   3 tasks",
+            "   1 calendar ┃ 2 month   3 tasks   4 week",
             "╭────────────────────────────── Sat Oct 17, 2026 ──────────────────────────────╮",
             "│  Wk   Mo         Tu         We         Th        Fr        Sa        Su      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -2953,7 +2953,7 @@ fn relative_week_numbers_in_both_layouts() {
     assert_eq!(
         text_rows(draw_app(&mut app, 42, 15).backend().buffer()),
         [
-            " ┃ 1 月曆   2 大月曆   3 任務",
+            " ┃ 1 月曆   2 大月曆   3 任務   4 週",
             "╭────────────────────────────────────────╮",
             "│2026年 週 │ 日  一  二  三  四  五  六  │",
             "│──────────┼─────────────────────────────│",
@@ -2975,7 +2975,7 @@ fn relative_week_numbers_in_both_layouts() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -3009,7 +3009,7 @@ fn month_view_lists_a_multi_day_item_on_each_of_its_days() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/10/17（六） ──────────────────────────────╮",
             "│  週   一         二         三         四        五        六        日      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -3133,7 +3133,7 @@ fn tasks_page_with_collapsed_calendars() {
     assert_eq!(
         text_rows(draw_app(&mut app, 60, 22).backend().buffer()),
         [
-            "   1 calendar   2 month ┃ 3 tasks",
+            "   1 calendar   2 month ┃ 3 tasks   4 week",
             "╭──────────────────────────────────────────────────────────╮",
             "│ Tasks                                                    │",
             "│──────────────────────────────────────────────────────────│",
@@ -3174,7 +3174,7 @@ fn tasks_page_lists_calendars_inside_calendars_as_a_tree() {
     assert_eq!(
         text_rows(draw_app(&mut app, 60, 23).backend().buffer()),
         [
-            "   1 calendar   2 month ┃ 3 tasks",
+            "   1 calendar   2 month ┃ 3 tasks   4 week",
             "╭──────────────────────────────────────────────────────────╮",
             "│ Tasks                                                    │",
             "│──────────────────────────────────────────────────────────│",
@@ -3270,7 +3270,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
     assert_eq!(
         text_rows(draw_app(&mut app, 70, 30).backend().buffer()),
         [
-            "   1 月曆   2 大月曆 ┃ 3 任務",
+            "   1 月曆   2 大月曆 ┃ 3 任務   4 週",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3310,7 +3310,7 @@ fn tasks_page_lists_the_file_as_a_tree() {
     assert_eq!(
         text_rows(draw_app(&mut app, 70, 16).backend().buffer()),
         [
-            "   1 calendar   2 month ┃ 3 tasks",
+            "   1 calendar   2 month ┃ 3 tasks   4 week",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ Tasks                                                 1 mistake(s) │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3458,7 +3458,7 @@ fn tasks_page_points_at_format_mistakes() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 月曆   2 大月曆 ┃ 3 任務",
+            "   1 月曆   2 大月曆 ┃ 3 任務   4 週",
             "╭────────────────────────────────────────────────────────────────────╮",
             "│ 任務                                                      1 處寫錯 │",
             "│────────────────────────────────────────────────────────────────────│",
@@ -3502,7 +3502,7 @@ fn tasks_page_with_the_side_menu() {
     assert_eq!(
         text_rows(draw_app(&mut app, 121, 16).backend().buffer()),
         [
-            "   1 月曆   2 大月曆 ┃ 3 任務",
+            "   1 月曆   2 大月曆 ┃ 3 任務   4 週",
             "╭──────────────────────╮╭───────────────────────────────────────────────────────────────────────────────────────────────╮",
             "│ 日曆                 ││ 任務                                                                                 1 處寫錯 │",
             "│──────────────────────││───────────────────────────────────────────────────────────────────────────────────────────────│",
@@ -3819,7 +3819,7 @@ fn month_view_scrolls_a_row_at_a_time() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 calendar ┃ 2 month   3 tasks",
+            "   1 calendar ┃ 2 month   3 tasks   4 week",
             "╭────────────────────────────── Mon Nov 16, 2026 ──────────────────────────────╮",
             "│  Wk   Su         Mo         Tu         We        Th        Fr        Sa      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -3846,7 +3846,7 @@ fn month_view_scrolls_a_row_at_a_time() {
     assert_eq!(
         text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭────────────────────────────── 2026/9/20（日） ───────────────────────────────╮",
             "│  週   日         一         二         三        四        五        六      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┬─────────┬─────────┤",
@@ -4068,7 +4068,7 @@ fn month_view_puts_the_week_across_the_new_year_on_one_row() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 calendar ┃ 2 month   3 tasks",
+            "   1 calendar ┃ 2 month   3 tasks   4 week",
             "╭────────────────────────────── Fri Jan 1, 2027 ───────────────────────────────╮",
             "│  Wk   Su         Mo         Tu         We        Th        Fr        Sa      │",
             "├─────┬──────────┬──────────┬──────────┬─────────┬─────────┰─────────┬─────────┤",
@@ -4145,7 +4145,7 @@ fn month_view_without_grid_lines_draws_only_the_months_edges() {
     assert_eq!(
         text_rows(terminal.backend().buffer()),
         [
-            "   1 月曆 ┃ 2 大月曆   3 任務",
+            "   1 月曆 ┃ 2 大月曆   3 任務   4 週",
             "╭─────────────────────────────── 2027/1/1（五） ───────────────────────────────╮",
             "│  週  日         一         二         三        四        五        六       │",
             "│   1  27         28         29         30        31       ┃1 1月     2        │",
@@ -4959,13 +4959,27 @@ fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
     let top =
         |app: &mut App, width| text_rows(draw_app(app, width, 12).backend().buffer())[0].clone();
     let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
-    assert_eq!(top(&mut app, 60), " ┃ 1 calendar   2 month   3 tasks");
+    assert_eq!(
+        top(&mut app, 60),
+        " ┃ 1 calendar   2 month   3 tasks   4 week"
+    );
     app.view = View::Tasks;
     app.focus = Focus::Tasks;
-    assert_eq!(top(&mut app, 60), "   1 calendar   2 month ┃ 3 tasks");
-    app.view = View::Month;
+    assert_eq!(
+        top(&mut app, 60),
+        "   1 calendar   2 month ┃ 3 tasks   4 week"
+    );
+    app.view = View::Week;
     app.focus = Focus::Calendar;
-    assert_eq!(top(&mut app, 60), "   1 calendar ┃ 2 month   3 tasks");
+    assert_eq!(
+        top(&mut app, 60),
+        "   1 calendar   2 month   3 tasks ┃ 4 week"
+    );
+    app.view = View::Month;
+    assert_eq!(
+        top(&mut app, 60),
+        "   1 calendar ┃ 2 month   3 tasks   4 week"
+    );
     // Colors (layout 2 shown: its bar at x 14, 「 2 month 」 at x 15-23; nord-bright, computed apart): the
     // whole tab on one background, the selection color #5c5366 a quarter of the way to the theme's
     // background nord0 #2e3440; the bar is the focus color #c69bbe a little faint, 35% of the way to the
@@ -5000,7 +5014,7 @@ fn the_tab_bar_lists_the_views_and_lights_the_shown_one() {
     assert!((14..=23).all(|x| buffer[(x, 0)].bg == app.theme.selection));
     // In Chinese; on a narrow screen the end is cut off
     let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
-    assert_eq!(top(&mut app, 60), " ┃ 1 月曆   2 大月曆   3 任務");
+    assert_eq!(top(&mut app, 60), " ┃ 1 月曆   2 大月曆   3 任務   4 週");
     assert_eq!(top(&mut app, 25), " ┃ 1 月曆   2 大月曆   3");
 }
 
@@ -5012,6 +5026,7 @@ fn with_the_tab_bar_off_the_views_take_the_top_row() {
         (View::Planner, Focus::Calendar),
         (View::Month, Focus::Calendar),
         (View::Tasks, Focus::Tasks),
+        (View::Week, Focus::Calendar),
     ] {
         let mut with_bar = App::new(Lang::En, date(2026, 10, 17), Vec::new());
         (with_bar.view, with_bar.focus) = (view, focus);
@@ -5031,4 +5046,263 @@ fn with_the_tab_bar_off_the_views_take_the_top_row() {
     draw_app(&mut app, 47, 26);
     assert_eq!(tab_at(&app, 3, 0), None);
     assert_eq!(date_at(&app, 33, 5), Some(date(2026, 10, 16)));
+}
+
+/// The week view with `selected` selected, items from `text` (today is 10/17)
+fn week_app(lang: Lang, selected: Date, text: &str) -> App {
+    let mut app = App::new(lang, date(2026, 10, 17), crate::tasks::parse(text).items);
+    app.view = View::Week;
+    app.selected = selected;
+    app
+}
+
+#[test]
+fn week_view_lists_each_days_items_one_per_line() {
+    // 80 × 25: 4 rows of boxes 6, 6, 6, 5 rows tall, two 40-cell boxes a row; just opened, the 7 days start
+    // at the selected day (10/12). Each item takes one line like in the day popup (check box or ∙, time,
+    // title), in the month grid's order (in progress first, then without a time, then by time); a title
+    // too long is cut one cell before the border. Today (10/17) says 「今天」; the 8th box stays blank
+    let mut app = week_app(Lang::ZhTw, date(2026, 10, 12), MONTH_TASKS);
+    let terminal = draw_app(&mut app, 80, 25);
+    assert_eq!(
+        text_rows(terminal.backend().buffer()),
+        [
+            "   1 月曆   2 大月曆   3 任務 ┃ 4 週",
+            "╭─ 10/12（一） ────────────────────────╮╭─ 10/13（二） ────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/14（三） ────────────────────────╮╭─ 10/15（四） ────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/16（五） ────────────────────────╮╭─ 10/17（六） 今天 ───────────────────╮",
+            "│ ◌\u{a0}18:30 🚧 Team happy hour           ││ ∙ Dinner with friends                │",
+            "│ ◌\u{a0}Clean up notes                     ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "│ ◌\u{a0}Book a checkup                     ││                                      │",
+            "│ ◌\u{a0}17:30 Send the weekly update       ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ 10/18（日） ────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    │",
+            "│                                      │",
+            "│                                      │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    // Colors: the selected day's border in `focus`, the other days' in `line`; 「今天」 in `today`
+    let buffer = terminal.backend().buffer();
+    let theme = Theme::default();
+    assert_eq!(buffer[(0, 1)].fg, theme.focus);
+    assert_eq!(buffer[(39, 6)].fg, theme.focus);
+    assert_eq!(buffer[(40, 1)].fg, theme.line);
+    let today = (40..80)
+        .find(|&x| buffer[(x, 13)].symbol() == "今")
+        .expect("今天 on 10/17's border");
+    assert_eq!(buffer[(today, 13)].fg, theme.today);
+    // 80 × 17: boxes 4, 4, 4, 3 rows tall; 10/16's 4 items do not fit in its 2 lines: 1 is listed and the
+    // last line says how many more
+    let mut app = week_app(Lang::En, date(2026, 10, 12), MONTH_TASKS);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Mon 10/12 ──────────────────────────╮╭─ Tue 10/13 ──────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Wed 10/14 ──────────────────────────╮╭─ Thu 10/15 ──────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Fri 10/16 ──────────────────────────╮╭─ Sat 10/17 today ────────────────────╮",
+            "│ ◌\u{a0}18:30 🚧 Team happy hour           ││ ∙ Dinner with friends                │",
+            "│              3 more, Enter shows all ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sun 10/18 ──────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+}
+
+#[test]
+fn week_view_lists_a_multi_day_item_on_each_of_its_days() {
+    // From 10/28: Manager OOO (10/28 to 11/3) on each of the 7 days, with its dates in front (across the
+    // month's end); the monthly report on 11/1 after it (it starts later)
+    let mut app = week_app(Lang::En, date(2026, 10, 28), RANGE_TASKS);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Wed 10/28 ──────────────────────────╮╭─ Thu 10/29 ──────────────────────────╮",
+            "│ ∙ 10/28~11/3 Manager OOO             ││ ∙ 10/28~11/3 Manager OOO             │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Fri 10/30 ──────────────────────────╮╭─ Sat 10/31 ──────────────────────────╮",
+            "│ ∙ 10/28~11/3 Manager OOO             ││ ∙ 10/28~11/3 Manager OOO             │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sun 11/1 ───────────────────────────╮╭─ Mon 11/2 ───────────────────────────╮",
+            "│ ∙ 10/28~11/3 Manager OOO             ││ ∙ 10/28~11/3 Manager OOO             │",
+            "│ ◌\u{a0}Prepare the monthly report         ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Tue 11/3 ───────────────────────────╮",
+            "│ ∙ 10/28~11/3 Manager OOO             │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+}
+
+#[test]
+fn week_view_with_the_side_menu_hides_unchecked_calendars() {
+    // 121 cells wide: the side menu on the far left, the boxes share the rest; then calendar 1 unchecked:
+    // its items leave the boxes
+    let mut app = week_app(Lang::ZhTw, date(2026, 10, 12), MONTH_TASKS);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 121, 23).backend().buffer()),
+        [
+            "   1 月曆   2 大月曆   3 任務 ┃ 4 週",
+            "╭────────────────────╮╭─ 10/12（一） ──────────────────────────────────╮╭─ 10/13（二） ─────────────────────────────────╮",
+            "│ 日曆               ││ ◌\u{a0}14:00 Code review: Amy's PR                  ││ ◌\u{a0}15:00 Confirm alerting with SRE             │",
+            "│────────────────────││                                                ││                                               │",
+            "│ ◌\u{a0}隱藏全部         ││                                                ││                                               │",
+            "│ ◌\u{a0}隱藏做完的       ││                                                ││                                               │",
+            "│────────────────────│╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│ ✓\u{a0}未分組         7 │╭─ 10/14（三） ──────────────────────────────────╮╭─ 10/15（四） ─────────────────────────────────╮",
+            "│ ✓\u{a0}Personal       8 ││                                                ││ ✓\u{a0}Fix the login bug                           │",
+            "│                    ││                                                ││                                               │",
+            "│                    ││                                                ││                                               │",
+            "│                    │╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│                    │╭─ 10/16（五） ──────────────────────────────────╮╭─ 10/17（六） 今天 ────────────────────────────╮",
+            "│                    ││ ◌\u{a0}18:30 🚧 Team happy hour                     ││ ∙ Dinner with friends                         │",
+            "│                    ││ ◌\u{a0}Clean up notes                               ││ ◌\u{a0}08:00 Coffee chat                           │",
+            "│                    ││                        還有 2 件，Enter 看全部 ││                                               │",
+            "│                    │╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│                    │╭─ 10/18（日） ──────────────────────────────────╮",
+            "│                    ││ ◌\u{a0}07:00 Go hiking                              │",
+            "│                    ││                                                │",
+            "│                    ││                                                │",
+            "╰────────────────────╯╰────────────────────────────────────────────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+    app.groups[1].shown = false;
+    assert_eq!(
+        text_rows(draw_app(&mut app, 121, 23).backend().buffer()),
+        [
+            "   1 月曆   2 大月曆   3 任務 ┃ 4 週",
+            "╭────────────────────╮╭─ 10/12（一） ──────────────────────────────────╮╭─ 10/13（二） ─────────────────────────────────╮",
+            "│ 日曆               ││ ◌\u{a0}14:00 Code review: Amy's PR                  ││ ◌\u{a0}15:00 Confirm alerting with SRE             │",
+            "│────────────────────││                                                ││                                               │",
+            "│ ◌\u{a0}隱藏全部         ││                                                ││                                               │",
+            "│ ◌\u{a0}隱藏做完的       ││                                                ││                                               │",
+            "│────────────────────│╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│ ✓\u{a0}未分組         7 │╭─ 10/14（三） ──────────────────────────────────╮╭─ 10/15（四） ─────────────────────────────────╮",
+            "│ ◌\u{a0}Personal       8 ││                                                ││ ✓\u{a0}Fix the login bug                           │",
+            "│                    ││                                                ││                                               │",
+            "│                    ││                                                ││                                               │",
+            "│                    │╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│                    │╭─ 10/16（五） ──────────────────────────────────╮╭─ 10/17（六） 今天 ────────────────────────────╮",
+            "│                    ││ ◌\u{a0}18:30 🚧 Team happy hour                     ││                                               │",
+            "│                    ││ ◌\u{a0}Clean up notes                               ││                                               │",
+            "│                    ││                        還有 2 件，Enter 看全部 ││                                               │",
+            "│                    │╰────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯",
+            "│                    │╭─ 10/18（日） ──────────────────────────────────╮",
+            "│                    ││                                                │",
+            "│                    ││                                                │",
+            "│                    ││                                                │",
+            "╰────────────────────╯╰────────────────────────────────────────────────╯",
+            " hjkl[] 移動 | Tab 切換 | t 今天 | s 日曆 | ? 說明 | , 設定 | q 離開",
+        ]
+    );
+}
+
+#[test]
+fn the_week_view_slides_a_day_at_its_edges() {
+    // From 10/12: `h` on the first box (10/12) slides the 7 days a day earlier, 10/11 in the first box;
+    // `l` 7 times then goes past the last box (10/17) to 10/18: they slide a day later, 10/12 to 10/18,
+    // the selected day in the last box. `j` moves them a week along: the selected day keeps its box
+    use crate::test_utils::press;
+    use ratatui::crossterm::event::KeyCode;
+    let mut app = week_app(Lang::En, date(2026, 10, 12), MONTH_TASKS);
+    draw_app(&mut app, 80, 17);
+    press(&mut app, KeyCode::Char('h'));
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Sun 10/11 ──────────────────────────╮╭─ Mon 10/12 ──────────────────────────╮",
+            "│                                      ││ ◌\u{a0}14:00 Code review: Amy's PR        │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Tue 10/13 ──────────────────────────╮╭─ Wed 10/14 ──────────────────────────╮",
+            "│ ◌\u{a0}15:00 Confirm alerting with SRE    ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Thu 10/15 ──────────────────────────╮╭─ Fri 10/16 ──────────────────────────╮",
+            "│ ✓\u{a0}Fix the login bug                  ││ ◌\u{a0}18:30 🚧 Team happy hour           │",
+            "│                                      ││              3 more, Enter shows all │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sat 10/17 today ────────────────────╮",
+            "│              2 more, Enter shows all │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+    for _ in 0..7 {
+        press(&mut app, KeyCode::Char('l'));
+    }
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Mon 10/12 ──────────────────────────╮╭─ Tue 10/13 ──────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Wed 10/14 ──────────────────────────╮╭─ Thu 10/15 ──────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Fri 10/16 ──────────────────────────╮╭─ Sat 10/17 today ────────────────────╮",
+            "│ ◌\u{a0}18:30 🚧 Team happy hour           ││ ∙ Dinner with friends                │",
+            "│              3 more, Enter shows all ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sun 10/18 ──────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Mon 10/19 ──────────────────────────╮╭─ Tue 10/20 ──────────────────────────╮",
+            "│                                      ││ ◌\u{a0}A really long title that spills ov │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Wed 10/21 ──────────────────────────╮╭─ Thu 10/22 ──────────────────────────╮",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Fri 10/23 ──────────────────────────╮╭─ Sat 10/24 ──────────────────────────╮",
+            "│                                      ││                                      │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sun 10/25 ──────────────────────────╮",
+            "│                                      │",
+            "╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+    assert_eq!(app.selected, date(2026, 10, 25));
 }

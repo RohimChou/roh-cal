@@ -52,6 +52,10 @@ PLAN = {
     "month_view_puts_the_week_across_the_new_year_on_one_row": [(["en", "80", "31", "2027-01-01"], False, {"LAYOUT": "2"})],
     "month_view_without_grid_lines_draws_only_the_months_edges": [(["zh", "80", "25", "2027-01-01"], False, {"LAYOUT": "2", "NO_GRID": "1"})],
     "month_view_scrolls_a_row_at_a_time": [(["en", "80", "17", "2026-11-16", "2026-09-28"], False, {"LAYOUT": "2"}), (["zh", "80", "17", "2026-09-20", "2026-10-12"], False, {"LAYOUT": "2"})],
+    "week_view_lists_each_days_items_one_per_line": [(["zh", "80", "25", "2026-10-12"], "month.md", {"LAYOUT": "4"}), (["en", "80", "17", "2026-10-12"], "month.md", {"LAYOUT": "4"})],
+    "week_view_lists_a_multi_day_item_on_each_of_its_days": [(["en", "80", "17", "2026-10-28"], "ranges.md", {"LAYOUT": "4"})],
+    "week_view_with_the_side_menu_hides_unchecked_calendars": [(["zh", "121", "23", "2026-10-12"], "month.md", {"LAYOUT": "4"}), (["zh", "121", "23", "2026-10-12"], "month.md", {"LAYOUT": "4", "HIDDEN": "1"})],
+    "the_week_view_slides_a_day_at_its_edges": [(["en", "80", "17", "2026-10-11", "2026-10-11"], "month.md", {"LAYOUT": "4"}), (["en", "80", "17", "2026-10-18", "2026-10-12"], "month.md", {"LAYOUT": "4"}), (["en", "80", "17", "2026-10-25", "2026-10-19"], "month.md", {"LAYOUT": "4"})],
 }
 
 
