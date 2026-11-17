@@ -7,15 +7,17 @@ mod moving;
 mod picker;
 mod settings;
 mod tasks;
+mod text_drag;
 mod write;
 
-pub use day::{DayEntry, TextDrag, TextSpot};
+pub use day::DayEntry;
 pub use editor::{Editor, Target};
 pub use help::Help;
 pub use moving::Moving;
 pub use picker::Picker;
 pub use settings::{Place, Row, SettingsPage, rows};
 pub use tasks::TaskRow;
+pub use text_drag::{TextDrag, TextSpot};
 pub use write::Notice;
 
 use crate::{

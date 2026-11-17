@@ -2,7 +2,7 @@
 //! items on the selected day (also ones a cell cannot fit and shows as `+N`), each subtask under its parent.
 //! The keys are the same as in layout 1's agenda (drawing is in `ui::day`)
 
-use super::{App, ClickTarget, Focus};
+use super::{App, ClickTarget, Focus, TextDrag, TextSpot, text_drag};
 use crate::tasks::Item;
 use crate::ui;
 use ratatui::{crossterm::event::KeyCode, layout::Position};
@@ -16,22 +16,6 @@ pub struct DayEntry<'a> {
     pub item: &'a Item,
     /// Whether the item is on the selected day; `false` = only listed so its subtasks show whose they are
     pub on_day: bool,
-}
-
-/// A spot in the popup's text: the `char`-th character of the title of the `item`-th item (`App::day_items`).
-/// Sorting goes in reading order: by item, then by character
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TextSpot {
-    pub item: usize,
-    pub char: usize,
-}
-
-/// Text being dragged over with the mouse in the popup: the character where the left button went down, and
-/// once the mouse has moved with it held, the character it is over now
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TextDrag {
-    pub anchor: TextSpot,
-    pub head: Option<TextSpot>,
 }
 
 impl App {
@@ -126,29 +110,19 @@ impl App {
     /// The text dragged over in the popup, from its first to its last character (both included, in reading
     /// order); `None` until the mouse moves with the button held
     pub fn day_selection(&self) -> Option<(TextSpot, TextSpot)> {
-        let drag = self.day_drag?;
-        let head = drag.head?;
-        Some((drag.anchor.min(head), drag.anchor.max(head)))
+        self.day_drag?.range()
     }
 
     /// The dragged-over text (`day_selection`): each item's part of its title, one item per line (a title
     /// wrapped in the popup is still one line), e.g. 「Send the weekly update\nPack」
     pub fn day_selected_text(&self) -> Option<String> {
         let (first, last) = self.day_selection()?;
-        let items = self.day_items();
-        let lines: Vec<String> = (first.item..=last.item)
-            .filter_map(|index| {
-                let title = &items.get(index)?.title;
-                let from = if index == first.item { first.char } else { 0 };
-                let to = if index == last.item {
-                    last.char + 1
-                } else {
-                    usize::MAX
-                };
-                Some(title.chars().take(to).skip(from).collect())
-            })
+        let titles: Vec<&str> = self
+            .day_items()
+            .iter()
+            .map(|item| item.title.as_str())
             .collect();
-        Some(lines.join("\n"))
+        Some(text_drag::text_between(&titles, first, last))
     }
 
     /// The left button let go in the popup: the text dragged over (if any) goes to the clipboard (the main
