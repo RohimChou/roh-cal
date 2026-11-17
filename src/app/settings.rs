@@ -134,7 +134,8 @@ impl Row {
             Self::Color("selected" | "range_overlap") => Some(PLANNER),
             // The calendar list's ✓ and the day popup's switch
             Self::Color("checked") => Some(&[Place::CalendarList, Place::DayPopup]),
-            // Only the day popup's text can be dragged over
+            // Text is dragged over in the day popup and on the help page; the help page is never open
+            // with the settings page
             Self::Color("text_selection") => Some(&[Place::DayPopup]),
             Self::Theme | Self::CrossOutDone | Self::TabBar | Self::HideDone | Self::Color(_) => {
                 None

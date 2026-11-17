@@ -1,8 +1,10 @@
 //! Dragging over text with the mouse to copy it: where the drag is, and the text it went over. Used where
-//! text can be copied: the day popup's titles (`App::day_drag`)
+//! text can be copied: the day popup's titles (`App::day_drag`) and the help page's file paths
+//! (`App::help_drag`)
 
-/// A spot in a list of texts (e.g. the day popup's titles, `App::day_items`): the `char`-th character of the
-/// `item`-th text. Sorting goes in reading order: by item, then by character
+/// A spot in a list of texts (e.g. the day popup's titles, `App::day_items`; the help page's paths,
+/// `App::help_files`): the `char`-th character of the `item`-th text. Sorting goes in reading order: by
+/// item, then by character
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TextSpot {
     pub item: usize,

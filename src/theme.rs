@@ -44,8 +44,8 @@ pub struct Theme {
     /// selected day's cell in the month grid, the chosen row in the agenda, the tasks page, the calendar list
     /// and the settings page
     pub selection: Color,
-    /// Background of text dragged over with the mouse in the day popup (its characters turn the normal text
-    /// color): the theme's blue mixed with the background, lighter than `selection`, so it shows on the chosen
+    /// Background of text dragged over with the mouse in the day popup or on the help page (its characters
+    /// turn the normal text color): the theme's blue mixed with the background, lighter than `selection`, so it shows on the chosen
     /// row too
     pub text_selection: Color,
     /// The background the theme is made for (roh-cal leaves the terminal's own background alone): the shown

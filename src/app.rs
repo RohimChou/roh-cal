@@ -391,6 +391,9 @@ pub struct App {
     /// Text being dragged over with the mouse in the popup (`App::day_selection`); `None` = none. A key, the
     /// next click, or reading the task file again clears it
     pub day_drag: Option<TextDrag>,
+    /// Path text being dragged over with the mouse on the help page (`App::help_selection`); `None` = none. A
+    /// key or the next click clears it
+    pub help_drag: Option<TextDrag>,
     /// The side menu's right border being dragged with the mouse; `None` = not dragging
     side_drag: Option<SideDrag>,
     /// What the last click on a day or an item hit and when, to tell a double click
@@ -451,8 +454,8 @@ pub struct App {
     /// `true` = open the task file in the user's editor after this key (`o` on the tasks page); the main loop
     /// does it, since only it has the terminal
     open_editor: bool,
-    /// Text to put on the clipboard after this event (letting go of a drag in the day popup); the main loop
-    /// does it (`App::copy_out`)
+    /// Text to put on the clipboard after this event (letting go of a drag in the day popup or on the help
+    /// page); the main loop does it (`App::copy_out`)
     to_copy: Option<String>,
     /// The note at the bottom right and when it went up (`Toast`); `None` = none
     pub toast: Option<(Toast, Instant)>,
@@ -483,6 +486,7 @@ impl App {
             day_index: 0,
             day_top: 0,
             day_drag: None,
+            help_drag: None,
             side_drag: None,
             last_click: None,
             calendar_top: None,
@@ -838,7 +842,7 @@ impl App {
             } else if let Some(mouse) = event.as_mouse_event() {
                 self.handle_mouse(mouse);
             }
-            // Let go of a drag in the day popup: its text goes to the clipboard
+            // Let go of a drag in the day popup or on the help page: its text goes to the clipboard
             self.copy_out(clipboard::copy, Instant::now());
             // `o` on the tasks page: the editor has the terminal until it quits
             if std::mem::take(&mut self.open_editor) {
@@ -862,9 +866,11 @@ impl App {
             self.mode = Mode::Normal;
             return;
         }
-        // The last notice has been seen: any key clears it; so is text dragged over in the popup
+        // The last notice has been seen: any key clears it; so is text dragged over in the popup or on the
+        // help page
         self.notice = None;
         self.day_drag = None;
+        self.help_drag = None;
         // A `g` waits for the very next key only (`gg`)
         let after_g = std::mem::take(&mut self.pending_g);
         match self.mode {
@@ -1279,7 +1285,7 @@ impl App {
             self.pending_g = false;
         }
         match self.mode {
-            // Help page: the wheel scrolls it, a click outside closes it
+            // Help page: the wheel scrolls it, dragging over a path copies it, a click outside closes it
             Mode::Help(_) => self.handle_help_mouse(mouse),
             // Settings page: the wheel chooses rows, clicks on rows, a click outside closes it
             Mode::Settings { .. } => self.handle_settings_mouse(mouse),

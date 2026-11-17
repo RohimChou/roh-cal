@@ -17,7 +17,7 @@ mod splash;
 mod tabs;
 mod tasks;
 
-use crate::app::{App, Editor, Focus, Mode, TextSpot, View};
+use crate::app::{App, Editor, Focus, Help, Mode, TextSpot, View};
 use crate::tasks::{Item, Kind};
 use crate::theme::Theme;
 use jiff::civil::Date;
@@ -86,6 +86,11 @@ pub fn confirm_click(app: &App, column: u16, row: u16) -> Option<bool> {
 /// Where the help page box is on screen (so a mouse click outside it can close it)
 pub fn help_area(app: &App, full: bool) -> Rect {
     help::area(app, app.screen, full)
+}
+
+/// Which file path character on the help page (`help`) is at (`column`, `row`) (see `help::text_at`)
+pub fn help_text_at(app: &App, help: Help, column: u16, row: u16, clamp: bool) -> Option<TextSpot> {
+    help::text_at(app, app.screen, help, column, row, clamp)
 }
 
 /// How many lines the help page can scroll down at most (based on the terminal's current size)

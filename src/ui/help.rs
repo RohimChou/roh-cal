@@ -3,18 +3,18 @@
 //! page, the tasks page's keys); `Tab` switches to the full version: every key, the sections that do not work
 //! where the keyboard is grayed out
 //!
-//! On top, both versions say where the task file and config file are. Keys are listed below in left and
-//! right columns. When the screen is too narrow for two columns, they stack into one column, top to bottom.
+//! On top, both versions say where the task file and config file are; their paths can be dragged over with
+//! the mouse and copied (`App::help_drag`). Keys are listed below in left and right columns. When the screen is too narrow for two columns, they stack into one column, top to bottom.
 //! When it is too short, the page scrolls, with a scrollbar on the right border. The content lives in
 //! `Texts::help`
 
-use crate::app::{App, Focus, Help};
+use crate::app::{App, Focus, Help, TextSpot};
 use crate::paths;
 use crate::texts::HelpSection;
 use crate::theme::Theme;
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::{Constraint, Position, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, Padding, Paragraph},
@@ -32,11 +32,24 @@ const SHORT_RIGHT_MARGIN: usize = GAP + 2;
 /// Between border and content: 1 blank line at top and bottom (the section-name indent spaces the left side)
 const PADDING: Padding = Padding::vertical(1);
 
+/// One file path character on the help page (for dragging over text): which content line it is on, where
+/// it starts (cells from the left of the content), how many cells wide it is, and which character of which
+/// file's path it is (`App::help_files`)
+#[derive(Debug, Clone, Copy)]
+struct PathCell {
+    line: usize,
+    x: usize,
+    width: usize,
+    spot: TextSpot,
+}
+
 /// Draws the help page: just big enough for its content, in the middle of the screen. When the terminal is
-/// too short to fit it, drawing starts `help.scroll` lines down and a scrollbar is drawn on the right border
+/// too short to fit it, drawing starts `help.scroll` lines down and a scrollbar is drawn on the right border.
+/// Path characters dragged over with the mouse (`App::help_selection`) get the `text_selection` background,
+/// as in the day popup
 pub fn render(frame: &mut Frame, app: &App, help: Help) {
     let theme = &app.theme;
-    let (lines, area) = layout(app, frame.area(), help.full);
+    let (lines, area, cells) = layout(app, frame.area(), help.full);
     // Overscrolled (e.g. scrolled to the bottom, then the terminal got taller): stop at the last page
     let max = overflow(lines.len(), area);
     let scroll = help.scroll.min(max);
@@ -51,6 +64,25 @@ pub fn render(frame: &mut Frame, app: &App, help: Help) {
     super::clear_wide_left_of(frame.buffer_mut(), area);
     frame.render_widget(Clear, area);
     frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
+    if let Some((first, last)) = app.help_selection() {
+        let inner = inner(area);
+        let to_u16 = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
+        for cell in cells
+            .iter()
+            .filter(|cell| (first..=last).contains(&cell.spot))
+        {
+            // Scrolled out of the box: not drawn
+            let Some(offset) = cell.line.checked_sub(usize::from(scroll)) else {
+                continue;
+            };
+            let y = inner.y.saturating_add(to_u16(offset));
+            let x = inner.x.saturating_add(to_u16(cell.x));
+            let area = Rect::new(x, y, to_u16(cell.width), 1).intersection(inner);
+            frame
+                .buffer_mut()
+                .set_style(area, Style::new().fg(theme.text).bg(theme.text_selection));
+        }
+    }
     if max > 0 {
         super::render_scrollbar(frame, area, scroll, max, visible_rows(area), theme);
     }
@@ -63,8 +95,53 @@ pub fn area(app: &App, screen: Rect, full: bool) -> Rect {
 
 /// How many lines the help page can scroll down at most (based on the size of `screen`); 0 when it fits
 pub fn max_scroll(app: &App, screen: Rect, full: bool) -> u16 {
-    let (lines, area) = layout(app, screen, full);
+    let (lines, area, _) = layout(app, screen, full);
     overflow(lines.len(), area)
+}
+
+/// Which file path character is at (`column`, `row`) on the help page (`help`, on `screen`), as a
+/// `TextSpot`: the one under it; left or right of the path on that line (e.g. on its label, past the end),
+/// that line's first or last one. `None` on a line with no path, the border, or outside the box; with
+/// `clamp`, a spot outside the content counts as the nearest cell inside it (dragging past the box's edge)
+pub fn text_at(
+    app: &App,
+    screen: Rect,
+    help: Help,
+    column: u16,
+    row: u16,
+    clamp: bool,
+) -> Option<TextSpot> {
+    let (lines, area, cells) = layout(app, screen, help.full);
+    let inner = inner(area);
+    if inner.is_empty() {
+        return None;
+    }
+    let (column, row) = if clamp {
+        (
+            column.clamp(inner.x, inner.right() - 1),
+            row.clamp(inner.y, inner.bottom() - 1),
+        )
+    } else {
+        (column, row)
+    };
+    if !inner.contains(Position::new(column, row)) {
+        return None;
+    }
+    // Same as drawing: an overscrolled page stops at its last page
+    let scroll = help.scroll.min(overflow(lines.len(), area));
+    let line = usize::from(row - inner.y + scroll);
+    let on_line: Vec<&PathCell> = cells.iter().filter(|cell| cell.line == line).collect();
+    let x = usize::from(column - inner.x);
+    on_line
+        .iter()
+        .find(|cell| x < cell.x + cell.width)
+        .or(on_line.last())
+        .map(|cell| cell.spot)
+}
+
+/// The box's content area: inside the border and the padding
+fn inner(area: Rect) -> Rect {
+    Block::bordered().padding(PADDING).inner(area)
 }
 
 /// How many content lines fit in the box: minus the top and bottom border and padding
@@ -93,8 +170,9 @@ fn sections(app: &App, full: bool) -> (Vec<HelpSection>, Vec<HelpSection>) {
         .partition(|section| !section.places.is_empty())
 }
 
-/// The help page's content (line by line) and where the box goes (shared by `render`, `area`, `max_scroll`)
-fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
+/// The help page's content (line by line), where the box goes, and where the file paths' characters are
+/// (shared by `render`, `area`, `max_scroll`, `text_at`)
+fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect, Vec<PathCell>) {
     let (left, right) = sections(app, full);
     // The full version grays out the sections that do not work where the keyboard is
     let here = full.then_some(app.focus);
@@ -109,7 +187,7 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
         .max(title.width())
         .max(hint.width());
     let room = usize::from(screen.width).saturating_sub(right_margin + 2);
-    let mut lines = files(
+    let (mut lines, cells) = files(
         app,
         key_width,
         keys_inside.saturating_sub(right_margin),
@@ -126,7 +204,7 @@ fn layout(app: &App, screen: Rect, full: bool) -> (Vec<Line<'static>>, Rect) {
         Constraint::Length(box_width.min(screen.width)),
         Constraint::Length(box_height.min(screen.height)),
     );
-    (lines, area)
+    (lines, area, cells)
 }
 
 /// Text on the top and bottom border: top is `roh-cal ∙ 按鍵 ∙ 任務頁` in the short version (where the
@@ -171,19 +249,19 @@ fn key_width(left: &[HelpSection], right: &[HelpSection]) -> usize {
 /// wide as the key column below (`key_width`), or wider if a label needs it. A path longer than `width`
 /// cells (the keys' width) wraps under its first line, after a `/` (`wrap_path`); the lines get wider only
 /// when one part between two `/` needs it, up to `room` cells (the screen width inside the box). Ends with a
-/// blank line; empty when there is no path at all (tests)
-fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'static>> {
+/// blank line; empty when there is no path at all (tests). Also returns where each path character is (the
+/// note is not part of the path)
+fn files(
+    app: &App,
+    key_width: usize,
+    width: usize,
+    room: usize,
+) -> (Vec<Line<'static>>, Vec<PathCell>) {
     let theme = &app.theme;
     let help = app.lang.texts().help;
-    let files: Vec<_> = [
-        (help.task_file, &app.tasks_path),
-        (help.config_file, &app.config_path),
-    ]
-    .into_iter()
-    .filter_map(|(label, path)| Some((label, path.as_deref()?)))
-    .collect();
+    let files = app.help_files();
     if files.is_empty() {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     let label_width = files
         .iter()
@@ -195,9 +273,10 @@ fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'st
         Style::new().fg(theme.help_section).add_modifier(bold),
     );
     let mut lines = vec![Line::from(title)];
+    let mut cells = Vec::new();
     // Same indent as the keys below (4); the path's next lines start under its first character
     let indent = 4 + label_width;
-    for (label, path) in files {
+    for (file, (label, path)) in files.into_iter().enumerate() {
         let (path, exists) = paths::shown(path);
         let note = if exists { "" } else { help.not_created };
         // The note stays with the file name: wrapped as one text, styled apart below
@@ -212,8 +291,9 @@ fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'st
             .max(longest)
             .min(room.saturating_sub(indent));
         let padding = " ".repeat(label_width - Span::raw(label).width());
-        // Where the path ends in `text` (the note is after it)
+        // Where this line starts in `text` (bytes; the note is after the path), and which path character
         let mut start = 0;
+        let mut char = 0;
         for (index, row) in wrap_path(&text, path_width).into_iter().enumerate() {
             let head = if index == 0 {
                 Span::styled(
@@ -226,6 +306,19 @@ fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'st
             let end = start + row.len();
             let split = path.len().clamp(start, end) - start;
             let (own, after) = row.split_at(split);
+            // Where each path character on this line is: one after another from the indent
+            let mut x = indent;
+            for character in own.chars() {
+                let width = Span::raw(character.to_string()).width();
+                cells.push(PathCell {
+                    line: lines.len(),
+                    x,
+                    width,
+                    spot: TextSpot { item: file, char },
+                });
+                x += width;
+                char += 1;
+            }
             lines.push(Line::from(vec![
                 head,
                 Span::styled(own.to_string(), Style::new().fg(theme.text)),
@@ -235,7 +328,7 @@ fn files(app: &App, key_width: usize, width: usize, room: usize) -> Vec<Line<'st
         }
     }
     lines.push(Line::default());
-    lines
+    (lines, cells)
 }
 
 /// `text` (a path) in lines of at most `width` cells, broken right after a `/` (e.g.

@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::Mode;
+use crate::app::{Mode, TextDrag};
 use crate::texts::Lang;
 use jiff::civil::date;
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
@@ -297,6 +297,53 @@ fn a_part_of_a_path_wider_than_the_keys_widens_the_box_just_enough() {
 }
 
 #[test]
+fn dragged_over_path_characters_get_the_text_selection_background() {
+    // Same box as `files_are_listed_on_top_of_the_keys`: the task file's path starts at column 21 on row 4
+    // and wraps after `roh-cal/`; dragged from its 「r」 (character 13) to 「k」 of tasks.md (character 24)
+    let dragged = || {
+        let mut app = app_with_files(
+            Some("/nonexistent/roh-cal/tasks.md"),
+            Some("/nonexistent/roh-cal/config.toml"),
+        );
+        app.help_drag = Some(TextDrag {
+            anchor: TextSpot { item: 0, char: 13 },
+            head: Some(TextSpot { item: 0, char: 24 }),
+        });
+        app
+    };
+    let theme = Theme::default();
+    let (_, _, buffer) = draw_app(dragged(), 70, 23, Help::default());
+    let marked = |buffer: &Buffer, x: u16, y: u16| buffer[(x, y)].bg == theme.text_selection;
+    // 「roh-cal/」 on row 4 (columns 34–41) and 「task」 on row 5 (21–24), in the normal text color; the
+    // characters around them are not marked
+    for (y, columns) in [(4, 34..=41), (5, 21..=24)] {
+        for x in columns {
+            assert!(marked(&buffer, x, y), "{x}, {y}");
+            assert_eq!(buffer[(x, y)].fg, theme.text, "{x}, {y}");
+        }
+    }
+    for (x, y) in [(33, 4), (42, 4), (25, 5), (21, 6)] {
+        assert!(!marked(&buffer, x, y), "{x}, {y}");
+    }
+    // 12 rows tall, scrolled 2 lines: the box is at the top (content from row 2), 「tasks.md」 is its first
+    // row; the marked part scrolled out of the box is not drawn on the padding row above
+    let scrolled = Help {
+        full: false,
+        scroll: 2,
+    };
+    let (area, rows, buffer) = draw_app(dragged(), 70, 12, scrolled);
+    assert_eq!(area, Rect::new(7, 0, 56, 12));
+    assert!(rows[2].starts_with("│             tasks.md"), "{rows:?}");
+    for x in 21..=24 {
+        assert!(marked(&buffer, x, 2), "{x}");
+    }
+    assert!(!marked(&buffer, 25, 2));
+    for x in 34..=41 {
+        assert!(!marked(&buffer, x, 1), "{x}");
+    }
+}
+
+#[test]
 fn wrap_path_breaks_after_a_slash_or_anywhere_in_a_part_too_wide() {
     // Lines put together are the path again
     assert_eq!(
@@ -406,7 +453,7 @@ fn full_page_grays_out_the_sections_that_do_not_work_here() {
     let color_of = |focus: Focus, text: &str| {
         let mut app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new());
         app.focus = focus;
-        let (lines, _) = layout(&app, Rect::new(0, 0, 100, 38), true);
+        let (lines, ..) = layout(&app, Rect::new(0, 0, 100, 38), true);
         lines
             .iter()
             .flat_map(|line| line.spans.iter())
@@ -434,7 +481,7 @@ fn full_page_grays_out_the_sections_that_do_not_work_here() {
     );
     // The terminal theme (16 colors) grays out with the terminal's faint text instead
     let app = App::new(Lang::ZhTw, date(2026, 10, 17), Vec::new()).with_theme("terminal");
-    let (lines, _) = layout(&app, Rect::new(0, 0, 100, 38), true);
+    let (lines, ..) = layout(&app, Rect::new(0, 0, 100, 38), true);
     let style = lines
         .iter()
         .flat_map(|line| line.spans.iter())
