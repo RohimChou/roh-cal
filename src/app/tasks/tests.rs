@@ -206,6 +206,15 @@ fn past_events_are_not_listed() {
 }
 
 #[test]
+fn todays_event_leaves_once_midnight_passes() {
+    // Lunch is today's (10/17); past midnight it is yesterday's and goes, with roh-cal still open
+    let mut app = tasks_app("- Lunch @2026-10-17\n- [ ] Pay rent\n");
+    assert_eq!(shape(&app), ["#", "Lunch", "Pay rent"]);
+    app.update_today(date(2026, 10, 18));
+    assert_eq!(shape(&app), ["#", "Pay rent"]);
+}
+
+#[test]
 fn calendars_inside_calendars_list_their_outer_calendars_first() {
     // P has no items of its own: it still gets a heading row, right above Q's; back in P later, P again
     let app = tasks_app("# A\n- a1\n# P\n## Q\n- q1\n# P\n- p1\n");

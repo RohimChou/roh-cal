@@ -28,7 +28,7 @@ use crate::{
 };
 use color_eyre::Result;
 use jiff::{
-    ToSpan,
+    ToSpan, Zoned,
     civil::{Date, Weekday},
 };
 use ratatui::{
@@ -341,7 +341,8 @@ pub enum Mode {
 pub struct App {
     /// Screen language
     pub lang: Lang,
-    /// Today (the day the app was opened; tests can set any day)
+    /// Today: the system date, checked every round of the main loop, so it moves on at midnight while the
+    /// app is open (tests can set any day)
     pub today: Date,
     /// The selected day: the one in brackets `[17]` on the calendar
     pub selected: Date,
@@ -801,10 +802,12 @@ impl App {
         }
     }
 
-    /// Main loop: each round checks the task file, draws the screen once and waits for one input (at most
-    /// `REFRESH_EVERY`), until quit
+    /// Main loop: each round checks the date and the task file, draws the screen once and waits for one input
+    /// (at most `REFRESH_EVERY`), until quit
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.should_quit {
+            // Past midnight: today moves on
+            self.update_today(Zoned::now().date());
             // Changes made to the task file elsewhere (e.g. saved in Obsidian) show up in every view
             self.refresh_tasks();
             // Record the terminal size first (it changes when the window is resized),
@@ -841,6 +844,12 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Today becomes `now`: past midnight, the today mark, `t`, items turning gray as past and past events
+    /// leaving the tasks page all follow the new date; the selected day stays where it is
+    pub(crate) fn update_today(&mut self, now: Date) {
+        self.today = now;
     }
 
     /// Keys: the open popup or action in progress (`mode`) gets them first; otherwise see `handle_normal_key`

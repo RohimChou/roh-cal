@@ -55,6 +55,7 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 ## 一輪怎麼跑
 ```text
 App::run 的迴圈
+ ├─ App::update_today    今天 = 系統日期（開著過了半夜就換日；選到的那天不動）
  ├─ App::refresh_tasks   任務檔在別處改過（修改時間變了、內容跟畫面的不一樣）就重新載入，每個版型都跟著變
  ├─ 記下 terminal 大小（app.screen）
  ├─ ui::render

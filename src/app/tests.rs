@@ -272,6 +272,18 @@ fn t_goes_back_to_today() {
 }
 
 #[test]
+fn past_midnight_today_moves_on_but_the_selected_day_stays() {
+    // Opened on 10/17 with 10/17 selected; midnight passes: today is 10/18, the selection stays on 10/17
+    let mut app = App::new(Lang::En, date(2026, 10, 17), Vec::new());
+    app.update_today(date(2026, 10, 18));
+    assert_eq!(app.today, date(2026, 10, 18));
+    assert_eq!(app.selected, date(2026, 10, 17));
+    // `t` goes to the new today
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(app.selected, date(2026, 10, 18));
+}
+
+#[test]
 fn groups_keep_file_order() {
     // Items before any heading are `None`; headings with the same name are one group; `##` is a group
     // too; a heading with no items under it yet is a calendar too (e.g. one just added)
