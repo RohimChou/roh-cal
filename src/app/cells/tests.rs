@@ -151,6 +151,7 @@ fn the_keys_on_an_item_work_on_the_chosen_one() {
 fn deleting_or_moving_the_chosen_item_keeps_a_choice() {
     let (mut app, path) = app_with_task_file("cells_delete", DAYS);
     app.view = View::Week;
+    app.screen = Rect::new(0, 0, 80, 25);
     app.focus = Focus::Calendar;
     app.selected = date(2026, 10, 17);
     press(&mut app, KeyCode::Tab);
@@ -250,6 +251,7 @@ fn the_month_grid_chooses_in_the_order_its_cell_shows() {
         date(2026, 10, 17),
         crate::tasks::parse(text).items,
     );
+    app.screen = Rect::new(0, 0, 80, 31);
     app.view = View::Week;
     press(&mut app, KeyCode::Tab);
     assert_eq!(chosen(&app), (date(2026, 10, 17), Some("Coffee".into())));
@@ -404,4 +406,36 @@ fn the_same_item_stays_chosen_across_layouts_that_order_it_differently() {
             (date(2026, 10, 17), Some("B".into()))
         )
     );
+}
+
+#[test]
+fn tab_goes_in_only_where_the_cells_list_items() {
+    // Month grid 80 × 17: 1 line a week, only dots after the dates: Tab does not go in; 80 × 31 it does
+    let mut app = week_app(date(2026, 10, 17));
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 17);
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Calendar);
+    app.screen = Rect::new(0, 0, 80, 31);
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Cell);
+    // Week view 80 × 9: the boxes have no line inside
+    let mut app = week_app(date(2026, 10, 17));
+    app.screen = Rect::new(0, 0, 80, 9);
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Calendar);
+    // The month grid scrolled away with the wheel (the selected day off screen): Tab brings it back
+    let mut app = week_app(date(2026, 10, 17));
+    app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 31);
+    for _ in 0..3 {
+        app.handle_mouse(crate::test_utils::mouse_event(
+            MouseEventKind::ScrollDown,
+            10,
+            10,
+        ));
+    }
+    assert_eq!(app.month_free, Some(date(2026, 10, 17)));
+    press(&mut app, KeyCode::Tab);
+    assert_eq!((app.focus, app.month_free), (Focus::Cell, None));
 }

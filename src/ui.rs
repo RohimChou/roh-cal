@@ -287,6 +287,17 @@ pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {
     }
 }
 
+/// Whether the calendar's cells / boxes are tall enough to list items (`Tab` goes in only then): the month
+/// grid's cells more than 1 line (1 line = dots only), the week view's boxes at least 1 line inside
+pub fn cells_show_items(app: &App) -> bool {
+    let main = areas(app.screen, app).main;
+    match app.view {
+        View::Month => month::shows_items(main, app),
+        View::Week => week::shows_items(main),
+        View::Planner | View::Tasks => false,
+    }
+}
+
 /// Where each part of the screen is
 struct Areas {
     /// Top row: the tab bar (the views `1` `2` `3` `4` switch to); height 0 when it is off (`tab_bar = false`)

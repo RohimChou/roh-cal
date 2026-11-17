@@ -448,6 +448,19 @@ fn layout_row<'a>(days: &[Date], app: &'a App) -> (Vec<Bar<'a>>, Vec<Vec<Slot<'a
     (bars, slots)
 }
 
+/// Whether the month grid on `area` lists items in its cells (more than 1 line each; 1 line = dots only)
+pub fn shows_items(area: Rect, app: &App) -> bool {
+    let top = app
+        .month_top
+        .unwrap_or_else(|| month_top(app.selected, app.first_day_of_week()));
+    let grid = Grid::new(
+        Block::bordered().inner(area),
+        app.settings.month.grid_lines,
+        top,
+    );
+    !grid.too_small() && grid.week_height > 1
+}
+
 /// `day`'s items in the order its cell lists them (`App::cell_index` counts in it): each line under the date
 /// from the top, multi-day bars on their lines (`layout_row`), free lines skipped
 pub fn cell_items(app: &App, day: Date) -> Vec<&Item> {

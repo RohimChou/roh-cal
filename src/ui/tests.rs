@@ -5413,6 +5413,7 @@ fn week_view_items_scroll_in_their_box_while_chosen() {
     use ratatui::crossterm::event::KeyCode;
     let mut app = week_app(Lang::ZhTw, date(2026, 10, 16), MONTH_TASKS);
     app.week_top = Some(date(2026, 10, 12));
+    app.screen = Rect::new(0, 0, 80, 21);
     press(&mut app, KeyCode::Tab);
     for _ in 0..3 {
         press(&mut app, KeyCode::Char('j'));

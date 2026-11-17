@@ -1578,6 +1578,7 @@ fn tab_goes_into_the_selected_days_items_in_the_month_view() {
     }
     let mut app = app_with(ITEMS);
     app.view = View::Month;
+    app.screen = Rect::new(0, 0, 80, 31);
     press(&mut app, KeyCode::Tab);
     assert_eq!(app.focus, Focus::Cell);
     press(&mut app, KeyCode::Tab);

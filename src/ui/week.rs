@@ -115,6 +115,11 @@ fn boxes(area: Rect) -> Vec<Rect> {
         .collect()
 }
 
+/// Whether every day's box on `area` has at least 1 line inside for items
+pub fn shows_items(area: Rect) -> bool {
+    boxes(area).iter().take(7).all(|area| area.height > 2)
+}
+
 /// Draws the week view on `area`: first slides the 7 days so the selected day is among them (kept in
 /// `app.week_top`) and, while a box's items have the keyboard, scrolls that box to the chosen item (kept in
 /// `app.cell_top`); then draws each day's box and the small calendar

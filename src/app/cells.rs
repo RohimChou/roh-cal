@@ -40,8 +40,14 @@ impl App {
 
     /// `Tab` from the calendar (week view, month grid): the keyboard goes to the selected day's first item;
     /// a day with none: the first item of the nearest later day that has one, else the last item of the
-    /// nearest earlier one (the selected day follows); with no items at all it does not move
+    /// nearest earlier one (the selected day follows); with no items at all, or cells too short to list
+    /// items (`ui::cells_show_items`), it does not move. The month grid scrolled away with the wheel comes
+    /// back to the selected day
     pub(super) fn enter_cells(&mut self) {
+        if !ui::cells_show_items(self) {
+            return;
+        }
+        self.month_free = None;
         if !self.cell_items().is_empty() {
             self.choose_cell(0);
         } else if let Some(day) = self.day_with_items(self.selected, 1) {
