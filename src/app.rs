@@ -396,6 +396,9 @@ pub struct App {
     /// Which of the selected day's items is chosen in its box (index in `cell_items()`); used only when the
     /// keyboard is there (`Focus::Cell`)
     pub cell_index: usize,
+    /// The chosen item's file line (kept with `cell_index`): the month grid and the week view order a day's
+    /// items differently, so switching between them finds the item by it (`keep_cell_line`)
+    cell_line: Option<usize>,
     /// The week view's scroll inside the selected day's box while its items have the keyboard: (that day,
     /// the first item shown); `ui::week::render` keeps the chosen item in view
     pub cell_top: Option<(Date, usize)>,
@@ -502,6 +505,7 @@ impl App {
             agenda_index: 0,
             day_index: 0,
             cell_index: 0,
+            cell_line: None,
             cell_top: None,
             day_top: 0,
             day_drag: None,
@@ -818,7 +822,7 @@ impl App {
             }
             (Focus::Cell, View::Month | View::Week) => {
                 self.focus = Focus::Cell;
-                self.keep_cell_choice();
+                self.keep_cell_line();
             }
             _ => {}
         }
@@ -1590,7 +1594,7 @@ impl App {
         match self.focus {
             // The day may have fewer items now (e.g. checked off on the tasks page with done ones hidden)
             Focus::Day => self.keep_day_choice(),
-            Focus::Cell => self.keep_cell_choice(),
+            Focus::Cell => self.keep_cell_line(),
             // The chosen item may be gone or moved to another day (e.g. edited on the tasks page): back to
             // the calendar
             Focus::Agenda => {

@@ -362,3 +362,46 @@ fn rescheduling_picks_a_day_by_any_click_in_its_cell() {
     assert_eq!(app.selected, date(2026, 10, 17));
     assert!(matches!(app.mode, Mode::Moving(_)));
 }
+
+#[test]
+fn the_same_item_stays_chosen_across_layouts_that_order_it_differently() {
+    // 10/17: X in progress that day, and a trip B over 10/16 to 10/18. The week view lists X first (in
+    // progress first), the month grid B first (its bar's line)
+    let text = "- [/] X @2026-10-17\n- B @2026-10-16..2026-10-18\n";
+    let mut app = App::new(
+        Lang::En,
+        date(2026, 10, 17),
+        crate::tasks::parse(text).items,
+    );
+    app.screen = Rect::new(0, 0, 80, 31);
+    app.view = View::Month;
+    // Month grid: B, then X chosen; the week view, from the calendar: X (its first)
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app), (date(2026, 10, 17), Some("X".into())));
+    press(&mut app, KeyCode::Char('4'));
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(chosen(&app), (date(2026, 10, 17), Some("X".into())));
+    // Back to the month grid, left with its items chosen: still X, not its first line B
+    press(&mut app, KeyCode::Char('2'));
+    assert_eq!(
+        (app.focus, chosen(&app)),
+        (Focus::Cell, (date(2026, 10, 17), Some("X".into())))
+    );
+    // In the week view, B chosen (2nd there); the side menu called up, the layout switched to the month
+    // grid under it, and put away: still B
+    press(&mut app, KeyCode::Char('4'));
+    press(&mut app, KeyCode::Char('j'));
+    assert_eq!(chosen(&app), (date(2026, 10, 17), Some("B".into())));
+    press(&mut app, KeyCode::Char('s'));
+    press(&mut app, KeyCode::Char('2'));
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(
+        (app.view, app.focus, chosen(&app)),
+        (
+            View::Month,
+            Focus::Cell,
+            (date(2026, 10, 17), Some("B".into()))
+        )
+    );
+}

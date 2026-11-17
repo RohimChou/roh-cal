@@ -55,8 +55,28 @@ impl App {
 
     /// Chooses item `index` of the selected day's cell; the keyboard goes there
     fn choose_cell(&mut self, index: usize) {
-        self.cell_index = index;
+        self.set_cell_index(index);
         self.focus = Focus::Cell;
+    }
+
+    /// Item `index` of the selected day's cell becomes the chosen one; its file line is remembered too
+    /// (`cell_line`), since the month grid and the week view order a day's items differently
+    fn set_cell_index(&mut self, index: usize) {
+        self.cell_index = index;
+        self.cell_line = self.cell_items().get(index).map(|item| item.line);
+    }
+
+    /// The layout changed under the chosen item (another layout, or the side menu put away after switching
+    /// under it): the same item (by its file line) in this layout's order; no longer on the day: as
+    /// `keep_cell_choice`
+    pub(super) fn keep_cell_line(&mut self) {
+        let index = self
+            .cell_line
+            .and_then(|line| self.cell_items().iter().position(|item| item.line == line));
+        match index {
+            Some(index) => self.set_cell_index(index),
+            None => self.keep_cell_choice(),
+        }
     }
 
     /// Keyboard on a cell's items: `j` / `k` the next / previous item (past the day's last one, the first item
@@ -113,7 +133,7 @@ impl App {
     /// same position (see `keep_cell_choice`)
     pub(super) fn choose_cell_line(&mut self, line: usize) {
         if let Some(index) = self.cell_items().iter().position(|item| item.line == line) {
-            self.cell_index = index;
+            self.set_cell_index(index);
             return;
         }
         let day = self
@@ -124,7 +144,7 @@ impl App {
         if let Some(day) = day {
             self.selected = day;
             if let Some(index) = self.cell_items().iter().position(|item| item.line == line) {
-                self.cell_index = index;
+                self.set_cell_index(index);
                 return;
             }
         }
@@ -135,7 +155,7 @@ impl App {
     /// past the end moves to the last item; with none left the keyboard goes back to the calendar
     pub(super) fn keep_cell_choice(&mut self) {
         match self.cell_items().len().checked_sub(1) {
-            Some(last) => self.cell_index = self.cell_index.min(last),
+            Some(last) => self.set_cell_index(self.cell_index.min(last)),
             None => self.focus = Focus::Calendar,
         }
     }
