@@ -822,7 +822,8 @@ def week_screen(lang, w, h, first, selected, items, groups):
             put(x + 1, y + 1 + r + above, cut(line, iw - 1))
         if below:
             rest = n - top - len(listed)
-            more = t["day_below"](rest) if keyboard else t["day_more"](rest)
+            # While items have the keyboard (CHOSEN), Enter edits: every box says how many are below instead
+            more = t["day_below"](rest) if CHOSEN is not None else t["day_more"](rest)
             put(x + 1, y + ih, rjust(cut(more, iw - 1), iw - 1))
     # The 8th box: a small calendar like layout 1's, laid out at 40 cells and cut to the box: the header
     # (the first day's year), then the weeks one after another from the week of `first`, a month's name on

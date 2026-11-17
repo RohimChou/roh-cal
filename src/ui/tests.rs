@@ -5600,3 +5600,36 @@ fn month_view_items_can_be_chosen_in_their_cell() {
     assert_eq!(buffer[(31, bar_y)].bg, theme.selection);
     assert_eq!(buffer[(20, bar_y)].bg, theme.range);
 }
+
+#[test]
+fn while_items_are_chosen_no_box_says_enter_shows_all() {
+    // 80 × 17 (2 lines in a box), from 10/12: 10/12's item chosen. 10/16 cannot show its 4 items: its last
+    // line says how many more are below, not 「Enter shows all」 (Enter edits the chosen item here)
+    use crate::test_utils::press;
+    use ratatui::crossterm::event::KeyCode;
+    let mut app = week_app(Lang::En, date(2026, 10, 12), MONTH_TASKS);
+    app.screen = Rect::new(0, 0, 80, 17);
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(
+        text_rows(draw_app(&mut app, 80, 17).backend().buffer()),
+        [
+            "   1 calendar   2 month   3 tasks ┃ 4 week",
+            "╭─ Mon 10/12 ──────────────────────────╮╭─ Tue 10/13 ──────────────────────────╮",
+            "│ ◌\u{a0}14:00 Code review: Amy's PR        ││ ◌\u{a0}15:00 Confirm alerting with SRE    │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Wed 10/14 ──────────────────────────╮╭─ Thu 10/15 ──────────────────────────╮",
+            "│                                      ││ ✓\u{a0}Fix the login bug                  │",
+            "│                                      ││                                      │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Fri 10/16 ──────────────────────────╮╭─ Sat 10/17 today ────────────────────╮",
+            "│ ◌\u{a0}18:30 🚧 Team happy hour           ││ ∙ Dinner with friends                │",
+            "│                         3 more below ││ ◌\u{a0}08:00 Coffee chat                  │",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            "╭─ Sun 10/18 ──────────────────────────╮╭──────────────────────────────────────╮",
+            "│ ◌\u{a0}07:00 Go hiking                    ││  2026 Wk │ Su  Mo  Tu  We  Th  Fr  Sa│",
+            "╰──────────────────────────────────────╯╰──────────────────────────────────────╯",
+            " hjkl[] move | Tab pane | t today | s calendars | ? help | , settings | q quit",
+        ]
+    );
+}

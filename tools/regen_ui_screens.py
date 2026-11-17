@@ -58,6 +58,7 @@ PLAN = {
     "week_view_has_a_small_calendar_in_the_8th_box": [(["zh", "100", "30", "2026-10-28"], "ranges.md", {"LAYOUT": "4"}), (["en", "100", "30", "2026-10-28"], "ranges.md", {"LAYOUT": "4", "MONDAY": "1", "RELATIVE": "1"})],
     "week_view_items_scroll_in_their_box_while_chosen": [(["zh", "80", "21", "2026-10-16", "2026-10-12"], "month.md", {"LAYOUT": "4", "CHOSEN": "3", "CELL_TOP": "2"}), (["zh", "80", "21", "2026-10-16", "2026-10-12"], "month.md", {"LAYOUT": "4", "CHOSEN": "1", "CELL_TOP": "0"})],
     "month_view_items_can_be_chosen_in_their_cell": [(["zh", "80", "31", "2026-10-16"], "month.md", {"LAYOUT": "2", "CHOSEN": "2"}), (["zh", "80", "31", "2026-10-16"], "month.md", {"LAYOUT": "2", "CHOSEN": "0"})],
+    "while_items_are_chosen_no_box_says_enter_shows_all": [(["en", "80", "17", "2026-10-12", "2026-10-12"], "month.md", {"LAYOUT": "4", "CHOSEN": "0", "CELL_TOP": "0"})],
     "the_week_view_slides_a_day_at_its_edges": [(["en", "80", "17", "2026-10-11", "2026-10-11"], "month.md", {"LAYOUT": "4"}), (["en", "80", "17", "2026-10-18", "2026-10-12"], "month.md", {"LAYOUT": "4"}), (["en", "80", "17", "2026-10-25", "2026-10-19"], "month.md", {"LAYOUT": "4"})],
 }
 

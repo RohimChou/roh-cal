@@ -155,8 +155,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 /// popup's (check box, dates of a multi-day item, time, title) in `App::items_on` order, cut off one cell
 /// before the right border. Items that do not fit: the last line says how many more there are (`window`);
 /// while the box's items have the keyboard, it scrolls to the chosen one, which gets the `selection`
-/// background, and its lines say how many are above / below. The selected day's border is in the `focus`
-/// color (unless the side menu has the keyboard)
+/// background, and its lines say how many are above / below (every box's last line says 「下面還有 N 件」
+/// then, since `Enter` edits the chosen item). The selected day's border is in the `focus` color (unless the
+/// side menu has the keyboard)
 fn render_day(frame: &mut Frame, area: Rect, day: Date, app: &App) {
     let theme = &app.theme;
     let texts = app.lang.texts();
@@ -221,7 +222,8 @@ fn render_day(frame: &mut Frame, area: Rect, day: Date, app: &App) {
     }
     if below {
         let hidden = items.len() - top - shown;
-        let text = if chosen.is_some() {
+        // While items have the keyboard, `Enter` edits the chosen one: no 「Enter 看全部」 then
+        let text = if app.focus == Focus::Cell {
             texts.week_below(hidden)
         } else {
             texts.week_more(hidden)
